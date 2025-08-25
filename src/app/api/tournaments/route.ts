@@ -1,6 +1,4 @@
-// Force Node runtime (Prisma doesn't run on Edge)
 export const runtime = 'nodejs';
-// Avoid any pre-rendering shenanigans
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
@@ -14,7 +12,7 @@ export async function GET() {
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'error';
     console.error('GET /api/tournaments', message);
-    return NextResponse.json({ error: message }, { status: 500 }); // <-- JSON
+    return NextResponse.json({ error: message }, { status: 500 });  // JSON error
   }
 }
 
@@ -29,6 +27,6 @@ export async function POST(req: Request) {
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'error';
     console.error('POST /api/tournaments', message);
-    return NextResponse.json({ error: message }, { status: 500 }); // <-- JSON
+    return NextResponse.json({ error: message }, { status: 500 });  // JSON error
   }
 }

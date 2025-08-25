@@ -14,17 +14,26 @@ export default function Home() {
 
   async function refresh() {
     const r = await fetch('/api/tournaments', { cache: 'no-store' });
+
+    // Ensure we really got JSON
     const ct = r.headers.get('content-type') ?? '';
     if (!ct.includes('application/json')) {
       const text = await r.text();
       throw new Error(`Non-JSON response (${r.status}): ${text.slice(0, 120)}...`);
     }
-    const j = (await r.json()) as Tournament[];
+
+    const j = await r.json();
+
+    // 💡 Guard: API might return { error: "..." } on failures
+    if (!Array.isArray(j)) {
+      throw new Error(`API error (${r.status}): ${JSON.stringify(j).slice(0, 120)}...`);
+    }
+
     setRows(j);
   }
 
   useEffect(() => {
-    void refresh();
+    void refresh().catch(e => setErr(e instanceof Error ? e.message : 'Unknown error'));
   }, []);
 
   async function addTournament(e: React.FormEvent<HTMLFormElement>) {
@@ -37,13 +46,16 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
+
       const ct = r.headers.get('content-type') ?? '';
       if (!ct.includes('application/json')) {
         const text = await r.text();
         throw new Error(`Non-JSON response (${r.status}): ${text.slice(0, 120)}...`);
       }
+
       const j = (await r.json()) as { error?: string };
       if (!r.ok) throw new Error(j?.error ?? `Failed (${r.status})`);
+
       setName('');
       await refresh();
     } catch (e: unknown) {
