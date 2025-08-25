@@ -14,15 +14,20 @@ export default function Home() {
 
   async function refresh() {
     const r = await fetch('/api/tournaments', { cache: 'no-store' });
-    const j = await r.json();
+    const ct = r.headers.get('content-type') ?? '';
+    if (!ct.includes('application/json')) {
+      const text = await r.text();
+      throw new Error(`Non-JSON response (${r.status}): ${text.slice(0, 120)}...`);
+    }
+    const j = (await r.json()) as Tournament[];
     setRows(j);
   }
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, []);
 
-  async function addTournament(e: React.FormEvent) {
+  async function addTournament(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
     setErr(null);
@@ -32,11 +37,18 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Failed');
+      const ct = r.headers.get('content-type') ?? '';
+      if (!ct.includes('application/json')) {
+        const text = await r.text();
+        throw new Error(`Non-JSON response (${r.status}): ${text.slice(0, 120)}...`);
+      }
+      const j = (await r.json()) as { error?: string };
+      if (!r.ok) throw new Error(j?.error ?? `Failed (${r.status})`);
       setName('');
       await refresh();
-    } catch (e: any) {
-      setErr(e.message || 'Error');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      setErr(message);
     } finally {
       setBusy(false);
     }
@@ -57,12 +69,9 @@ export default function Home() {
           className="border px-3 py-2 rounded w-full"
           placeholder="Tournament name"
           value={name}
-          onChange={e => setName(e.target.value)}
+          onChange={(e) => setName(e.target.value)}
         />
-        <button
-          disabled={busy || !name.trim()}
-          className="border px-4 py-2 rounded"
-        >
+        <button disabled={busy || !name.trim()} className="border px-4 py-2 rounded">
           {busy ? 'Saving…' : 'Add'}
         </button>
       </form>
@@ -70,10 +79,12 @@ export default function Home() {
 
       <h2 className="text-lg font-semibold mt-6 mb-2">Tournaments</h2>
       <ul className="space-y-2">
-        {rows.map(t => (
+        {rows.map((t) => (
           <li key={t.id} className="border rounded p-3 flex items-center justify-between">
             <span>{t.name}</span>
-            <span className="text-sm text-gray-500">{new Date(t.createdAt).toLocaleString()}</span>
+            <span className="text-sm text-gray-500">
+              {new Date(t.createdAt).toLocaleString()}
+            </span>
           </li>
         ))}
       </ul>
