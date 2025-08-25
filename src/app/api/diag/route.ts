@@ -8,6 +8,7 @@ export async function GET() {
   const hasDb = !!process.env.DATABASE_URL;
   const hasDirect = !!process.env.DIRECT_URL;
   const node = process.versions.node;
+
   try {
     const prisma = getPrisma();
     await prisma.$queryRaw`select 1`;
