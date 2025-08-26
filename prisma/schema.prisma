@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
@@ -14,8 +8,152 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MatchSlot {
+  MENS_DOUBLES
+  WOMENS_DOUBLES
+  MIXED_1
+  MIXED_2
+  TIEBREAKER
+}
+
 model Tournament {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
+
+  teams Team[]
+  stops Stop[]
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  gender    Gender
+  createdAt DateTime @default(now())
+
+  teamLinks         TeamPlayer[]
+  lineupEntriesAsP1 LineupEntry[] @relation("LineupPlayer1")
+  lineupEntriesAsP2 LineupEntry[] @relation("LineupPlayer2")
+}
+
+model Team {
+  id           String     @id @default(cuid())
+  name         String
+  createdAt    DateTime   @default(now())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  playerLinks TeamPlayer[]
+  stopLinks   StopTeam[]
+  gamesA      Game[]       @relation("GameTeamA")
+  gamesB      Game[]       @relation("GameTeamB")
+  Lineup      Lineup[]
+}
+
+model TeamPlayer {
+  teamId    String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, playerId])
+}
+
+model Stop {
+  id           String     @id @default(cuid())
+  name         String
+  createdAt    DateTime   @default(now())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  rounds Round[]
+  teams  StopTeam[]
+}
+
+model StopTeam {
+  stopId    String
+  teamId    String
+  createdAt DateTime @default(now())
+
+  stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([stopId, teamId])
+}
+
+model Round {
+  id        String   @id @default(cuid())
+  stopId    String
+  idx       Int // 1-based round index within a Stop
+  createdAt DateTime @default(now())
+
+  stop   Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  games  Game[]
+  Lineup Lineup[]
+
+  @@unique([stopId, idx])
+}
+
+model Game {
+  id        String   @id @default(cuid())
+  roundId   String
+  teamAId   String?
+  teamBId   String?
+  isBye     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  round   Round   @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  teamA   Team?   @relation("GameTeamA", fields: [teamAId], references: [id])
+  teamB   Team?   @relation("GameTeamB", fields: [teamBId], references: [id])
+  matches Match[]
+
+  @@index([roundId])
+}
+
+model Match {
+  id         String    @id @default(cuid())
+  gameId     String
+  slot       MatchSlot
+  teamAScore Int?
+  teamBScore Int?
+  createdAt  DateTime  @default(now())
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, slot])
+}
+
+model Lineup {
+  id        String   @id @default(cuid())
+  roundId   String
+  teamId    String
+  createdAt DateTime @default(now())
+
+  round   Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  team    Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  entries LineupEntry[]
+
+  @@unique([roundId, teamId])
+}
+
+model LineupEntry {
+  id        String    @id @default(cuid())
+  lineupId  String
+  slot      MatchSlot
+  player1Id String
+  player2Id String
+  createdAt DateTime  @default(now())
+
+  lineup  Lineup @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+  player1 Player @relation("LineupPlayer1", fields: [player1Id], references: [id])
+  player2 Player @relation("LineupPlayer2", fields: [player2Id], references: [id])
+
+  @@unique([lineupId, slot])
 }
