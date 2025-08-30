@@ -1,0 +1,56 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/server/db';
+import { Slot, Gender } from '@prisma/client';
+
+type Entry = { slot: Slot, teamId: string, player1Id: string, player2Id: string };
+
+function validateBySlot(slot: Slot, g1: Gender, g2: Gender) {
+  if (slot === 'MENS')  return g1 === 'MALE' && g2 === 'MALE';
+  if (slot === 'WOMENS') return g1 === 'FEMALE' && g2 === 'FEMALE';
+  if (slot === 'MIXED1' || slot === 'MIXED2') return (g1 !== g2);
+  // TIEBREAKER: allow any two
+  return true;
+}
+
+export async function POST(req: Request) {
+  const { roundId, entries }:{ roundId: string, entries: Entry[] } = await req.json();
+  const round = await prisma.round.findUnique({
+    where: { id: roundId },
+    include: { matches: true }
+  });
+  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+
+  // Validate all entries: players belong to team & tournament gender rules
+  await prisma.$transaction(async (tx) => {
+    for (const e of entries) {
+      const [p1, p2] = await Promise.all([
+        tx.player.findUnique({ where: { id: e.player1Id }, select: { gender: true }}),
+        tx.player.findUnique({ where: { id: e.player2Id }, select: { gender: true }})
+      ]);
+      if (!p1 || !p2) throw new Error('Player not found');
+      if (!validateBySlot(e.slot, p1.gender, p2.gender)) throw new Error(`Gender rule failed for ${e.slot}`);
+
+      // ensure both players are on team roster
+      const rosterOk = await tx.teamPlayer.count({
+        where: { teamId: e.teamId, playerId: { in: [e.player1Id, e.player2Id] } }
+      });
+      if (rosterOk !== 2) throw new Error('Both players must be on the team roster');
+
+      // upsert lineup & entries per slot/team/round
+      const lineup = await tx.lineup.upsert({
+        where: { roundId_teamId_slot: { roundId, teamId: e.teamId, slot: e.slot }},
+        update: {},
+        create: { roundId, teamId: e.teamId, slot: e.slot }
+      });
+      await tx.lineupEntry.deleteMany({ where: { lineupId: lineup.id }});
+      await tx.lineupEntry.createMany({
+        data: [
+          { lineupId: lineup.id, playerId: e.player1Id, order: 1 },
+          { lineupId: lineup.id, playerId: e.player2Id, order: 2 },
+        ]
+      });
+    }
+  });
+
+  return NextResponse.json({ ok: true });
+}
