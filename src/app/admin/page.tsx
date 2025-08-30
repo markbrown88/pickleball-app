@@ -1,3 +1,4 @@
+// src/app/admin/page.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -236,7 +237,7 @@ export default function AdminPage() {
             if (c.clubId === clubId) {
               const level = (cfg.levels || []).find(l => l.id === c.levelId);
               if (level) {
-                captains[level.id] = { id: c.playerId, label: '' }; // label will fill after search if needed
+                captains[level.id] = { id: c.playerId, label: '' }; // will be resolved when user searches or after selection
                 queries[level.id] = '';
                 options[level.id] = [];
               }
@@ -394,6 +395,9 @@ export default function AdminPage() {
     try {
       if (!confirm('Delete this stop?')) return;
       await api(`/api/admin/stops/${stopId}`, { method: 'DELETE' });
+    } catch (e) { setErr((e as Error).message); return; }
+    // refresh lists after delete
+    try {
       const [stops, ts] = await Promise.all([
         api<StopRow[]>(`/api/admin/stops?tournamentId=${tId}`),
         api<TournamentRow[]>('/api/admin/tournaments'),
@@ -401,7 +405,7 @@ export default function AdminPage() {
       setTournaments(prev => prev.map(t => t.id === tId ? { ...t, stops } : t));
       setTournaments(ts);
       setInfo('Stop deleted');
-    } catch (e) { setErr((e as Error).message); }
+    } catch (e) { /* non-fatal */ }
   }
 
   async function quickAddStop(tId: Id, s: { name: string; clubId?: Id; startAt?: string; endAt?: string }) {
@@ -488,7 +492,7 @@ export default function AdminPage() {
     setInfo('Club deleted');
   }
 
-  /* ========== Players add/edit/delete (updated with Sex column) ========== */
+  /* ========== Players add/edit/delete (with Sex column + filter) ========== */
   function openEditPlayer(p?: Player) {
     setPlayerEditOpen(true);
     if (p) {
@@ -989,7 +993,7 @@ function TournamentsBlock(props: {
     setEditorById(prev => {
       const ed = prev[tId]; if (!ed) return prev;
       const id = (globalThis.crypto ?? window.crypto).randomUUID();
-      return { ...prev, [t.id]: { ...ed, levels: [...ed.levels, { id, name: '' }] } };
+      return { ...prev, [tId]: { ...ed, levels: [...ed.levels, { id, name: '' }] } };
     });
   }
   function removeLevel(tId: Id, levelId: string) {
@@ -1002,7 +1006,7 @@ function TournamentsBlock(props: {
         const { [levelId]: ___, ...restOpt } = crow.options;
         return { ...crow, captains: restCapt, queries: restQ, options: restOpt };
       });
-      return { ...prev, [t.id]: { ...ed, levels: nextLevels, clubs: nextClubs } };
+      return { ...prev, [tId]: { ...ed, levels: nextLevels, clubs: nextClubs } };
     });
   }
 
@@ -1015,7 +1019,7 @@ function TournamentsBlock(props: {
       // clear options; they’ll be repopulated by debounce below
       row.options = { ...row.options, [levelId]: [] };
       rows[clubIdx] = row;
-      return { ...prev, [t.id]: { ...ed, clubs: rows } };
+      return { ...prev, [tId]: { ...ed, clubs: rows } };
     });
 
     // debounce AJAX lookup after 300ms
@@ -1046,7 +1050,7 @@ function TournamentsBlock(props: {
       const row = { ...rows[clubIdx] };
       row.options = { ...row.options, [levelId]: filtered };
       rows[clubIdx] = row;
-      return { ...prev, [t.id]: { ...ed2, clubs: rows } };
+      return { ...prev, [tId]: { ...ed2, clubs: rows } };
     });
   }
 
@@ -1059,7 +1063,7 @@ function TournamentsBlock(props: {
       row.queries = { ...row.queries, [levelId]: '' }; // clear input once chosen
       row.options = { ...row.options, [levelId]: [] };
       rows[clubIdx] = row;
-      return { ...prev, [t.id]: { ...ed, clubs: rows } };
+      return { ...prev, [tId]: { ...ed, clubs: rows } };
     });
   }
   function removeCaptain(tId: Id, clubIdx: number, levelId: string) {
@@ -1419,7 +1423,7 @@ function TournamentsBlock(props: {
                                                     className="px-2 py-1"
                                                     aria-label={`Remove ${label.toLowerCase()}`}
                                                     title={`Remove ${label.toLowerCase()}`}
-                                                    onClick={() => removeCaptain(tId, idx, level.id)}
+                                                    onClick={() => removeCaptain(t.id, idx, level.id)}
                                                   >
                                                     <TrashIcon />
                                                   </button>
@@ -1431,7 +1435,7 @@ function TournamentsBlock(props: {
                                                     className="border rounded px-2 py-1 w-full"
                                                     placeholder="Type 3+ chars to search players…"
                                                     value={q}
-                                                    onChange={e => setCaptainQuery(tId, idx, level.id, e.target.value)}
+                                                    onChange={e => setCaptainQuery(t.id, idx, level.id, e.target.value)}
                                                   />
                                                   {!!opts.length && (
                                                     <div className="border rounded mt-1 bg-white max-h-40 overflow-auto">
@@ -1441,7 +1445,7 @@ function TournamentsBlock(props: {
                                                           <button
                                                             key={o.id}
                                                             className="block w-full text-left px-2 py-1 hover:bg-gray-50"
-                                                            onClick={() => chooseCaptain(tId, idx, level.id, o)}
+                                                            onClick={() => chooseCaptain(t.id, idx, level.id, o)}
                                                           >
                                                             {o.label}
                                                           </button>
