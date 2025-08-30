@@ -10,12 +10,11 @@ function computeAge(y?: number | null, m?: number | null, d?: number | null): nu
   try {
     const today = new Date();
     let age = today.getFullYear() - y;
-    const mm = (m as number) - 1;
-    if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < (d as number))) age -= 1;
+    const mm = m - 1;
+    if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < d)) age -= 1;
     return age;
   } catch { return null; }
 }
-
 function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
   if (!input) return { ok: true, formatted: undefined };
   const digits = String(input).replace(/\D/g, '');
@@ -24,12 +23,10 @@ function normalizePhone(input?: string | null): { ok: boolean; formatted?: strin
   if (n.length !== 10) return { ok: false, error: 'Phone must have 10 digits (US/CA)' };
   return { ok: true, formatted: `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}` };
 }
-
 function validEmail(input?: string | null): boolean {
   if (!input) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
 }
-
 function parseBirthdayStr(s?: string | null): { y: number|null, m: number|null, d: number|null } {
   if (!s) return { y: null, m: null, d: null };
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -38,18 +35,16 @@ function parseBirthdayStr(s?: string | null): { y: number|null, m: number|null, 
   if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || da < 1 || da > 31) return { y: null, m: null, d: null };
   return { y, m: mo, d: da };
 }
-
-// Collapse internal whitespace and trim ends
 const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 /** PUT /api/admin/players/:playerId */
 export async function PUT(
   req: Request,
-  ctx: { params: Promise<{ playerId: string }> }
+  ctx: { params: { playerId: string } }
 ) {
   try {
     const prisma = getPrisma();
-    const { playerId } = await ctx.params;
+    const { playerId } = ctx.params;
     if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 });
 
     const body = await req.json();
@@ -63,8 +58,9 @@ export async function PUT(
       return NextResponse.json({ error: 'firstName, lastName, and clubId are required' }, { status: 400 });
     }
 
-    // Parse birthday
+    // Parse birthday from "YYYY-MM-DD" (preferred by your UI)
     let { y, m, d } = parseBirthdayStr(body.birthday);
+    // Legacy compatibility if UI ever sends discrete fields
     if (!y && (body.birthdayYear || body.birthdayMonth || body.birthdayDay)) {
       const by = body.birthdayYear ? Number(body.birthdayYear) : null;
       const bm = body.birthdayMonth ? Number(body.birthdayMonth) : null;
@@ -72,7 +68,7 @@ export async function PUT(
       if (by && bm && bd) { y = by; m = bm; d = bd; }
     }
 
-    // Email + phone validation
+    // Email + phone validation/format
     const email: string | null = body.email ? squeeze(String(body.email)) : null;
     if (!validEmail(email ?? undefined)) return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
 
@@ -80,10 +76,6 @@ export async function PUT(
     const phoneCheck = normalizePhone(phoneRaw);
     if (!phoneCheck.ok) return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
     const phone = phoneCheck.formatted ?? null;
-
-    // Safer DUPR parse
-    const duprNum = Number(body.dupr);
-    const dupr = Number.isFinite(duprNum) ? duprNum : null;
 
     const city     = body.city ? squeeze(String(body.city)) : null;
     const region   = body.region ? squeeze(String(body.region)) : null;
@@ -104,7 +96,7 @@ export async function PUT(
         country,
         phone,
         email,
-        dupr,
+        dupr: (typeof body.dupr === 'number' && Number.isFinite(body.dupr)) ? body.dupr : null,
         birthdayYear: y, birthdayMonth: m, birthdayDay: d,
       },
       include: { club: true },
@@ -120,39 +112,25 @@ export async function PUT(
 /** DELETE /api/admin/players/:playerId */
 export async function DELETE(
   _req: Request,
-  ctx: { params: Promise<{ playerId: string }> }
+  ctx: { params: { playerId: string } }
 ) {
   try {
     const prisma = getPrisma();
-    const { playerId } = await ctx.params;
+    const { playerId } = ctx.params;
     if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 });
 
     // 404 if not found
     const found = await prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
-    if (!found) return new NextResponse(null, { status: 204 }); // already gone / idempotent
+    if (!found) return new NextResponse(null, { status: 204 }); // idempotent
 
     await prisma.$transaction(async (tx) => {
-      // If the player is a captain of any team, drop captainId to NULL
-      await tx.team.updateMany({
-        where: { captainId: playerId },
-        data: { captainId: null },
-      });
-
-      // Remove per-stop roster links
+      await tx.team.updateMany({ where: { captainId: playerId }, data: { captainId: null } });
       await tx.stopTeamPlayer.deleteMany({ where: { playerId } });
-
-      // Remove lineup entries where this player appears
       await tx.lineupEntry.deleteMany({ where: { player1Id: playerId } });
       await tx.lineupEntry.deleteMany({ where: { player2Id: playerId } });
-
-      // Remove tournament admin links and captain invites (in case ON DELETE isn't cascading)
       await tx.tournamentAdmin.deleteMany({ where: { playerId } });
       await tx.captainInvite.deleteMany({ where: { captainId: playerId } });
-
-      // Remove team memberships
       await tx.teamPlayer.deleteMany({ where: { playerId } });
-
-      // Finally, remove the player
       await tx.player.delete({ where: { id: playerId } });
     });
 

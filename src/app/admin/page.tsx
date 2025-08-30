@@ -1,4 +1,3 @@
-// src/app/admin/page.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -16,8 +15,12 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 function fmtDate(d?: string | null) {
   if (!d) return '—';
+  // If it's already YYYY-MM-DD, just show it verbatim (no timezone math)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
   const dt = new Date(d);
-  const y = dt.getFullYear(); const m = String(dt.getMonth() + 1).padStart(2, '0'); const day = String(dt.getDate()).padStart(2, '0');
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 function toDateInput(iso?: string | null) {
@@ -88,11 +91,61 @@ type ParticipantDraft = {
 /** New editor shape (inline panel) */
 type NewLevel = { id: string; name: string };
 type CaptainPick = { id: string; label: string } | null;
+
+// Default hidden level name for single-captain mode (no visible "Levels" in UI)
+const DEFAULT_SINGLE_LEVEL_NAME = 'General';
+
 type ClubWithCaptains = {
   clubId?: string;
+  // per-level mode
   captains: Record<string /*levelId*/, CaptainPick>;
   queries: Record<string /*levelId*/, string>;
   options: Record<string /*levelId*/, Array<{ id: string; label: string }>>;
+  // single-captain (no levels) mode
+  singleCaptain: CaptainPick;
+  singleQuery: string;
+  singleOptions: Array<{ id: string; label: string }>;
+};
+
+function isDefaultSingleLevel(levels: Array<{id: string; name: string}>) {
+  return levels.length === 1 && levels[0].name === DEFAULT_SINGLE_LEVEL_NAME;
+}
+
+/* ================= Players response normalizer ================= */
+function normalizePlayersResponse(v: unknown): PlayersResponse {
+  if (Array.isArray(v)) {
+    return { items: v as Player[], total: (v as Player[]).length };
+  }
+  const obj = (v ?? {}) as any;
+  const items: Player[] = Array.isArray(obj.items) ? obj.items : [];
+  const total: number = typeof obj.total === 'number' ? obj.total : items.length;
+  return { items, total };
+}
+
+/* ================= Tournament type label <-> enum ================= */
+type TournamentTypeLabel =
+  | 'Team Format'
+  | 'Single Elimination'
+  | 'Double Elimination'
+  | 'Round Robin'
+  | 'Pool Play'
+  | 'Ladder Tournament';
+
+const LABEL_TO_TYPE: Record<TournamentTypeLabel, string> = {
+  'Team Format': 'TEAM_FORMAT',
+  'Single Elimination': 'SINGLE_ELIMINATION',
+  'Double Elimination': 'DOUBLE_ELIMINATION',
+  'Round Robin': 'ROUND_ROBIN',
+  'Pool Play': 'POOL_PLAY',
+  'Ladder Tournament': 'LADDER_TOURNAMENT',
+};
+const TYPE_TO_LABEL: Record<string, TournamentTypeLabel> = {
+  TEAM_FORMAT: 'Team Format',
+  SINGLE_ELIMINATION: 'Single Elimination',
+  DOUBLE_ELIMINATION: 'Double Elimination',
+  ROUND_ROBIN: 'Round Robin',
+  POOL_PLAY: 'Pool Play',
+  LADDER_TOURNAMENT: 'Ladder Tournament',
 };
 
 /* ================= Page ================= */
@@ -150,14 +203,6 @@ export default function AdminPage() {
   const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
 
   /* ===== New fields for single editable panel ===== */
-  type TournamentTypeLabel =
-    | 'Team Format'
-    | 'Single Elimination'
-    | 'Double Elimination'
-    | 'Round Robin'
-    | 'Pool Play'
-    | 'Ladder Tournament';
-
   const [editorById, setEditorById] = useState<Record<Id, {
     name: string;
     type: TournamentTypeLabel;
@@ -167,6 +212,8 @@ export default function AdminPage() {
     hasCaptains: boolean;
     levels: NewLevel[];
     stops: NewStop[];
+    // internal: when in single-captain mode, keep the default level id if it exists
+    defaultLevelId?: string;
   }>>({});
 
   /* ========== initial load ========== */
@@ -174,11 +221,12 @@ export default function AdminPage() {
     (async () => {
       try {
         clearMsg();
-        const [ts, cs, ps] = await Promise.all([
+        const [ts, cs, psRaw] = await Promise.all([
           api<TournamentRow[]>('/api/admin/tournaments'),
           api<ClubsResponse>(`/api/admin/clubs?sort=${encodeURIComponent(`${clubSort.col}:${clubSort.dir}`)}`),
-          api<PlayersResponse>(`/api/admin/players?take=25&skip=0&sort=${encodeURIComponent(`${playerSort.col}:${playerSort.dir}`)}${playersClubFilter ? `&clubId=${encodeURIComponent(playersClubFilter)}` : ''}`),
+          api<any>(`/api/admin/players?take=25&skip=0&sort=${encodeURIComponent(`${playerSort.col}:${playerSort.dir}`)}${playersClubFilter ? `&clubId=${encodeURIComponent(playersClubFilter)}` : ''}`),
         ]);
+        const ps = normalizePlayersResponse(psRaw);
         setTournaments(ts);
         setClubsAll(cs);
         setPlayersPage({ items: ps.items, total: ps.total, take: 25, skip: 0, sort: `${playerSort.col}:${playerSort.dir}` });
@@ -189,9 +237,16 @@ export default function AdminPage() {
 
   /* ========== players load/sort/paginate/filter ========== */
   async function loadPlayersPage(take: number, skip: number, sort: string, clubId: string) {
-    const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}`;
-    const resp = await api<PlayersResponse>(query);
-    setPlayersPage({ items: resp.items, total: resp.total, take, skip, sort });
+    try {
+      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}`;
+      const respRaw = await api<any>(query);
+      const resp = normalizePlayersResponse(respRaw);
+      setPlayersPage({ items: resp.items, total: resp.total, take, skip, sort });
+    } catch (e) {
+      // On failure, still ensure UI stays stable
+      setPlayersPage({ items: [], total: 0, take, skip, sort });
+      setErr((e as Error).message);
+    }
   }
   function clickSortPlayers(col: string) {
     const dir = (playerSort.col === col && playerSort.dir === 'asc') ? 'desc' : 'asc';
@@ -221,41 +276,62 @@ export default function AdminPage() {
       const cfg = await api<{
         id: string;
         name: string;
-        type: TournamentTypeLabel;
+        type: string; // backend returns label now
         clubs: string[];
         levels: Array<{ id: string; name: string; idx: number }>;
-        captains: Array<{ clubId: string; levelId: string; playerId: string }>;
+        captains: Array<{ clubId: string; levelId: string; playerId: string; playerName?: string }>;
         stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }>;
       }>(`/api/admin/tournaments/${tId}/config`);
+
+      const levels = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
+      const inSingleCaptainMode = isDefaultSingleLevel(levels);
+
+      const defaultLevelId = inSingleCaptainMode ? levels[0]?.id : undefined;
 
       setEditorById(prev => {
         const clubRows: ClubWithCaptains[] = (cfg.clubs || []).map(clubId => {
           const captains: ClubWithCaptains['captains'] = {};
           const queries: ClubWithCaptains['queries'] = {};
           const options: ClubWithCaptains['options'] = {};
+
+          // per-level picks
           (cfg.captains || []).forEach(c => {
             if (c.clubId === clubId) {
-              const level = (cfg.levels || []).find(l => l.id === c.levelId);
-              if (level) {
-                captains[level.id] = { id: c.playerId, label: '' }; // will be resolved when user searches or after selection
-                queries[level.id] = '';
-                options[level.id] = [];
-              }
+              captains[c.levelId] = { id: c.playerId, label: c.playerName || '' };
+              queries[c.levelId] = '';
+              options[c.levelId] = [];
             }
           });
-          return { clubId, captains, queries, options };
+
+          // single-captain mode -> map captain at the default level into singleCaptain
+          let singleCaptain: CaptainPick = null;
+          if (inSingleCaptainMode && defaultLevelId) {
+            const found = (cfg.captains || []).find(c => c.clubId === clubId && c.levelId === defaultLevelId);
+            if (found) singleCaptain = { id: found.playerId, label: found.playerName || '' };
+          }
+
+          return {
+            clubId,
+            captains,
+            queries,
+            options,
+            singleCaptain,
+            singleQuery: '',
+            singleOptions: [],
+          };
         });
 
         return {
           ...prev,
           [tId]: {
             name: cfg.name,
-            type: cfg.type || 'Team Format',
+            type: (cfg.type as any) || 'Team Format',
+            // interpret single-captain mode as "no levels" for the UI
             hasMultipleStops: !!(cfg.stops && cfg.stops.length > 0),
-            hasLevels: !!(cfg.levels && cfg.levels.length > 0),
+            hasLevels: !inSingleCaptainMode && (cfg.levels || []).length > 0,
             hasCaptains: !!(cfg.captains && cfg.captains.length > 0),
             clubs: clubRows,
-            levels: (cfg.levels || []).map(l => ({ id: l.id, name: l.name })),
+            levels: levels,
             stops: (cfg.stops || []).map(s => ({
               id: s.id,
               name: s.name,
@@ -263,6 +339,7 @@ export default function AdminPage() {
               startAt: toDateInput(s.startAt || null),
               endAt: toDateInput(s.endAt || null),
             })),
+            defaultLevelId,
           }
         };
       });
@@ -563,6 +640,7 @@ export default function AdminPage() {
     Object.values(editorById).forEach(ed => {
       ed.clubs.forEach(crow => {
         Object.values(crow.captains).forEach(p => { if (p?.id) ids.add(p.id); });
+        if (crow.singleCaptain?.id) ids.add(crow.singleCaptain.id);
       });
     });
     return ids;
@@ -761,8 +839,8 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {playersPage.items.length === 0 && <tr><td colSpan={11} className="py-4 text-gray-600">No players yet.</td></tr>}
-                {playersPage.items.map(p => (
+                {(playersPage.items?.length ?? 0) === 0 && <tr><td colSpan={11} className="py-4 text-gray-600">No players yet.</td></tr>}
+                {(playersPage.items ?? []).map(p => (
                   <tr key={p.id} className="border-b">
                     <td className="py-2 pr-4">{p.firstName ?? '—'}</td>
                     <td className="py-2 pr-4"><button className="underline" onClick={() => openEditPlayer(p)}>{p.lastName ?? '—'}</button></td>
@@ -939,6 +1017,7 @@ function TournamentsBlock(props: {
     hasCaptains: boolean;
     levels: NewLevel[];
     stops: { id?: Id; name: string; clubId?: Id; startAt?: string; endAt?: string }[];
+    defaultLevelId?: string;
   }>;
   setEditorById: React.Dispatch<React.SetStateAction<TournamentsBlock['props']['editorById']>>;
   searchPlayers: (term: string)=>Promise<Array<{id:string;label:string}>>;
@@ -955,9 +1034,10 @@ function TournamentsBlock(props: {
     afterSaved,
   } = props;
 
-  // Debounce timers per (tournamentId:clubIdx:levelId)
+  // Debounce timers per (tournamentId:clubIdx:levelId) and (tournamentId:clubIdx:__single)
   const searchTimers = useRef<Record<string, number>>({});
   const keyFor = (tId: Id, clubIdx: number, levelId: string) => `${tId}:${clubIdx}:${levelId}`;
+  const singleKeyFor = (tId: Id, clubIdx: number) => `${tId}:${clubIdx}:__single`;
 
   function editor(tId: Id) { return editorById[tId]; }
 
@@ -968,7 +1048,11 @@ function TournamentsBlock(props: {
         ...prev,
         [tId]: {
           ...ed,
-          clubs: [...ed.clubs, { clubId: undefined, captains: {}, queries: {}, options: {} }],
+          clubs: [...ed.clubs, {
+            clubId: undefined,
+            captains: {}, queries: {}, options: {},
+            singleCaptain: null, singleQuery: '', singleOptions: [],
+          }],
         }
       };
     });
@@ -1036,12 +1120,13 @@ function TournamentsBlock(props: {
     const ed = editor(tId); if (!ed) return;
     const q = ed.clubs[clubIdx]?.queries?.[levelId] || '';
     if (q.trim().length < 3) return;
-    const opts = await searchPlayers(q.trim());
-    // exclude players chosen for other clubs
+    const opts = await props.searchPlayers(q.trim());
+    // exclude players chosen for other clubs (per-level and single)
     const selectedElsewhere = new Set<string>();
     ed.clubs.forEach((crow, idx) => {
       if (idx === clubIdx) return;
       Object.values(crow.captains).forEach(p => { if (p?.id) selectedElsewhere.add(p.id); });
+      if (crow.singleCaptain?.id) selectedElsewhere.add(crow.singleCaptain.id);
     });
     const filtered = opts.filter(o => !selectedElsewhere.has(o.id));
     setEditorById(prev => {
@@ -1080,6 +1165,71 @@ function TournamentsBlock(props: {
     });
   }
 
+  // single-captain mode helpers
+  function setSingleCaptainQuery(tId: Id, clubIdx: number, q: string) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const rows = [...ed.clubs];
+      const row = { ...rows[clubIdx] };
+      row.singleQuery = q;
+      row.singleOptions = [];
+      rows[clubIdx] = row;
+      return { ...prev, [tId]: { ...ed, clubs: rows } };
+    });
+
+    const k = singleKeyFor(tId, clubIdx);
+    if (searchTimers.current[k]) clearTimeout(searchTimers.current[k]);
+    searchTimers.current[k] = window.setTimeout(() => runSingleCaptainSearch(tId, clubIdx), 300);
+  }
+
+  async function runSingleCaptainSearch(tId: Id, clubIdx: number) {
+    const ed = editor(tId); if (!ed) return;
+    const q = ed.clubs[clubIdx]?.singleQuery || '';
+    if (q.trim().length < 3) return;
+    const opts = await props.searchPlayers(q.trim());
+    // exclude players chosen elsewhere (single or per-level)
+    const selectedElsewhere = new Set<string>();
+    ed.clubs.forEach((crow, idx) => {
+      if (idx === clubIdx) return;
+      if (crow.singleCaptain?.id) selectedElsewhere.add(crow.singleCaptain.id);
+      Object.values(crow.captains).forEach(p => { if (p?.id) selectedElsewhere.add(p.id); });
+    });
+    const filtered = opts.filter(o => !selectedElsewhere.has(o.id));
+    setEditorById(prev => {
+      const ed2 = prev[tId]; if (!ed2) return prev;
+      const rows = [...ed2.clubs];
+      const row = { ...rows[clubIdx] };
+      row.singleOptions = filtered;
+      rows[clubIdx] = row;
+      return { ...prev, [tId]: { ...ed2, clubs: rows } };
+    });
+  }
+
+  function chooseSingleCaptain(tId: Id, clubIdx: number, pick: { id: string; label: string }) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const rows = [...ed.clubs];
+      const row = { ...rows[clubIdx] };
+      row.singleCaptain = pick;
+      row.singleQuery = '';
+      row.singleOptions = [];
+      rows[clubIdx] = row;
+      return { ...prev, [tId]: { ...ed, clubs: rows } };
+    });
+  }
+  function removeSingleCaptain(tId: Id, clubIdx: number) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const rows = [...ed.clubs];
+      const row = { ...rows[clubIdx] };
+      row.singleCaptain = null;
+      row.singleQuery = '';
+      row.singleOptions = [];
+      rows[clubIdx] = row;
+      return { ...prev, [tId]: { ...ed, clubs: rows } };
+    });
+  }
+
   async function saveInline(tId: Id) {
     const ed = editor(tId);
     if (!ed) return;
@@ -1089,36 +1239,59 @@ function TournamentsBlock(props: {
 
     const payload: {
       name: string;
-      type: TournamentsBlock['props']['editorById'][Id]['type'];
+      type: string; // enum value expected by backend
       clubs: string[];
       levels: Array<{ id?: string; name: string; idx?: number }>;
-      captains: Array<{ clubId: string; levelId: string; playerId: string }>;
+      captains?: Array<{ clubId: string; levelId: string; playerId: string }>;
+      // NEW: single-captain mode
+      captainsSimple?: Array<{ clubId: string; playerId: string }>;
       stops: Array<{ id?: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }>;
     } = {
       name,
-      type: ed.type,
+      type: LABEL_TO_TYPE[ed.type],
       clubs: [],
       levels: [],
-      captains: [],
       stops: [],
     };
 
-    if ( ed.type === 'Team Format') {
+    if (ed.type === 'Team Format') {
       payload.clubs = Array.from(new Set(ed.clubs.map(c => c.clubId).filter(Boolean) as string[]));
 
-      if (ed.hasLevels) {
+      // Decide single vs levels
+      const inSingleMode = ed.hasCaptains && !ed.hasLevels;
+
+      if (!inSingleMode && ed.hasLevels) {
         payload.levels = ed.levels
           .map((l, idx) => ({ id: l.id, name: (l.name || '').trim(), idx }))
           .filter(l => !!l.name);
       }
 
-      if (ed.hasLevels && ed.hasCaptains) {
-        for (const crow of ed.clubs) {
-          if (!crow.clubId) continue;
-          for (const lvl of ed.levels) {
-            const pick = crow.captains[lvl.id];
-            if (pick?.id) payload.captains.push({ clubId: crow.clubId, levelId: lvl.id, playerId: pick.id });
+      // Captains
+      if (ed.hasCaptains) {
+        if (inSingleMode) {
+          // inject hidden "General" level (keep id if we have one)
+          payload.levels = [{ id: ed.defaultLevelId, name: DEFAULT_SINGLE_LEVEL_NAME, idx: 0 }];
+
+          // one captain per club
+          const simple: Array<{ clubId: string; playerId: string }> = [];
+          for (const crow of ed.clubs) {
+            if (!crow.clubId) continue;
+            if (crow.singleCaptain?.id) {
+              simple.push({ clubId: crow.clubId, playerId: crow.singleCaptain.id });
+            }
           }
+          payload.captainsSimple = simple;
+        } else {
+          // levels + captains per level
+          const caps: Array<{ clubId: string; levelId: string; playerId: string }> = [];
+          for (const crow of ed.clubs) {
+            if (!crow.clubId) continue;
+            for (const lvl of ed.levels) {
+              const pick = crow.captains[lvl.id];
+              if (pick?.id) caps.push({ clubId: crow.clubId, levelId: lvl.id, playerId: pick.id });
+            }
+          }
+          payload.captains = caps;
         }
       }
 
@@ -1141,34 +1314,51 @@ function TournamentsBlock(props: {
       body: JSON.stringify(payload),
     });
 
-    // Re-hydrate editor from server so new Stops get their IDs (prevents duplicates on next save)
+    // Re-hydrate editor from server so new Stops/captains get IDs & labels
     try {
       const cfg = await api<{
         id: string;
         name: string;
-        type: typeof ed.type;
+        type: string;
         clubs: string[];
         levels: Array<{ id: string; name: string; idx: number }>;
-        captains: Array<{ clubId: string; levelId: string; playerId: string }>;
+        captains: Array<{ clubId: string; levelId: string; playerId: string; playerName?: string }>;
         stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }>;
       }>(`/api/admin/tournaments/${tId}/config`);
+
+      const levels = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
+      const inSingleCaptainMode = isDefaultSingleLevel(levels);
+      const defaultLevelId = inSingleCaptainMode ? levels[0]?.id : undefined;
 
       setEditorById(prev => {
         const clubRows: ClubWithCaptains[] = (cfg.clubs || []).map(clubId => {
           const captains: ClubWithCaptains['captains'] = {};
           const queries: ClubWithCaptains['queries'] = {};
           const options: ClubWithCaptains['options'] = {};
+
           (cfg.captains || []).forEach(c => {
             if (c.clubId === clubId) {
-              const level = (cfg.levels || []).find(l => l.id === c.levelId);
-              if (level) {
-                captains[level.id] = { id: c.playerId, label: '' };
-                queries[level.id] = '';
-                options[level.id] = [];
-              }
+              captains[c.levelId] = { id: c.playerId, label: c.playerName || '' };
+              queries[c.levelId] = '';
+              options[c.levelId] = [];
             }
           });
-          return { clubId, captains, queries, options };
+
+          let singleCaptain: CaptainPick = null;
+          if (inSingleCaptainMode && defaultLevelId) {
+            const found = (cfg.captains || []).find(c => c.clubId === clubId && c.levelId === defaultLevelId);
+            if (found) singleCaptain = { id: found.playerId, label: found.playerName || '' };
+          }
+
+          return {
+            clubId,
+            captains,
+            queries,
+            options,
+            singleCaptain,
+            singleQuery: '',
+            singleOptions: [],
+          };
         });
 
         return {
@@ -1177,10 +1367,10 @@ function TournamentsBlock(props: {
             name: cfg.name,
             type: (cfg.type as any) || 'Team Format',
             hasMultipleStops: !!(cfg.stops && cfg.stops.length > 0),
-            hasLevels: !!(cfg.levels && cfg.levels.length > 0),
+            hasLevels: !inSingleCaptainMode && (cfg.levels || []).length > 0,
             hasCaptains: !!(cfg.captains && cfg.captains.length > 0),
             clubs: clubRows,
-            levels: (cfg.levels || []).map(l => ({ id: l.id, name: l.name })),
+            levels,
             stops: (cfg.stops || []).map(s => ({
               id: s.id,
               name: s.name,
@@ -1188,6 +1378,7 @@ function TournamentsBlock(props: {
               startAt: toDateInput(s.startAt || null),
               endAt: toDateInput(s.endAt || null),
             })),
+            defaultLevelId,
           }
         };
       });
@@ -1402,8 +1593,8 @@ function TournamentsBlock(props: {
                                       </button>
                                     </div>
 
-                                    {/* Captain pickers inline per club & level */}
-                                    {ed.hasLevels && ed.hasCaptains && row.clubId && ed.levels.length > 0 && (
+                                    {/* Captain pickers */}
+                                    {ed.hasCaptains && ed.hasLevels && row.clubId && ed.levels.length > 0 && (
                                       <div className="space-y-2">
                                         { ed.levels.map(level => {
                                           const q = row.queries[level.id] || '';
@@ -1412,7 +1603,7 @@ function TournamentsBlock(props: {
                                           const label = level.name ? `${level.name} Captain` : 'Captain';
                                           return (
                                             <div key={level.id} className="flex flex-col gap-1">
-                                              {/* If selected → show label + remove icon; else show input */}
+                                              {/* Selected → show chosen name; else show typeahead */}
                                               {pick?.id ? (
                                                 <div className="flex items-center justify-between gap-2">
                                                   <div className="text-sm">
@@ -1457,6 +1648,53 @@ function TournamentsBlock(props: {
                                             </div>
                                           );
                                         })}
+                                      </div>
+                                    )}
+
+                                    {/* Single-captain mode (Captains ON, Levels OFF) */}
+                                    {ed.hasCaptains && !ed.hasLevels && row.clubId && (
+                                      <div className="space-y-1">
+                                        {row.singleCaptain?.id ? (
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="text-sm">
+                                              <span className="font-medium">Captain:</span>{' '}
+                                              <span>{row.singleCaptain.label || '(selected)'}</span>
+                                            </div>
+                                            <button
+                                              className="px-2 py-1"
+                                              aria-label="Remove captain"
+                                              title="Remove captain"
+                                              onClick={() => removeSingleCaptain(t.id, idx)}
+                                            >
+                                              <TrashIcon />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex-1">
+                                            <div className="text-xs text-gray-600 mb-1">Captain</div>
+                                            <input
+                                              className="border rounded px-2 py-1 w-full"
+                                              placeholder="Type 3+ chars to search players…"
+                                              value={row.singleQuery}
+                                              onChange={e => setSingleCaptainQuery(t.id, idx, e.target.value)}
+                                            />
+                                            {!!row.singleOptions.length && (
+                                              <div className="border rounded mt-1 bg-white max-h-40 overflow-auto">
+                                                {row.singleOptions
+                                                  .filter(o => !props.allChosenCaptainIdsAcrossClubs.has(o.id))
+                                                  .map(o => (
+                                                    <button
+                                                      key={o.id}
+                                                      className="block w-full text-left px-2 py-1 hover:bg-gray-50"
+                                                      onClick={() => chooseSingleCaptain(t.id, idx, o)}
+                                                    >
+                                                      {o.label}
+                                                    </button>
+                                                  ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>

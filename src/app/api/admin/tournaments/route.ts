@@ -39,14 +39,15 @@ function toDateOnlyUTC(d?: Date | null): string | null {
  * Returns list with stats:
  *  - stopCount
  *  - participatingClubs: prefer TournamentClub; fallback to Teams' clubs
- *  - dateRange from Stops (min startAt .. max endAt) returned as YYYY-MM-DD strings
+ *  - dateRange from Stops (min startAt .. max (endAt || startAt)) as YYYY-MM-DD strings
  */
 export async function GET() {
   const prisma = getPrisma();
 
   const tournaments = await prisma.tournament.findMany({
     orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, type: true, createdAt: true },
+    // Include type since you return it below
+    select: { id: true, name: true, createdAt: true, type: true },
   });
 
   const rows = [];
@@ -69,41 +70,39 @@ export async function GET() {
     const stopCount = stops.length;
 
     // participating clubs: prefer TournamentClub rows, else dedupe from team.club
-    const clubNamesPreferred = clubLinks
-      .map((x) => x.club?.name)
-      .filter(Boolean) as string[];
-    const clubNamesFallback = teams
-      .map((x) => x.club?.name)
-      .filter(Boolean) as string[];
+    const clubNamesPreferred = clubLinks.map((x) => x.club?.name).filter(Boolean) as string[];
+    const clubNamesFallback = teams.map((x) => x.club?.name).filter(Boolean) as string[];
 
     const clubNames = Array.from(
       new Set(clubNamesPreferred.length ? clubNamesPreferred : clubNamesFallback)
-    );
+    ).sort((a, b) => a.localeCompare(b));
 
-    // Compute min/max then return as YYYY-MM-DD strings (UTC) to avoid TZ drift in the UI
-    let start: string | null = null;
-    let end: string | null = null;
-    if (stops.length) {
-      const starts = stops.map((s) => s.startAt).filter(Boolean) as Date[];
-      const ends = stops.map((s) => s.endAt).filter(Boolean) as Date[];
-      const minStart =
-        starts.length ? new Date(Math.min(...starts.map((d) => d.getTime()))) : null;
-      const maxEnd =
-        ends.length ? new Date(Math.max(...ends.map((d) => d.getTime()))) : null;
+    // Compute min start across startAt; max end across (endAt ?? startAt)
+    let minStart: Date | null = null;
+    let maxEnd: Date | null = null;
 
-      start = toDateOnlyUTC(minStart);
-      end = toDateOnlyUTC(maxEnd);
+    for (const s of stops) {
+      if (s.startAt) {
+        if (!minStart || s.startAt < minStart) minStart = s.startAt;
+      }
+      const endCandidate = s.endAt ?? s.startAt ?? null;
+      if (endCandidate) {
+        if (!maxEnd || endCandidate > maxEnd) maxEnd = endCandidate;
+      }
     }
 
     rows.push({
       id: t.id,
       name: t.name,
-      type: t.type,
+      type: t.type, // now selected above
       createdAt: t.createdAt.toISOString(),
       stats: {
         stopCount,
         participatingClubs: clubNames,
-        dateRange: { start, end }, // now date-only strings
+        dateRange: {
+          start: toDateOnlyUTC(minStart),
+          end: toDateOnlyUTC(maxEnd),
+        },
       },
     });
   }
@@ -118,15 +117,6 @@ export async function GET() {
  *   type?: TournamentType | "Team Format" | "Single Elimination" | ...
  *   participants?: Array<{ clubId: string, intermediateCaptainId: string, advancedCaptainId: string }>
  * }
- *
- * Creates the tournament, and if participants are provided:
- *  - ensures (tournament, club, division) teams exist
- *  - assigns captains
- *  - ensures captain is on roster (TeamPlayer)
- *  - inserts TournamentClub links (one per club), skipping duplicates
- *
- * Note: If you’re adopting the new config flow, you can also just POST {name,type}
- * and then use PUT /api/admin/tournaments/:tournamentId/config for clubs/levels/captains/stops.
  */
 export async function POST(req: Request) {
   const prisma = getPrisma();

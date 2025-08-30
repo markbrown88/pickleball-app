@@ -18,16 +18,13 @@ export async function GET(req: Request) {
 
     // Optional: comma-separated ids to hide (already selected in the client)
     const excludeIdsParam = searchParams.get('excludeIds') || '';
-    const excludeIds = excludeIdsParam
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
+    const excludeIds = excludeIdsParam.split(',').map(s => s.trim()).filter(Boolean);
 
     if (term.length < 3) {
       return NextResponse.json({ items: [], hint: 'Type at least 3 characters' });
     }
 
-    // players already used as captains in this tournament
+    // Players already captaining a team in this tournament (if provided)
     const usedCaptainIds = tournamentId
       ? (await prisma.team.findMany({
           where: { tournamentId },
@@ -37,12 +34,10 @@ export async function GET(req: Request) {
           .filter((v): v is string => !!v)
       : [];
 
-    // Merge excludes (dedupe)
     const notInIds = Array.from(new Set([...usedCaptainIds, ...excludeIds]));
 
     const items = await prisma.player.findMany({
       where: {
-        // Exclude players who already captain a team in the tournament
         id: notInIds.length ? { notIn: notInIds } : undefined,
         OR: [
           { firstName: { contains: term, mode: 'insensitive' } },
@@ -63,6 +58,7 @@ export async function GET(req: Request) {
       },
     });
 
+    // Your UI builds the label client-side via personLabel(), so we return raw fields.
     return NextResponse.json({ items });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

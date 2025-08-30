@@ -10,10 +10,12 @@ type Ctx = { params: Promise<{ tournamentId: string }> };
 
 type Payload = {
   name?: string;
-  type?: string; // UI label, e.g. "Team Format"
-  clubs?: string[]; // participating clubIds
+  type?: string; // UI label OR enum (tolerant)
+  clubs?: string[];
   levels?: Array<{ id?: string; name: string; idx?: number }>;
   captains?: Array<{ clubId: string; levelId: string; playerId: string }>;
+  /** NEW: single-captain-per-club when Levels are OFF */
+  captainsSimple?: Array<{ clubId: string; playerId: string }>;
   stops?: Array<{ id?: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }>;
 };
 
@@ -36,8 +38,27 @@ const ENUM_TO_TYPE_LABEL: Record<TournamentType, string> = {
   LADDER_TOURNAMENT: 'Ladder Tournament',
 };
 
-// Normalize "YYYY-MM-DD" safely to a Date at UTC midnight.
-// If a full ISO string is sent, we pass it through (and validate).
+// Accept label or enum, case-insensitive. Returns null if we should “ignore”.
+function normalizeTournamentType(input?: string | null): TournamentType | null {
+  if (!input) return null;
+  const t = input.trim();
+  if (!t) return null;
+
+  if (TYPE_LABEL_TO_ENUM[t]) return TYPE_LABEL_TO_ENUM[t];
+
+  const lower = t.toLowerCase();
+  for (const [label, en] of Object.entries(TYPE_LABEL_TO_ENUM)) {
+    if (label.toLowerCase() === lower) return en;
+  }
+
+  const maybeEnum = t.toUpperCase().replace(/\s+/g, '_') as TournamentType;
+  const enumSet = new Set<TournamentType>(Object.values(TYPE_LABEL_TO_ENUM));
+  if (enumSet.has(maybeEnum)) return maybeEnum;
+
+  return null;
+}
+
+// Normalize "YYYY-MM-DD" to Date (UTC midnight) or pass through ISO.
 function normalizeDateInput(d?: string | null): Date | null {
   if (!d) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
@@ -46,25 +67,16 @@ function normalizeDateInput(d?: string | null): Date | null {
   return isNaN(dt.getTime()) ? null : dt;
 }
 
-// Utility: safe equality for nullable date fields
-function sameDate(a: Date | null, b: Date | null) {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  return a.getTime() === b.getTime();
+// Build a nice player label
+function playerLabel(p?: { firstName?: string | null; lastName?: string | null; name?: string | null }) {
+  const fn = (p?.firstName ?? '').trim();
+  const ln = (p?.lastName ?? '').trim();
+  return [fn, ln].filter(Boolean).join(' ') || (p?.name ?? 'Unknown');
 }
 
+const DEFAULT_LEVEL_NAME = 'Default';
+
 // ---------- GET ----------
-/**
- * GET /api/admin/tournaments/:tournamentId/config
- * Response:
- * {
- *   id, name, type,                 // type is a human label
- *   clubs: string[],                // participating clubIds
- *   levels: [{ id, name, idx }],
- *   captains: [{ clubId, levelId, playerId }],
- *   stops: [{ id, name, clubId, startAt, endAt }]
- * }
- */
 export async function GET(_req: Request, ctx: Ctx) {
   try {
     const prisma = getPrisma();
@@ -76,7 +88,6 @@ export async function GET(_req: Request, ctx: Ctx) {
     });
     if (!t) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    // Fetch related data explicitly (no reliance on relation field names)
     const [clubLinks, levels, captains, stops] = await Promise.all([
       prisma.tournamentClub.findMany({
         where: { tournamentId },
@@ -89,7 +100,12 @@ export async function GET(_req: Request, ctx: Ctx) {
       }),
       prisma.tournamentCaptain.findMany({
         where: { tournamentId },
-        select: { clubId: true, levelId: true, playerId: true },
+        select: {
+          clubId: true,
+          levelId: true,
+          playerId: true,
+          player: { select: { firstName: true, lastName: true, name: true } },
+        },
       }),
       prisma.stop.findMany({
         where: { tournamentId },
@@ -104,7 +120,12 @@ export async function GET(_req: Request, ctx: Ctx) {
       type: ENUM_TO_TYPE_LABEL[t.type] ?? 'Team Format',
       clubs: clubLinks.map(c => c.clubId),
       levels,
-      captains,
+      captains: captains.map(c => ({
+        clubId: c.clubId,
+        levelId: c.levelId,
+        playerId: c.playerId,
+        playerName: playerLabel(c.player),
+      })),
       stops: stops.map(s => ({
         id: s.id,
         name: s.name,
@@ -119,26 +140,6 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 
 // ---------- PUT ----------
-/**
- * PUT /api/admin/tournaments/:tournamentId/config
- * Body:
- * {
- *   name,                 // string
- *   type,                 // one of the labels mapped above
- *   clubs: string[],      // participating clubIds
- *   levels: [{ id?, name, idx? }],
- *   captains: [{ clubId, levelId, playerId }],
- *   stops: [{ id?, name, clubId?, startAt?, endAt? }]
- * }
- *
- * Rules enforced:
- * - If `type` is not provided, it remains unchanged; if provided and invalid, 400.
- * - Syncs TournamentClub to exactly match provided `clubs` (adds/removes).
- * - Levels are upserted (by id if present, else by (tournamentId, name) uniqueness); missing ones are deleted.
- * - Captains validated so the same playerId is used with at most one clubId within the same tournament.
- * - Stops are created/updated (no deletions here). Also protected against duplicate inserts
- *   by checking for an identical Stop (same tournamentId, name, clubId, startAt, endAt) before creating.
- */
 export async function PUT(req: Request, ctx: Ctx) {
   const prisma = getPrisma();
   const { tournamentId } = await ctx.params;
@@ -146,7 +147,6 @@ export async function PUT(req: Request, ctx: Ctx) {
   const body = (await req.json().catch(() => ({}))) as Payload;
 
   try {
-    // Ensure tournament exists
     const exists = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       select: { id: true },
@@ -162,9 +162,8 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
 
     if (typeof body.type === 'string') {
-      const enumVal = TYPE_LABEL_TO_ENUM[body.type.trim()] ?? null;
-      if (!enumVal) return NextResponse.json({ error: 'Invalid tournament type' }, { status: 400 });
-      updates.type = enumVal;
+      const enumVal = normalizeTournamentType(body.type);
+      if (enumVal) updates.type = enumVal; // ignore if unrecognized
     }
 
     await prisma.$transaction(async (tx) => {
@@ -176,7 +175,6 @@ export async function PUT(req: Request, ctx: Ctx) {
       if (Array.isArray(body.clubs)) {
         const incoming = [...new Set(body.clubs.map(String))];
 
-        // validate clubs exist
         if (incoming.length) {
           const found = await tx.club.findMany({ where: { id: { in: incoming } }, select: { id: true } });
           const foundIds = new Set(found.map(c => c.id));
@@ -234,7 +232,6 @@ export async function PUT(req: Request, ctx: Ctx) {
             });
             keepIds.add(l.id);
           } else {
-            // Try find by (tournamentId, name)
             const ex = await tx.tournamentLevel.findFirst({
               where: { tournamentId, name: l.name },
               select: { id: true },
@@ -258,11 +255,19 @@ export async function PUT(req: Request, ctx: Ctx) {
         }
       }
 
-      // ---- Captains validation + replace-all insert ----
-      if (Array.isArray(body.captains)) {
-        // A player may captain only one club within this tournament
+      // ---- Captains: two modes ----
+      const hasMultiLevelCaptains = Array.isArray(body.captains) && body.captains.length > 0;
+      const hasSimpleCaptains = Array.isArray(body.captainsSimple) && body.captainsSimple.length > 0;
+
+      // Replace-all strategy either way
+      if (hasMultiLevelCaptains || hasSimpleCaptains) {
+        await tx.tournamentCaptain.deleteMany({ where: { tournamentId } });
+      }
+
+      if (hasMultiLevelCaptains) {
+        // Multi-level mode (existing behavior)
         const seen = new Map<string, string>(); // playerId -> clubId
-        for (const c of body.captains) {
+        for (const c of body.captains!) {
           const playerId = String(c.playerId);
           const clubId = String(c.clubId);
           const prev = seen.get(playerId);
@@ -272,15 +277,8 @@ export async function PUT(req: Request, ctx: Ctx) {
           seen.set(playerId, clubId);
         }
 
-        // If clubs also provided, ensure captains’ clubs are in that set
-        if (Array.isArray(body.clubs)) {
-          const clubSet = new Set(body.clubs.map(String));
-          const bad = body.captains.filter(c => !clubSet.has(String(c.clubId)));
-          if (bad.length) throw new Error('Captain assigned to a club that is not in participating clubs.');
-        }
-
-        // Validate level IDs belong to this tournament
-        const levelIds = [...new Set(body.captains.map(c => String(c.levelId)))];
+        // Ensure level IDs belong to this tournament
+        const levelIds = [...new Set(body.captains!.map(c => String(c.levelId)))];
         if (levelIds.length) {
           const found = await tx.tournamentLevel.findMany({
             where: { id: { in: levelIds }, tournamentId },
@@ -291,11 +289,9 @@ export async function PUT(req: Request, ctx: Ctx) {
           if (missing.length) throw new Error(`Unknown level ids: ${missing.join(', ')}`);
         }
 
-        // Replace-all approach keeps logic simple and deterministic
-        await tx.tournamentCaptain.deleteMany({ where: { tournamentId } });
-        if (body.captains.length) {
+        if (body.captains!.length) {
           await tx.tournamentCaptain.createMany({
-            data: body.captains.map(c => ({
+            data: body.captains!.map(c => ({
               tournamentId,
               clubId: String(c.clubId),
               levelId: String(c.levelId),
@@ -304,11 +300,55 @@ export async function PUT(req: Request, ctx: Ctx) {
             skipDuplicates: true,
           });
         }
+      } else if (hasSimpleCaptains) {
+        // Single-captain-per-club mode (Levels OFF)
+        // Ensure there is a single default level for this tournament
+        let defaultLevel = await tx.tournamentLevel.findFirst({
+          where: { tournamentId, name: DEFAULT_LEVEL_NAME },
+          select: { id: true },
+        });
+        if (!defaultLevel) {
+          defaultLevel = await tx.tournamentLevel.create({
+            data: { tournamentId, name: DEFAULT_LEVEL_NAME, idx: 0 },
+            select: { id: true },
+          });
+        }
+
+        // Validate clubs exist (if clubs payload is present, ensure captain clubs are part of it)
+        if (Array.isArray(body.clubs) && body.clubs.length) {
+          const clubSet = new Set(body.clubs.map(String));
+          const bad = body.captainsSimple!.filter(c => !clubSet.has(String(c.clubId)));
+          if (bad.length) throw new Error('Captain assigned to a club that is not in participating clubs.');
+        }
+
+        // Enforce unique player per tournament
+        const seen = new Set<string>();
+        for (const c of body.captainsSimple!) {
+          const playerId = String(c.playerId);
+          if (seen.has(playerId)) throw new Error('A player can captain only one club within a tournament.');
+          seen.add(playerId);
+        }
+
+        await tx.tournamentCaptain.createMany({
+          data: body.captainsSimple!.map(c => ({
+            tournamentId,
+            clubId: String(c.clubId),
+            levelId: defaultLevel!.id,
+            playerId: String(c.playerId),
+          })),
+          skipDuplicates: true,
+        });
       }
 
-      // ---- Stops upsert (create/update only; no deletes) ----
-      // Also guard against *duplicate creation* when the same stop payload is sent multiple times.
+      // ---- Stops: tolerant upsert + delete-by-diff ----
       if (Array.isArray(body.stops)) {
+        const existingStops = await tx.stop.findMany({
+          where: { tournamentId },
+          select: { id: true, name: true, clubId: true, startAt: true, endAt: true },
+        });
+        const existingById = new Map(existingStops.map(s => [s.id, s]));
+        const keepIds: string[] = [];
+
         for (const s of body.stops) {
           const name = (s.name || '').trim();
           if (!name) continue;
@@ -317,54 +357,39 @@ export async function PUT(req: Request, ctx: Ctx) {
           const endAt = normalizeDateInput(s.endAt ?? null);
           const clubId = s.clubId ?? null;
 
-          if (s.id) {
-            // Ensure the stop belongs to this tournament before updating
-            const target = await tx.stop.findUnique({
-              where: { id: s.id },
-              select: { id: true, tournamentId: true },
-            });
-            if (!target || target.tournamentId !== tournamentId) {
-              throw new Error('Stop not found for this tournament.');
-            }
-            // Update if anything changed
+          if (s.id && existingById.has(s.id)) {
             await tx.stop.update({
               where: { id: s.id },
-              data: {
-                name,
-                clubId,
-                startAt: startAt ?? null,
-                endAt: endAt ?? null,
-              },
+              data: { name, clubId, startAt: startAt ?? null, endAt: endAt ?? null },
             });
-          } else {
-            // DE-DUPE: If an identical stop already exists (same name/clubId/startAt/endAt), skip creating a new row.
-            const existing = await tx.stop.findFirst({
-              where: {
-                tournamentId,
-                name,
-                clubId: clubId,          // null-safe comparison is fine in Prisma
-                startAt: startAt ?? null,
-                endAt: endAt ?? null,
-              },
-              select: { id: true },
-            });
-
-            if (existing) {
-              // nothing to do; we already have this exact stop
-              continue;
-            }
-
-            // It's legit new — create it.
-            await tx.stop.create({
-              data: {
-                name,
-                tournamentId,
-                clubId,
-                startAt: startAt ?? null,
-                endAt: endAt ?? null,
-              },
-            });
+            keepIds.push(s.id);
+            continue;
           }
+
+          // Avoid duplicates by (name, clubId, startAt, endAt)
+          const duplicate = existingStops.find(
+            ex =>
+              ex.name === name &&
+              ex.clubId === clubId &&
+              ((ex.startAt && startAt && ex.startAt.getTime() === startAt.getTime()) || (!ex.startAt && !startAt)) &&
+              ((ex.endAt && endAt && ex.endAt.getTime() === endAt.getTime()) || (!ex.endAt && !endAt))
+          );
+          if (duplicate) {
+            keepIds.push(duplicate.id);
+            continue;
+          }
+
+          const created = await tx.stop.create({
+            data: { tournamentId, name, clubId, startAt: startAt ?? null, endAt: endAt ?? null },
+            select: { id: true },
+          });
+          keepIds.push(created.id);
+        }
+
+        // Delete stops that weren't kept
+        const toDelete = existingStops.map(s => s.id).filter(id => !keepIds.includes(id));
+        if (toDelete.length) {
+          await tx.stop.deleteMany({ where: { id: { in: toDelete } } });
         }
       }
     });

@@ -8,73 +8,248 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/**
+ * Enums (keep mapping to existing PG types to avoid enum migration churn)
+ */
 enum Gender {
   MALE
   FEMALE
+
+  @@map("gender")
 }
 
-enum MatchSlot {
+/**
+ * Formerly MatchSlot. Keeping the PG enum name 'matchslot' for compatibility.
+ * We now use this enum for the per-slot "Match.slot" (see models below).
+ */
+enum GameSlot {
   MENS_DOUBLES
   WOMENS_DOUBLES
   MIXED_1
   MIXED_2
   TIEBREAKER
+
+  @@map("matchslot")
 }
 
+enum Division {
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum TournamentType {
+  TEAM_FORMAT
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  ROUND_ROBIN
+  POOL_PLAY
+  LADDER_TOURNAMENT
+}
+
+/**
+ * ---------- Clubs ----------
+ */
+model Club {
+  id         String   @id @default(cuid())
+  name       String
+  address    String?
+  city       String?
+  region     String?
+  country    String?  @default("Canada")
+  postalCode String?
+  phone      String?
+  createdAt  DateTime @default(now())
+
+  Player Player[]
+  Team   Team[]
+  Stop   Stop[]
+
+  // participants/captains backrefs
+  tournamentClubs    TournamentClub[]
+  tournamentCaptains TournamentCaptain[]
+}
+
+/**
+ * ---------- Players ----------
+ */
+model Player {
+  id String @id @default(cuid())
+
+  // Structured name
+  firstName String?
+  lastName  String?
+
+  // Legacy full name (optional)
+  name String?
+
+  gender Gender
+
+  // Primary club (kept Restrict so clubs with players can’t be deleted accidentally)
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Restrict)
+
+  // Contact/profile
+  email   String?
+  phone   String?
+  city    String?
+  region  String?
+  country String? @default("Canada")
+
+  // Ratings/etc.
+  dupr Float?
+
+  // Preferred: single birthday date (UI sends YYYY-MM-DD)
+  birthday DateTime?
+
+  // Legacy parts (keep for backward compat if you already have data)
+  birthdayYear  Int?
+  birthdayMonth Int?
+  birthdayDay   Int?
+
+  // Optional legacy cache
+  age Int?
+
+  // Auth & meta
+  clerkUserId String?  @unique
+  createdAt   DateTime @default(now())
+
+  teamLinks            TeamPlayer[] // memberships
+  teamsAsCaptain       Team[]            @relation("TeamCaptain")
+  tournamentAdminLinks TournamentAdmin[]
+  stopRosterLinks      StopTeamPlayer[]  @relation("PlayerRoster")
+  lineupEntriesAsP1    LineupEntry[]     @relation("LineupPlayer1")
+  lineupEntriesAsP2    LineupEntry[]     @relation("LineupPlayer2")
+  CaptainInvite        CaptainInvite[]
+
+  // captain assignments
+  tournamentCaptains TournamentCaptain[]
+
+  @@index([clubId])
+}
+
+/**
+ * ---------- Teams ----------
+ */
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  // Tournament (cascade delete so deleting a tournament removes its teams)
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // Representing club
+  clubId String?
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+
+  // Division
+  division Division @default(INTERMEDIATE)
+
+  // Captain (set null if captain player is removed)
+  captainId String?
+  captain   Player? @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: SetNull)
+
+  // Relations
+  playerLinks     TeamPlayer[]
+  stopLinks       StopTeam[]
+  stopRosterLinks StopTeamPlayer[] @relation("TeamRoster")
+  lineups         Lineup[]
+
+  // New schedule relations (pairings live on Game now)
+  gamesA Game[] @relation("GameTeamA")
+  gamesB Game[] @relation("GameTeamB")
+
+  // Legacy invites
+  CaptainInvite CaptainInvite[]
+
+  // Uniques (mapped to existing constraint names in Supabase)
+  @@unique([tournamentId, captainId], map: "Team_tournamentId_captainId_key")
+  @@unique([tournamentId, clubId, division], map: "Team_tournamentId_clubId_division_key")
+  // Useful indexes
+  @@index([tournamentId])
+  @@index([clubId])
+  @@index([captainId])
+}
+
+/**
+ * ---------- Tournament + admins ----------
+ */
 model Tournament {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
 
-  teams Team[]
-  stops Stop[]
+  // type for the new editor
+  type TournamentType @default(TEAM_FORMAT)
+
+  teams         Team[]
+  stops         Stop[]
+  admins        TournamentAdmin[]
+  TeamPlayer    TeamPlayer[]
+  CaptainInvite CaptainInvite[]
+
+  // editor-driven config
+  clubs    TournamentClub[]
+  levels   TournamentLevel[]
+  captains TournamentCaptain[]
 }
 
-model Player {
-  id        String   @id @default(cuid())
-  name      String
-  gender    Gender
-  createdAt DateTime @default(now())
-
-  teamLinks         TeamPlayer[]
-  lineupEntriesAsP1 LineupEntry[] @relation("LineupPlayer1")
-  lineupEntriesAsP2 LineupEntry[] @relation("LineupPlayer2")
-}
-
-model Team {
-  id           String     @id @default(cuid())
-  name         String
-  createdAt    DateTime   @default(now())
+model TournamentAdmin {
   tournamentId String
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  playerId     String
+  createdAt    DateTime @default(now())
 
-  playerLinks TeamPlayer[]
-  stopLinks   StopTeam[]
-  gamesA      Game[]       @relation("GameTeamA")
-  gamesB      Game[]       @relation("GameTeamB")
-  Lineup      Lineup[]
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([tournamentId, playerId])
 }
 
+/**
+ * ---------- Team roster (enforces one team per tournament) ----------
+ */
 model TeamPlayer {
-  teamId    String
-  playerId  String
-  createdAt DateTime @default(now())
+  teamId       String
+  playerId     String
+  tournamentId String
+  createdAt    DateTime @default(now())
 
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@id([teamId, playerId])
+  // A player cannot join two teams in the same tournament
+  @@unique([tournamentId, playerId])
+  @@index([tournamentId])
 }
 
+/**
+ * ---------- Stops ----------
+ */
 model Stop {
-  id           String     @id @default(cuid())
-  name         String
-  createdAt    DateTime   @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
-  rounds Round[]
-  teams  StopTeam[]
+  // Location + dates
+  clubId  String?
+  club    Club?     @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  startAt DateTime?
+  endAt   DateTime?
+
+  // Relations
+  rounds         Round[]
+  teams          StopTeam[]
+  StopTeamPlayer StopTeamPlayer[] @relation("StopRoster")
+  Lineup         Lineup[]
+
+  @@index([tournamentId])
+  @@index([clubId])
 }
 
 model StopTeam {
@@ -88,15 +263,34 @@ model StopTeam {
   @@id([stopId, teamId])
 }
 
+model StopTeamPlayer {
+  stopId    String
+  teamId    String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  // Explicit relation names to pair with arrays on Stop/Team/Player
+  stop   Stop   @relation("StopRoster", fields: [stopId], references: [id], onDelete: Cascade)
+  team   Team   @relation("TeamRoster", fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation("PlayerRoster", fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([stopId, teamId, playerId])
+  @@index([teamId])
+  @@index([playerId])
+}
+
+/**
+ * ---------- Rounds, Games & Matches (NEW shape: Round → Game → Match) ----------
+ */
 model Round {
   id        String   @id @default(cuid())
   stopId    String
-  idx       Int // 1-based round index within a Stop
+  idx       Int
   createdAt DateTime @default(now())
 
-  stop   Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
-  games  Game[]
-  Lineup Lineup[]
+  stop    Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  games   Game[]
+  lineups Lineup[]
 
   @@unique([stopId, idx])
 }
@@ -117,43 +311,120 @@ model Game {
   @@index([roundId])
 }
 
+/**
+ * Per-slot scores for a Game.
+ * Uses GameSlot (mapped to PG enum 'matchslot') for compatibility.
+ */
 model Match {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   gameId     String
-  slot       MatchSlot
+  slot       GameSlot
   teamAScore Int?
   teamBScore Int?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
 
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   @@unique([gameId, slot])
+  @@index([gameId])
 }
 
+/**
+ * ---------- Lineups (use GameSlot) ----------
+ */
 model Lineup {
   id        String   @id @default(cuid())
   roundId   String
   teamId    String
   createdAt DateTime @default(now())
 
-  round   Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  team    Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // Optional direct link to Stop for convenience (kept if you already have it)
+  stopId String?
+  Stop   Stop?   @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
   entries LineupEntry[]
 
   @@unique([roundId, teamId])
+  @@index([teamId])
 }
 
 model LineupEntry {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   lineupId  String
-  slot      MatchSlot
+  slot      GameSlot
   player1Id String
   player2Id String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   lineup  Lineup @relation(fields: [lineupId], references: [id], onDelete: Cascade)
   player1 Player @relation("LineupPlayer1", fields: [player1Id], references: [id])
   player2 Player @relation("LineupPlayer2", fields: [player2Id], references: [id])
 
   @@unique([lineupId, slot])
+}
+
+/**
+ * ---------- Captain invites ----------
+ */
+model CaptainInvite {
+  id           String    @id @default(cuid())
+  tournamentId String
+  teamId       String
+  captainId    String
+  email        String
+  token        String    @unique
+  createdAt    DateTime  @default(now())
+  usedAt       DateTime?
+  expiresAt    DateTime
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  captain    Player     @relation(fields: [captainId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId, teamId])
+}
+
+/**
+ * ---------- Tournament config tables ----------
+ */
+model TournamentClub {
+  tournamentId String
+  clubId       String
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  club       Club       @relation(fields: [clubId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([tournamentId, clubId])
+}
+
+model TournamentLevel {
+  id           String @id @default(cuid())
+  tournamentId String
+  name         String
+  idx          Int    @default(0)
+
+  tournament Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  captains   TournamentCaptain[]
+
+  @@unique([tournamentId, name])
+  @@index([tournamentId, idx])
+}
+
+model TournamentCaptain {
+  tournamentId String
+  clubId       String
+  levelId      String
+  playerId     String
+
+  tournament Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  club       Club            @relation(fields: [clubId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  level      TournamentLevel @relation(fields: [levelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  player     Player          @relation(fields: [playerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([tournamentId, clubId, levelId])
+  // Prevent the same player captaining multiple clubs within one tournament
+  @@unique([tournamentId, playerId])
 }

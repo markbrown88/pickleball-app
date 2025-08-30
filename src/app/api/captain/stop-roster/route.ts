@@ -8,8 +8,10 @@ export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
     const body = (await req.json()) as { stopId?: string; teamId?: string; playerIds?: string[] };
-    const { stopId, teamId, playerIds } = body || {};
-    if (!stopId || !teamId || !Array.isArray(playerIds)) {
+    const { stopId, teamId } = body || {};
+    let playerIds = Array.isArray(body?.playerIds) ? [...new Set(body!.playerIds)] : null;
+
+    if (!stopId || !teamId || !playerIds) {
       return NextResponse.json({ error: 'stopId, teamId, playerIds[] required' }, { status: 400 });
     }
     if (playerIds.length > 8) {
@@ -20,7 +22,10 @@ export async function POST(req: Request) {
     const inStop = await prisma.stopTeam.findUnique({ where: { stopId_teamId: { stopId, teamId } } });
     if (!inStop) return NextResponse.json({ error: 'team not in this stop' }, { status: 400 });
 
-    // Ensure every player belongs to the team
+    // Ensure all players belong to the team and exist
+    const playersExist = await prisma.player.count({ where: { id: { in: playerIds } } });
+    if (playersExist !== playerIds.length) return NextResponse.json({ error: 'some players not found' }, { status: 400 });
+
     const countBelong = await prisma.teamPlayer.count({ where: { teamId, playerId: { in: playerIds } } });
     if (countBelong !== playerIds.length) return NextResponse.json({ error: 'all players must belong to this team' }, { status: 400 });
 
