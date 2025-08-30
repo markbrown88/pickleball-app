@@ -59,6 +59,7 @@ model Club {
   postalCode String?
   phone      String?
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   Player Player[]
   Team   Team[]
@@ -112,6 +113,7 @@ model Player {
   // Auth & meta
   clerkUserId String?  @unique
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   teamLinks            TeamPlayer[] // memberships
   teamsAsCaptain       Team[]            @relation("TeamCaptain")
@@ -134,10 +136,11 @@ model Team {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Tournament (cascade delete so deleting a tournament removes its teams)
-  tournamentId String?
-  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   // Representing club
   clubId String?
@@ -179,6 +182,7 @@ model Tournament {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // type for the new editor
   type TournamentType @default(TEAM_FORMAT)
@@ -199,6 +203,7 @@ model TournamentAdmin {
   tournamentId String
   playerId     String
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   player     Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -214,6 +219,7 @@ model TeamPlayer {
   playerId     String
   tournamentId String
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
   player     Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -223,6 +229,7 @@ model TeamPlayer {
   // A player cannot join two teams in the same tournament
   @@unique([tournamentId, playerId])
   @@index([tournamentId])
+  @@index([playerId])
 }
 
 /**
@@ -232,14 +239,15 @@ model Stop {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   // Location + dates
   clubId  String?
-  club    Club?     @relation(fields: [clubId], references: [id], onDelete: Restrict)
-  startAt DateTime?
+  club    Club?     @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  startAt DateTime
   endAt   DateTime?
 
   // Relations
@@ -256,6 +264,7 @@ model StopTeam {
   stopId    String
   teamId    String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -268,6 +277,7 @@ model StopTeamPlayer {
   teamId    String
   playerId  String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Explicit relation names to pair with arrays on Stop/Team/Player
   stop   Stop   @relation("StopRoster", fields: [stopId], references: [id], onDelete: Cascade)
@@ -287,12 +297,14 @@ model Round {
   stopId    String
   idx       Int
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   stop    Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
   games   Game[]
   lineups Lineup[]
 
   @@unique([stopId, idx])
+  @@index([stopId])
 }
 
 model Game {
@@ -302,6 +314,7 @@ model Game {
   teamBId   String?
   isBye     Boolean  @default(false)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   round   Round   @relation(fields: [roundId], references: [id], onDelete: Cascade)
   teamA   Team?   @relation("GameTeamA", fields: [teamAId], references: [id])
@@ -322,6 +335,7 @@ model Match {
   teamAScore Int?
   teamBScore Int?
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
@@ -337,6 +351,7 @@ model Lineup {
   roundId   String
   teamId    String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
   team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -358,6 +373,7 @@ model LineupEntry {
   player1Id String
   player2Id String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   lineup  Lineup @relation(fields: [lineupId], references: [id], onDelete: Cascade)
   player1 Player @relation("LineupPlayer1", fields: [player1Id], references: [id])
@@ -377,6 +393,7 @@ model CaptainInvite {
   email        String
   token        String    @unique
   createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   usedAt       DateTime?
   expiresAt    DateTime
 
@@ -427,4 +444,5 @@ model TournamentCaptain {
   @@id([tournamentId, clubId, levelId])
   // Prevent the same player captaining multiple clubs within one tournament
   @@unique([tournamentId, playerId])
+  @@index([playerId])
 }
