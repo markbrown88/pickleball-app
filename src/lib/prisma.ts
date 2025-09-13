@@ -1,11 +1,22 @@
+// src/lib/prisma.ts
 import { PrismaClient } from '@prisma/client';
 
-/** Lazy singleton so PrismaClient isn't constructed during import (prevents build issues). */
-let prismaGlobal: PrismaClient | undefined;
+type GlobalWithPrisma = typeof globalThis & { __prisma?: PrismaClient };
 
-export function getPrisma(): PrismaClient {
-  if (prismaGlobal) return prismaGlobal;
-  const client = new PrismaClient({ log: ['warn', 'error'] });
-  if (process.env.NODE_ENV !== 'production') prismaGlobal = client; // cache only in dev
-  return client;
+// Ensure a single PrismaClient across hot-reloads in dev
+const g = globalThis as GlobalWithPrisma;
+
+export const prisma: PrismaClient =
+  g.__prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  g.__prisma = prisma;
+}
+
+// Small helper so existing code can keep calling getPrisma()
+export function getPrisma() {
+  return prisma;
 }

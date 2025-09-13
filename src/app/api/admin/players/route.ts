@@ -42,6 +42,7 @@ export async function GET(req: Request) {
     const sortCol = (sortColRaw || 'lastName').toLowerCase();
     const sortDir: SortDir = sortDirRaw === 'desc' ? 'desc' : 'asc';
     const clubId = url.searchParams.get('clubId') || undefined;
+    const flat = url.searchParams.get('flat') === '1';
 
     const where: any = {};
     if (clubId) where.clubId = clubId;
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
       default:          orderBy = { lastName: sortDir };
     }
 
-    const take = 25;
+    const take = flat ? undefined : 25;
 
     const [total, rows] = await Promise.all([
       prisma.player.count({ where }),
@@ -115,6 +116,11 @@ export async function GET(req: Request) {
       dupr:      r.dupr ?? null,
       age:       computeAge(r.birthdayYear, r.birthdayMonth, r.birthdayDay) ?? (r.age ?? null),
     }));
+
+    // When flat=1, return just the array of items for the dropdown
+    if (flat) {
+      return NextResponse.json(items);
+    }
 
     return NextResponse.json({ items, total });
   } catch (e: unknown) {

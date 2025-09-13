@@ -1,11 +1,13 @@
+// src/app/admin/page.tsx
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 
 type Id = string;
 
 /* ================= Helpers ================= */
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init);
   const ct = r.headers.get('content-type') ?? '';
@@ -15,8 +17,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 function fmtDate(d?: string | null) {
   if (!d) return '—';
-  // If it's already YYYY-MM-DD, just show it verbatim (no timezone math)
-  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d; // already date-only
   const dt = new Date(d);
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, '0');
@@ -28,7 +29,17 @@ function toDateInput(iso?: string | null) {
   return iso.slice(0, 10);
 }
 function between(a?: string | null, b?: string | null) {
-  if (!a && !b) return '—'; if (a && b) return `${fmtDate(a)} – ${fmtDate(b)}`; return fmtDate(a || b);
+  if (!a && !b) return '—';
+  if (a && b) return `${fmtDate(a)} – ${fmtDate(b)}`;
+  return fmtDate(a || b);
+}
+function stopTitleForDisplay(opts: {
+  stopName?: string | null;
+  hasMultipleStops: boolean;
+}) {
+  const name = (opts.stopName ?? '').trim();
+  if (!opts.hasMultipleStops && name.toLowerCase() === 'main') return ''; // hide "Main" for single-stop
+  return name;
 }
 function personLabel(p: { firstName?: string | null; lastName?: string | null; name?: string | null }) {
   const fn = (p.firstName ?? '').trim();
@@ -49,6 +60,17 @@ function fortyYearsAgoISO() {
   const d = String(t.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+
+/* ================= Slots / labels (for schedule generation & viewing) ================= */
+type GameSlotLiteral = 'MENS_DOUBLES' | 'WOMENS_DOUBLES' | 'MIXED_1' | 'MIXED_2' | 'TIEBREAKER';
+const SLOT_OPTIONS: Array<{ key: GameSlotLiteral; label: string }> = [
+  { key: 'MENS_DOUBLES', label: "Men's Doubles" },
+  { key: 'WOMENS_DOUBLES', label: "Women's Doubles" },
+  { key: 'MIXED_1', label: 'Mixed 1' },
+  { key: 'MIXED_2', label: 'Mixed 2' },
+  { key: 'TIEBREAKER', label: 'Tiebreaker' },
+];
+const SLOT_LABEL: Record<GameSlotLiteral, string> = SLOT_OPTIONS.reduce((m, o) => { m[o.key] = o.label; return m; }, {} as Record<GameSlotLiteral, string>);
 
 /* ================= Types ================= */
 type Club = {
@@ -78,7 +100,7 @@ type TournamentRow = {
   stops?: StopRow[];
 };
 
-/** Legacy (existing) participant draft used by current backend */
+/** Legacy participant draft (preserved for the legacy panel) */
 type ParticipantDraft = {
   clubId?: string;
   intermediateCaptain?: { id: string; label: string } | null;
@@ -88,28 +110,49 @@ type ParticipantDraft = {
   aOptions: Array<{ id: string; label: string }>;
 };
 
-/** New editor shape (inline panel) */
-type NewLevel = { id: string; name: string };
+/** New inline editor types */
+type NewBracket = { id: string; name: string };
 type CaptainPick = { id: string; label: string } | null;
 
-// Default hidden level name for single-captain mode (no visible "Levels" in UI)
-const DEFAULT_SINGLE_LEVEL_NAME = 'General';
-
-type ClubWithCaptains = {
+/** Club row for inline editor */
+type ClubWithCaptain = {
   clubId?: string;
-  // per-level mode
-  captains: Record<string /*levelId*/, CaptainPick>;
-  queries: Record<string /*levelId*/, string>;
-  options: Record<string /*levelId*/, Array<{ id: string; label: string }>>;
-  // single-captain (no levels) mode
+  // single-captain mode only (one per club)
   singleCaptain: CaptainPick;
   singleQuery: string;
   singleOptions: Array<{ id: string; label: string }>;
 };
 
-function isDefaultSingleLevel(levels: Array<{id: string; name: string}>) {
-  return levels.length === 1 && levels[0].name === DEFAULT_SINGLE_LEVEL_NAME;
-}
+/** Stop row (inline editor) with Event Manager typeahead */
+type StopEditorRow = {
+  id?: Id;
+  name: string;
+  clubId?: Id;
+  startAt?: string;
+  endAt?: string;
+  eventManager?: CaptainPick;
+  eventManagerQuery?: string;
+  eventManagerOptions?: Array<{ id: string; label: string }>;
+};
+
+/** Editor state shared across components */
+type EditorRow = {
+  name: string;
+  type: TournamentTypeLabel;
+  clubs: ClubWithCaptain[];
+  hasMultipleStops: boolean;
+  hasBrackets: boolean;
+  hasCaptains: boolean;
+  brackets: NewBracket[];
+  stops: StopEditorRow[];
+  maxTeamSize: string;
+
+  // NEW: Tournament-level Event Manager
+  tournamentEventManager: CaptainPick;
+  tournamentEventManagerQuery: string;
+  tournamentEventManagerOptions: Array<{ id: string; label: string }>;
+};
+type EditorState = Record<Id, EditorRow>;
 
 /* ================= Players response normalizer ================= */
 function normalizePlayersResponse(v: unknown): PlayersResponse {
@@ -155,7 +198,7 @@ export default function AdminPage() {
   const clearMsg = () => { setErr(null); setInfo(null); };
 
   // active tab
-  type TabKey = 'tournaments' | 'clubs' | 'players';
+  type TabKey = 'tournaments' | 'clubs' | 'players' | 'teams';
   const [tab, setTab] = useState<TabKey>('tournaments');
 
   // tournaments
@@ -172,7 +215,66 @@ export default function AdminPage() {
   const [clubForm, setClubForm] = useState<{ name: string; address: string; city: string; region: string; phone: string; country: string }>({
     name: '', address: '', city: '', region: '', phone: '', country: 'Canada'
   });
-
+  function openEditClub(c?: Club) {
+    setClubEditOpen(true);
+    if (c) {
+      setClubEditId(c.id);
+      const ctry = (c.country || 'Canada').trim();
+      const sel: 'Canada' | 'USA' | 'Other' = ctry === 'Canada' || ctry === 'USA' ? (ctry as any) : 'Other';
+      setClubCountrySel(sel);
+      setClubCountryOther(sel === 'Other' ? ctry : '');
+      setClubForm({
+        name: c.name || '',
+        address: c.address || '',
+        city: c.city || '',
+        region: c.region || '',
+        phone: c.phone || '',
+        country: c.country || ctry,
+      });
+    } else {
+      setClubEditId(null);
+      setClubCountrySel('Canada');
+      setClubCountryOther('');
+      setClubForm({ name: '', address: '', city: '', region: '', phone: '', country: 'Canada' });
+    }
+  }
+  
+  async function saveClub() {
+    try {
+      clearMsg();
+      const country = clubCountrySel === 'Other' ? (clubCountryOther || '') : clubCountrySel;
+      const payload = {
+        name: clubForm.name.trim(),
+        address: clubForm.address.trim(),
+        city: clubForm.city.trim(),
+        region: clubForm.region.trim(),
+        phone: clubForm.phone.trim(),
+        country,
+      };
+      await api(
+        clubEditId ? `/api/admin/clubs/${clubEditId}` : `/api/admin/clubs`,
+        {
+          method: clubEditId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+      await reloadClubs();
+      setClubEditOpen(false);
+      setClubEditId(null);
+      setInfo('Club saved');
+    } catch (e) { setErr((e as Error).message); }
+  }
+  
+  async function removeClub(id: Id) {
+    try {
+      if (!confirm('Delete this club?')) return;
+      await api(`/api/admin/clubs/${id}`, { method: 'DELETE' });
+      await reloadClubs();
+      setInfo('Club deleted');
+    } catch (e) { setErr((e as Error).message); }
+  }
+  
   // players
   const [playersPage, setPlayersPage] = useState<{ items: Player[]; total: number; take: number; skip: number; sort: string }>(
     { items: [], total: 0, take: 25, skip: 0, sort: 'lastName:asc' }
@@ -194,27 +296,8 @@ export default function AdminPage() {
   // Players filter: primary club
   const [playersClubFilter, setPlayersClubFilter] = useState<string>(''); // '' = all
 
-  // create/edit tournament (legacy panel preserved)
-  const [showCreateTournament, setShowCreateTournament] = useState(false);
-  const [editTournamentId, setEditTournamentId] = useState<Id | null>(null);
-  const [newTournamentName, setNewTournamentName] = useState('');
-  type NewStop = { id?: Id; name: string; clubId?: Id; startAt?: string; endAt?: string };
-  const [newStops, setNewStops] = useState<NewStop[]>([]);
-  const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
-
-  /* ===== New fields for single editable panel ===== */
-  const [editorById, setEditorById] = useState<Record<Id, {
-    name: string;
-    type: TournamentTypeLabel;
-    clubs: ClubWithCaptains[];
-    hasMultipleStops: boolean;
-    hasLevels: boolean;
-    hasCaptains: boolean;
-    levels: NewLevel[];
-    stops: NewStop[];
-    // internal: when in single-captain mode, keep the default level id if it exists
-    defaultLevelId?: string;
-  }>>({});
+  /* ===== Inline editor state ===== */
+  const [editorById, setEditorById] = useState<EditorState>({});
 
   /* ========== initial load ========== */
   useEffect(() => {
@@ -243,7 +326,6 @@ export default function AdminPage() {
       const resp = normalizePlayersResponse(respRaw);
       setPlayersPage({ items: resp.items, total: resp.total, take, skip, sort });
     } catch (e) {
-      // On failure, still ensure UI stays stable
       setPlayersPage({ items: [], total: 0, take, skip, sort });
       setErr((e as Error).message);
     }
@@ -255,67 +337,49 @@ export default function AdminPage() {
   }
   function changePlayersClubFilter(clubId: string) {
     setPlayersClubFilter(clubId);
-    // reset to first page on filter change
     loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, clubId);
   }
 
   /* ========== clubs load/sort ========== */
-  async function reloadClubs() {
-    const cs = await api<ClubsResponse>(`/api/admin/clubs?sort=${encodeURIComponent(`${clubSort.col}:${clubSort.dir}`)}`);
+  async function reloadClubs(nextSort?: { col: 'name' | 'city' | 'region' | 'country' | 'phone'; dir: 'asc' | 'desc' }) {
+    const s = nextSort ?? clubSort;
+    const cs = await api<ClubsResponse>(
+      `/api/admin/clubs?sort=${encodeURIComponent(`${s.col}:${s.dir}`)}`
+    );
     setClubsAll(cs);
   }
   function clickSortClubs(col: 'name' | 'city' | 'region' | 'country' | 'phone') {
-    const dir = (clubSort.col === col && clubSort.dir === 'asc') ? 'desc' : 'asc';
-    setClubSort({ col, dir });
-    (async () => { await reloadClubs(); })();
+    const dir = clubSort.col === col && clubSort.dir === 'asc' ? 'desc' : 'asc';
+    const next = { col, dir } as const;
+    setClubSort(next);
+    (async () => { await reloadClubs(next); })();
   }
 
-  /* ========== tournaments expand/reload ========== */
+  /* ========== tournaments expand/hydrate ========== */
   async function hydrateEditorFromConfig(tId: Id) {
     try {
       const cfg = await api<{
         id: string;
         name: string;
-        type: string; // backend returns label now
+        type: string; // backend returns label
+        maxTeamSize?: number | null;
         clubs: string[];
-        levels: Array<{ id: string; name: string; idx: number }>;
-        captains: Array<{ clubId: string; levelId: string; playerId: string; playerName?: string }>;
-        stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }>;
+        levels: Array<{ id: string; name: string; idx: number }>; // brackets
+        captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
+        // NEW: tournament-level event manager
+        eventManager?: { id: string; name?: string } | null;
+        // NEW: stops can carry their own event manager
+        stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManager?: { id: string; name?: string } | null }>;
       }>(`/api/admin/tournaments/${tId}/config`);
 
-      const levels = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
-      const inSingleCaptainMode = isDefaultSingleLevel(levels);
+      const brackets = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
 
-      const defaultLevelId = inSingleCaptainMode ? levels[0]?.id : undefined;
-
-      setEditorById(prev => {
-        const clubRows: ClubWithCaptains[] = (cfg.clubs || []).map(clubId => {
-          const captains: ClubWithCaptains['captains'] = {};
-          const queries: ClubWithCaptains['queries'] = {};
-          const options: ClubWithCaptains['options'] = {};
-
-          // per-level picks
-          (cfg.captains || []).forEach(c => {
-            if (c.clubId === clubId) {
-              captains[c.levelId] = { id: c.playerId, label: c.playerName || '' };
-              queries[c.levelId] = '';
-              options[c.levelId] = [];
-            }
-          });
-
-          // single-captain mode -> map captain at the default level into singleCaptain
-          let singleCaptain: CaptainPick = null;
-          if (inSingleCaptainMode && defaultLevelId) {
-            const found = (cfg.captains || []).find(c => c.clubId === clubId && c.levelId === defaultLevelId);
-            if (found) singleCaptain = { id: found.playerId, label: found.playerName || '' };
-          }
-
+      setEditorById((prev: EditorState) => {
+        const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(clubId => {
+          const cap = (cfg.captainsSimple || []).find(c => c.clubId === clubId) || null;
           return {
             clubId,
-            captains,
-            queries,
-            options,
-            singleCaptain,
+            singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
             singleQuery: '',
             singleOptions: [],
           };
@@ -326,20 +390,26 @@ export default function AdminPage() {
           [tId]: {
             name: cfg.name,
             type: (cfg.type as any) || 'Team Format',
-            // interpret single-captain mode as "no levels" for the UI
-            hasMultipleStops: !!(cfg.stops && cfg.stops.length > 0),
-            hasLevels: !inSingleCaptainMode && (cfg.levels || []).length > 0,
-            hasCaptains: !!(cfg.captains && cfg.captains.length > 0),
+            hasMultipleStops: (cfg.stops || []).length > 1, // heuristic
+            hasBrackets: (cfg.levels || []).length > 0,
+            hasCaptains: (cfg.captainsSimple || []).length > 0,
             clubs: clubRows,
-            levels: levels,
+            brackets,
             stops: (cfg.stops || []).map(s => ({
               id: s.id,
               name: s.name,
               clubId: (s.clubId || undefined) as Id | undefined,
               startAt: toDateInput(s.startAt || null),
               endAt: toDateInput(s.endAt || null),
+              eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
+              eventManagerQuery: '',
+              eventManagerOptions: [],
             })),
-            defaultLevelId,
+            maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
+
+            tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
+            tournamentEventManagerQuery: '',
+            tournamentEventManagerOptions: [],
           }
         };
       });
@@ -349,157 +419,13 @@ export default function AdminPage() {
   }
 
   function toggleExpand(tId: Id) {
-    setExpanded(prev => {
+    setExpanded((prev: Record<Id, boolean>) => {
       const opening = !prev[tId];
       if (opening && !editorById[tId]) {
         hydrateEditorFromConfig(tId);
       }
       return { ...prev, [tId]: opening };
     });
-  }
-
-  function addNewStopRow() { setNewStops(prev => [...prev, { name: '' }]); }
-  function updateNewStop(i: number, patch: Partial<NewStop>) { setNewStops(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s)); }
-  function removeNewStop(i: number) { setNewStops(prev => prev.filter((_, idx) => idx !== i)); }
-
-  async function createTournamentWithStops() {
-    try {
-      clearMsg();
-      const name = newTournamentName.trim();
-      if (!name) throw new Error('Tournament name is required');
-
-      const participantPayload = participants
-        .filter(p => p.clubId && p.intermediateCaptain?.id && p.advancedCaptain?.id)
-        .map(p => ({ clubId: p.clubId!, intermediateCaptainId: p.intermediateCaptain!.id, advancedCaptainId: p.advancedCaptain!.id }));
-
-      const t = await api<{ id: Id; name: string }>('/api/admin/tournaments', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, participants: participantPayload }),
-      });
-
-      for (const s of newStops) {
-        if (!s.name.trim()) continue;
-        await api('/api/admin/stops', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tournamentId: t.id, name: s.name.trim(),
-            clubId: s.clubId || null, startAt: s.startAt || null, endAt: s.endAt || null,
-          }),
-        });
-      }
-
-      const ts = await api<TournamentRow[]>('/api/admin/tournaments');
-      setTournaments(ts);
-
-      setShowCreateTournament(false);
-      setEditTournamentId(null);
-      setNewTournamentName('');
-      setParticipants([]);
-      setNewStops([]);
-
-      setInfo(`Tournament "${t.name}" created`);
-    } catch (e) { setErr((e as Error).message); }
-  }
-
-  async function openEditTournament(tId: Id) {
-    try {
-      clearMsg();
-      setShowCreateTournament(true);
-      setEditTournamentId(tId);
-
-      const detail = await api<{
-        id: string;
-        name: string;
-        participants: {
-          clubId: string; clubName: string;
-          intermediateCaptainId: string | null; intermediateCaptainName?: string | null;
-          advancedCaptainId: string | null; advancedCaptainName?: string | null;
-        }[];
-        stops: { id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }[];
-      }>(`/api/admin/tournaments/${tId}/detail`);
-
-      setNewTournamentName(detail.name);
-
-      setParticipants(detail.participants.map(p => ({
-        clubId: p.clubId,
-        intermediateCaptain: p.intermediateCaptainId ? { id: p.intermediateCaptainId, label: p.intermediateCaptainName || 'Loaded Captain' } : null,
-        advancedCaptain:     p.advancedCaptainId     ? { id: p.advancedCaptainId,     label: p.advancedCaptainName     || 'Loaded Captain' } : null,
-        iQuery: '',
-        aQuery: '',
-        iOptions: [],
-        aOptions: [],
-      })));
-
-      setNewStops(detail.stops.map(s => ({
-        id: s.id, name: s.name, clubId: s.clubId || undefined,
-        startAt: toDateInput(s.startAt), endAt: toDateInput(s.endAt),
-      })));
-
-      setTab('tournaments');
-    } catch (e) { setErr((e as Error).message); }
-  }
-
-  async function saveEditedTournament() {
-    if (!editTournamentId) return;
-    try {
-      clearMsg();
-      const name = newTournamentName.trim();
-      if (!name) throw new Error('Tournament name is required');
-
-      const participantPayload = participants
-        .filter(p => p.clubId && p.intermediateCaptain?.id && p.advancedCaptain?.id)
-        .map(p => ({ clubId: p.clubId!, intermediateCaptainId: p.intermediateCaptain!.id, advancedCaptainId: p.advancedCaptain!.id }));
-
-      await api(`/api/admin/tournaments/${editTournamentId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, participants: participantPayload }),
-      });
-
-      const ts = await api<TournamentRow[]>('/api/admin/tournaments');
-      setTournaments(ts);
-
-      setShowCreateTournament(false);
-      setEditTournamentId(null);
-      setNewTournamentName('');
-      setParticipants([]);
-      setNewStops([]);
-
-      setInfo('Tournament updated');
-    } catch (e) { setErr((e as Error).message); }
-  }
-
-  async function deleteStop(tId: Id, stopId: Id) {
-    try {
-      if (!confirm('Delete this stop?')) return;
-      await api(`/api/admin/stops/${stopId}`, { method: 'DELETE' });
-    } catch (e) { setErr((e as Error).message); return; }
-    // refresh lists after delete
-    try {
-      const [stops, ts] = await Promise.all([
-        api<StopRow[]>(`/api/admin/stops?tournamentId=${tId}`),
-        api<TournamentRow[]>('/api/admin/tournaments'),
-      ]);
-      setTournaments(prev => prev.map(t => t.id === tId ? { ...t, stops } : t));
-      setTournaments(ts);
-      setInfo('Stop deleted');
-    } catch (e) { /* non-fatal */ }
-  }
-
-  async function quickAddStop(tId: Id, s: { name: string; clubId?: Id; startAt?: string; endAt?: string }) {
-    try {
-      if (!s.name.trim()) throw new Error('Stop name required');
-      await api('/api/admin/stops', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournamentId: tId, ...s }),
-      });
-      const [stops, ts] = await Promise.all([
-        api<StopRow[]>(`/api/admin/stops?tournamentId=${tId}`),
-        api<TournamentRow[]>('/api/admin/tournaments'),
-      ]);
-      setTournaments(prev => prev.map(t => t.id === tId ? { ...t, stops } : t));
-      setTournaments(ts);
-      setInfo('Stop created');
-    } catch (e) { setErr((e as Error).message); }
   }
 
   async function deleteTournament(tId: Id) {
@@ -510,63 +436,6 @@ export default function AdminPage() {
       setTournaments(ts);
       setInfo('Tournament deleted');
     } catch (e) { setErr((e as Error).message); }
-  }
-
-  /* ========== Clubs add/edit/delete (unchanged) ========== */
-  function openEditClub(c?: Club) {
-    setClubEditOpen(true);
-    if (c) {
-      setClubEditId(c.id);
-      const ctry = (c.country || 'Canada') as string;
-      const sel = (ctry === 'Canada' || ctry === 'USA') ? (ctry as 'Canada' | 'USA') : 'Other';
-      setClubCountrySel(sel);
-      setClubCountryOther(sel === 'Other' ? ctry : '');
-      setClubForm({
-        name: c.name || '',
-        address: c.address || '',
-        city: c.city || '',
-        region: c.region || '',
-        phone: c.phone || '',
-        country: c.country || 'Canada',
-      });
-    } else {
-      setClubEditId(null);
-      setClubCountrySel('Canada'); setClubCountryOther('');
-      setClubForm({ name: '', address: '', city: '', region: '', phone: '', country: 'Canada' });
-    }
-  }
-  async function saveClub() {
-    try {
-      clearMsg();
-      const country = clubCountrySel === 'Other' ? (clubCountryOther || '') : clubCountrySel;
-      const payload = {
-        name: clubForm.name.trim(),
-        address: clubForm.address.trim(),
-        city: clubForm.city.trim(),
-        region: clubForm.region.trim(),
-        phone: clubForm.phone.trim(),
-        country,
-      };
-      if (clubEditId) {
-        await api(`/api/admin/clubs/${clubEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      } else {
-        await api(`/api/admin/clubs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      }
-      await reloadClubs();
-      setClubEditOpen(false);
-      setInfo('Club saved');
-    } catch (e) { setErr((e as Error).message); }
-  }
-  async function removeClub(id: Id) {
-    try {
-      if (!confirm('Delete this club?')) return;
-      await api(`/api/admin/clubs/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      setErr((e as Error).message);
-      return;
-    }
-    await reloadClubs();
-    setInfo('Club deleted');
   }
 
   /* ========== Players add/edit/delete (with Sex column + filter) ========== */
@@ -634,12 +503,11 @@ export default function AdminPage() {
     } catch (e) { setErr((e as Error).message); }
   }
 
-  /* ========== typeahead for NEW captains UI ========== */
+  /* ========== Typeahead helpers shared (captains + event managers) ========== */
   const allChosenCaptainIdsAcrossClubs = useMemo(() => {
     const ids = new Set<string>();
     Object.values(editorById).forEach(ed => {
       ed.clubs.forEach(crow => {
-        Object.values(crow.captains).forEach(p => { if (p?.id) ids.add(p.id); });
         if (crow.singleCaptain?.id) ids.add(crow.singleCaptain.id);
       });
     });
@@ -668,12 +536,32 @@ export default function AdminPage() {
           <TabButton active={tab==='tournaments'} onClick={()=>setTab('tournaments')}>Tournaments</TabButton>
           <TabButton active={tab==='clubs'} onClick={()=>setTab('clubs')}>Clubs</TabButton>
           <TabButton active={tab==='players'} onClick={()=>setTab('players')}>Players</TabButton>
+          <TabButton active={tab==='teams'} onClick={()=>setTab('teams')}>Teams</TabButton>
         </div>
       </div>
 
-      {err && <div className="border border-red-300 bg-red-50 text-red-700 p-3 rounded">{err}</div>}
-      {info && <div className="border border-green-300 bg-green-50 text-green-700 p-3 rounded">{info}</div>}
+      {/* status messages */}
+      {err ? (
+        <div
+          role="status"
+          aria-live="assertive"
+          aria-atomic="true"
+          className="border border-red-300 bg-red-50 text-red-700 p-3 rounded"
+        >
+          {err}
+        </div>
+      ) : null}
 
+      {info ? (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="border border-green-300 bg-green-50 text-green-700 p-3 rounded"
+        >
+          {info}
+        </div>
+      ) : null}
       {/* ===== Tournaments ===== */}
       {tab === 'tournaments' && (
         <TournamentsBlock
@@ -681,29 +569,7 @@ export default function AdminPage() {
           expanded={expanded}
           toggleExpand={toggleExpand}
           clubsAll={clubsAll}
-          onQuickAddStop={quickAddStop}
-          onDeleteStop={deleteStop}
-          onReloadStops={async (tId) => {
-            const fresh = await api<StopRow[]>(`/api/admin/stops?tournamentId=${tId}`);
-            setTournaments(prev => prev.map(x => x.id === tId ? { ...x, stops: fresh } : x));
-            const ts = await api<TournamentRow[]>('/api/admin/tournaments');
-            setTournaments(ts);
-          }}
-          onEditTournament={openEditTournament}
           onDeleteTournament={deleteTournament}
-          showCreateTournament={showCreateTournament}
-          setShowCreateTournament={setShowCreateTournament}
-          editTournamentId={editTournamentId}
-          newTournamentName={newTournamentName}
-          setNewTournamentName={setNewTournamentName}
-          newStops={newStops}
-          addNewStopRow={addNewStopRow}
-          updateNewStop={updateNewStop}
-          removeNewStop={removeNewStop}
-          createTournamentWithStops={createTournamentWithStops}
-          saveEditedTournament={saveEditedTournament}
-          participants={participants}
-          setParticipants={setParticipants}
           editorById={editorById}
           setEditorById={setEditorById}
           searchPlayers={searchPlayers}
@@ -944,12 +810,17 @@ export default function AdminPage() {
           )}
         </section>
       )}
+
+      {/* ===== Teams ===== */}
+      {tab === 'teams' && (
+        <AdminTeamsTab tournaments={tournaments} />
+      )}
     </main>
   );
 }
 
 /* ================= Subcomponents ================= */
-function FragmentRow({ children }: { children: React.ReactNode }) { return <>{children}</>; }
+function FragmentRow({ children }: { children: ReactNode }) { return <>{children}</>; }
 function SortableTh({ label, onClick, active, dir }: { label: string; onClick: () => void; active: boolean; dir: 'asc'|'desc' }) {
   return (
     <th className="py-2 pr-4 select-none">
@@ -970,7 +841,7 @@ function TrashIcon() {
     </svg>
   );
 }
-function TabButton({ active, onClick, children }: { active: boolean; onClick: ()=>void; children: React.ReactNode }) {
+function TabButton({ active, onClick, children }: { active: boolean; onClick: ()=>void; children: ReactNode }) {
   return (
     <button
       onClick={onClick}
@@ -982,67 +853,96 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 /* ================= Tournaments block: single inline editor ================= */
-function TournamentsBlock(props: {
+type TournamentsBlockProps = {
   tournaments: TournamentRow[];
   expanded: Record<Id, boolean>;
   toggleExpand: (tId: Id) => void;
   clubsAll: Club[];
-  onQuickAddStop: (tId: Id, s: { name: string; clubId?: Id; startAt?: string; endAt?: string }) => void;
-  onDeleteStop: (tId: Id, stopId: Id) => void;
-  onReloadStops: (tId: Id) => void;
-  onEditTournament: (tId: Id) => void;
   onDeleteTournament: (tId: Id) => void;
 
-  showCreateTournament: boolean;
-  setShowCreateTournament: (b: boolean) => void;
-  editTournamentId: Id | null;
-  newTournamentName: string;
-  setNewTournamentName: (s: string) => void;
-  newStops: { id?: Id; name: string; clubId?: Id; startAt?: string; endAt?: string }[];
-  addNewStopRow: () => void;
-  updateNewStop: (i: number, patch: Partial<{ id?: Id; name: string; clubId?: Id; startAt?: string; endAt?: string }>) => void;
-  removeNewStop: (i: number) => void;
-  createTournamentWithStops: () => void;
-  saveEditedTournament: () => void;
-
-  participants: ParticipantDraft[];
-  setParticipants: React.Dispatch<React.SetStateAction<ParticipantDraft[]>>;
-
-  editorById: Record<Id, {
-    name: string;
-    type: 'Team Format' | 'Single Elimination' | 'Double Elimination' | 'Round Robin' | 'Pool Play' | 'Ladder Tournament';
-    clubs: ClubWithCaptains[];
-    hasMultipleStops: boolean;
-    hasLevels: boolean;
-    hasCaptains: boolean;
-    levels: NewLevel[];
-    stops: { id?: Id; name: string; clubId?: Id; startAt?: string; endAt?: string }[];
-    defaultLevelId?: string;
-  }>;
-  setEditorById: React.Dispatch<React.SetStateAction<TournamentsBlock['props']['editorById']>>;
+  editorById: EditorState;
+  setEditorById: React.Dispatch<React.SetStateAction<EditorState>>;
   searchPlayers: (term: string)=>Promise<Array<{id:string;label:string}>>;
   allChosenCaptainIdsAcrossClubs: Set<string>;
   afterSaved: () => Promise<void>;
-}) {
+};
+
+function TournamentsBlock(props: TournamentsBlockProps) {
   const {
     tournaments, expanded, toggleExpand, clubsAll,
     onDeleteTournament,
-    showCreateTournament, setShowCreateTournament, editTournamentId,
-    newTournamentName, setNewTournamentName,
-    createTournamentWithStops, saveEditedTournament,
     editorById, setEditorById, searchPlayers, allChosenCaptainIdsAcrossClubs,
     afterSaved,
   } = props;
 
-  // Debounce timers per (tournamentId:clubIdx:levelId) and (tournamentId:clubIdx:__single)
+  // Debounce timers:
+  // - captain single picker: `${tId}:${clubIdx}:__single`
+  // - tournament event mgr:  `${tId}:__eventmgr`
+  // - stop event mgr:        `${tId}:${stopIdx}:__stopmgr`
   const searchTimers = useRef<Record<string, number>>({});
-  const keyFor = (tId: Id, clubIdx: number, levelId: string) => `${tId}:${clubIdx}:${levelId}`;
   const singleKeyFor = (tId: Id, clubIdx: number) => `${tId}:${clubIdx}:__single`;
+  const tMgrKeyFor = (tId: Id) => `${tId}:__eventmgr`;
+  const stopMgrKeyFor = (tId: Id, stopIdx: number) => `${tId}:${stopIdx}:__stopmgr`;
 
   function editor(tId: Id) { return editorById[tId]; }
 
+  /* ----- Generate Schedule modal state ----- */
+  const [genOpen, setGenOpen] = useState(false);
+  const [genData, setGenData] = useState<{
+    stopId: Id;
+    stopName: string;
+    bracketId: string | 'ALL' | null;
+    bracketChoices: Array<{ id: string; name: string }>;
+    overwrite: boolean;
+    slotMap: Record<GameSlotLiteral, boolean>;
+  } | null>(null);
+
+  function openGenerateModal(stopId: Id, stopName: string, bracketChoices: Array<{ id: string; name: string }>) {
+    const slotMap = SLOT_OPTIONS.reduce((m, s) => { m[s.key] = true; return m; }, {} as Record<GameSlotLiteral, boolean>);
+    setGenData({ stopId, stopName, bracketId: 'ALL', bracketChoices, overwrite: false, slotMap });
+    setGenOpen(true);
+  }
+  async function submitGenerate() {
+    if (!genData) return;
+    try {
+      const slots = (Object.keys(genData.slotMap) as GameSlotLiteral[]).filter(k => genData.slotMap[k]);
+      const body: any = { overwrite: !!genData.overwrite, slots };
+      if (genData.bracketId !== 'ALL') body.bracketId = genData.bracketId; // omit entirely to do "all"
+      const res = await fetch(`/api/admin/stops/${genData.stopId}/generate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const j = await res.json();
+      if (!res.ok || j?.error) throw new Error(j?.error ?? 'Generate failed');
+      alert(`Schedule generated for "${genData.stopName}". Rounds: ${j.roundsCreated}, Games: ${j.gamesCreated}, Matches: ${j.matchesCreated}`);
+      setGenOpen(false);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  /* ----- View Schedule modal state ----- */
+  type ScheduleMatch = { id: Id; slot: GameSlotLiteral; teamAScore: number | null; teamBScore: number | null };
+  type ScheduleGame = { id: Id; isBye: boolean; teamA: { id: Id; name: string } | null; teamB: { id: Id; name: string } | null; matches: ScheduleMatch[] };
+  type ScheduleRound = { id: Id; idx: number; games: ScheduleGame[] };
+
+  const [schedOpen, setSchedOpen] = useState(false);
+  const [schedStop, setSchedStop] = useState<{ stopId: Id; stopName: string } | null>(null);
+  const [schedRounds, setSchedRounds] = useState<ScheduleRound[]>([]);
+
+  async function openSchedule(stopId: Id, stopName: string) {
+    try {
+      const rounds = await api<ScheduleRound[]>(`/api/admin/stops/${stopId}/schedule`);
+      setSchedRounds(rounds ?? []);
+      setSchedStop({ stopId, stopName });
+      setSchedOpen(true);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  /* ----- Clubs list helpers ----- */
   function addClubRow(tId: Id) {
-    setEditorById(prev => {
+    setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
       return {
         ...prev,
@@ -1050,7 +950,6 @@ function TournamentsBlock(props: {
           ...ed,
           clubs: [...ed.clubs, {
             clubId: undefined,
-            captains: {}, queries: {}, options: {},
             singleCaptain: null, singleQuery: '', singleOptions: [],
           }],
         }
@@ -1058,14 +957,13 @@ function TournamentsBlock(props: {
     });
   }
   function removeClubRow(tId: Id, idx: number) {
-    setEditorById(prev => {
+    setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
       const next = [...ed.clubs];
       next.splice(idx, 1);
       return { ...prev, [tId]: { ...ed, clubs: next } };
     });
   }
-
   function availableClubsForRow(tId: Id, idx: number) {
     const ed = editor(tId);
     const chosen = new Set(ed?.clubs.map(c => c.clubId).filter(Boolean) as string[]);
@@ -1073,101 +971,25 @@ function TournamentsBlock(props: {
     return clubsAll.filter(c => !chosen.has(c.id) || c.id === current);
   }
 
-  function addLevel(tId: Id) {
-    setEditorById(prev => {
+  /* ----- Brackets helpers ----- */
+  function addBracket(tId: Id) {
+    setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
       const id = (globalThis.crypto ?? window.crypto).randomUUID();
-      return { ...prev, [tId]: { ...ed, levels: [...ed.levels, { id, name: '' }] } };
+      return { ...prev, [tId]: { ...ed, brackets: [...ed.brackets, { id, name: '' }] } };
     });
   }
-  function removeLevel(tId: Id, levelId: string) {
-    setEditorById(prev => {
+  function removeBracket(tId: Id, bracketId: string) {
+    setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
-      const nextLevels = ed.levels.filter(l => l.id !== levelId);
-      const nextClubs = ed.clubs.map(crow => {
-        const { [levelId]: _, ...restCapt } = crow.captains;
-        const { [levelId]: __, ...restQ } = crow.queries;
-        const { [levelId]: ___, ...restOpt } = crow.options;
-        return { ...crow, captains: restCapt, queries: restQ, options: restOpt };
-      });
-      return { ...prev, [tId]: { ...ed, levels: nextLevels, clubs: nextClubs } };
+      const nextBrackets = ed.brackets.filter(l => l.id !== bracketId);
+      return { ...prev, [tId]: { ...ed, brackets: nextBrackets } };
     });
   }
 
-  function setCaptainQuery(tId: Id, clubIdx: number, levelId: string, q: string) {
-    setEditorById(prev => {
-      const ed = prev[tId]; if (!ed) return prev;
-      const rows = [...ed.clubs];
-      const row = { ...rows[clubIdx] };
-      row.queries = { ...row.queries, [levelId]: q };
-      // clear options; they’ll be repopulated by debounce below
-      row.options = { ...row.options, [levelId]: [] };
-      rows[clubIdx] = row;
-      return { ...prev, [tId]: { ...ed, clubs: rows } };
-    });
-
-    // debounce AJAX lookup after 300ms
-    const k = keyFor(tId, clubIdx, levelId);
-    if (searchTimers.current[k]) {
-      clearTimeout(searchTimers.current[k]);
-    }
-    searchTimers.current[k] = window.setTimeout(() => {
-      runCaptainSearch(tId, clubIdx, levelId);
-    }, 300);
-  }
-
-  async function runCaptainSearch(tId: Id, clubIdx: number, levelId: string) {
-    const ed = editor(tId); if (!ed) return;
-    const q = ed.clubs[clubIdx]?.queries?.[levelId] || '';
-    if (q.trim().length < 3) return;
-    const opts = await props.searchPlayers(q.trim());
-    // exclude players chosen for other clubs (per-level and single)
-    const selectedElsewhere = new Set<string>();
-    ed.clubs.forEach((crow, idx) => {
-      if (idx === clubIdx) return;
-      Object.values(crow.captains).forEach(p => { if (p?.id) selectedElsewhere.add(p.id); });
-      if (crow.singleCaptain?.id) selectedElsewhere.add(crow.singleCaptain.id);
-    });
-    const filtered = opts.filter(o => !selectedElsewhere.has(o.id));
-    setEditorById(prev => {
-      const ed2 = prev[tId]; if (!ed2) return prev;
-      const rows = [...ed2.clubs];
-      const row = { ...rows[clubIdx] };
-      row.options = { ...row.options, [levelId]: filtered };
-      rows[clubIdx] = row;
-      return { ...prev, [tId]: { ...ed2, clubs: rows } };
-    });
-  }
-
-  function chooseCaptain(tId: Id, clubIdx: number, levelId: string, pick: {id:string;label:string}) {
-    setEditorById(prev => {
-      const ed = prev[tId]; if (!ed) return prev;
-      const rows = [...ed.clubs];
-      const row = { ...rows[clubIdx] };
-      row.captains = { ...row.captains, [levelId]: pick };
-      row.queries = { ...row.queries, [levelId]: '' }; // clear input once chosen
-      row.options = { ...row.options, [levelId]: [] };
-      rows[clubIdx] = row;
-      return { ...prev, [tId]: { ...ed, clubs: rows } };
-    });
-  }
-  function removeCaptain(tId: Id, clubIdx: number, levelId: string) {
-    setEditorById(prev => {
-      const ed = prev[tId]; if (!ed) return prev;
-      const rows = [...ed.clubs];
-      const row = { ...rows[clubIdx] };
-      const { [levelId]: _, ...rest } = row.captains;
-      row.captains = rest;
-      row.queries = { ...row.queries, [levelId]: '' };
-      row.options = { ...row.options, [levelId]: [] };
-      rows[clubIdx] = row;
-      return { ...prev, [tId]: { ...ed, clubs: rows } };
-    });
-  }
-
-  // single-captain mode helpers
+  /* ----- Captain single picker (per club) ----- */
   function setSingleCaptainQuery(tId: Id, clubIdx: number, q: string) {
-    setEditorById(prev => {
+    setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
       const rows = [...ed.clubs];
       const row = { ...rows[clubIdx] };
@@ -1186,16 +1008,15 @@ function TournamentsBlock(props: {
     const ed = editor(tId); if (!ed) return;
     const q = ed.clubs[clubIdx]?.singleQuery || '';
     if (q.trim().length < 3) return;
-    const opts = await props.searchPlayers(q.trim());
-    // exclude players chosen elsewhere (single or per-level)
+    const opts = await (searchPlayers(q.trim()));
+    // exclude players chosen elsewhere
     const selectedElsewhere = new Set<string>();
     ed.clubs.forEach((crow, idx) => {
       if (idx === clubIdx) return;
       if (crow.singleCaptain?.id) selectedElsewhere.add(crow.singleCaptain.id);
-      Object.values(crow.captains).forEach(p => { if (p?.id) selectedElsewhere.add(p.id); });
     });
     const filtered = opts.filter(o => !selectedElsewhere.has(o.id));
-    setEditorById(prev => {
+    setEditorById((prev: EditorState) => {
       const ed2 = prev[tId]; if (!ed2) return prev;
       const rows = [...ed2.clubs];
       const row = { ...rows[clubIdx] };
@@ -1206,7 +1027,7 @@ function TournamentsBlock(props: {
   }
 
   function chooseSingleCaptain(tId: Id, clubIdx: number, pick: { id: string; label: string }) {
-    setEditorById(prev => {
+    setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
       const rows = [...ed.clubs];
       const row = { ...rows[clubIdx] };
@@ -1218,7 +1039,7 @@ function TournamentsBlock(props: {
     });
   }
   function removeSingleCaptain(tId: Id, clubIdx: number) {
-    setEditorById(prev => {
+    setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
       const rows = [...ed.clubs];
       const row = { ...rows[clubIdx] };
@@ -1230,6 +1051,107 @@ function TournamentsBlock(props: {
     });
   }
 
+  /* ----- Event Manager pickers (tournament-level + per-stop) ----- */
+
+  // Tournament-level
+  function setTournamentEventMgrQuery(tId: Id, q: string) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      return { ...prev, [tId]: { ...ed, tournamentEventManagerQuery: q, tournamentEventManagerOptions: [] } };
+    });
+    const k = tMgrKeyFor(tId);
+    if (searchTimers.current[k]) clearTimeout(searchTimers.current[k]);
+    searchTimers.current[k] = window.setTimeout(() => runTournamentEventMgrSearch(tId), 300);
+  }
+  async function runTournamentEventMgrSearch(tId: Id) {
+    const ed = editor(tId); if (!ed) return;
+    const q = (ed.tournamentEventManagerQuery || '').trim();
+    if (q.length < 3) return;
+    const opts = await (props.searchPlayers(q));
+    setEditorById(prev => {
+      const e2 = prev[tId]; if (!e2) return prev;
+      return { ...prev, [tId]: { ...e2, tournamentEventManagerOptions: opts } };
+    });
+  }
+  function chooseTournamentEventMgr(tId: Id, pick: { id: string; label: string }) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      return {
+        ...prev,
+        [tId]: {
+          ...ed,
+          tournamentEventManager: pick,
+          tournamentEventManagerQuery: '',
+          tournamentEventManagerOptions: [],
+        }
+      };
+    });
+  }
+  function removeTournamentEventMgr(tId: Id) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      return {
+        ...prev,
+        [tId]: { ...ed, tournamentEventManager: null, tournamentEventManagerQuery: '', tournamentEventManagerOptions: [] }
+      };
+    });
+  }
+
+  // Stop-level
+  function setStopEventMgrQuery(tId: Id, stopIdx: number, q: string) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextStops = [...(ed.stops || [])];
+      const row = { ...(nextStops[stopIdx] || { name: '' }) };
+      row.eventManagerQuery = q;
+      row.eventManagerOptions = [];
+      nextStops[stopIdx] = row;
+      return { ...prev, [tId]: { ...ed, stops: nextStops } };
+    });
+    const k = stopMgrKeyFor(tId, stopIdx);
+    if (searchTimers.current[k]) clearTimeout(searchTimers.current[k]);
+    searchTimers.current[k] = window.setTimeout(() => runStopEventMgrSearch(tId, stopIdx), 300);
+  }
+  async function runStopEventMgrSearch(tId: Id, stopIdx: number) {
+    const ed = editor(tId); if (!ed) return;
+    const q = (ed.stops?.[stopIdx]?.eventManagerQuery || '').trim();
+    if (q.length < 3) return;
+    const opts = await (props.searchPlayers(q));
+    setEditorById(prev => {
+      const ed2 = prev[tId]; if (!ed2) return prev;
+      const nextStops = [...(ed2.stops || [])];
+      const row = { ...(nextStops[stopIdx] || { name: '' }) };
+      row.eventManagerOptions = opts;
+      nextStops[stopIdx] = row;
+      return { ...prev, [tId]: { ...ed2, stops: nextStops } };
+    });
+  }
+  function chooseStopEventMgr(tId: Id, stopIdx: number, pick: { id: string; label: string }) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextStops = [...(ed.stops || [])];
+      const row = { ...(nextStops[stopIdx] || { name: '' }) };
+      row.eventManager = pick;
+      row.eventManagerQuery = '';
+      row.eventManagerOptions = [];
+      nextStops[stopIdx] = row;
+      return { ...prev, [tId]: { ...ed, stops: nextStops } };
+    });
+  }
+  function removeStopEventMgr(tId: Id, stopIdx: number) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextStops = [...(ed.stops || [])];
+      const row = { ...(nextStops[stopIdx] || { name: '' }) };
+      row.eventManager = null;
+      row.eventManagerQuery = '';
+      row.eventManagerOptions = [];
+      nextStops[stopIdx] = row;
+      return { ...prev, [tId]: { ...ed, stops: nextStops } };
+    });
+  }
+
+  /* ----- Save inline to /config ----- */
   async function saveInline(tId: Id) {
     const ed = editor(tId);
     if (!ed) return;
@@ -1239,73 +1161,84 @@ function TournamentsBlock(props: {
 
     const payload: {
       name: string;
-      type: string; // enum value expected by backend
+      type: string; // enum
       clubs: string[];
-      levels: Array<{ id?: string; name: string; idx?: number }>;
-      captains?: Array<{ clubId: string; levelId: string; playerId: string }>;
-      // NEW: single-captain mode
+      levels?: Array<{ id?: string; name: string; idx?: number }>; // brackets
       captainsSimple?: Array<{ clubId: string; playerId: string }>;
-      stops: Array<{ id?: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }>;
+      stops?: Array<{ id?: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManagerId?: string | null }>;
+      maxTeamSize?: number | null; // reused: team size when no brackets; bracket size when brackets enabled
+      // NEW tournament-level Event Manager
+      eventManagerId?: string | null;
     } = {
       name,
       type: LABEL_TO_TYPE[ed.type],
       clubs: [],
-      levels: [],
-      stops: [],
     };
 
-    if (ed.type === 'Team Format') {
-      payload.clubs = Array.from(new Set(ed.clubs.map(c => c.clubId).filter(Boolean) as string[]));
+    // Participating clubs
+    payload.clubs = Array.from(new Set(ed.clubs.map(c => c.clubId).filter(Boolean) as string[]));
 
-      // Decide single vs levels
-      const inSingleMode = ed.hasCaptains && !ed.hasLevels;
-
-      if (!inSingleMode && ed.hasLevels) {
-        payload.levels = ed.levels
-          .map((l, idx) => ({ id: l.id, name: (l.name || '').trim(), idx }))
-          .filter(l => !!l.name);
+    // Max limit (blank => null; else positive integer)
+    {
+      const mtsRaw = (ed.maxTeamSize ?? '').trim();
+      if (mtsRaw === '') {
+        payload.maxTeamSize = null;
+      } else if (/^\d+$/.test(mtsRaw) && Number(mtsRaw) > 0) {
+        payload.maxTeamSize = Number(mtsRaw);
+      } else {
+        throw new Error((ed.hasBrackets ? 'Max bracket size' : 'Max team size') + ' must be blank or a positive integer.');
       }
+    }
 
-      // Captains
-      if (ed.hasCaptains) {
-        if (inSingleMode) {
-          // inject hidden "General" level (keep id if we have one)
-          payload.levels = [{ id: ed.defaultLevelId, name: DEFAULT_SINGLE_LEVEL_NAME, idx: 0 }];
+    // Brackets (optional, independent of captains)
+    if (ed.hasBrackets) {
+      payload.levels = ed.brackets
+        .map((l, idx) => ({ id: l.id, name: (l.name || '').trim(), idx }))
+        .filter(l => !!l.name);
+    } else {
+      payload.levels = []; // explicitly clear if toggled off
+    }
 
-          // one captain per club
-          const simple: Array<{ clubId: string; playerId: string }> = [];
-          for (const crow of ed.clubs) {
-            if (!crow.clubId) continue;
-            if (crow.singleCaptain?.id) {
-              simple.push({ clubId: crow.clubId, playerId: crow.singleCaptain.id });
-            }
-          }
-          payload.captainsSimple = simple;
-        } else {
-          // levels + captains per level
-          const caps: Array<{ clubId: string; levelId: string; playerId: string }> = [];
-          for (const crow of ed.clubs) {
-            if (!crow.clubId) continue;
-            for (const lvl of ed.levels) {
-              const pick = crow.captains[lvl.id];
-              if (pick?.id) caps.push({ clubId: crow.clubId, levelId: lvl.id, playerId: pick.id });
-            }
-          }
-          payload.captains = caps;
+    // Captains: one per club
+    if (ed.hasCaptains) {
+      const simple: Array<{ clubId: string; playerId: string }> = [];
+      for (const crow of ed.clubs) {
+        if (!crow.clubId) continue;
+        if (crow.singleCaptain?.id) {
+          simple.push({ clubId: crow.clubId, playerId: crow.singleCaptain.id });
         }
       }
+      payload.captainsSimple = simple;
+    } else {
+      payload.captainsSimple = [];
+    }
 
-      if (ed.hasMultipleStops) {
-        payload.stops = ed.stops
-          .filter(s => (s.name || '').trim())
-          .map(s => ({
-            id: s.id,
-            name: s.name.trim(),
-            clubId: s.clubId || null,
-            startAt: s.startAt || null,
-            endAt: s.endAt || null,
-          }));
-      }
+    // Tournament-level Event Manager
+    payload.eventManagerId = ed.tournamentEventManager?.id ?? null;
+
+    // Stops (+ per-stop Event Manager)
+    if (ed.hasMultipleStops) {
+      payload.stops = (ed.stops || [])
+        .filter(s => (s.name || '').trim())
+        .map(s => ({
+          id: s.id,
+          name: (s.name || '').trim(),
+          clubId: s.clubId || null,
+          startAt: s.startAt || null,
+          endAt: s.endAt || null,
+          eventManagerId: s.eventManager?.id ?? null,
+        }));
+    } else {
+      // Single Details: treat as one stop named "Main"
+      const s0 = ed.stops && ed.stops.length ? ed.stops[0] : { name: 'Main', clubId: undefined, startAt: '', endAt: '', eventManager: null as CaptainPick };
+      payload.stops = [{
+        id: s0.id,
+        name: 'Main',
+        clubId: s0.clubId || null,
+        startAt: s0.startAt || null,
+        endAt: s0.endAt || null,
+        eventManagerId: s0.eventManager?.id ?? null,
+      }];
     }
 
     await api(`/api/admin/tournaments/${tId}/config`, {
@@ -1314,48 +1247,28 @@ function TournamentsBlock(props: {
       body: JSON.stringify(payload),
     });
 
-    // Re-hydrate editor from server so new Stops/captains get IDs & labels
+    // Rehydrate
     try {
       const cfg = await api<{
         id: string;
         name: string;
         type: string;
+        maxTeamSize?: number | null;
         clubs: string[];
         levels: Array<{ id: string; name: string; idx: number }>;
-        captains: Array<{ clubId: string; levelId: string; playerId: string; playerName?: string }>;
-        stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null }>;
+        captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
+        eventManager?: { id: string; name?: string } | null;
+        stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManager?: { id: string; name?: string } | null }>;
       }>(`/api/admin/tournaments/${tId}/config`);
 
-      const levels = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
-      const inSingleCaptainMode = isDefaultSingleLevel(levels);
-      const defaultLevelId = inSingleCaptainMode ? levels[0]?.id : undefined;
+      const brackets = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
 
-      setEditorById(prev => {
-        const clubRows: ClubWithCaptains[] = (cfg.clubs || []).map(clubId => {
-          const captains: ClubWithCaptains['captains'] = {};
-          const queries: ClubWithCaptains['queries'] = {};
-          const options: ClubWithCaptains['options'] = {};
-
-          (cfg.captains || []).forEach(c => {
-            if (c.clubId === clubId) {
-              captains[c.levelId] = { id: c.playerId, label: c.playerName || '' };
-              queries[c.levelId] = '';
-              options[c.levelId] = [];
-            }
-          });
-
-          let singleCaptain: CaptainPick = null;
-          if (inSingleCaptainMode && defaultLevelId) {
-            const found = (cfg.captains || []).find(c => c.clubId === clubId && c.levelId === defaultLevelId);
-            if (found) singleCaptain = { id: found.playerId, label: found.playerName || '' };
-          }
-
+      setEditorById((prev: EditorState) => {
+        const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(clubId => {
+          const cap = (cfg.captainsSimple || []).find(c => c.clubId === clubId) || null;
           return {
             clubId,
-            captains,
-            queries,
-            options,
-            singleCaptain,
+            singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
             singleQuery: '',
             singleOptions: [],
           };
@@ -1366,19 +1279,26 @@ function TournamentsBlock(props: {
           [tId]: {
             name: cfg.name,
             type: (cfg.type as any) || 'Team Format',
-            hasMultipleStops: !!(cfg.stops && cfg.stops.length > 0),
-            hasLevels: !inSingleCaptainMode && (cfg.levels || []).length > 0,
-            hasCaptains: !!(cfg.captains && cfg.captains.length > 0),
+            hasMultipleStops: (cfg.stops || []).length > 1,
+            hasBrackets: (cfg.levels || []).length > 0,
+            hasCaptains: (cfg.captainsSimple || []).length > 0,
             clubs: clubRows,
-            levels,
+            brackets,
             stops: (cfg.stops || []).map(s => ({
               id: s.id,
               name: s.name,
               clubId: (s.clubId || undefined) as Id | undefined,
               startAt: toDateInput(s.startAt || null),
               endAt: toDateInput(s.endAt || null),
+              eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
+              eventManagerQuery: '',
+              eventManagerOptions: [],
             })),
-            defaultLevelId,
+            maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
+
+            tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
+            tournamentEventManagerQuery: '',
+            tournamentEventManagerOptions: [],
           }
         };
       });
@@ -1390,11 +1310,52 @@ function TournamentsBlock(props: {
     toggleExpand(tId);
   }
 
+  /* ----- Stops UI helpers (inline editor) ----- */
+  function addStopRow(tId: Id) {
+    setEditorById((prev: EditorState) => {
+      const ed = prev[tId]; if (!ed) return prev;
+      return { ...prev, [tId]: { ...ed, stops: [...(ed.stops || []), { name: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }] } };
+    });
+  }
+  function updateStopRow(tId: Id, i: number, patch: Partial<StopEditorRow>) {
+    setEditorById((prev: EditorState) => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const next = [...(ed.stops || [])];
+      next[i] = { ...next[i], ...patch };
+      return { ...prev, [tId]: { ...ed, stops: next } };
+    });
+  }
+  function removeStopRow(tId: Id, i: number) {
+    setEditorById((prev: EditorState) => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const next = [...(ed.stops || [])];
+      next.splice(i, 1);
+      return { ...prev, [tId]: { ...ed, stops: next } };
+    });
+  }
+
+  /* ----- Create Tournament (prompt) ----- */
+  async function createNewTournamentPrompt() {
+    const name = (window.prompt('Tournament name?') || '').trim();
+    if (!name) return;
+    try {
+      const t = await api<{ id: Id; name: string }>('/api/admin/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      await afterSaved();
+      alert(`Tournament "${t.name}" created`);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
   return (
     <section className="border rounded p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Tournaments</h2>
-        <button className="border rounded px-3 py-1" onClick={() => { setShowCreateTournament(true); }}>Create Tournament</button>
+        <button className="border rounded px-3 py-1" onClick={createNewTournamentPrompt}>Create Tournament</button>
       </div>
 
       <div className="overflow-x-auto">
@@ -1407,21 +1368,21 @@ function TournamentsBlock(props: {
             <th className="py-2 pr-2 w-24"></th>
           </tr></thead>
           <tbody>
-            {tournaments.map(t => {
-              const isOpen = !!expanded[t.id];
-              const ed = editorById[t.id];
+            {props.tournaments.map(t => {
+              const isOpen = !!props.expanded[t.id];
+              const ed = editor(t.id);
 
               return (
                 <FragmentRow key={t.id}>
                   <tr className="border-b">
                     <td className="py-2 pr-4">
-                      <button className="underline" onClick={() => toggleExpand(t.id)}>{t.name}</button>
+                      <button className="underline" onClick={() => props.toggleExpand(t.id)}>{t.name}</button>
                     </td>
                     <td className="py-2 pr-4">{t.stats.stopCount}</td>
                     <td className="py-2 pr-4">{t.stats.participatingClubs.length ? t.stats.participatingClubs.join(', ') : '—'}</td>
                     <td className="py-2 pr-4">{between(t.stats.dateRange.start, t.stats.dateRange.end)}</td>
                     <td className="py-2 pr-2 text-right">
-                      <button aria-label="Delete tournament" onClick={() => onDeleteTournament(t.id)} title="Delete"><TrashIcon /></button>
+                      <button aria-label="Delete tournament" onClick={() => props.onDeleteTournament(t.id)} title="Delete"><TrashIcon /></button>
                     </td>
                   </tr>
 
@@ -1430,273 +1391,438 @@ function TournamentsBlock(props: {
                       <td colSpan={5} className="bg-gray-50 p-4">
                         {/* SINGLE EDITABLE PANEL */}
                         <div className="space-y-6">
-                          {/* Name + Type */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="flex items-center gap-2">
+                          {/* Name + Type + Max size + Checkboxes + Brackets */}
+                          <div className="flex flex-wrap items-start gap-4">
+                            <div className="flex items-center gap-2 w-[20%]">
                               <label className="w-28 text-sm text-gray-700">Name</label>
                               <input
                                 className="border rounded px-2 py-1 w-full"
                                 value={ed.name}
-                                onChange={(e) => setEditorById(prev => ({ ...prev, [t.id]: { ...ed, name: e.target.value } }))}
+                                onChange={(e) => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, name: e.target.value } }))}
                               />
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 w-[20%]">
                               <label className="w-28 text-sm text-gray-700">Type</label>
                               <select
                                 className="border rounded px-2 py-1 w-full"
                                 value={ed.type}
-                                onChange={(e) => setEditorById(prev => ({ ...prev, [t.id]: { ...ed, type: e.target.value as typeof ed.type } }))}
+                                onChange={(e) => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, type: e.target.value as typeof ed.type } }))}
                               >
                                 {(['Team Format','Single Elimination','Double Elimination','Round Robin','Pool Play','Ladder Tournament'] as const).map(opt => (
                                   <option key={opt} value={opt}>{opt}</option>
                                 ))}
                               </select>
                             </div>
-                          </div>
-
-                          {/* Flags – just under Name in the new order */}
-                          <div className="flex flex-wrap items-center gap-6">
-                            <label className="inline-flex items-center gap-2">
-                              <input type="checkbox" checked={ed.hasLevels} onChange={e => setEditorById(prev => ({ ...prev, [t.id]: { ...ed, hasLevels: e.target.checked } }))} />
-                              <span>Levels</span>
-                            </label>
-                            <label className="inline-flex items-center gap-2">
-                              <input type="checkbox" checked={ed.hasCaptains} onChange={e => setEditorById(prev => ({ ...prev, [t.id]: { ...ed, hasCaptains: e.target.checked } }))} />
-                              <span>Captains</span>
-                            </label>
-                            <label className="inline-flex items-center gap-2">
-                              <input type="checkbox" checked={ed.hasMultipleStops} onChange={e => setEditorById(prev => ({ ...prev, [t.id]: { ...ed, hasMultipleStops: e.target.checked } }))} />
-                              <span>Multiple Stops</span>
-                            </label>
-                          </div>
-
-                          {/* ORDER: Levels → Stops → Participating Clubs */}
-                          {/* Levels */}
-                          {ed.type === 'Team Format' && ed.hasLevels && (
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-medium">Levels</h3>
-                                <button className="border rounded px-3 py-1" onClick={() => addLevel(t.id)}>Add Level</button>
-                              </div>
-                              {ed.levels.length === 0 && <p className="text-sm text-gray-600">No levels yet.</p>}
-                              {ed.levels.map(level => (
-                                <div key={level.id} className="flex items-center gap-2">
-                                  <input
-                                    className="border rounded px-2 py-1"
-                                    placeholder="Level name (e.g., Intermediate)"
-                                    value={level.name}
-                                    onChange={e => setEditorById(prev => {
-                                      const ed2 = prev[t.id]; if (!ed2) return prev;
-                                      const next = ed2.levels.map(l => l.id === level.id ? { ...l, name: e.target.value } : l);
-                                      return { ...prev, [t.id]: { ...ed2, levels: next } };
-                                    })}
-                                  />
-                                  <button className="px-2 py-1" aria-label="Remove level" title="Remove level" onClick={() => removeLevel(t.id, level.id)}>
-                                    <TrashIcon />
-                                  </button>
-                                </div>
-                              ))}
-                              <p className="text-xs text-gray-500">Levels are used to build separate teams per club (e.g., Intermediate, Advanced).</p>
+                            <div className="flex items-center gap-2 w-[10%]">
+                              <label
+                                className="w-60 text-sm text-gray-700"
+                                title={ed.hasBrackets
+                                  ? 'Max number of players allowed in each bracket. Leave blank for unlimited.'
+                                  : 'Max number of players per team. Leave blank for unlimited.'}
+                              >
+                                {ed.hasBrackets ? 'Max bracket size' : 'Max team size'}
+                              </label>
+                              <input
+                                className="border rounded px-2 py-1 w-full"
+                                type="number"
+                                min={1}
+                                placeholder="(unlimited)"
+                                value={ed.maxTeamSize}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || (/^\d+$/.test(val) && Number(val) > 0)) {
+                                    props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, maxTeamSize: val } }));
+                                  }
+                                }}
+                              />
                             </div>
-                          )}
-
-                          {/* Stops */}
-                          {ed.type === 'Team Format' && ed.hasMultipleStops && (
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-medium">Stops</h3>
-                                <button className="border rounded px-3 py-1" onClick={() => setEditorById(prev => ({ ...prev, [t.id]: { ...ed, stops: [...ed.stops, { name: '' }] } }))}>Add Stop</button>
-                              </div>
-                              {ed.stops.length === 0 && <p className="text-sm text-gray-600">No stops added yet.</p>}
-                              {ed.stops.map((s, i) => (
-                                <div key={s.id ?? i} className="border rounded p-3 space-y-2">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <input className="border rounded px-2 py-1" placeholder="Stop name" value={s.name}
-                                      onChange={e => setEditorById(prev => {
-                                        const ed2 = prev[t.id]; if (!ed2) return prev;
-                                        const nextS = [...ed2.stops]; nextS[i] = { ...nextS[i], name: e.target.value };
-                                        return { ...prev, [t.id]: { ...ed2, stops: nextS } };
-                                      })}
-                                    />
-                                    <select className="border rounded px-2 py-1" value={s.clubId || ''}
-                                      onChange={e => setEditorById(prev => {
-                                        const ed2 = prev[t.id]; if (!ed2) return prev;
-                                        const nextS = [...ed2.stops]; nextS[i] = { ...nextS[i], clubId: (e.target.value || undefined) as Id|undefined };
-                                        return { ...prev, [t.id]: { ...ed2, stops: nextS } };
-                                      })}
-                                    >
-                                      <option value="">Location (Club)…</option>
-                                      {props.clubsAll.map(c => <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>)}
-                                    </select>
-                                    <input className="border rounded px-2 py-1" type="date" value={s.startAt || ''} onChange={e => {
-                                      const start = e.target.value || '';
-                                      setEditorById(prev => {
-                                        const ed2 = prev[t.id]; if (!ed2) return prev;
-                                        const nextS = [...ed2.stops]; nextS[i] = { ...nextS[i], startAt: start, endAt: s.endAt ? s.endAt : start };
-                                        return { ...prev, [t.id]: { ...ed2, stops: nextS } };
-                                      });
-                                    }} />
-                                    <input className="border rounded px-2 py-1" type="date" value={s.endAt || ''} onChange={e => {
-                                      const end = e.target.value || '';
-                                      setEditorById(prev => {
-                                        const ed2 = prev[t.id]; if (!ed2) return prev;
-                                        const nextS = [...ed2.stops]; nextS[i] = { ...nextS[i], endAt: end };
-                                        return { ...prev, [t.id]: { ...ed2, stops: nextS } };
-                                      });
-                                    }} />
-                                    <button className="px-2 py-1" aria-label="Remove stop" title="Remove stop" onClick={() => setEditorById(prev => {
-                                      const ed2 = prev[t.id]; if (!ed2) return prev;
-                                      const nextS = ed2.stops.filter((_, idx) => idx !== i);
-                                      return { ...prev, [t.id]: { ...ed2, stops: nextS } };
-                                    })}>
-                                      <TrashIcon />
-                                    </button>
+                            {/* Checkboxes - stacked vertically */}
+                            <div className="flex flex-col gap-2 w-[10%]">
+                              <label className="inline-flex items-center gap-2">
+                                <input type="checkbox" checked={ed.hasBrackets} onChange={e => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, hasBrackets: e.target.checked } }))} />
+                                <span>Brackets</span>
+                              </label>
+                              <label className="inline-flex items-center gap-2">
+                                <input type="checkbox" checked={ed.hasCaptains} onChange={e => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, hasCaptains: e.target.checked } }))} />
+                                <span>Captains</span>
+                              </label>
+                              <label className="inline-flex items-center gap-2">
+                                <input type="checkbox" checked={ed.hasMultipleStops} onChange={e => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, hasMultipleStops: e.target.checked } }))} />
+                                <span>Multiple Stops</span>
+                              </label>
+                            </div>
+                            {/* Brackets - moved to top row */}
+                            {ed.type === 'Team Format' && ed.hasBrackets && (
+                              <div className="flex-1">
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-sm text-gray-700 font-medium">Brackets:</label>
+                                    <button className="text-blue-600 text-sm" onClick={() => addBracket(t.id)}>+</button>
+                                  </div>
+                                  {ed.brackets.length === 0 && <p className="text-sm text-gray-600">No brackets yet.</p>}
+                                  <div className="space-y-2">
+                                    {ed.brackets.map(level => (
+                                      <div key={level.id} className="flex items-center gap-2">
+                                        <input
+                                          className="border rounded px-2 py-1 flex-1"
+                                          placeholder="Bracket name (e.g., Intermediate)"
+                                          value={level.name}
+                                          onChange={e => props.setEditorById((prev: EditorState) => {
+                                            const ed2 = prev[t.id]; if (!ed2) return prev;
+                                            const next = ed2.brackets.map((l: NewBracket) => l.id === level.id ? { ...l, name: e.target.value } : l);
+                                            return { ...prev, [t.id]: { ...ed2, brackets: next } };
+                                          })}
+                                        />
+                                        <button className="px-2 py-1 text-red-600" aria-label="Remove bracket" title="Remove bracket" onClick={() => removeBracket(t.id, level.id)}>
+                                          ✕
+                                        </button>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Participating Clubs (with Captain selectors) */}
-                          {ed.type === 'Team Format' && (
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-medium">Participating Clubs</h3>
-                                <button className="border rounded px-3 py-1" onClick={() => addClubRow(t.id)}>Add Club</button>
                               </div>
-                              {ed.clubs.length === 0 && <p className="text-sm text-gray-600">No clubs yet.</p>}
+                            )}
+                          </div>
+
+
+
+                          {/* Stops (Multiple) */}
+                          {ed.type === 'Team Format' && ed.hasMultipleStops && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium">Stops</h3>
+                                <button className="text-blue-600 text-sm" onClick={() => addStopRow(t.id)}>+</button>
+                              </div>
+                              {(ed.stops || []).length === 0 && <p className="text-sm text-gray-600">No stops yet.</p>}
+                              {(ed.stops || []).length > 0 && (
+                                <div className="grid grid-cols-5 gap-2 text-sm font-medium text-gray-700 mb-2">
+                                  <div>Name</div>
+                                  <div>Location</div>
+                                  <div>Start Date</div>
+                                  <div>End Date</div>
+                                  <div>Event Manager</div>
+                                </div>
+                              )}
                               <div className="space-y-2">
-                                {ed.clubs.map((row, idx) => (
-                                  <div key={idx} className="border rounded p-3 space-y-3">
-                                    <div className="flex flex-wrap items-center gap-2">
+                                {(ed.stops || []).map((s, idx) => (
+                                  <div key={idx} className="">
+                                    <div className="grid grid-cols-5 gap-2 items-center">
+                                      <input
+                                        className="border rounded px-2 py-1"
+                                        placeholder="Stop name (required)"
+                                        value={s.name}
+                                        onChange={e => updateStopRow(t.id, idx, { name: e.target.value })}
+                                      />
                                       <select
                                         className="border rounded px-2 py-1"
-                                        value={row.clubId || ''}
-                                        onChange={e => {
-                                          const clubId = e.target.value || undefined;
-                                          setEditorById(prev => {
-                                            const ed2 = prev[t.id]; if (!ed2) return prev;
-                                            const next = [...ed2.clubs];
-                                            next[idx] = { ...next[idx], clubId };
-                                            return { ...prev, [t.id]: { ...ed2, clubs: next } };
-                                          });
-                                        }}
+                                        value={s.clubId || ''}
+                                        onChange={e => updateStopRow(t.id, idx, { clubId: (e.target.value || undefined) as Id | undefined })}
                                       >
-                                        <option value="">Select Club…</option>
-                                        {availableClubsForRow(t.id, idx).map(c => (
-                                          <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
-                                        ))}
+                                        <option value="">Club (optional)</option>
+                                        {props.clubsAll.map(c => <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>)}
                                       </select>
+                                      <input
+                                        className="border rounded px-2 py-1" type="date"
+                                        value={s.startAt || ''}
+                                        onChange={e => updateStopRow(t.id, idx, { startAt: e.target.value })}
+                                      />
+                                      <input
+                                        className="border rounded px-2 py-1" type="date"
+                                        value={s.endAt || ''}
+                                        onChange={e => updateStopRow(t.id, idx, { endAt: e.target.value })}
+                                      />
 
-                                      <button className="px-2 py-1" aria-label="Remove club" title="Remove club" onClick={() => removeClubRow(t.id, idx)}>
-                                        <TrashIcon />
-                                      </button>
-                                    </div>
-
-                                    {/* Captain pickers */}
-                                    {ed.hasCaptains && ed.hasLevels && row.clubId && ed.levels.length > 0 && (
-                                      <div className="space-y-2">
-                                        { ed.levels.map(level => {
-                                          const q = row.queries[level.id] || '';
-                                          const opts = row.options[level.id] || [];
-                                          const pick = row.captains[level.id] || null;
-                                          const label = level.name ? `${level.name} Captain` : 'Captain';
-                                          return (
-                                            <div key={level.id} className="flex flex-col gap-1">
-                                              {/* Selected → show chosen name; else show typeahead */}
-                                              {pick?.id ? (
-                                                <div className="flex items-center justify-between gap-2">
-                                                  <div className="text-sm">
-                                                    <span className="font-medium">{label}:</span>{' '}
-                                                    <span>{pick.label || '(selected)'}</span>
-                                                  </div>
-                                                  <button
-                                                    className="px-2 py-1"
-                                                    aria-label={`Remove ${label.toLowerCase()}`}
-                                                    title={`Remove ${label.toLowerCase()}`}
-                                                    onClick={() => removeCaptain(t.id, idx, level.id)}
-                                                  >
-                                                    <TrashIcon />
-                                                  </button>
-                                                </div>
-                                              ) : (
-                                                <div className="flex-1">
-                                                  <div className="text-xs text-gray-600 mb-1">{label}</div>
-                                                  <input
-                                                    className="border rounded px-2 py-1 w-full"
-                                                    placeholder="Type 3+ chars to search players…"
-                                                    value={q}
-                                                    onChange={e => setCaptainQuery(t.id, idx, level.id, e.target.value)}
-                                                  />
-                                                  {!!opts.length && (
-                                                    <div className="border rounded mt-1 bg-white max-h-40 overflow-auto">
-                                                      {opts
-                                                        .filter(o => !props.allChosenCaptainIdsAcrossClubs.has(o.id))
-                                                        .map(o => (
-                                                          <button
-                                                            key={o.id}
-                                                            className="block w-full text-left px-2 py-1 hover:bg-gray-50"
-                                                            onClick={() => chooseCaptain(t.id, idx, level.id, o)}
-                                                          >
-                                                            {o.label}
-                                                          </button>
-                                                        ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-
-                                    {/* Single-captain mode (Captains ON, Levels OFF) */}
-                                    {ed.hasCaptains && !ed.hasLevels && row.clubId && (
-                                      <div className="space-y-1">
-                                        {row.singleCaptain?.id ? (
-                                          <div className="flex items-center justify-between gap-2">
+                                      {/* Stop-level Event Manager */}
+                                      <div className="relative w-full">
+                                        {s.eventManager?.id ? (
+                                          <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-1 bg-gray-50">
                                             <div className="text-sm">
-                                              <span className="font-medium">Captain:</span>{' '}
-                                              <span>{row.singleCaptain.label || '(selected)'}</span>
+                                              <span className="font-medium">{s.eventManager.label || '(selected)'}</span>
                                             </div>
                                             <button
-                                              className="px-2 py-1"
-                                              aria-label="Remove captain"
-                                              title="Remove captain"
-                                              onClick={() => removeSingleCaptain(t.id, idx)}
+                                              className="px-2 py-1 text-red-600"
+                                              aria-label="Remove event manager"
+                                              title="Remove event manager"
+                                              onClick={() => removeStopEventMgr(t.id, idx)}
                                             >
-                                              <TrashIcon />
+                                              ✕
                                             </button>
                                           </div>
                                         ) : (
-                                          <div className="flex-1">
-                                            <div className="text-xs text-gray-600 mb-1">Captain</div>
+                                          <div className="w-full">
                                             <input
-                                              className="border rounded px-2 py-1 w-full"
+                                              className="border rounded px-2 py-1 w-full pr-8"
                                               placeholder="Type 3+ chars to search players…"
-                                              value={row.singleQuery}
-                                              onChange={e => setSingleCaptainQuery(t.id, idx, e.target.value)}
+                                              value={s.eventManagerQuery || ''}
+                                              onChange={e => setStopEventMgrQuery(t.id, idx, e.target.value)}
                                             />
-                                            {!!row.singleOptions.length && (
-                                              <div className="border rounded mt-1 bg-white max-h-40 overflow-auto">
-                                                {row.singleOptions
-                                                  .filter(o => !props.allChosenCaptainIdsAcrossClubs.has(o.id))
-                                                  .map(o => (
-                                                    <button
-                                                      key={o.id}
-                                                      className="block w-full text-left px-2 py-1 hover:bg-gray-50"
-                                                      onClick={() => chooseSingleCaptain(t.id, idx, o)}
-                                                    >
-                                                      {o.label}
-                                                    </button>
-                                                  ))}
+                                            {!!s.eventManagerOptions?.length && (
+                                              <div className="absolute z-10 border rounded mt-1 bg-white max-h-40 overflow-auto w-full">
+                                                {(s.eventManagerOptions || []).map(o => (
+                                                  <button
+                                                    key={o.id}
+                                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50"
+                                                    onClick={() => chooseStopEventMgr(t.id, idx, o)}
+                                                  >
+                                                    {o.label}
+                                                  </button>
+                                                ))}
                                               </div>
                                             )}
                                           </div>
                                         )}
                                       </div>
-                                    )}
+                                    </div>
+                                    <div className="flex justify-end mt-2">
+                                      <button className="px-2 py-1" aria-label="Remove stop" title="Remove stop" onClick={() => removeStopRow(t.id, idx)}>
+                                        <TrashIcon />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Details (single stop) */}
+                          {ed.type === 'Team Format' && !ed.hasMultipleStops && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h3 className="font-medium">Details</h3>
+                              </div>
+
+                              {/* Local fallback for single stop */}
+                              {(() => {
+                                const singleStops =
+                                  ed.stops && ed.stops.length
+                                    ? ed.stops
+                                    : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null as CaptainPick, eventManagerQuery: '', eventManagerOptions: [] }];
+
+                                const s0 = singleStops[0];
+
+                                return (
+                                  <div className="">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <select
+                                        className="border rounded px-2 py-1"
+                                        value={(s0.clubId || '') as string}
+                                        onChange={e =>
+                                          props.setEditorById((prev: EditorState) => {
+                                            const ed2 = prev[t.id]; if (!ed2) return prev;
+                                            const nextS = ed2.stops && ed2.stops.length
+                                              ? [...ed2.stops]
+                                              : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }];
+                                            nextS[0] = { ...(nextS[0] || { name: 'Main' }), clubId: (e.target.value || undefined) as any };
+                                            return { ...prev, [t.id]: { ...ed2, stops: nextS } };
+                                          })
+                                        }
+                                      >
+                                        <option value="">Location (Club)…</option>
+                                        {props.clubsAll.map(c => (
+                                          <option key={c.id} value={c.id}>
+                                            {c.name}{c.city ? ` (${c.city})` : ''}
+                                          </option>
+                                        ))}
+                                      </select>
+
+                                      <input
+                                        className="border rounded px-2 py-1"
+                                        type="date"
+                                        value={(s0.startAt || '') as string}
+                                        onChange={e =>
+                                          props.setEditorById((prev: EditorState) => {
+                                            const ed2 = prev[t.id]; if (!ed2) return prev;
+                                            const nextS = ed2.stops && ed2.stops.length
+                                              ? [...ed2.stops]
+                                              : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }];
+                                            nextS[0] = {
+                                              ...(nextS[0] || { name: 'Main' }),
+                                              startAt: e.target.value,
+                                              endAt: (nextS[0]?.endAt || e.target.value),
+                                            };
+                                            return { ...prev, [t.id]: { ...ed2, stops: nextS } };
+                                          })
+                                        }
+                                      />
+                                      <input
+                                        className="border rounded px-2 py-1"
+                                        type="date"
+                                        value={(s0.endAt || '') as string}
+                                        onChange={e =>
+                                          props.setEditorById((prev: EditorState) => {
+                                            const ed2 = prev[t.id]; if (!ed2) return prev;
+                                            const nextS = ed2.stops && ed2.stops.length
+                                              ? [...ed2.stops]
+                                              : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }];
+                                            nextS[0] = { ...(nextS[0] || { name: 'Main' }), endAt: e.target.value };
+                                            return { ...prev, [t.id]: { ...ed2, stops: nextS } };
+                                          })
+                                        }
+                                      />
+
+                                      {/* Single-stop Event Manager */}
+                                      <div className="relative w-full">
+                                        {s0.eventManager?.id ? (
+                                          <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-1 bg-gray-50">
+                                            <div className="text-sm">
+                                              <span className="font-medium">{s0.eventManager.label || '(selected)'}</span>
+                                            </div>
+                                            <button
+                                              className="px-2 py-1 text-red-600"
+                                              aria-label="Remove event manager"
+                                              title="Remove event manager"
+                                              onClick={() => props.setEditorById((prev: EditorState) => {
+                                                const ed2 = prev[t.id]; if (!ed2) return prev;
+                                                const nextS = ed2.stops && ed2.stops.length
+                                                  ? [...ed2.stops]
+                                                  : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }];
+                                                nextS[0] = { ...(nextS[0] || { name: 'Main' }), eventManager: null, eventManagerQuery: '', eventManagerOptions: [] };
+                                                return { ...prev, [t.id]: { ...ed2, stops: nextS } };
+                                              })}
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="w-full">
+                                            <input
+                                              className="border rounded px-2 py-1 w-full pr-8"
+                                              placeholder="Type 3+ chars to search players…"
+                                              value={(s0.eventManagerQuery || '') as string}
+                                              onChange={e => {
+                                                props.setEditorById((prev: EditorState) => {
+                                                  const ed2 = prev[t.id]; if (!ed2) return prev;
+                                                  const nextS = ed2.stops && ed2.stops.length
+                                                    ? [...ed2.stops]
+                                                    : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }];
+                                                  nextS[0] = { ...(nextS[0] || { name: 'Main' }), eventManagerQuery: e.target.value, eventManagerOptions: [] };
+                                                  return { ...prev, [t.id]: { ...ed2, stops: nextS } };
+                                                });
+                                                const k = stopMgrKeyFor(t.id, 0);
+                                                if (searchTimers.current[k]) clearTimeout(searchTimers.current[k]);
+                                                searchTimers.current[k] = window.setTimeout(() => runStopEventMgrSearch(t.id, 0), 300);
+                                              }}
+                                            />
+                                            {!!s0.eventManagerOptions?.length && (
+                                              <div className="absolute z-10 border rounded mt-1 bg-white max-h-40 overflow-auto w-full">
+                                                {(s0.eventManagerOptions || []).map(o => (
+                                                  <button
+                                                    key={o.id}
+                                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50"
+                                                    onClick={() => props.setEditorById((prev: EditorState) => {
+                                                      const ed2 = prev[t.id]; if (!ed2) return prev;
+                                                      const nextS = ed2.stops && ed2.stops.length
+                                                        ? [...ed2.stops]
+                                                        : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }];
+                                                      nextS[0] = { ...(nextS[0] || { name: 'Main' }), eventManager: o, eventManagerQuery: '', eventManagerOptions: [] };
+                                                      return { ...prev, [t.id]: { ...ed2, stops: nextS } };
+                                                    })}
+                                                  >
+                                                    {o.label}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+
+                          {/* Participating Clubs (with single Captain selector per club) */}
+                          {ed.type === 'Team Format' && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium">Participating Clubs</h3>
+                                <button className="text-blue-600 text-sm" onClick={() => addClubRow(t.id)}>+</button>
+                              </div>
+                              {ed.clubs.length === 0 && <p className="text-sm text-gray-600">No clubs yet.</p>}
+                              {ed.clubs.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2 text-sm font-medium text-gray-700 mb-2">
+                                  <div>Club Name</div>
+                                  <div>Captain</div>
+                                </div>
+                              )}
+                              <div className="space-y-2">
+                                {ed.clubs.map((row, idx) => (
+                                  <div key={idx} className="">
+                                    <div className="grid grid-cols-2 gap-2 items-center">
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          className="border rounded px-2 py-1 flex-1"
+                                          value={row.clubId || ''}
+                                          onChange={e => {
+                                            const clubId = e.target.value || undefined;
+                                            props.setEditorById((prev: EditorState) => {
+                                              const ed2 = prev[t.id]; if (!ed2) return prev;
+                                              const next = [...ed2.clubs];
+                                              next[idx] = { ...next[idx], clubId };
+                                              return { ...prev, [t.id]: { ...ed2, clubs: next } };
+                                            });
+                                          }}
+                                        >
+                                          <option value="">Select Club…</option>
+                                          {availableClubsForRow(t.id, idx).map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
+                                          ))}
+                                        </select>
+                                        <button className="px-2 py-1" aria-label="Remove club" title="Remove club" onClick={() => removeClubRow(t.id, idx)}>
+                                          <TrashIcon />
+                                        </button>
+                                      </div>
+
+                                      {/* Single-captain picker (shown only if Captains toggle ON) */}
+                                      <div className="relative w-full">
+                                        {ed.hasCaptains && row.clubId ? (
+                                          row.singleCaptain?.id ? (
+                                            <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-1 bg-gray-50">
+                                              <div className="text-sm">
+                                                <span className="font-medium">{row.singleCaptain.label || '(selected)'}</span>
+                                              </div>
+                                              <button
+                                                className="px-2 py-1 text-red-600"
+                                                aria-label="Remove captain"
+                                                title="Remove captain"
+                                                onClick={() => removeSingleCaptain(t.id, idx)}
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div className="w-full">
+                                              <input
+                                                className="border rounded px-2 py-1 w-full pr-8"
+                                                placeholder="Type 3+ chars to search players…"
+                                                value={row.singleQuery}
+                                                onChange={e => setSingleCaptainQuery(t.id, idx, e.target.value)}
+                                              />
+                                              {!!row.singleOptions.length && (
+                                                <div className="absolute z-10 border rounded mt-1 bg-white max-h-40 overflow-auto w-full">
+                                                  {row.singleOptions
+                                                    .filter(o => !allChosenCaptainIdsAcrossClubs.has(o.id))
+                                                    .map(o => (
+                                                      <button
+                                                        key={o.id}
+                                                        className="block w-full text-left px-2 py-1 hover:bg-gray-50"
+                                                        onClick={() => chooseSingleCaptain(t.id, idx, o)}
+                                                      >
+                                                        {o.label}
+                                                      </button>
+                                                    ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          )
+                                        ) : (
+                                          <div className="text-sm text-gray-500">Select a club first</div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1729,28 +1855,497 @@ function TournamentsBlock(props: {
         </table>
       </div>
 
-      {/* Legacy create/edit panel (preserved) */}
-      {showCreateTournament && (
-        <div className="border rounded p-3 space-y-6">
-          <div className="flex items-center gap-2">
-            <label className="w-36 text-sm text-gray-700">{editTournamentId ? 'Edit Tournament' : 'Tournament Name'}</label>
-            <input className="border rounded px-2 py-1 flex-1" value={newTournamentName} onChange={e => setNewTournamentName(e.target.value)} />
+      {/* (Legacy create/edit panel removed) */}
+
+      {/* ===== Generate Schedule Modal ===== */}
+      {genOpen && genData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow p-4 w-full max-w-md">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Generate schedule</h3>
+              <button className="text-gray-500" onClick={() => setGenOpen(false)}>✕</button>
+            </div>
+            <div className="text-sm text-gray-600 mb-3">
+              Stop: <span className="font-medium">{genData.stopName}</span>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Bracket</label>
+                <select
+                  className="border rounded px-2 py-1 w-full"
+                  value={genData.bracketId ?? 'ALL'}
+                  onChange={(e) => setGenData(d => d ? { ...d, bracketId: (e.target.value === 'ALL' ? 'ALL' : e.target.value) as any } : d)}
+                >
+                  <option value="ALL">All brackets</option>
+                  {(genData.bracketChoices || []).map(b => (
+                    <option key={b.id} value={b.id}>{b.name || '(unnamed)'}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Slots to seed</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {SLOT_OPTIONS.map(opt => (
+                    <label key={opt.key} className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={!!genData.slotMap[opt.key]}
+                        onChange={(e) => setGenData(d => d ? { ...d, slotMap: { ...d.slotMap, [opt.key]: e.target.checked } } : d)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={genData.overwrite}
+                  onChange={(e) => setGenData(d => d ? { ...d, overwrite: e.target.checked } : d)}
+                />
+                <span>Overwrite existing schedule for this stop</span>
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="px-3 py-1 border rounded" onClick={() => setGenOpen(false)}>Cancel</button>
+              <button className="px-3 py-1 rounded bg-blue-600 text-white" onClick={submitGenerate}>Generate</button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!editTournamentId ? (
-              <>
-                <button className="border rounded px-3 py-1" onClick={createTournamentWithStops} disabled={!newTournamentName.trim()}>Save Tournament</button>
-                <button className="border rounded px-3 py-1" onClick={() => { setShowCreateTournament(false); }}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <button className="border rounded px-3 py-1" onClick={saveEditedTournament}>Save Changes</button>
-                <button className="border rounded px-3 py-1" onClick={() => { setShowCreateTournament(false); }}>Cancel</button>
-              </>
+        </div>
+      )}
+
+      {/* ===== View Schedule Modal ===== */}
+      {schedOpen && schedStop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-lg shadow p-4 w-full max-w-3xl max-h-[85vh] overflow-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold">Schedule • {schedStop.stopName}</h3>
+              <button className="text-gray-500" onClick={() => setSchedOpen(false)}>✕</button>
+            </div>
+
+            {(!schedRounds || schedRounds.length === 0) && (
+              <div className="text-sm text-gray-600">No rounds yet.</div>
+            )}
+
+            {schedRounds && schedRounds.length > 0 && (
+              <div className="space-y-4">
+                {schedRounds.sort((a,b)=>a.idx-b.idx).map((round) => (
+                  <div key={round.id} className="border rounded p-3">
+                    <div className="font-medium mb-2">Round {round.idx + 1}</div>
+                    <div className="space-y-2">
+                      {round.games?.map(g => (
+                        <div key={g.id} className="border rounded p-2 bg-gray-50">
+                          <div className="font-medium mb-1">
+                            {g.isBye
+                              ? (g.teamA ? `${g.teamA.name} — BYE` : (g.teamB ? `${g.teamB.name} — BYE` : 'BYE'))
+                              : `${g.teamA?.name ?? '—'} vs ${g.teamB?.name ?? '—'}`}
+                          </div>
+                          {!g.isBye && (
+                            <ul className="text-sm grid md:grid-cols-2 gap-1">
+                              {(g.matches ?? []).map(m => (
+                                <li key={m.id} className="flex items-center justify-between rounded bg-white border px-2 py-1">
+                                  <span>{SLOT_LABEL[m.slot] ?? m.slot}</span>
+                                  <span className="tabular-nums">
+                                    {(m.teamAScore ?? '—')} : {(m.teamBScore ?? '—')}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
       )}
     </section>
+  );
+}
+
+/* ================= Admin Teams Tab & helpers ================= */
+
+type PlayerLite = {
+  id: Id;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
+  gender: 'MALE' | 'FEMALE';
+  dupr?: number | null;
+  age?: number | null;
+};
+const labelPL = (p: PlayerLite) => personLabel(p);
+
+type AdminTeamsHydrate = {
+  tournamentId: Id;
+  tournamentName: string;
+  maxTeamSize: number | null; // cap per bracket (unique across all stops)
+  hasCaptains: boolean;
+  stops: Array<{ stopId: Id; stopName: string; locationName: string | null; startAt: string | null; endAt: string | null }>;
+  clubs: Array<{
+    clubId: Id;
+    clubName: string;
+    brackets: Array<{
+      teamId: Id;
+      bracketName: string | null;
+      roster: PlayerLite[];
+      stops: Array<{ stopId: Id; stopName: string; locationName: string | null; startAt: string | null; endAt: string | null; stopRoster: PlayerLite[] }>;
+    }>;
+  }>;
+};
+
+function AdminTeamsTab({ tournaments }: { tournaments: TournamentRow[] }) {
+  const [activeTid, setActiveTid] = useState<Id | '">NONE<' | null>(null);
+  const [dataByTid, setDataByTid] = useState<Record<Id, AdminTeamsHydrate>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  // First eligible tournament without captains
+  useEffect(() => {
+    (async () => {
+      if (!tournaments?.length) return;
+      for (const t of tournaments) {
+        try {
+          const d = await api<AdminTeamsHydrate>(`/api/admin/tournaments/${t.id}/teams`);
+          setDataByTid((prev: Record<Id, AdminTeamsHydrate>) => ({ ...prev, [t.id]: d }));
+          if (!d.hasCaptains && activeTid === null) {
+            setActiveTid(t.id);
+            return;
+          }
+        } catch { /* ignore individual errors */ }
+      }
+      if (activeTid === null) setActiveTid('">NONE<');
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournaments?.length]);
+
+  async function loadTid(tid: Id) {
+    try {
+      setErr(null);
+      const d = await api<AdminTeamsHydrate>(`/api/admin/tournaments/${tid}/teams`);
+      setDataByTid((prev: Record<Id, AdminTeamsHydrate>) => ({ ...prev, [tid]: d }));
+      setActiveTid(tid);
+    } catch (e) { setErr((e as Error).message); }
+  }
+
+  const eligible = useMemo(() => {
+    const arr: Array<{ id: Id; name: string; hasCaptains: boolean }> = [];
+    for (const t of tournaments) {
+      const d = dataByTid[t.id];
+      if (!d) continue;
+      arr.push({ id: t.id, name: t.name, hasCaptains: !!d.hasCaptains });
+    }
+    return arr.filter(x => !x.hasCaptains);
+  }, [tournaments, dataByTid]);
+
+  return (
+    <section className="border rounded p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Teams</h2>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-700">Tournament</label>
+          <select
+            className="border rounded px-2 py-1"
+            value={typeof activeTid === 'string' ? (activeTid as string) : ''}
+            onChange={(e) => loadTid(e.target.value as Id)}
+          >
+            {!eligible.length && <option value={'">NONE<'}>— none —</option>}
+            {eligible.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {err && <div className="border border-red-300 bg-red-50 text-red-700 p-2 rounded">{err}</div>}
+      {info && <div className="border border-green-300 bg-green-50 text-green-700 p-2 rounded">{info}</div>}
+
+      {!eligible.length && (
+        <p className="text-sm text-gray-600">
+          No tournaments without Captains were found. Disable Captains for a tournament in the “Tournaments” tab to manage rosters here.
+        </p>
+      )}
+
+      {eligible.length > 0 && activeTid && activeTid !== '">NONE<' && dataByTid[activeTid] && (
+        <AdminTeamsTournamentPanel
+          hydrate={dataByTid[activeTid]}
+          onSaved={() => setInfo('Saved!')}
+          onError={(m)=>setErr(m)}
+        />
+      )}
+    </section>
+  );
+}
+
+function AdminTeamsTournamentPanel({ hydrate, onSaved, onError }: {
+  hydrate: AdminTeamsHydrate;
+  onSaved: () => void;
+  onError: (m: string) => void;
+}) {
+  const [openClubIds, setOpenClubIds] = useState<Set<Id>>(new Set());
+
+  function toggleClub(id: Id) {
+    setOpenClubIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-sm text-gray-600">
+        Bracket cap: <span className="font-semibold">{hydrate.maxTeamSize ?? '— (no cap set)'}</span> unique players <em>per bracket across all stops</em>.
+      </div>
+
+      <div className="divide-y border rounded">
+        {hydrate.clubs.map((c) => (
+          <div key={c.clubId}>
+            <button
+              className="w-full text-left px-3 py-2 flex items-center justify-between"
+              onClick={() => toggleClub(c.clubId)}
+            >
+              <span className="font-medium">{c.clubName}</span>
+              <span className="text-sm text-gray-500">{openClubIds.has(c.clubId) ? '▾' : '▸'}</span>
+            </button>
+
+            {openClubIds.has(c.clubId) && (
+              <div className="p-3 bg-gray-50">
+                <AdminClubRosterEditor
+                  tournamentId={hydrate.tournamentId}
+                  tournamentName={hydrate.tournamentName}
+                  stops={hydrate.stops}
+                  brackets={c.brackets}
+                  maxTeamSize={hydrate.maxTeamSize ?? null}
+                  onSaved={onSaved}
+                  onError={onError}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* Per-Club editor: renders Stop blocks with Bracket roster editors */
+
+function AdminClubRosterEditor(props: {
+  tournamentId: Id;
+  tournamentName: string;
+  stops: Array<{ stopId: Id; stopName: string; locationName: string | null; startAt: string | null; endAt: string | null }>;
+  brackets: Array<{ teamId: Id; bracketName: string | null; roster: PlayerLite[]; stops: Array<{ stopId: Id; stopRoster: PlayerLite[] }> }>;
+  maxTeamSize: number | null;
+  onSaved: () => void;
+  onError: (m: string) => void;
+}) {
+  const { tournamentId, stops, brackets, maxTeamSize, onSaved, onError } = props;
+
+  // rosters[stopId][teamId] = PlayerLite[]
+  const [rosters, setRosters] = useState<Record<string, Record<string, PlayerLite[]>>>({});
+
+  useEffect(() => {
+    const seed: Record<string, Record<string, PlayerLite[]>> = {};
+    for (const s of stops) {
+      seed[s.stopId] = {};
+      for (const b of brackets) {
+        const apiStop = b.stops.find(x => x.stopId === s.stopId);
+        seed[s.stopId][b.teamId] = (apiStop?.stopRoster ?? []).slice();
+      }
+    }
+    setRosters(seed);
+  }, [stops, brackets]);
+
+  function setStopTeamRoster(stopId: Id, teamId: Id, next: PlayerLite[]) {
+    setRosters(prev => ({ ...prev, [stopId]: { ...(prev[stopId] ?? {}), [teamId]: next } }));
+  }
+
+  async function saveAll() {
+    try {
+      for (const s of stops) {
+        for (const b of brackets) {
+          const list = rosters[s.stopId]?.[b.teamId] ?? [];
+          const res = await fetch(`/api/captain/team/${b.teamId}/stops/${s.stopId}/roster`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerIds: list.map(p => p.id), limit: maxTeamSize ?? undefined }),
+          });
+          const j = await res.json();
+          if (!res.ok || j?.error) throw new Error(j?.error ?? 'Save failed');
+        }
+      }
+      onSaved();
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  }
+
+  const bracketOrder = brackets
+    .map(b => ({ teamId: b.teamId, name: (b.bracketName ?? 'General') }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const hasMultipleStops = stops.length > 1;
+
+  return (
+    <div className="space-y-4">
+
+      {stops.map((s, idx) => {
+        const prev = idx > 0 ? stops[idx - 1] : null;
+        const copyFromPrev = () => {
+          if (!prev) return;
+          const snapshot = rosters[prev.stopId] || {};
+          const nextForCurr: Record<string, PlayerLite[]> = {};
+          for (const b of brackets) nextForCurr[b.teamId] = (snapshot[b.teamId] ?? []).slice();
+          setRosters(prevAll => ({ ...prevAll, [s.stopId]: nextForCurr }));
+        };
+
+        return (
+          <div key={s.stopId} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="font-medium">
+                {(() => {
+                  const title = stopTitleForDisplay({ stopName: s.stopName, hasMultipleStops });
+                  return title
+                    ? (<>{title}<span className="text-gray-500"> • {s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span></>)
+                    : (<span className="text-gray-500">{s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span>);
+                })()}
+              </div>
+              {prev && (
+                <button className="px-2 py-1 border rounded text-sm" onClick={copyFromPrev}>
+                  Copy from previous stop
+                </button>
+              )}
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {bracketOrder.map(({ teamId, name }) => {
+                const list = rosters[s.stopId]?.[teamId] ?? [];
+                const excludeAcrossThisStop = Object.values(rosters[s.stopId] ?? {}).flat().map(p => p.id);
+                return (
+                  <AdminBracketRosterEditor
+                    key={`${s.stopId}:${teamId}`}
+                    title={`${name} (${list.length}${maxTeamSize ? ` / ≤${maxTeamSize}` : ''})`}
+                    tournamentId={tournamentId}
+                    teamId={teamId}
+                    list={list}
+                    onChange={(next) => setStopTeamRoster(s.stopId, teamId, next)}
+                    excludeIdsAcrossStop={excludeAcrossThisStop}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <div className="pt-2">
+        <button className="px-3 py-1 rounded bg-blue-600 text-white" onClick={saveAll}>Save All</button>
+      </div>
+    </div>
+  );
+}
+
+/* Per-bracket editor (typeahead + list) – same search UX as Captain */
+
+function AdminBracketRosterEditor({
+  title,
+  tournamentId,
+  teamId,
+  list,
+  onChange,
+  excludeIdsAcrossStop,
+}: {
+  title: string;
+  tournamentId: Id;
+  teamId: Id;
+  list: PlayerLite[];
+  onChange: (next: PlayerLite[]) => void;
+  excludeIdsAcrossStop: string[];
+}) {
+  const [term, setTerm] = useState('');
+  const [options, setOptions] = useState<PlayerLite[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  function add(p: PlayerLite) {
+    if (list.some((x) => x.id === p.id)) return;
+    if (excludeIdsAcrossStop.includes(p.id)) return;
+    onChange([...list, p]);
+  }
+  function remove(id: string) {
+    onChange(list.filter((p) => p.id !== id));
+  }
+
+  useEffect(() => {
+    if (term.trim().length < 3) {
+      setOptions([]); setOpen(false); return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const url = new URL('/api/admin/players/search', window.location.origin);
+        url.searchParams.set('term', term.trim());
+        url.searchParams.set('tournamentId', String(tournamentId));
+        url.searchParams.set('teamId', String(teamId));
+        if (excludeIdsAcrossStop.length) url.searchParams.set('excludeIds', excludeIdsAcrossStop.join(','));
+        const res = await fetch(url.toString());
+        const j = await res.json();
+        const items: PlayerLite[] = (j.items ?? j.data?.items ?? []).map((p: any) => ({
+          id: p.id, firstName: p.firstName, lastName: p.lastName, name: p.name, gender: p.gender,
+          dupr: (p.dupr ?? null) as number | null, age: (p.age ?? null) as number | null,
+        }));
+        if (!cancelled) { setOptions(items); setOpen(true); }
+      } catch {
+        if (!cancelled) { setOptions([]); setOpen(false); }
+      } finally { if (!cancelled) setLoading(false); }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [term, tournamentId, teamId, excludeIdsAcrossStop]);
+
+  return (
+    <div className="border rounded p-3 space-y-2 bg-white">
+      <div className="font-medium">{title}</div>
+
+      <div className="relative">
+        <input
+          className="w-full rounded px-2 py-2 border"
+          placeholder="Type at least 3 characters to search"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          onFocus={() => { if (options.length) setOpen(true); }}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+        />
+        {open && options.length > 0 && (
+          <ul className="absolute z-10 mt-1 w-full bg-white rounded shadow">
+            {options.map((opt) => (
+              <li
+                key={opt.id}
+                className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { add(opt); setTerm(''); setOptions([]); setOpen(false); }}
+              >
+                {labelPL(opt)}{' '}
+                <span className="text-gray-500">• {opt.gender} • {opt.dupr ?? '—'} • {opt.age ?? '—'}</span>
+              </li>
+            ))}
+            {loading && <li className="px-3 py-2 text-sm text-gray-500">Searching…</li>}
+          </ul>
+        )}
+      </div>
+
+      <ul className="space-y-1">
+        {list.map((p) => (
+          <li key={p.id} className="flex items-center justify-between">
+            <span className="text-sm">
+              {labelPL(p)} <span className="text-gray-500">• {p.gender} • {p.dupr ?? '—'} • {p.age ?? '—'}</span>
+            </span>
+            <button className="text-gray-500 hover:text-red-600 text-sm" title="Remove" onClick={() => remove(p.id)}>🗑️</button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

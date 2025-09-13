@@ -1,7 +1,8 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // turn off the auto-generated typed route validator
+  typedRoutes: false,
 };
 
 export default nextConfig;

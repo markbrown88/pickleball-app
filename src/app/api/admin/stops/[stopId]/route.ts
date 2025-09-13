@@ -2,18 +2,21 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/prisma';
 
 /** DELETE /api/admin/stops/:stopId */
 export async function DELETE(
-  _req: Request,
-  { params }: { params: { stopId: string } }
+  _req: NextRequest,
+  ctx: { params: Promise<{ stopId: string }> }
 ) {
   const prisma = getPrisma();
-  const { stopId } = params;
+  const { stopId } = await ctx.params;
 
-  // Idempotent: if not found, return 204 so the UI stays happy.
+  if (!stopId) return new NextResponse(null, { status: 400 });
+
+  // If it's already gone, respond 204
   const exists = await prisma.stop.findUnique({
     where: { id: stopId },
     select: { id: true },
@@ -21,57 +24,64 @@ export async function DELETE(
   if (!exists) return new NextResponse(null, { status: 204 });
 
   try {
-    // Prefer simple delete if your schema cascades handle it.
+    // Most installs should succeed here thanks to onDelete: Cascade on relations.
     await prisma.stop.delete({ where: { id: stopId } });
   } catch {
-    // Manual cascade fallback when constraints block the simple delete.
+    // Fallback manual cascade in case of FK constraints or older DBs
     await prisma.$transaction(async (tx) => {
-      // Collect rounds for this stop
+      // 1) Rounds for this stop
       const rounds = await tx.round.findMany({
         where: { stopId },
         select: { id: true },
       });
-      const roundIds = rounds.map(r => r.id);
+      const roundIds = rounds.map((r) => r.id);
 
       if (roundIds.length) {
-        // Matches & Games under those rounds
-        const matches = await tx.match.findMany({
+        // 1a) Games under those rounds
+        const games = await tx.game.findMany({
           where: { roundId: { in: roundIds } },
           select: { id: true },
         });
-        const matchIds = matches.map(m => m.id);
+        const gameIds = games.map((g) => g.id);
 
-        if (matchIds.length) {
-          await tx.game.deleteMany({ where: { matchId: { in: matchIds } } });
-          await tx.match.deleteMany({ where: { id: { in: matchIds } } });
+        if (gameIds.length) {
+          // 1a-i) Matches under those games
+          await tx.match.deleteMany({
+            where: { gameId: { in: gameIds } },
+          });
+
+          // 1a-ii) Delete games
+          await tx.game.deleteMany({
+            where: { id: { in: gameIds } },
+          });
         }
 
-        // Lineups & entries under those rounds
+        // 1b) Lineups and entries under those rounds
         const lineups = await tx.lineup.findMany({
           where: { roundId: { in: roundIds } },
           select: { id: true },
         });
-        const lineupIds = lineups.map(l => l.id);
+        const lineupIds = lineups.map((l) => l.id);
 
         if (lineupIds.length) {
           await tx.lineupEntry.deleteMany({ where: { lineupId: { in: lineupIds } } });
           await tx.lineup.deleteMany({ where: { id: { in: lineupIds } } });
         }
 
-        // Finally delete the rounds
+        // 1c) Delete rounds
         await tx.round.deleteMany({ where: { id: { in: roundIds } } });
       }
 
-      // Per-stop team links & rosters
+      // 2) Stop roster & team links
       await tx.stopTeamPlayer.deleteMany({ where: { stopId } });
       await tx.stopTeam.deleteMany({ where: { stopId } });
 
-      // The stop itself
+      // 3) Finally delete the stop
       await tx.stop.delete({ where: { id: stopId } });
     });
   }
 
-  // Verify it's gone; if not, surface a conflict
+  // Verify
   const stillThere = await prisma.stop.findUnique({
     where: { id: stopId },
     select: { id: true },

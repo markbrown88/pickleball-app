@@ -23,8 +23,9 @@ async function getData(token: string) {
   return invite;
 }
 
-export default async function Page({ params }: { params: { token: string }}) {
-  const data = await getData(params.token);
+export default async function Page({ params }: { params: Promise<{ token: string }>}) {
+  const { token } = await params;
+  const data = await getData(token);
   if (!data) return <div className="p-6">Link invalid or expired.</div>;
   return (
     <div className="p-6 space-y-6">

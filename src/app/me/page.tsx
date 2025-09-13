@@ -1,11 +1,77 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { DndContext, DragEndEvent, DragStartEvent, closestCenter } from '@dnd-kit/core';
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type Id = string;
 type CountrySel = 'Canada' | 'USA' | 'Other';
 
 const CA_PROVINCES = ['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'] as const;
+
+// Draggable Team Component using @dnd-kit
+function DraggableTeam({ 
+  team, 
+  teamPosition, 
+  roundId, 
+  matchIndex, 
+  isDragging = false 
+}: { 
+  team: any; 
+  teamPosition: 'A' | 'B'; 
+  roundId: string; 
+  matchIndex: number; 
+  isDragging?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({
+    id: `${roundId}-${matchIndex}-${teamPosition}`,
+    data: {
+      roundId,
+      matchIndex,
+      teamPosition,
+      team
+    }
+  });
+
+  // Debug logging disabled to prevent infinite loop
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging || isSortableDragging ? 0.6 : 1,
+    zIndex: isDragging || isSortableDragging ? 1000 : 'auto',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`px-3 py-2 border rounded cursor-move transition-all duration-200 ${
+        isDragging || isSortableDragging ? 'opacity-60 scale-105 shadow-lg border-blue-400 bg-blue-50' : ''
+      } ${
+        !team ? 'border-dashed border-gray-300 bg-gray-50 cursor-not-allowed' : 'bg-white hover:shadow-md'
+      }`}
+    >
+      {team ? (
+        <div className="text-center">
+          <div className="font-medium">{team.name}</div>
+        </div>
+      ) : (
+        <div className="text-gray-400 italic">Drop team here</div>
+      )}
+    </div>
+  );
+}
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME',
   'MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA',
@@ -33,7 +99,61 @@ type Club = {
   id: Id; name: string;
   address?: string|null; city?: string|null; region?: string|null; country?: string|null; phone?: string|null;
 };
-type PlayerLite = { id: Id; firstName?: string|null; lastName?: string|null; name?: string|null; gender: 'MALE'|'FEMALE' };
+type PlayerLite = { id: Id; firstName?: string|null; lastName?: string|null; name?: string|null; gender: 'MALE'|'FEMALE'; dupr?: number|null; age?: number|null; };
+
+type StopRowFromAPI = {
+  stopId: Id;
+  stopName: string;
+  locationName?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+  tournamentId?: Id | null;
+  tournamentName?: string | null;
+  stopRoster: PlayerLite[]; // roster for THIS team (bracket) at THIS stop
+};
+
+type TeamItem = {
+  id: Id;
+  name: string;
+  club?: Club | null;
+  bracketName: string | null; // "Advanced","Intermediate","DEFAULT", null⇒"General"
+  tournament: { id: Id; name: string; maxTeamSize: number | null };
+  tournamentId: Id;
+  roster: PlayerLite[];
+  stops: StopRowFromAPI[];
+  bracketLimit: number | null;       // max unique players across all stops for THIS team (bracket)
+  bracketUniqueCount: number;        // current unique across all stops (from API)
+};
+
+type TournamentRow = {
+  tournamentId: Id;
+  tournamentName: string;
+  dates: string;
+  stops: Array<{ stopId: Id; stopName: string; locationName?: string | null; startAt?: string | null; endAt?: string | null }>;
+  bracketTeams: Map<string, TeamItem>;
+  bracketNames: string[];
+};
+
+type EventManagerTournament = {
+  tournamentId: Id;
+  tournamentName: string;
+  type: string;
+  maxTeamSize: number | null;
+  roles: {
+    manager: boolean;
+    admin: boolean;
+    captainOfClubs: string[];
+  };
+  clubs: Array<{ id: Id; name: string }>;
+  stops: Array<{
+    stopId: Id;
+    stopName: string;
+    locationName?: string | null;
+    startAt?: string | null;
+    endAt?: string | null;
+    rounds: Array<{ roundId: Id; idx: number; gameCount: number; matchCount: number }>;
+  }>;
+};
 
 type Overview = {
   player: {
@@ -49,6 +169,9 @@ type Overview = {
     stopId: Id; stopName: string; stopStartAt?: string|null; stopEndAt?: string|null;
     teamId: Id; teamName: string; teamClubName?: string|null;
   }[];
+  // New fields for consolidated functionality
+  captainTeams?: TeamItem[];
+  eventManagerTournaments?: EventManagerTournament[];
 };
 
 export default function MePage() {
@@ -73,11 +196,90 @@ export default function MePage() {
     dupr: string;
     city: string; region: string;
     phone: string; email: string;
+    clubRating: string; photo: string;
   }>({
-    firstName:'', lastName:'', gender:'MALE', clubId:'', dupr:'', city:'', region:'', phone:'', email:''
+    firstName:'', lastName:'', gender:'MALE', clubId:'', dupr:'', city:'', region:'', phone:'', email:'', clubRating:'', photo:''
   });
 
+  // Captain functionality
+  const [captainData, setCaptainData] = useState<{ teams: TeamItem[] }>({ teams: [] });
+  const [activeTournamentId, setActiveTournamentId] = useState<Id | null>(null);
+  const [captainRosters, setCaptainRosters] = useState<Record<string, Record<string, PlayerLite[]>>>({});
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'profile' | 'tournaments' | 'teams' | 'manage'>('profile');
+
+  // Event Manager functionality
+  const [eventManagerData, setEventManagerData] = useState<EventManagerTournament[]>([]);
+
+  // Lineup management state
+  const [editingLineup, setEditingLineup] = useState<{ matchId: string; teamId: string } | null>(null);
+  const [lineups, setLineups] = useState<Record<string, Record<string, PlayerLite[]>>>({});
+  
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+
   const captainSet = useMemo(()=> new Set(Object.keys(overview?.captainTeamIds ?? {})), [overview]);
+
+  // Build tournament rows for captain functionality
+  const captainTournamentRows: TournamentRow[] = useMemo(() => {
+    const byTid = new Map<string, TournamentRow>();
+
+    for (const team of (captainData.teams ?? [])) {
+      const tid = team.tournamentId;
+      const tname = team.tournament.name;
+
+      // normalize bracket key
+      const bKey = (team.bracketName || 'General').trim();
+
+      // ensure row
+      let row = byTid.get(tid);
+      if (!row) {
+        // derive ordered stops across all teams in this tournament
+        const unionStopsMap = new Map<string, StopRowFromAPI>();
+        for (const t2 of (captainData.teams ?? []).filter(x => x.tournamentId === tid)) {
+          for (const s of t2.stops ?? []) unionStopsMap.set(s.stopId, s);
+        }
+        const unionStops = [...unionStopsMap.values()].sort((a, b) => {
+          const as = a.startAt ? +new Date(a.startAt) : Number.MAX_SAFE_INTEGER;
+          const bs = b.startAt ? +new Date(b.startAt) : Number.MAX_SAFE_INTEGER;
+          return as - bs;
+        });
+
+        // date range
+        const start = unionStops.reduce((min, s) => Math.min(min, s.startAt ? +new Date(s.startAt) : Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER);
+        const end = unionStops.reduce((max, s) => Math.max(max, s.endAt ? +new Date(s.endAt) : (s.startAt ? +new Date(s.startAt) : 0)), 0);
+        const dates = (start !== Number.MAX_SAFE_INTEGER && end !== 0)
+          ? `${fmtDate(new Date(start).toISOString())} – ${fmtDate(new Date(end).toISOString())}`
+          : '—';
+
+        row = {
+          tournamentId: tid,
+          tournamentName: tname,
+          dates,
+          stops: unionStops.map(s => ({
+            stopId: s.stopId,
+            stopName: s.stopName,
+            locationName: s.locationName ?? null,
+            startAt: s.startAt ?? null,
+            endAt: s.endAt ?? null,
+          })),
+          bracketTeams: new Map<string, TeamItem>(),
+          bracketNames: [],
+        };
+        byTid.set(tid, row);
+      }
+
+      row.bracketTeams.set(bKey, team);
+    }
+
+    // finalize bracket name arrays
+    for (const r of byTid.values()) {
+      r.bracketNames = [...r.bracketTeams.keys()].sort((a, b) => a.localeCompare(b));
+    }
+
+    return [...byTid.values()].sort((a, b) => a.tournamentName.localeCompare(b.tournamentName));
+  }, [captainData]);
 
   function label(p: PlayerLite) {
     const fn = (p.firstName ?? '').trim();
@@ -96,7 +298,13 @@ export default function MePage() {
         const arr = await r.json();
         const playersArr: PlayerLite[] = Array.isArray(arr) ? arr : (arr?.items ?? []);
         setPlayers(playersArr);
-        if (playersArr.length && !meId) setMeId(playersArr[0].id);
+        if (playersArr.length && !meId) {
+          // Look for Lily Brown first, otherwise use first player
+          const lilyBrown = playersArr.find(p => 
+            p.firstName?.toLowerCase() === 'lily' && p.lastName?.toLowerCase() === 'brown'
+          );
+          setMeId(lilyBrown?.id || playersArr[0].id);
+        }
 
         // clubs for profile editing
         const rc = await fetch('/api/admin/clubs');
@@ -136,6 +344,8 @@ export default function MePage() {
           region: p.region || '',
           phone: p.phone || '',
           email: p.email || '',
+          clubRating: p.clubRating || '',
+          photo: p.photo || '',
         });
       } catch (e) {
         setErr((e as Error).message);
@@ -143,6 +353,54 @@ export default function MePage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meId]);
+
+  // Load captain data if player is a captain
+  useEffect(() => {
+    if (!meId || !captainSet.size) return;
+    (async () => {
+      try {
+        const captainResponse = await fetch(`/api/captain/${meId}/teams`).then(r => r.json());
+        if (captainResponse?.error) throw new Error(captainResponse.error);
+        setCaptainData(captainResponse);
+      } catch (e) {
+        console.error('Failed to load captain data:', e);
+      }
+    })();
+  }, [meId, captainSet.size]);
+
+  // Load event manager data if player is an event manager
+  useEffect(() => {
+    if (!meId) return;
+    (async () => {
+      try {
+        const managerResponse = await fetch(`/api/manager/${meId}/tournaments`).then(r => r.json());
+        if (managerResponse?.error) throw new Error(managerResponse.error);
+        setEventManagerData(managerResponse.items || []);
+      } catch (e) {
+        console.error('Failed to load event manager data:', e);
+      }
+    })();
+  }, [meId]);
+
+  // Populate form when overview data loads
+  useEffect(() => {
+    if (overview?.player) {
+      const player = overview.player;
+      setForm({
+        firstName: player.firstName || '',
+        lastName: player.lastName || '',
+        gender: player.gender || 'MALE',
+        clubId: player.club?.id || '',
+        dupr: player.dupr?.toString() || '',
+        city: player.city || '',
+        region: player.region || '',
+        phone: player.phone || '',
+        email: player.email || '',
+        clubRating: '', // This will be populated from the API response
+        photo: '', // This will be populated from the API response
+      });
+    }
+  }, [overview]);
 
   function ymdToDateString(y?: number|null, m?: number|null, d?: number|null) {
     if (!y || !m || !d) return '';
@@ -166,6 +424,8 @@ export default function MePage() {
         phone: form.phone,
         email: form.email,
         birthday, // YYYY-MM-DD
+        clubRating: form.clubRating ? Number(form.clubRating) : null,
+        photo: form.photo,
       };
       const r = await fetch(`/api/admin/players/${meId}`, {
         method: 'PUT',
@@ -201,104 +461,360 @@ export default function MePage() {
       {err && <div className="border border-red-300 bg-red-50 text-red-700 p-3 rounded">{err}</div>}
       {info && <div className="border border-green-300 bg-green-50 text-green-700 p-3 rounded">{info}</div>}
 
-      {/* Profile */}
-      <section className="border rounded p-4 space-y-3">
+
+      {/* Tab Navigation */}
+      <div className="border-b">
+        <nav className="flex space-x-8">
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'profile'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Profile
+          </button>
+          <button
+            onClick={() => setActiveTab('tournaments')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'tournaments'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Tournaments
+          </button>
+          {captainSet.size > 0 && (
+            <button
+              onClick={() => setActiveTab('teams')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'teams'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Teams
+            </button>
+          )}
+          {eventManagerData.length > 0 && (
+            <button
+              onClick={() => setActiveTab('manage')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'manage'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Manage
+            </button>
+          )}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      <div className="mt-6">
+        {activeTab === 'profile' && (
+          <section className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Profile</h2>
           <button className="border rounded px-3 py-1" onClick={() => setShowEdit(s => !s)}>
-            {showEdit ? 'Close' : 'Edit Profile'}
+                {showEdit ? 'Cancel' : 'Edit Profile'}
           </button>
         </div>
 
         {overview && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <div><span className="text-gray-600">Name</span><div>{label(overview.player as any)}</div></div>
-            <div><span className="text-gray-600">Gender</span><div>{overview.player.gender}</div></div>
-            <div><span className="text-gray-600">Primary Club</span><div>{overview.player.club?.name ?? '—'}</div></div>
-            <div><span className="text-gray-600">Age</span><div>{overview.player.age ?? '—'}</div></div>
-            <div><span className="text-gray-600">DUPR</span><div>{overview.player.dupr ?? '—'}</div></div>
-            <div><span className="text-gray-600">City</span><div>{overview.player.city ?? '—'}</div></div>
-            <div><span className="text-gray-600">Province/State</span><div>{overview.player.region ?? '—'}</div></div>
-            <div><span className="text-gray-600">Country</span><div>{overview.player.country ?? '—'}</div></div>
-            <div><span className="text-gray-600">Phone</span><div>{overview.player.phone ?? '—'}</div></div>
-            <div><span className="text-gray-600">Email</span><div>{overview.player.email ?? '—'}</div></div>
+              <div className="space-y-4">
+                {/* Photo Section */}
+                <div className="flex items-start gap-6">
+                  <div className="flex-shrink-0">
+                    <div className="w-24 h-32 bg-gray-200 rounded border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
+                      {form.photo ? (
+                        <img src={form.photo} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-gray-500 text-sm">No Photo</span>
+                      )}
+                    </div>
+                    {showEdit && (
+                      <div className="mt-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="text-xs"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const img = new Image();
+                                img.onload = () => {
+                                  // Create canvas for cropping to 200x300 (portrait)
+                                  const canvas = document.createElement('canvas');
+                                  const ctx = canvas.getContext('2d');
+                                  canvas.width = 200;
+                                  canvas.height = 300;
+                                  
+                                  // Calculate crop dimensions to maintain aspect ratio
+                                  const aspectRatio = img.width / img.height;
+                                  const targetAspectRatio = 200 / 300;
+                                  
+                                  let sourceX = 0, sourceY = 0, sourceWidth = img.width, sourceHeight = img.height;
+                                  
+                                  if (aspectRatio > targetAspectRatio) {
+                                    // Image is wider, crop width
+                                    sourceWidth = img.height * targetAspectRatio;
+                                    sourceX = (img.width - sourceWidth) / 2;
+                                  } else {
+                                    // Image is taller, crop height
+                                    sourceHeight = img.width / targetAspectRatio;
+                                    sourceY = (img.height - sourceHeight) / 2;
+                                  }
+                                  
+                                  ctx?.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, 200, 300);
+                                  const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                                  setForm(f => ({ ...f, photo: croppedDataUrl }));
+                                };
+                                img.src = event.target?.result as string;
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
           </div>
         )}
-
-        {/* Edit dropdown */}
-        {showEdit && (
-          <div className="border rounded p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-            <input className="border rounded px-2 py-1" placeholder="First name" value={form.firstName}
-              onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} />
-            <input className="border rounded px-2 py-1" placeholder="Last name" value={form.lastName}
-              onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} />
-            <select className="border rounded px-2 py-1" value={form.gender} onChange={e=>setForm(f=>({...f,gender:e.target.value as any}))}>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    {/* Name Fields - Same Row */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-4">
+                        <label className="w-20 text-sm font-medium text-gray-700">First Name</label>
+                        {showEdit ? (
+                          <input
+                            className="flex-1 border rounded px-3 py-1 text-sm"
+                            value={form.firstName}
+                            onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
+                            placeholder="First name"
+                          />
+                        ) : (
+                          <span className="flex-1 text-sm">{overview.player.firstName || '—'}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <label className="w-20 text-sm font-medium text-gray-700">Last Name</label>
+                        {showEdit ? (
+                          <input
+                            className="flex-1 border rounded px-3 py-1 text-sm"
+                            value={form.lastName}
+                            onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
+                            placeholder="Last name"
+                          />
+                        ) : (
+                          <span className="flex-1 text-sm">{overview.player.lastName || '—'}</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Age and Gender - Same Row */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-4">
+                        <label className="w-20 text-sm font-medium text-gray-700">Age</label>
+                        {showEdit ? (
+                          <input
+                            type="date"
+                            className="flex-1 border rounded px-3 py-1 text-sm"
+                            value={birthday}
+                            onChange={e => setBirthday(e.target.value)}
+                          />
+                        ) : (
+                          <span className="flex-1 text-sm">{overview.player.age ? `${overview.player.age} years old` : '—'}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <label className="w-20 text-sm font-medium text-gray-700">Sex</label>
+                        {showEdit ? (
+                          <select
+                            className="flex-1 border rounded px-3 py-1 text-sm"
+                            value={form.gender}
+                            onChange={e => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
+                          >
               <option value="MALE">Male</option>
               <option value="FEMALE">Female</option>
             </select>
+                        ) : (
+                          <span className="flex-1 text-sm">{overview.player.gender?.toLowerCase() || '—'}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-            {/* Birthday date picker */}
-            <input className="border rounded px-2 py-1" type="date" value={birthday} onChange={e=>setBirthday(e.target.value)} />
-
-            {/* Club */}
-            <select className="border rounded px-2 py-1" value={form.clubId} onChange={e=>setForm(f=>({...f,clubId:e.target.value as Id}))}>
-              <option value="">Primary Club…</option>
+                {/* Primary Club */}
+                <div className="flex items-center gap-4">
+                  <label className="w-24 text-sm font-medium text-gray-700">Primary Club</label>
+                  {showEdit ? (
+                    <select
+                      className="flex-1 border rounded px-3 py-1 text-sm"
+                      value={form.clubId}
+                      onChange={e => setForm(f => ({ ...f, clubId: e.target.value as Id }))}
+                    >
+                      <option value="">Select Club</option>
               {(Array.isArray(clubsAll) ? clubsAll : []).map(c => (
                 <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
               ))}
             </select>
+                  ) : (
+                    <span className="flex-1 text-sm">{overview.player.club?.name || '—'}</span>
+                  )}
+                </div>
 
-            <input className="border rounded px-2 py-1" type="number" step="0.01" min="0" max="8" placeholder="DUPR"
-              value={form.dupr} onChange={e=>setForm(f=>({...f,dupr:e.target.value}))} />
+                {/* DUPR and Club Rating - Same Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-4">
+                    <label className="w-24 text-sm font-medium text-gray-700">DUPR</label>
+                    {showEdit ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="8"
+                        className="flex-1 border rounded px-3 py-1 text-sm"
+                        value={form.dupr}
+                        onChange={e => setForm(f => ({ ...f, dupr: e.target.value }))}
+                        placeholder="DUPR rating"
+                      />
+                    ) : (
+                      <span className="flex-1 text-sm">{overview.player.dupr || '—'}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="w-24 text-sm font-medium text-gray-700">Club Rating</label>
+                    {showEdit ? (
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="10"
+                        className="flex-1 border rounded px-3 py-1 text-sm"
+                        value={form.clubRating}
+                        onChange={e => setForm(f => ({ ...f, clubRating: e.target.value }))}
+                        placeholder="Club rating"
+                      />
+                    ) : (
+                      <span className="flex-1 text-sm">{form.clubRating || '—'}</span>
+                    )}
+                  </div>
+                </div>
 
-            <input className="border rounded px-2 py-1" placeholder="City" value={form.city}
-              onChange={e=>setForm(f=>({...f,city:e.target.value}))} />
-
-            {/* Country + Region */}
-            <select className="border rounded px-2 py-1" value={countrySel} onChange={e=>setCountrySel(e.target.value as CountrySel)}>
+                {/* Location */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-4">
+                    <label className="w-24 text-sm font-medium text-gray-700">City</label>
+                    {showEdit ? (
+                      <input
+                        className="flex-1 border rounded px-3 py-1 text-sm"
+                        value={form.city}
+                        onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                        placeholder="City"
+                      />
+                    ) : (
+                      <span className="flex-1 text-sm">{overview.player.city || '—'}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="w-24 text-sm font-medium text-gray-700">Region</label>
+                    {showEdit ? (
+                      <div className="flex-1 flex gap-2">
+                        <select
+                          className="flex-1 border rounded px-3 py-1 text-sm"
+                          value={countrySel}
+                          onChange={e => setCountrySel(e.target.value as CountrySel)}
+                        >
               <option value="Canada">Canada</option>
               <option value="USA">USA</option>
               <option value="Other">Other</option>
             </select>
             {countrySel === 'Other' ? (
-              <input className="border rounded px-2 py-1" placeholder="Country" value={countryOther}
-                onChange={e=>setCountryOther(e.target.value)} />
-            ) : <div />}
-
-            {countrySel === 'Canada' && (
-              <select className="border rounded px-2 py-1" value={form.region} onChange={e=>setForm(f=>({...f,region:e.target.value}))}>
-                <option value="">Province…</option>
-                {CA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                          <input
+                            className="flex-1 border rounded px-3 py-1 text-sm"
+                            placeholder="Country"
+                            value={countryOther}
+                            onChange={e => setCountryOther(e.target.value)}
+                          />
+                        ) : (
+                          <select
+                            className="flex-1 border rounded px-3 py-1 text-sm"
+                            value={form.region}
+                            onChange={e => setForm(f => ({ ...f, region: e.target.value }))}
+                          >
+                            <option value="">Select {countrySel === 'Canada' ? 'Province' : 'State'}</option>
+                            {(countrySel === 'Canada' ? CA_PROVINCES : US_STATES).map(item => (
+                              <option key={item} value={item}>{item}</option>
+                            ))}
               </select>
             )}
-            {countrySel === 'USA' && (
-              <select className="border rounded px-2 py-1" value={form.region} onChange={e=>setForm(f=>({...f,region:e.target.value}))}>
-                <option value="">State…</option>
-                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            )}
-            {countrySel === 'Other' && (
-              <input className="border rounded px-2 py-1" placeholder="Region/Province/State" value={form.region}
-                onChange={e=>setForm(f=>({...f,region:e.target.value}))} />
-            )}
+                      </div>
+                    ) : (
+                      <span className="flex-1 text-sm">{overview.player.region || '—'}</span>
+                    )}
+                  </div>
+                </div>
 
-            {/* contact */}
-            <input className="border rounded px-2 py-1" placeholder="Phone (10 digits)" value={form.phone}
-              onChange={e=>setForm(f=>({...f,phone:e.target.value}))} />
-            <input className="border rounded px-2 py-1" type="email" placeholder="Email" value={form.email}
-              onChange={e=>setForm(f=>({...f,email:e.target.value}))} />
+                {/* Contact */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-4">
+                    <label className="w-24 text-sm font-medium text-gray-700">Phone</label>
+                    {showEdit ? (
+                      <input
+                        className="flex-1 border rounded px-3 py-1 text-sm"
+                        value={form.phone}
+                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                        placeholder="Phone number"
+                      />
+                    ) : (
+                      <span className="flex-1 text-sm">{overview.player.phone || '—'}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="w-24 text-sm font-medium text-gray-700">Email</label>
+                    {showEdit ? (
+                      <input
+                        type="email"
+                        className="flex-1 border rounded px-3 py-1 text-sm"
+                        value={form.email}
+                        onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                        placeholder="Email address"
+                      />
+                    ) : (
+                      <span className="flex-1 text-sm">{overview.player.email || '—'}</span>
+                    )}
+                  </div>
+                </div>
 
-            <div className="col-span-full flex gap-2">
-              <button className="border rounded px-3 py-1" onClick={saveProfile}>Save</button>
-              <button className="border rounded px-3 py-1" onClick={()=>setShowEdit(false)}>Cancel</button>
+                {/* Save/Cancel Buttons */}
+                {showEdit && (
+                  <div className="flex gap-3 pt-4 border-t">
+                    <button
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      onClick={saveProfile}
+                    >
+                      Save Changes
+                    </button>
+                    <button
+                      className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                      onClick={() => setShowEdit(false)}
+                    >
+                      Cancel
+                    </button>
             </div>
+                )}
           </div>
         )}
       </section>
+        )}
 
-      {/* Assignments */}
-      <section className="border rounded p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Tournaments & Stops</h2>
+        {activeTab === 'tournaments' && (
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Tournaments</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -334,6 +850,1665 @@ export default function MePage() {
           </table>
         </div>
       </section>
+        )}
+
+        {activeTab === 'teams' && captainSet.size > 0 && (
+          <TeamsTab
+            captainTournamentRows={captainTournamentRows}
+            activeTournamentId={activeTournamentId}
+            setActiveTournamentId={setActiveTournamentId}
+            label={label}
+            onSaved={() => setInfo('Rosters saved!')}
+            onError={(m) => setErr(m)}
+          />
+        )}
+
+        {activeTab === 'manage' && eventManagerData.length > 0 && (
+          <EventManagerTab
+            tournaments={eventManagerData}
+            onError={(m) => setErr(m)}
+            onInfo={(m) => setInfo(m)}
+            editingLineup={editingLineup}
+            setEditingLineup={setEditingLineup}
+            lineups={lineups}
+            setLineups={setLineups}
+            isDragging={isDragging}
+            setIsDragging={setIsDragging}
+          />
+        )}
+      </div>
+
     </main>
+  );
+}
+
+/* ================= Teams Tab Component ================= */
+
+function TeamsTab({
+  captainTournamentRows,
+  activeTournamentId,
+  setActiveTournamentId,
+  label,
+  onSaved,
+  onError,
+}: {
+  captainTournamentRows: TournamentRow[];
+  activeTournamentId: Id | null;
+  setActiveTournamentId: (id: Id | null) => void;
+  label: (p: PlayerLite) => string;
+  onSaved: () => void;
+  onError: (m: string) => void;
+}) {
+  return (
+    <section className="space-y-6">
+      <h2 className="text-lg font-semibold">Teams</h2>
+      
+      {/* Tournament List */}
+      <div className="space-y-4">
+        {captainTournamentRows.length === 0 && (
+          <div className="text-gray-600">No captain assignments yet.</div>
+        )}
+        
+        {captainTournamentRows.map((row) => (
+          <div key={row.tournamentId} className="border rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 
+                  className="text-lg font-medium text-blue-600 cursor-pointer hover:text-blue-800"
+                  onClick={() => setActiveTournamentId(activeTournamentId === row.tournamentId ? null : row.tournamentId)}
+                >
+                  {row.tournamentName}
+                </h3>
+                <p className="text-sm text-gray-600">{row.dates}</p>
+                <p className="text-sm text-gray-500">
+                  Brackets: {row.bracketNames.length ? row.bracketNames.join(', ') : 'General'}
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTournamentId(activeTournamentId === row.tournamentId ? null : row.tournamentId)}
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                {activeTournamentId === row.tournamentId ? 'Hide Rosters' : 'Manage Rosters'}
+              </button>
+            </div>
+            
+            {/* Roster Management - Inline */}
+            {activeTournamentId === row.tournamentId && (
+              <CaptainRosterEditor
+                tournamentId={row.tournamentId}
+                tournamentRow={row}
+                onClose={() => setActiveTournamentId(null)}
+                onSaved={onSaved}
+                onError={onError}
+                label={label}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      
+      <p className="text-xs text-gray-500">
+        Limits are enforced <em>per bracket</em> (unique players across all stops). A player cannot be on multiple brackets in the same tournament.
+      </p>
+    </section>
+  );
+}
+
+/* ================= Captain Roster Editor Component ================= */
+
+function CaptainRosterEditor({
+  tournamentId,
+  tournamentRow,
+  onClose,
+  onSaved,
+  onError,
+  label,
+}: {
+  tournamentId: Id;
+  tournamentRow: TournamentRow;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (m: string) => void;
+  label: (p: PlayerLite) => string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [rosters, setRosters] = useState<Record<string, Record<string, PlayerLite[]>>>({});
+
+  // Initialize rosters from tournament data
+  useEffect(() => {
+    const seed: Record<string, Record<string, PlayerLite[]>> = {};
+    for (const s of tournamentRow.stops) {
+      seed[s.stopId] = {};
+      for (const b of tournamentRow.bracketNames) {
+        const team = tournamentRow.bracketTeams.get(b);
+        const apiStop = team?.stops.find(x => x.stopId === s.stopId);
+        seed[s.stopId][b] = (apiStop?.stopRoster ?? []).slice();
+      }
+    }
+    setRosters(seed);
+  }, [tournamentRow]);
+
+  function setStopBracketRoster(stopId: Id, bracketKey: string, next: PlayerLite[]) {
+    setRosters(prev => ({
+      ...prev,
+      [stopId]: { ...(prev[stopId] ?? {}), [bracketKey]: next }
+    }));
+  }
+
+  // Unique set of players across ALL stops for a given bracket
+  function uniqueIdsAcrossStopsForBracket(bracketKey: string): Set<string> {
+    const ids = new Set<string>();
+    for (const s of tournamentRow.stops) {
+      const list = rosters[s.stopId]?.[bracketKey] ?? [];
+      for (const p of list) ids.add(p.id);
+    }
+    return ids;
+  }
+
+  // Bracket limit for a given bracket (team)
+  function bracketLimitFor(bracketKey: string): number | null {
+    const team = tournamentRow.bracketTeams.get(bracketKey);
+    if (!team) return null;
+    return (team.bracketLimit ?? team.tournament.maxTeamSize ?? 8);
+  }
+
+  // Can we add this player to THIS bracket at THIS stop without breaking the bracket-level cap?
+  function canAddToBracket(bracketKey: string, playerId: string): boolean {
+    const limit = bracketLimitFor(bracketKey);
+    if (!limit) return true; // unlimited
+
+    const union = uniqueIdsAcrossStopsForBracket(bracketKey);
+    if (union.has(playerId)) return true; // already counted in bracket; adding at another stop is fine
+
+    return (union.size + 1) <= limit;
+  }
+
+  // Save: PUT per (team × stop)
+  async function saveAll() {
+    setBusy(true);
+    try {
+      for (const s of tournamentRow.stops) {
+        for (const b of tournamentRow.bracketNames) {
+          const team = tournamentRow.bracketTeams.get(b);
+          if (!team) continue;
+          const list = rosters[s.stopId]?.[b] ?? [];
+
+          // Soft check again for newly added players vs bracket cap
+          const union = uniqueIdsAcrossStopsForBracket(b);
+          if (union.size > (bracketLimitFor(b) ?? Number.MAX_SAFE_INTEGER)) {
+            throw new Error(`Bracket "${b}" exceeds its limit (${bracketLimitFor(b)})`);
+          }
+
+          const res = await fetch(`/api/captain/team/${team.id}/stops/${s.stopId}/roster`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerIds: list.map(p => p.id) }),
+          });
+          const j = await res.json();
+          if (!res.ok || j?.error) {
+            throw new Error(j?.error?.message ?? j?.error ?? 'Save failed');
+          }
+        }
+      }
+      onSaved();
+    } catch (e) {
+      onError((e as Error).message);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="border rounded-lg p-4 bg-gray-50">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h4 className="text-md font-semibold">Manage Bracket Rosters</h4>
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50" onClick={saveAll} disabled={busy}>
+              {busy ? 'Saving…' : 'Save All'}
+            </button>
+            <button className="text-sm underline" onClick={onClose}>Close</button>
+          </div>
+        </div>
+
+          {/* One block per stop; inside, one roster editor per bracket */}
+          {tournamentRow.stops.map((s, idx) => {
+            const prev = idx > 0 ? tournamentRow.stops[idx - 1] : null;
+
+            return (
+              <div key={s.stopId} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">
+                    {s.stopName}
+                    <span className="text-gray-500"> • {s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span>
+                  </div>
+
+                  {prev && (
+                    <button
+                      className="ml-3 px-2 py-1 border rounded text-sm"
+                      onClick={() => {
+                        const nextForCurr: Record<string, PlayerLite[]> = {};
+                        for (const b of tournamentRow.bracketNames) {
+                          nextForCurr[b] = (rosters[prev.stopId]?.[b] ?? []).slice();
+                        }
+                        setRosters(prevAll => ({ ...prevAll, [s.stopId]: nextForCurr }));
+                      }}
+                      title="Copy rosters from previous stop (per bracket)"
+                    >
+                      Copy from previous stop
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  {tournamentRow.bracketNames.map((bKey) => {
+                    const team = tournamentRow.bracketTeams.get(bKey)!;
+                    const list = rosters[s.stopId]?.[bKey] ?? [];
+
+                    const union = uniqueIdsAcrossStopsForBracket(bKey);
+                    const limit = bracketLimitFor(bKey);
+                    const uniqueProgress = `${union.size} / ${limit ?? '∞'}`;
+
+                    // prevent picking same player into multiple brackets at the SAME stop (UX)
+                    const excludeIdsAcrossStop = Object.values(rosters[s.stopId] ?? {}).flat().map(p => p.id);
+
+                    return (
+                      <BracketRosterEditor
+                        key={`${s.stopId}:${bKey}`}
+                        title={`${bKey} — unique across stops: ${uniqueProgress}`}
+                        stop={s}
+                        teamId={team.id}
+                        tournamentId={tournamentId}
+                        list={list}
+                        onChange={(next) => setStopBracketRoster(s.stopId, bKey, next)}
+                        canAdd={(playerId) => canAddToBracket(bKey, playerId)}
+                        excludeIdsAcrossStop={excludeIdsAcrossStop}
+                        label={label}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+  );
+}
+
+/* =============== Per-bracket editor (typeahead + list) =============== */
+
+function BracketRosterEditor({
+  title,
+  stop,
+  teamId,
+  tournamentId,
+  list,
+  onChange,
+  canAdd,
+  excludeIdsAcrossStop,
+  label,
+}: {
+  title: string;
+  stop: { stopId: Id; stopName: string; locationName?: string | null; startAt?: string | null; endAt?: string | null };
+  teamId: Id;
+  tournamentId: Id;
+  list: PlayerLite[];
+  onChange: (next: PlayerLite[]) => void;
+  canAdd: (playerId: string) => boolean;
+  excludeIdsAcrossStop: string[];
+  label: (p: PlayerLite) => string;
+}) {
+  const [term, setTerm] = useState('');
+  const [options, setOptions] = useState<PlayerLite[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  function add(p: PlayerLite) {
+    if (list.some((x) => x.id === p.id)) return;
+    if (excludeIdsAcrossStop.includes(p.id)) return;
+    if (!canAdd(p.id)) return;
+    onChange([...list, p]);
+  }
+  function remove(id: string) {
+    onChange(list.filter((p) => p.id !== id));
+  }
+
+  // Tournament/team-aware search
+  useEffect(() => {
+    if (term.trim().length < 3) {
+      setOptions([]); setOpen(false); return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const url = new URL('/api/admin/players/search', window.location.origin);
+        url.searchParams.set('term', term.trim());
+        url.searchParams.set('tournamentId', String(tournamentId));
+        url.searchParams.set('teamId', String(teamId));
+        if (excludeIdsAcrossStop.length) url.searchParams.set('excludeIds', excludeIdsAcrossStop.join(','));
+        const res = await fetch(url.toString());
+        const j = await res.json();
+        const items: PlayerLite[] = (j.items ?? j.data?.items ?? []).map((p: any) => ({
+          id: p.id, firstName: p.firstName, lastName: p.lastName, name: p.name, gender: p.gender,
+          dupr: (p.dupr ?? null) as number | null, age: (p.age ?? null) as number | null,
+        }));
+        if (!cancelled) { setOptions(items); setOpen(true); }
+      } catch {
+        if (!cancelled) { setOptions([]); setOpen(false); }
+      } finally { if (!cancelled) setLoading(false); }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [term, teamId, tournamentId, excludeIdsAcrossStop]);
+
+  return (
+    <div className="border rounded p-3 space-y-2">
+      <div className="font-medium">{title}</div>
+
+      <div className="relative">
+        <input
+          className="w-full rounded px-2 py-2 border"
+          placeholder={'Type at least 3 characters to search'}
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          onFocus={() => { if (options.length) setOpen(true); }}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+        />
+        {open && options.length > 0 && (
+          <ul className="absolute z-10 mt-1 w-full bg-white rounded shadow">
+            {options.map((opt) => (
+              <li
+                key={opt.id}
+                className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { add(opt); setTerm(''); setOptions([]); setOpen(false); }}
+                title="Add to this stop for this bracket"
+              >
+                {label(opt)}{' '}
+                <span className="text-gray-500">• {opt.gender} • {opt.dupr ?? '—'} • {opt.age ?? '—'}</span>
+              </li>
+            ))}
+            {loading && <li className="px-3 py-2 text-sm text-gray-500">Searching…</li>}
+          </ul>
+        )}
+      </div>
+
+      <ul className="space-y-1">
+        {list.map((p) => (
+          <li key={p.id} className="flex items-center justify-between">
+            <span className="text-sm">
+              {label(p)} <span className="text-gray-500">• {p.gender} • {p.dupr ?? '—'} • {p.age ?? '—'}</span>
+            </span>
+            <button className="text-gray-500 hover:text-red-600 text-sm" title="Remove" onClick={() => remove(p.id)}>🗑️</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* ================= Event Manager Tab Component ================= */
+
+function EventManagerTab({
+  tournaments,
+  onError,
+  onInfo,
+  editingLineup,
+  setEditingLineup,
+  lineups,
+  setLineups,
+  isDragging,
+  setIsDragging,
+}: {
+  tournaments: EventManagerTournament[];
+  onError: (m: string) => void;
+  onInfo: (m: string) => void;
+  editingLineup: { matchId: string; teamId: string } | null;
+  setEditingLineup: (value: { matchId: string; teamId: string } | null) => void;
+  lineups: Record<string, Record<string, PlayerLite[]>>;
+  setLineups: (value: Record<string, Record<string, PlayerLite[]>> | ((prev: Record<string, Record<string, PlayerLite[]>>) => Record<string, Record<string, PlayerLite[]>>)) => void;
+  isDragging: boolean;
+  setIsDragging: (value: boolean) => void;
+}) {
+  const [expandedTournaments, setExpandedTournaments] = useState<Set<string>>(new Set());
+  const [expandedStops, setExpandedStops] = useState<Set<string>>(new Set());
+  const [scheduleData, setScheduleData] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
+
+  /* ----- Inline Round Editor state ----- */
+  const [editingRounds, setEditingRounds] = useState<Set<string>>(new Set());
+  const [roundMatchups, setRoundMatchups] = useState<Record<string, Array<{
+    id: Id;
+    isBye: boolean;
+    teamA?: { id: Id; name: string; clubName?: string; bracketName?: string };
+    teamB?: { id: Id; name: string; clubName?: string; bracketName?: string };
+  }>>>({});
+  const [updateKey, setUpdateKey] = useState(0);
+  const [renderKey, setRenderKey] = useState(0);
+
+  const toggleTournament = (tournamentId: string) => {
+    setExpandedTournaments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tournamentId)) {
+        newSet.delete(tournamentId);
+        // Also close all stops for this tournament
+        setExpandedStops(prevStops => {
+          const newStopSet = new Set(prevStops);
+          const tournament = tournaments.find(t => t.tournamentId === tournamentId);
+          if (tournament) {
+            tournament.stops.forEach(stop => newStopSet.delete(stop.stopId));
+          }
+          return newStopSet;
+        });
+      } else {
+        newSet.add(tournamentId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleStop = (stopId: string) => {
+    setExpandedStops(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(stopId)) {
+        newSet.delete(stopId);
+      } else {
+        newSet.add(stopId);
+        // Load schedule data when expanding
+        loadSchedule(stopId);
+      }
+      return newSet;
+    });
+  };
+
+  const loadSchedule = async (stopId: string, force = false) => {
+    if (scheduleData[stopId] && !force) return; // Already loaded
+    
+    setLoading(prev => ({ ...prev, [stopId]: true }));
+    try {
+      const response = await fetch(`/api/admin/stops/${stopId}/schedule`);
+      if (!response.ok) throw new Error('Failed to load schedule');
+      const data = await response.json();
+      setScheduleData(prev => ({ ...prev, [stopId]: data || [] }));
+    } catch (e) {
+      onError(`Failed to load schedule: ${(e as Error).message}`);
+      setScheduleData(prev => ({ ...prev, [stopId]: [] }));
+    } finally {
+      setLoading(prev => ({ ...prev, [stopId]: false }));
+    }
+  };
+
+  const generateSchedule = async (stopId: string, stopName: string) => {
+    setLoading(prev => ({ ...prev, [stopId]: true }));
+    try {
+      const response = await fetch(`/api/admin/stops/${stopId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          overwrite: true, // Always delete existing matchups and start fresh
+          slots: ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2', 'TIEBREAKER']
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate schedule');
+      }
+      
+      const result = await response.json();
+      onInfo(`Matchups regenerated: ${result.roundsCreated} rounds, ${result.matchesCreated} matches, ${result.gamesCreated} games`);
+      
+      // Reload schedule data
+      await loadSchedule(stopId, true); // Force reload
+    } catch (e) {
+      onError(`Failed to generate schedule: ${(e as Error).message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [stopId]: false }));
+    }
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString();
+  };
+
+  const toggleRoundEdit = (roundId: string) => {
+    setEditingRounds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(roundId)) {
+        newSet.delete(roundId);
+        // Remove from roundMatchups when closing edit mode
+        setRoundMatchups(prev => {
+          const newMatchups = { ...prev };
+          delete newMatchups[roundId];
+          return newMatchups;
+        });
+      } else {
+        newSet.add(roundId);
+        // Load round data when opening edit mode, but only if we don't already have it
+        if (!roundMatchups[roundId]) {
+          loadRoundMatchups(roundId);
+        }
+      }
+      return newSet;
+    });
+  };
+
+  const loadRoundMatchups = async (roundId: string) => {
+    try {
+      console.log('loadRoundMatchups: Starting to load round', roundId);
+      const response = await fetch(`/api/admin/rounds/${roundId}`);
+      console.log('loadRoundMatchups: Response status', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const roundData = await response.json();
+      console.log('loadRoundMatchups: Raw API response', roundData);
+      
+      if (!roundData.matches) {
+        console.error('loadRoundMatchups: No matches in response', roundData);
+        return;
+      }
+      
+      const matches = roundData.matches.map((match: any) => ({
+        id: match.id,
+        isBye: match.isBye,
+        bracketName: match.bracketName, // Add bracketName at match level
+        teamA: match.teamA ? {
+          id: match.teamA.id,
+          name: match.teamA.name,
+          clubName: match.teamA.clubName || undefined,
+          bracketName: match.teamA.bracketName || undefined,
+        } : undefined,
+        teamB: match.teamB ? {
+          id: match.teamB.id,
+          name: match.teamB.name,
+          clubName: match.teamB.clubName || undefined,
+          bracketName: match.teamB.bracketName || undefined,
+        } : undefined,
+        games: match.games || [], // Include the games array
+      }));
+
+      console.log('loadRoundMatchups: Setting matches for round', roundId, ':', matches);
+      setRoundMatchups(prev => {
+        const newMatchups = {
+          ...prev,
+          [roundId]: matches
+        };
+        console.log('loadRoundMatchups: Updated roundMatchups:', newMatchups);
+        return newMatchups;
+      });
+    } catch (e) {
+      console.error('loadRoundMatchups: Error loading round', roundId, e);
+      onError((e as Error).message);
+    }
+  };
+
+
+  // @dnd-kit drag handlers
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const isProcessingRef = useRef(false);
+  const lastDragEndRef = useRef<string | null>(null);
+  const dragOperationIdRef = useRef<string | null>(null);
+  const dragEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const operationId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    dragOperationIdRef.current = operationId;
+    setActiveId(event.active.id as string);
+    setIsDragging(true);
+    isProcessingRef.current = false;
+    console.log('=== DND-KIT DRAG START ===');
+    console.log('Operation ID:', operationId);
+    console.log('Dragging:', event.active.id);
+    console.log('Active data:', event.active.data.current);
+  }, []);
+
+  // Auto-save function for drag and drop (doesn't exit edit mode)
+  const autoSaveRoundMatchups = async (roundId: string) => {
+    const matches = roundMatchups[roundId];
+    if (!matches) return;
+    
+    console.log('autoSaveRoundMatchups: Current roundMatchups for round', roundId, ':', matches);
+    
+    try {
+      // Create the update payload
+      const updates = matches.map(match => ({
+        gameId: match.id,
+        teamAId: match.teamA?.id || null,
+        teamBId: match.teamB?.id || null,
+      }));
+
+      console.log('autoSaveRoundMatchups: Sending updates:', updates);
+
+      await fetch(`/api/admin/rounds/${roundId}/matchups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+
+      console.log('✅ Changes saved to database');
+    } catch (e) {
+      console.error('❌ Failed to save changes:', e);
+      onError((e as Error).message);
+    }
+  };
+
+  // Save and confirm function (exits edit mode)
+  const saveRoundMatchups = async (roundId: string) => {
+    const matches = roundMatchups[roundId];
+    if (!matches) return;
+    
+    console.log('saveRoundMatchups: Current roundMatchups for round', roundId, ':', matches);
+    
+    try {
+      // Create the update payload
+      const updates = matches.map(match => ({
+        gameId: match.id,
+        teamAId: match.teamA?.id || null,
+        teamBId: match.teamB?.id || null,
+      }));
+
+      console.log('saveRoundMatchups: Sending updates:', updates);
+
+      await fetch(`/api/admin/rounds/${roundId}/matchups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+
+      // Exit edit mode
+      setEditingRounds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(roundId);
+        return newSet;
+      });
+      
+      // Refresh the schedule data
+      const stopId = Object.keys(scheduleData).find(stopId => 
+        scheduleData[stopId].some(round => round.id === roundId)
+      );
+      if (stopId) {
+        await loadSchedule(stopId, true); // Force reload
+        // Also refresh the round matchups for this specific round
+        await loadRoundMatchups(roundId);
+      }
+      
+      onInfo('Matchups confirmed and saved!');
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  };
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    console.log('=== DRAG END START ===');
+    console.log('Active ID:', active.id);
+    console.log('Over ID:', over?.id);
+    
+    // Prevent double triggering
+    if (isProcessingRef.current) {
+      console.log('❌ Already processing a drag, ignoring duplicate');
+      return;
+    }
+    
+    if (!over || active.id === over.id) {
+      console.log('No valid drop target or same position');
+      setActiveId(null);
+      setIsDragging(false);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+    
+    // Set processing flag immediately
+    isProcessingRef.current = true;
+    
+    // Process the drag end
+    const activeData = active.data.current;
+    const overData = over.data.current;
+    
+    if (!activeData || !overData) {
+      console.log('Missing drag data');
+      setActiveId(null);
+      setIsDragging(false);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+    
+    const source = {
+      roundId: activeData.roundId,
+      matchIndex: activeData.matchIndex,
+      teamPosition: activeData.teamPosition,
+      team: activeData.team
+    };
+    
+    const target = {
+      roundId: overData.roundId,
+      matchIndex: overData.matchIndex,
+      teamPosition: overData.teamPosition,
+      team: overData.team
+    };
+    
+    console.log('Source:', source);
+    console.log('Target:', target);
+    
+    // Validate brackets match - get bracket from the matches, not teams
+    const sourceMatch = (roundMatchups[source.roundId] || [])[source.matchIndex];
+    const targetMatch = (roundMatchups[target.roundId] || [])[target.matchIndex];
+    
+    console.log('🔍 Bracket validation debug:');
+    console.log('- Source match:', sourceMatch);
+    console.log('- Target match:', targetMatch);
+    console.log('- Source roundMatchups:', roundMatchups[source.roundId]);
+    console.log('- Target roundMatchups:', roundMatchups[target.roundId]);
+    
+    const sourceBracket = (sourceMatch as any)?.bracketName;
+    const targetBracket = (targetMatch as any)?.bracketName;
+    
+    console.log('- Source bracket:', sourceBracket);
+    console.log('- Target bracket:', targetBracket);
+    
+    if (!sourceBracket || !targetBracket || sourceBracket !== targetBracket) {
+      console.log('❌ Bracket validation failed:', sourceBracket, 'vs', targetBracket);
+      setActiveId(null);
+      setIsDragging(false);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+    
+    console.log('✅ Bracket validation passed, proceeding with swap');
+    console.log('Swapping teams:', source.team?.name, 'with', target.team?.name);
+    
+    // Perform the swap with immediate state update to prevent double execution
+    const swapId = `${source.roundId}-${source.matchIndex}-${source.teamPosition}-to-${target.roundId}-${target.matchIndex}-${target.teamPosition}`;
+    
+    if (lastDragEndRef.current === swapId) {
+      console.log('❌ Duplicate swap detected, ignoring');
+      return;
+    }
+    
+    lastDragEndRef.current = swapId;
+    
+    // Get current state and perform swap immediately
+    const currentMatchups = { ...roundMatchups };
+    const sourceMatches = [...(currentMatchups[source.roundId] || [])];
+    const targetMatches = [...(currentMatchups[target.roundId] || [])];
+    
+    if (!sourceMatch || !targetMatch) {
+      console.log('❌ Match not found');
+      return;
+    }
+    
+    // Swap the teams
+    const newSourceMatch = { ...sourceMatch };
+    const newTargetMatch = { ...targetMatch };
+    
+    console.log('🔍 Before swap:');
+    console.log('- Source match:', `${sourceMatch.teamA?.name} vs ${sourceMatch.teamB?.name}`);
+    console.log('- Target match:', `${targetMatch.teamA?.name} vs ${targetMatch.teamB?.name}`);
+    console.log('- Source team position:', source.teamPosition);
+    console.log('- Target team position:', target.teamPosition);
+    console.log('- Source team being moved:', source.teamPosition === 'A' ? sourceMatch.teamA?.name : sourceMatch.teamB?.name);
+    console.log('- Target team being moved:', target.teamPosition === 'A' ? targetMatch.teamA?.name : targetMatch.teamB?.name);
+    
+    if (source.teamPosition === 'A' && target.teamPosition === 'A') {
+      newSourceMatch.teamA = targetMatch.teamA;
+      newTargetMatch.teamA = sourceMatch.teamA;
+    } else if (source.teamPosition === 'B' && target.teamPosition === 'B') {
+      newSourceMatch.teamB = targetMatch.teamB;
+      newTargetMatch.teamB = sourceMatch.teamB;
+    } else if (source.teamPosition === 'A' && target.teamPosition === 'B') {
+      newSourceMatch.teamA = targetMatch.teamB;
+      newTargetMatch.teamB = sourceMatch.teamA;
+    } else if (source.teamPosition === 'B' && target.teamPosition === 'A') {
+      newSourceMatch.teamB = targetMatch.teamA;
+      newTargetMatch.teamA = sourceMatch.teamB;
+    }
+    
+    console.log('🔍 After swap:');
+    console.log('- Source match:', `${newSourceMatch.teamA?.name} vs ${newSourceMatch.teamB?.name}`);
+    console.log('- Target match:', `${newTargetMatch.teamA?.name} vs ${newTargetMatch.teamB?.name}`);
+    
+    // Create new arrays with the updated matches to ensure React detects the change
+    const newSourceMatches = [...sourceMatches];
+    const newTargetMatches = [...targetMatches];
+    newSourceMatches[source.matchIndex] = newSourceMatch;
+    newTargetMatches[target.matchIndex] = newTargetMatch;
+    
+    const newMatchups = {
+      ...currentMatchups,
+      [source.roundId]: newSourceMatches,
+      [target.roundId]: newTargetMatches
+    };
+    
+    console.log('✅ Swap complete');
+    console.log('New matchups state:', newMatchups);
+    console.log('Source matches after swap:', newSourceMatches);
+    console.log('Target matches after swap:', newTargetMatches);
+    console.log('Source matches first match:', newSourceMatches[0] ? `${newSourceMatches[0].teamA?.name} vs ${newSourceMatches[0].teamB?.name}` : 'none');
+    console.log('Target matches first match:', newTargetMatches[0] ? `${newTargetMatches[0].teamA?.name} vs ${newTargetMatches[0].teamB?.name}` : 'none');
+    console.log('Source matches ALL matches:', newSourceMatches.map(m => `${m.teamA?.name} vs ${m.teamB?.name}`));
+    console.log('Target matches ALL matches:', newTargetMatches.map(m => `${m.teamA?.name} vs ${m.teamB?.name}`));
+    
+    // Update state immediately
+    setRoundMatchups(newMatchups);
+    
+    // Debug: Check what's in roundMatchups immediately after state update
+    console.log('🔍 IMMEDIATELY after setRoundMatchups - newMatchups:', newMatchups);
+    console.log('🔍 IMMEDIATELY after setRoundMatchups - newMatchups for round:', newMatchups[source.roundId]);
+    if (newMatchups[source.roundId]) {
+      console.log('🔍 IMMEDIATELY after setRoundMatchups - ALL matches in newMatchups:', newMatchups[source.roundId].map(m => `${m.teamA?.name} vs ${m.teamB?.name}`));
+    }
+    
+    // Debug: Check what's in roundMatchups after state update
+    setTimeout(() => {
+      console.log('🔍 After state update - roundMatchups:', roundMatchups);
+      console.log('🔍 After state update - roundMatchups for round:', roundMatchups[source.roundId]);
+      if (roundMatchups[source.roundId]) {
+        console.log('🔍 After state update - ALL matches in roundMatchups:', roundMatchups[source.roundId].map(m => `${m.teamA?.name} vs ${m.teamB?.name}`));
+      }
+    }, 100);
+    
+    // Auto-save the changes to the database (stays in edit mode)
+    try {
+      await autoSaveRoundMatchups(source.roundId);
+    } catch (error) {
+      console.error('❌ Failed to auto-save changes:', error);
+    }
+    
+    // Reset drag state
+    setActiveId(null);
+    setIsDragging(false);
+    isProcessingRef.current = false;
+    dragOperationIdRef.current = null;
+    
+    // Clear the swap ID after a short delay to allow for legitimate new drags
+    setTimeout(() => {
+      lastDragEndRef.current = null;
+    }, 100);
+    
+    console.log('=== DRAG END COMPLETE ===');
+    
+  }, [roundMatchups, autoSaveRoundMatchups]);
+  
+  // Old processDragEnd function removed - using inline logic in handleDragEnd
+  const unusedProcessDragEnd = useCallback((event: DragEndEvent, operationId: string) => {
+    const { active, over } = event;
+    
+    console.log('=== PROCESSING DRAG END ===');
+    console.log('Operation ID:', operationId);
+    console.log('Active ID:', active.id);
+    console.log('Over ID:', over?.id);
+    
+    // Double-check we're not already processing
+    if (isProcessingRef.current) {
+      console.log('❌ Already processing, aborting');
+      return;
+    }
+    
+    if (!over || active.id === over.id) {
+      console.log('No valid drop target or same position');
+      setActiveId(null);
+      setIsDragging(false);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+
+    // Prevent double triggering
+    if (!isDragging) {
+      console.log('Not currently dragging, ignoring');
+      setActiveId(null);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+    
+    // Set processing flag and timestamp
+    isProcessingRef.current = true;
+    lastDragEndRef.current = Date.now().toString();
+
+    console.log('=== DND-KIT DRAG END ===');
+    console.log('Active:', active.id);
+    console.log('Over:', over.id);
+
+    // Extract data from the dragged item
+    const activeData = active.data.current;
+    const overData = over.data.current;
+
+    console.log('Active data:', activeData);
+    console.log('Over data:', overData);
+
+    if (!activeData || !overData) {
+      console.log('Missing drag data, aborting');
+      setActiveId(null);
+      setIsDragging(false);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+
+    const { roundId: sourceRoundId, matchIndex: sourceMatchIndex, teamPosition: sourceTeamPosition, team: sourceTeam } = activeData;
+    const { roundId: targetRoundId, matchIndex: targetMatchIndex, teamPosition: targetTeamPosition, team: targetTeam } = overData;
+
+    console.log('Source:', { roundId: sourceRoundId, matchIndex: sourceMatchIndex, teamPosition: sourceTeamPosition, team: sourceTeam?.name });
+    console.log('Target:', { roundId: targetRoundId, matchIndex: targetMatchIndex, teamPosition: targetTeamPosition, team: targetTeam?.name });
+
+    // Don't allow dropping on the same position
+    if (sourceRoundId === targetRoundId && sourceMatchIndex === targetMatchIndex && sourceTeamPosition === targetTeamPosition) {
+      console.log('Same position, aborting');
+      setActiveId(null);
+      setIsDragging(false);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+
+    // Validate bracket compatibility
+    const sourceBracketName = sourceTeam?.bracketName;
+    const targetBracketName = targetTeam?.bracketName;
+    
+    console.log('Source team bracket:', sourceBracketName);
+    console.log('Target team bracket:', targetBracketName);
+    
+    if (sourceBracketName && targetBracketName && sourceBracketName !== targetBracketName) {
+      console.log('❌ BRACKET MISMATCH: Teams are from different brackets, aborting swap');
+      alert(`Cannot swap teams from different brackets!\n${sourceTeam?.name} is in ${sourceBracketName} bracket\n${targetTeam?.name} is in ${targetBracketName} bracket`);
+      setActiveId(null);
+      setIsDragging(false);
+      isProcessingRef.current = false;
+      dragOperationIdRef.current = null;
+      return;
+    }
+
+    console.log('✅ Bracket validation passed, proceeding with swap');
+    console.log('Swapping teams:', sourceTeam?.name, 'with', targetTeam?.name);
+    
+    // Use functional update to ensure we get the latest state
+    setRoundMatchups(prev => {
+      console.log('=== STATE UPDATE START ===');
+      console.log('Previous state keys:', Object.keys(prev));
+      console.log('Source round ID:', sourceRoundId);
+      console.log('Target round ID:', targetRoundId);
+      
+      const sourceMatches = [...(prev[sourceRoundId] || [])];
+      const targetMatches = [...(prev[targetRoundId] || [])];
+      
+      console.log('Source matches count:', sourceMatches.length);
+      console.log('Target matches count:', targetMatches.length);
+      
+      const sourceMatchData = sourceMatches[sourceMatchIndex];
+      const targetMatchData = targetMatches[targetMatchIndex];
+      
+      console.log('Source match:', sourceMatchData);
+      console.log('Target match:', targetMatchData);
+      
+      if (!sourceMatchData || !targetMatchData || sourceMatchData.isBye || targetMatchData.isBye) {
+        console.log('Invalid match or bye match, aborting');
+        return prev;
+      }
+    
+      // Get the teams
+      const movingTeam = sourceMatchData[sourceTeamPosition === 'A' ? 'teamA' : 'teamB'];
+      const targetTeam = targetMatchData[targetTeamPosition === 'A' ? 'teamA' : 'teamB'];
+      
+      console.log('Moving team:', movingTeam?.name, movingTeam?.bracketName);
+      console.log('Target team:', targetTeam?.name, targetTeam?.bracketName);
+      
+      if (!movingTeam) {
+        console.log('No moving team found, aborting');
+        return prev;
+      }
+      
+      console.log('BEFORE SWAP:');
+      console.log('  Source match:', sourceMatchData.teamA?.name, 'vs', sourceMatchData.teamB?.name);
+      console.log('  Target match:', targetMatchData.teamA?.name, 'vs', targetMatchData.teamB?.name);
+      
+      const newMatchups = { ...prev };
+      const newSourceMatches = [...sourceMatches];
+      const newTargetMatches = [...targetMatches];
+      
+      // Create new match objects
+      const newSourceMatch = { ...sourceMatchData };
+      const newTargetMatch = { ...targetMatchData };
+      
+      // Perform the swap
+      if (sourceRoundId === targetRoundId && sourceMatchIndex === targetMatchIndex) {
+        // Same match - swap A and B positions
+        if (sourceTeamPosition === 'A' && targetTeamPosition === 'B') {
+          const temp = newSourceMatch.teamA;
+          newSourceMatch.teamA = newSourceMatch.teamB;
+          newSourceMatch.teamB = temp;
+        } else if (sourceTeamPosition === 'B' && targetTeamPosition === 'A') {
+          const temp = newSourceMatch.teamB;
+          newSourceMatch.teamB = newSourceMatch.teamA;
+          newSourceMatch.teamA = temp;
+        }
+      } else {
+        // Different matches - swap teams between matches
+        // Store the original teams before swapping
+        const originalSourceTeam = sourceMatchData[sourceTeamPosition === 'A' ? 'teamA' : 'teamB'];
+        const originalTargetTeam = targetMatchData[targetTeamPosition === 'A' ? 'teamA' : 'teamB'];
+        
+        // Perform the swap
+        if (sourceTeamPosition === 'A') {
+          newSourceMatch.teamA = originalTargetTeam;
+        } else {
+          newSourceMatch.teamB = originalTargetTeam;
+        }
+        
+        if (targetTeamPosition === 'A') {
+          newTargetMatch.teamA = originalSourceTeam;
+        } else {
+          newTargetMatch.teamB = originalSourceTeam;
+        }
+      }
+      
+      console.log('AFTER SWAP:');
+      console.log('  Source match:', newSourceMatch.teamA?.name, 'vs', newSourceMatch.teamB?.name);
+      console.log('  Target match:', newTargetMatch.teamA?.name, 'vs', newTargetMatch.teamB?.name);
+      
+      // Update the arrays
+      newSourceMatches[sourceMatchIndex] = newSourceMatch;
+      newTargetMatches[targetMatchIndex] = newTargetMatch;
+      
+      newMatchups[sourceRoundId] = newSourceMatches;
+      if (sourceRoundId !== targetRoundId) {
+        newMatchups[targetRoundId] = newTargetMatches;
+      }
+      
+      console.log('=== STATE UPDATE COMPLETE ===');
+      console.log('New state keys:', Object.keys(newMatchups));
+      console.log('Source round matches count:', newMatchups[sourceRoundId]?.length);
+      console.log('Target round matches count:', newMatchups[targetRoundId]?.length);
+      
+      return newMatchups;
+    });
+    
+    // State update will trigger re-render automatically
+    console.log('State update complete, re-render will happen automatically');
+    
+    // Reset dragging state
+    console.log('Resetting drag state');
+    setIsDragging(false);
+    setActiveId(null);
+    dragOperationIdRef.current = null;
+    
+    // Reset processing flag after a delay to prevent rapid successive calls
+    setTimeout(() => {
+      isProcessingRef.current = false;
+      console.log('Processing flag reset');
+    }, 200);
+    
+    console.log('=== DRAG END COMPLETE ===');
+    
+  }, []);
+
+
+
+
+
+  // Memoized function to get matches for a round
+  const getMatchesForRound = useCallback((round: any, isEditing: boolean) => {
+    console.log('🔍 getMatchesForRound DEBUG - isEditing:', isEditing, 'hasRoundMatchups:', !!roundMatchups[round.id]);
+    const matches = isEditing ? (roundMatchups[round.id] || round.matches) : round.matches;
+    console.log('🔍 getMatchesForRound DEBUG - matches === roundMatchups[round.id]:', matches === roundMatchups[round.id]);
+    console.log('🔍 getMatchesForRound DEBUG - matches === round.matches:', matches === round.matches);
+    console.log('🔍 getMatchesForRound DEBUG - roundMatchups[round.id] first match:', roundMatchups[round.id]?.[0] ? `${roundMatchups[round.id][0].teamA?.name} vs ${roundMatchups[round.id][0].teamB?.name}` : 'none');
+    console.log('🔍 getMatchesForRound DEBUG - round.matches first match:', round.matches?.[0] ? `${round.matches[0].teamA?.name} vs ${round.matches[0].teamB?.name}` : 'none');
+    console.log('🔍 getMatchesForRound DEBUG - final matches first match:', matches?.[0] ? `${matches[0].teamA?.name} vs ${matches[0].teamB?.name}` : 'none');
+    console.log('🔍 getMatchesForRound DEBUG - roundMatchups[round.id] last match:', roundMatchups[round.id]?.[7] ? `${roundMatchups[round.id][7].teamA?.name} vs ${roundMatchups[round.id][7].teamB?.name}` : 'none');
+    console.log('🔍 getMatchesForRound DEBUG - round.matches last match:', round.matches?.[7] ? `${round.matches[7].teamA?.name} vs ${round.matches[7].teamB?.name}` : 'none');
+    console.log('🔍 getMatchesForRound DEBUG - final matches last match:', matches?.[7] ? `${matches[7].teamA?.name} vs ${matches[7].teamB?.name}` : 'none');
+    console.log('getMatchesForRound:', {
+      roundId: round.id,
+      isEditing,
+      hasRoundMatchups: !!roundMatchups[round.id],
+      matchesCount: matches?.length,
+      firstMatch: matches?.[0] ? `${matches[0].teamA?.name} vs ${matches[0].teamB?.name}` : 'none',
+      roundMatchupsData: roundMatchups[round.id] ? roundMatchups[round.id].map(m => `${m.teamA?.name} vs ${m.teamB?.name}`) : 'none',
+      roundMatchupsKeys: Object.keys(roundMatchups),
+      roundMatchupsValue: roundMatchups[round.id] ? 'EXISTS' : 'MISSING',
+      usingRoundMatchups: isEditing && !!roundMatchups[round.id],
+      actualMatches: matches === roundMatchups[round.id] ? 'roundMatchups' : 'round.matches',
+      DEBUGGING: {
+        roundMatchupsExists: !!roundMatchups[round.id],
+        roundMatchupsLength: roundMatchups[round.id]?.length,
+        roundMatchesLength: round.matches?.length,
+        isEditingFlag: isEditing,
+        finalChoice: isEditing ? (roundMatchups[round.id] ? 'roundMatchups' : 'round.matches') : 'round.matches'
+      }
+    });
+    return matches;
+  }, [roundMatchups]);
+
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Event Manager</h2>
+        <div className="text-sm text-gray-600">
+          Manage tournaments and stops you're assigned to
+        </div>
+      </div>
+
+      {/* Tournament Accordions */}
+      <div className="space-y-3">
+        {tournaments.map((tournament) => (
+          <div key={tournament.tournamentId} className="border rounded-lg">
+            {/* Tournament Header */}
+            <div
+              className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+              onClick={() => toggleTournament(tournament.tournamentId)}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`transform transition-transform ${expandedTournaments.has(tournament.tournamentId) ? 'rotate-90' : ''}`}>
+                  ▶
+                </div>
+                <div>
+                  <h3 className="font-medium">{tournament.tournamentName}</h3>
+                  <p className="text-sm text-gray-600">
+                    {tournament.type} • {tournament.stops.length} stops
+                  </p>
+                </div>
+              </div>
+              <div className="text-sm text-gray-500">
+                {tournament.stops.length} stops
+              </div>
+            </div>
+
+            {/* Stops Content */}
+            {expandedTournaments.has(tournament.tournamentId) && (
+              <div className="border-t bg-gray-50">
+                {tournament.stops.map((stop) => (
+                  <div key={stop.stopId} className="border-b last:border-b-0">
+                    {/* Stop Header */}
+                    <div
+                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-100"
+                      onClick={() => toggleStop(stop.stopId)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`transform transition-transform ${expandedStops.has(stop.stopId) ? 'rotate-90' : ''}`}>
+                          ▶
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{stop.stopName}</h4>
+                          <p className="text-sm text-gray-600">
+                            {stop.locationName && `${stop.locationName} • `}
+                            {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {scheduleData[stop.stopId]?.length || 0} rounds • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.length || 0), 0) || 0} matches • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.reduce((matchAcc: number, m: any) => matchAcc + (m.games?.length || 0), 0) || 0), 0) || 0} games
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            generateSchedule(stop.stopId, stop.stopName);
+                          }}
+                          disabled={loading[stop.stopId]}
+                        >
+                          {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Schedule Content */}
+                    {expandedStops.has(stop.stopId) && (
+                      <div className="p-4 bg-white">
+                        {loading[stop.stopId] ? (
+                          <div className="text-center py-4 text-gray-500">Loading schedule...</div>
+                        ) : !scheduleData[stop.stopId] || scheduleData[stop.stopId].length === 0 ? (
+                          <div className="text-center py-4 text-gray-500">
+                            No matchups generated yet. Click "Regenerate Matchups" to create them.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <h5 className="font-medium text-sm">Schedule</h5>
+                            <div className="space-y-2">
+                              {scheduleData[stop.stopId].map((round, roundIdx) => {
+                                const isEditing = editingRounds.has(round.id);
+                                const matches = getMatchesForRound(round, isEditing);
+                                
+                                // Force re-render when updateKey changes
+                                const _ = updateKey;
+                                
+                                if (isEditing) {
+                                  console.log('=== RENDERING ===');
+                                  console.log('Round ID:', round.id);
+                                  console.log('roundMatchups keys:', Object.keys(roundMatchups));
+                                  console.log('roundMatchups for this round exists:', !!roundMatchups[round.id]);
+                                  console.log('roundMatchups data:', roundMatchups[round.id]);
+                                  console.log('Original round.matches:', round.matches);
+                                  console.log('Using matches:', matches);
+                                  console.log('First match:', matches[0]?.teamA?.name, 'vs', matches[0]?.teamB?.name);
+                                  console.log('Second match:', matches[1]?.teamA?.name, 'vs', matches[1]?.teamB?.name);
+                                  console.log('=== END RENDERING ===');
+                                }
+                                
+                                return (
+                                  <div key={`${round.id}-${renderKey}-${updateKey}`} className="border rounded p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h6 className="font-medium text-sm">Round {round.idx + 1}</h6>
+                                      <div className="flex items-center gap-2">
+                                        <button 
+                                          onClick={() => {
+                                            console.log('ROUND DEBUG:');
+                                            console.log('- Round ID:', round.id);
+                                            console.log('- isEditing:', isEditing);
+                                            console.log('- editingRounds:', editingRounds);
+                                            console.log('- roundMatchups keys:', Object.keys(roundMatchups));
+                                            console.log('- round.matches:', round.matches);
+                                          }}
+                                          className="px-2 py-1 bg-gray-500 text-white rounded text-xs"
+                                        >
+                                          Debug
+                                        </button>
+                                        {isEditing ? (
+                                          <button
+                                            className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                            onClick={() => saveRoundMatchups(round.id)}
+                                          >
+                                            Confirm Matchups
+                                          </button>
+                                        ) : (
+                                          <button
+                                            className="px-2 py-1 border rounded text-xs bg-blue-50 hover:bg-blue-100"
+                                            onClick={() => toggleRoundEdit(round.id)}
+                                          >
+                                            Edit Matchups
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    
+                                    {isEditing && (
+                                      <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                                        <strong>Drag teams to swap:</strong> Drag any team over another team to swap their positions.
+                                        <button 
+                                          onClick={() => {
+                                            console.log('TEST: Current roundMatchups:', roundMatchups);
+                                            console.log('TEST: editingRounds:', editingRounds);
+                                            console.log('TEST: scheduleData:', scheduleData);
+                                            console.log('TEST: Current round ID:', round.id);
+                                          }}
+                                          className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
+                                        >
+                                          Test Log
+                                        </button>
+                                      </div>
+                                    )}
+                                    
+                                    {(() => {
+                                      // Group matches by bracket for visual separation
+                                      const matchesByBracket: Record<string, any[]> = {};
+                                      
+                                      matches.forEach((match: any, matchIdx: number) => {
+                                        const bracketName = match.bracketName || 'Unknown Bracket';
+                                        
+                                        if (!matchesByBracket[bracketName]) {
+                                          matchesByBracket[bracketName] = [];
+                                        }
+                                        
+                                        matchesByBracket[bracketName].push({ ...match, originalIndex: matchIdx });
+                                      });
+                                      
+                                      return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
+                                        <div key={bracketName} className="space-y-2 mb-4">
+                                          <h6 className="font-medium text-sm text-gray-700 border-b pb-1">
+                                            {bracketName}
+                                          </h6>
+                                          
+                                          {isEditing ? (
+                                            <DndContext
+                                              collisionDetection={closestCenter}
+                                              onDragStart={handleDragStart}
+                                              onDragEnd={handleDragEnd}
+                                            >
+                                              <SortableContext 
+                                                items={bracketMatches.map((_, idx) => [
+                                                  `${round.id}-${bracketMatches[idx].originalIndex}-A`,
+                                                  `${round.id}-${bracketMatches[idx].originalIndex}-B`
+                                                ]).flat()}
+                                                strategy={verticalListSortingStrategy}
+                                              >
+                                                <div className="space-y-1">
+                                                  {bracketMatches.map((match: any, localMatchIdx: number) => {
+                                                    const matchIdx = match.originalIndex;
+                                                    return (
+                                              <div key={match.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                                {!match.isBye ? (
+                                              <div className="flex items-center gap-2 flex-1">
+                                                {/* Team A */}
+                                                <DraggableTeam
+                                                  team={match.teamA}
+                                                  teamPosition="A"
+                                                  roundId={round.id}
+                                                  matchIndex={matchIdx}
+                                                  isDragging={activeId === `${round.id}-${matchIdx}-A`}
+                                                />
+                                                
+                                                <span className="text-gray-500">vs</span>
+                                                
+                                                {/* Team B */}
+                                                <DraggableTeam
+                                                  team={match.teamB}
+                                                  teamPosition="B"
+                                                  roundId={round.id}
+                                                  matchIndex={matchIdx}
+                                                  isDragging={activeId === `${round.id}-${matchIdx}-B`}
+                                                />
+                                              </div>
+                                            ) : (
+                                              <div className="flex items-center gap-3">
+                                                <span className="font-medium">
+                                                  {match.teamA?.name || 'TBD'} vs {match.teamB?.name || 'TBD'}
+                                                </span>
+                                                {match.isBye && (
+                                                  <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                                                    BYE
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )}
+                                            
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs text-gray-500">
+                                                {match.games.length} games
+                                              </span>
+                                              <button
+                                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                                onClick={() => {
+                                                  // TODO: Get team roster and open lineup editor
+                                                  console.log('Edit lineups for match:', match.id);
+                                                  // For now, just show a placeholder
+                                                  alert('Lineup editor will open here. Team roster needs to be loaded first.');
+                                                }}
+                                              >
+                                                Edit Lineups
+                                              </button>
+                                              {match.lineupCreated && (
+                                                <button
+                                                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                  onClick={() => {
+                                                    // TODO: Start match
+                                                    console.log('Start match:', match.id);
+                                                  }}
+                                                >
+                                                  Start Match
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </SortableContext>
+                                          </DndContext>
+                                          ) : (
+                                            <div className="space-y-1">
+                                              {bracketMatches.map((match: any, localMatchIdx: number) => {
+                                                const matchIdx = match.originalIndex;
+                                                return (
+                                                  <div key={match.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                                    {!match.isBye ? (
+                                                      <div className="flex items-center gap-2 flex-1">
+                                                        <span className="font-medium">{match.teamA?.name || 'TBD'}</span>
+                                                        <span className="text-gray-500">vs</span>
+                                                        <span className="font-medium">{match.teamB?.name || 'TBD'}</span>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="flex items-center gap-2 flex-1">
+                                                        <span className="font-medium">{match.teamA?.name || 'TBD'}</span>
+                                                        <span className="text-gray-500">(Bye)</span>
+                                                      </div>
+                                                    )}
+                                                    
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="text-xs text-gray-500">
+                                                        {match.games.length} games
+                                                      </span>
+                                                      <button
+                                                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                                        onClick={() => {
+                                                          // TODO: Get team roster and open lineup editor
+                                                          console.log('Edit lineups for match:', match.id);
+                                                          // For now, just show a placeholder
+                                                          alert('Lineup editor will open here. Team roster needs to be loaded first.');
+                                                        }}
+                                                      >
+                                                        Edit Lineups
+                                                      </button>
+                                                      {match.lineupCreated && (
+                                                        <button
+                                                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                          onClick={() => {
+                                                            // TODO: Start match
+                                                            console.log('Start match:', match.id);
+                                                          }}
+                                                        >
+                                                          Start Match
+                                                        </button>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ));
+                                    })()}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* No tournaments message */}
+      {tournaments.length === 0 && (
+        <div className="text-center py-8 text-gray-500">
+          You are not assigned as an event manager for any tournaments.
+        </div>
+      )}
+
+      {/* Lineup Editor Modal */}
+      {editingLineup && (
+        <LineupEditor
+          matchId={editingLineup.matchId}
+          teamId={editingLineup.teamId}
+          teamName="Team Name" // TODO: Get actual team name
+          availablePlayers={[]} // TODO: Get team roster
+          currentLineup={lineups[editingLineup.matchId]?.[editingLineup.teamId] || []}
+          onSave={(lineup) => {
+            setLineups(prev => {
+              const newLineups = { ...prev };
+              if (!newLineups[editingLineup.matchId]) {
+                newLineups[editingLineup.matchId] = {};
+              }
+              newLineups[editingLineup.matchId][editingLineup.teamId] = lineup;
+              return newLineups;
+            });
+            setEditingLineup(null);
+          }}
+          onCancel={() => setEditingLineup(null)}
+        />
+      )}
+
+    </div>
+  );
+}
+
+/* ================= Lineup Editor Component ================= */
+function LineupEditor({
+  matchId,
+  teamId,
+  teamName,
+  availablePlayers,
+  currentLineup,
+  onSave,
+  onCancel,
+}: {
+  matchId: string;
+  teamId: string;
+  teamName: string;
+  availablePlayers: PlayerLite[];
+  currentLineup: PlayerLite[];
+  onSave: (lineup: PlayerLite[]) => void;
+  onCancel: () => void;
+}) {
+  const [lineup, setLineup] = useState<PlayerLite[]>(currentLineup);
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set(currentLineup.map(p => p.id)));
+
+  const men = availablePlayers.filter(p => p.gender === 'MALE');
+  const women = availablePlayers.filter(p => p.gender === 'FEMALE');
+
+  const addPlayer = (player: PlayerLite) => {
+    if (selectedPlayers.has(player.id)) return;
+    if (lineup.length >= 4) return;
+    
+    const genderCount = lineup.filter(p => p.gender === player.gender).length;
+    if (genderCount >= 2) return;
+
+    setLineup(prev => [...prev, player]);
+    setSelectedPlayers(prev => new Set([...prev, player.id]));
+  };
+
+  const removePlayer = (playerId: string) => {
+    setLineup(prev => prev.filter(p => p.id !== playerId));
+    setSelectedPlayers(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(playerId);
+      return newSet;
+    });
+  };
+
+  const handleSave = () => {
+    onSave(lineup);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Edit Lineup - {teamName}</h3>
+          <button
+            className="text-gray-500 hover:text-gray-700"
+            onClick={onCancel}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mb-4">
+          <p className="text-sm text-gray-600 mb-2">
+            Select 4 players: 2 men and 2 women
+          </p>
+          <div className="flex gap-2">
+            <span className={`px-2 py-1 rounded text-xs ${lineup.filter(p => p.gender === 'MALE').length === 2 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+              Men: {lineup.filter(p => p.gender === 'MALE').length}/2
+            </span>
+            <span className={`px-2 py-1 rounded text-xs ${lineup.filter(p => p.gender === 'FEMALE').length === 2 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+              Women: {lineup.filter(p => p.gender === 'FEMALE').length}/2
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <h4 className="font-medium mb-2">Men ({men.length} available)</h4>
+            <div className="space-y-1 max-h-40 overflow-auto">
+              {men.map(player => (
+                <button
+                  key={player.id}
+                  className={`w-full text-left px-2 py-1 rounded text-sm ${
+                    selectedPlayers.has(player.id)
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'hover:bg-gray-100'
+                  }`}
+                  onClick={() => addPlayer(player)}
+                  disabled={selectedPlayers.has(player.id) || lineup.length >= 4 || lineup.filter(p => p.gender === 'MALE').length >= 2}
+                >
+                  {player.firstName} {player.lastName}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-medium mb-2">Women ({women.length} available)</h4>
+            <div className="space-y-1 max-h-40 overflow-auto">
+              {women.map(player => (
+                <button
+                  key={player.id}
+                  className={`w-full text-left px-2 py-1 rounded text-sm ${
+                    selectedPlayers.has(player.id)
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'hover:bg-gray-100'
+                  }`}
+                  onClick={() => addPlayer(player)}
+                  disabled={selectedPlayers.has(player.id) || lineup.length >= 4 || lineup.filter(p => p.gender === 'FEMALE').length >= 2}
+                >
+                  {player.firstName} {player.lastName}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <h4 className="font-medium mb-2">Selected Lineup ({lineup.length}/4)</h4>
+          <div className="space-y-1">
+            {lineup.map(player => (
+              <div key={player.id} className="flex items-center justify-between px-2 py-1 bg-gray-50 rounded">
+                <span className="text-sm">
+                  {player.firstName} {player.lastName} ({player.gender === 'MALE' ? 'M' : 'F'})
+                </span>
+                <button
+                  className="text-red-600 hover:text-red-800"
+                  onClick={() => removePlayer(player.id)}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <button
+            className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            onClick={handleSave}
+            disabled={lineup.length !== 4}
+          >
+            Save Lineup
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

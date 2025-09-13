@@ -1,18 +1,22 @@
+// src/app/api/admin/tournaments/route.ts
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '../../../lib/prisma';
+import { getPrisma } from '@/lib/prisma';
 
 export async function GET() {
+  const prisma = getPrisma();
   try {
-    const prisma = getPrisma();
-    const data = await prisma.tournament.findMany({ orderBy: { createdAt: 'desc' } });
-    return NextResponse.json(data);
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'error';
-    console.error('GET /api/tournaments', message);
-    return NextResponse.json({ error: message }, { status: 500 });  // JSON error
+    const tournaments = await prisma.tournament.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, name: true, createdAt: true, type: true },
+    });
+    return NextResponse.json(tournaments);
+  } catch (e: any) {
+    console.error(e);
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
 

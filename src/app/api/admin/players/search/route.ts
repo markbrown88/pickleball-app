@@ -1,4 +1,5 @@
 // src/app/api/admin/players/search/route.ts
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,29 @@ import { getPrisma } from '@/lib/prisma';
 
 const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
 
+/**
+ * GET /api/admin/players/search
+ *   ?term=...
+ *   &tournamentId=...
+ *   &teamId=...
+ *   &clubId=...          // if present AND for=captain, we constrain results to this club
+ *   &excludeIds=a,b,c
+ *   &for=captain|roster  // default: roster
+ *   &enforceCap=1        // optional; when at cap for teamId, returns { items:[], cap:{reached:true,...} }
+ *
+ * Behavior:
+ * - for=roster:
+ *     If tournamentId is provided, exclude players who are rostered on ANY OTHER team
+ *     in that tournament (using TeamPlayer rows). If teamId is omitted, exclude anyone
+ *     already on any team in that tournament.
+ * - for=captain:
+ *     If tournamentId is provided, exclude players already assigned as a captain for a
+ *     different club in the same tournament (TournamentCaptain in that tournament where clubId != provided clubId).
+ *     If clubId is provided, we additionally filter results to players from that club.
+ * - enforceCap:
+ *     If on (and teamId provided), compute tournament.maxTeamSize (per team/bracket cap) and the team's
+ *     current roster size. When count >= cap, return empty results and a cap hint so the UI can block adds.
+ */
 export async function GET(req: Request) {
   try {
     const prisma = getPrisma();
@@ -14,36 +38,104 @@ export async function GET(req: Request) {
 
     const rawTerm = searchParams.get('term') || '';
     const term = squeeze(rawTerm);
-    const tournamentId = searchParams.get('tournamentId') || undefined;
 
-    // Optional: comma-separated ids to hide (already selected in the client)
+    let tournamentId = searchParams.get('tournamentId') || undefined;
+    const teamId = searchParams.get('teamId') || undefined;
+    const clubId = searchParams.get('clubId') || undefined;
+    const mode = (searchParams.get('for') || 'roster').toLowerCase(); // 'roster' | 'captain'
+    const enforceCap = searchParams.get('enforceCap') === '1';
+
     const excludeIdsParam = searchParams.get('excludeIds') || '';
-    const excludeIds = excludeIdsParam.split(',').map(s => s.trim()).filter(Boolean);
+    const excludeIds = excludeIdsParam
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     if (term.length < 3) {
       return NextResponse.json({ items: [], hint: 'Type at least 3 characters' });
     }
 
-    // Players already captaining a team in this tournament (if provided)
-    const usedCaptainIds = tournamentId
-      ? (await prisma.team.findMany({
-          where: { tournamentId },
-          select: { captainId: true },
-        }))
-          .map(t => t.captainId)
-          .filter((v): v is string => !!v)
-      : [];
+    // If we need tournament context and only have teamId, resolve it.
+    if ((!tournamentId || enforceCap) && teamId) {
+      const tinfo = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { tournamentId: true },
+      });
+      if (tinfo?.tournamentId && !tournamentId) {
+        tournamentId = tinfo.tournamentId;
+      }
+    }
 
-    const notInIds = Array.from(new Set([...usedCaptainIds, ...excludeIds]));
+    // --- Cap enforcement (independent of mode) ---
+    let teamCapLimit: number | null = null;
+    let teamRosterCount = 0;
+    if (enforceCap && teamId) {
+      // per-team/bracket cap stored on Tournament.maxTeamSize
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { tournament: { select: { maxTeamSize: true } } },
+      });
+      teamCapLimit = team?.tournament?.maxTeamSize ?? null;
+
+      // robust: don't rely on relation field names; just count TeamPlayer
+      teamRosterCount = await prisma.teamPlayer.count({ where: { teamId } });
+
+      if (teamCapLimit !== null && teamRosterCount >= teamCapLimit) {
+        return NextResponse.json({
+          items: [],
+          cap: {
+            reached: true,
+            limit: teamCapLimit,
+            count: teamRosterCount,
+            message: `This bracket is at the limit (${teamRosterCount}/${teamCapLimit}).`,
+          },
+        });
+      }
+    }
+
+    // --- Build an exclusion set that doesn't depend on Player relation field names ---
+    const excludeSet = new Set<string>(excludeIds);
+
+    if (mode !== 'captain' && tournamentId) {
+      // Roster uniqueness across the tournament:
+      // exclude players already on any other team in this tournament.
+      const rosteredElsewhere = await prisma.teamPlayer.findMany({
+        where: {
+          tournamentId,
+          ...(teamId ? { NOT: { teamId } } : {}),
+        },
+        select: { playerId: true },
+      });
+      for (const r of rosteredElsewhere) excludeSet.add(r.playerId);
+    }
+
+    if (mode === 'captain' && tournamentId) {
+      // Captain uniqueness across the tournament:
+      // exclude players already a captain for a *different* club in this tournament.
+      const captainRows = await prisma.tournamentCaptain.findMany({
+        where: {
+          tournamentId,
+          ...(clubId ? { NOT: { clubId } } : {}),
+        },
+        select: { playerId: true },
+      });
+      for (const r of captainRows) excludeSet.add(r.playerId);
+    }
+
+    // Optional filter: when picking captains and a clubId is given,
+    // prefer returning only players from that club.
+    const constrainToClub =
+      mode === 'captain' && clubId ? { clubId } : {};
 
     const items = await prisma.player.findMany({
       where: {
-        id: notInIds.length ? { notIn: notInIds } : undefined,
+        id: { notIn: excludeSet.size ? Array.from(excludeSet) : [] },
+        ...constrainToClub,
         OR: [
           { firstName: { contains: term, mode: 'insensitive' } },
-          { lastName:  { contains: term, mode: 'insensitive' } },
-          { name:      { contains: term, mode: 'insensitive' } },
-          { email:     { contains: term, mode: 'insensitive' } },
+          { lastName: { contains: term, mode: 'insensitive' } },
+          { name: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
         ],
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
@@ -54,12 +146,17 @@ export async function GET(req: Request) {
         lastName: true,
         name: true,
         gender: true,
-        clubId: true,
+        dupr: true,
+        age: true,
       },
     });
 
-    // Your UI builds the label client-side via personLabel(), so we return raw fields.
-    return NextResponse.json({ items });
+    return NextResponse.json({
+      items,
+      ...(enforceCap
+        ? { cap: { reached: false, limit: teamCapLimit, count: teamRosterCount } }
+        : {}),
+    });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

@@ -15,10 +15,10 @@ function computeAge(y?: number | null, m?: number | null, d?: number | null): nu
   } catch { return null; }
 }
 
-export async function GET(_req: Request, { params }: { params: { playerId: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ playerId: string }> }) {
   try {
     const prisma = getPrisma();
-    const playerId = params.playerId;
+    const { playerId } = await params;
 
     // Basic profile + captain teams
     const player = await prisma.player.findUnique({
@@ -86,7 +86,7 @@ export async function GET(_req: Request, { params }: { params: { playerId: strin
         birthdayDay: player.birthdayDay,
         age,
       },
-      captainTeamIds: new Set(player.teamsAsCaptain.map(t => t.id)), // serialized as object but we’ll consume as array/set in client
+      captainTeamIds: player.teamsAsCaptain.reduce((acc, team) => ({ ...acc, [team.id]: true }), {}),
       assignments,
     });
   } catch (e) {

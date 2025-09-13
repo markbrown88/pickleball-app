@@ -4,19 +4,20 @@ import { prisma } from '@/server/db';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export default async function Page({ params }: { params: { stopId: string }}) {
+export default async function Page({ params }: { params: Promise<{ stopId: string }>}) {
+  const { stopId } = await params;
   const stop = await prisma.stop.findUnique({
-    where: { id: params.stopId },
+    where: { id: stopId },
     include: {
       tournament: true,
       rounds: {
         orderBy: { idx: 'asc' },
         include: {
-          matches: {
+          games: {
             include: {
               teamA: { include: { club: true } },
               teamB: { include: { club: true } },
-              games: true
+              matches: true
             }
           }
         }
