@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Retry function for database operations
+async function retryDatabaseOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      console.log(`Database operation failed, retrying in ${delay}ms... (attempt ${i + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2; // Exponential backoff
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ stopId: string }> }
@@ -8,46 +27,50 @@ export async function GET(
   try {
     const { stopId } = await params;
 
-    // Get all rounds for this stop
-    const rounds = await prisma.round.findMany({
-      where: { stopId },
-      select: { id: true }
-    });
+    // Get all rounds for this stop with retry logic
+    const rounds = await retryDatabaseOperation(() => 
+      prisma.round.findMany({
+        where: { stopId },
+        select: { id: true }
+      })
+    );
 
     const roundIds = rounds.map(round => round.id);
 
-    // Get all lineups for all rounds in this stop
-    const lineups = await prisma.lineup.findMany({
-      where: {
-        roundId: { in: roundIds }
-      },
-      include: {
-        team: {
-          select: {
-            id: true,
-            name: true
-          }
+    // Get all lineups for all rounds in this stop with retry logic
+    const lineups = await retryDatabaseOperation(() => 
+      prisma.lineup.findMany({
+        where: {
+          roundId: { in: roundIds }
         },
-        entries: {
-          include: {
-            player1: {
-              select: {
-                id: true,
-                name: true,
-                gender: true
-              }
-            },
-            player2: {
-              select: {
-                id: true,
-                name: true,
-                gender: true
+        include: {
+          team: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          entries: {
+            include: {
+              player1: {
+                select: {
+                  id: true,
+                  name: true,
+                  gender: true
+                }
+              },
+              player2: {
+                select: {
+                  id: true,
+                  name: true,
+                  gender: true
+                }
               }
             }
           }
         }
-      }
-    });
+      })
+    );
 
     // Group lineups by match and team
     const groupedLineups: Record<string, Record<string, any[]>> = {};

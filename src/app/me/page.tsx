@@ -236,6 +236,11 @@ export default function MePage() {
   const [lineups, setLineups] = useState<Record<string, Record<string, PlayerLite[]>>>({});
   const [teamRosters, setTeamRosters] = useState<Record<string, PlayerLite[]>>({});
   
+  // Games and match status state
+  const [matchStatuses, setMatchStatuses] = useState<Record<string, 'not_started' | 'in_progress' | 'completed'>>({});
+  const [games, setGames] = useState<Record<string, any[]>>({});
+  const [courtNumbers, setCourtNumbers] = useState<Record<string, string>>({});
+  
   // Function to fetch team roster
   const fetchTeamRoster = async (teamId: string): Promise<PlayerLite[]> => {
     if (teamRosters[teamId]) {
@@ -263,6 +268,160 @@ export default function MePage() {
       console.error('Error fetching team roster:', error);
       return [];
     }
+  };
+
+  // Function to start a match
+  const startMatch = async (matchId: string) => {
+    try {
+      console.log('Starting match:', matchId);
+      // Create initial games for the match
+      const response = await fetch(`/api/admin/matches/${matchId}/games`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          games: [
+            { slot: 'MENS_DOUBLES', teamAScore: null, teamBScore: null },
+            { slot: 'WOMENS_DOUBLES', teamAScore: null, teamBScore: null },
+            { slot: 'MIXED_1', teamAScore: null, teamBScore: null },
+            { slot: 'MIXED_2', teamAScore: null, teamBScore: null }
+          ]
+        })
+      });
+
+      if (response.ok) {
+        console.log('Match started successfully');
+        setMatchStatuses(prev => ({ ...prev, [matchId]: 'in_progress' }));
+        // Load the games
+        await loadGamesForMatch(matchId);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to start match:', errorData);
+      }
+    } catch (error) {
+      console.error('Error starting match:', error);
+    }
+  };
+
+  // Function to complete a match
+  const completeMatch = async (matchId: string) => {
+    setMatchStatuses(prev => ({ ...prev, [matchId]: 'completed' }));
+  };
+
+  // Function to load games for a match
+  const loadGamesForMatch = async (matchId: string) => {
+    try {
+      console.log('Loading games for match:', matchId);
+      const response = await fetch(`/api/admin/matches/${matchId}/games`);
+      if (response.ok) {
+        const gamesData = await response.json();
+        console.log('Loaded games data:', gamesData);
+        setGames(prev => ({ ...prev, [matchId]: gamesData }));
+      } else {
+        console.error('Failed to load games:', response.status);
+      }
+    } catch (error) {
+      console.error('Error loading games:', error);
+    }
+  };
+
+  // Function to update game score
+  const updateGameScore = async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
+    try {
+      console.log('Updating game score:', { gameId, teamAScore, teamBScore });
+      const response = await fetch(`/api/admin/games/${gameId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamAScore, teamBScore })
+      });
+
+      if (response.ok) {
+        console.log('Game score updated successfully');
+        // Update local state
+        const updatedGame = await response.json();
+        setGames(prev => {
+          const newGames = { ...prev };
+          Object.keys(newGames).forEach(matchId => {
+            newGames[matchId] = newGames[matchId].map(game =>
+              game.id === gameId ? updatedGame : game
+            );
+          });
+          return newGames;
+        });
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to update game score:', errorData);
+      }
+    } catch (error) {
+      console.error('Error updating game score:', error);
+    }
+  };
+
+  const updateGameCourtNumber = async (gameId: string, courtNumber: string) => {
+    try {
+      console.log('Updating game court number:', { gameId, courtNumber });
+      const response = await fetch(`/api/admin/games/${gameId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courtNumber })
+      });
+
+      if (response.ok) {
+        console.log('Game court number updated successfully');
+        // Update local state
+        setGames(prev => {
+          const newGames = { ...prev };
+          Object.keys(newGames).forEach(matchId => {
+            newGames[matchId] = newGames[matchId].map(game =>
+              game.id === gameId ? { ...game, courtNumber } : game
+            );
+          });
+          return newGames;
+        });
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to update game court number:', errorData);
+      }
+    } catch (error) {
+      console.error('Error updating game court number:', error);
+    }
+  };
+
+  const completeGame = async (gameId: string) => {
+    try {
+      console.log('Completing game:', { gameId });
+      const response = await fetch(`/api/admin/games/${gameId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isComplete: true })
+      });
+
+      if (response.ok) {
+        console.log('Game completed successfully');
+        // Update local state
+        setGames(prev => {
+          const newGames = { ...prev };
+          Object.keys(newGames).forEach(matchId => {
+            newGames[matchId] = newGames[matchId].map(game =>
+              game.id === gameId ? { ...game, isComplete: true } : game
+            );
+          });
+          return newGames;
+        });
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to complete game:', errorData);
+      }
+    } catch (error) {
+      console.error('Error completing game:', error);
+    }
+  };
+
+  // Function to check if any match in a round has started
+  const hasAnyMatchStarted = (round: any) => {
+    if (!round.matches) return false;
+    return round.matches.some((match: any) => 
+      matchStatuses[match.id] === 'in_progress' || matchStatuses[match.id] === 'completed'
+    );
   };
   
   // Drag and drop state
@@ -409,13 +568,41 @@ export default function MePage() {
     (async () => {
       try {
         console.log('Fetching captain teams for player:', meId);
-        const captainResponse = await fetch(`/api/captain/${meId}/teams`).then(r => {
-          console.log('Captain teams response status:', r.status);
-          if (!r.ok) {
-            throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+        
+        // Retry logic for intermittent 500 errors
+        let captainResponse;
+        let retries = 0;
+        const maxRetries = 3;
+        
+        while (retries < maxRetries) {
+          try {
+            const response = await fetch(`/api/captain/${meId}/teams`);
+            console.log('Captain teams response status:', response.status);
+            
+            if (response.status === 500 && retries < maxRetries - 1) {
+              console.log(`Retrying captain teams fetch (attempt ${retries + 1}/${maxRetries})`);
+              retries++;
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff
+              continue;
+            }
+            
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            captainResponse = await response.json();
+            break;
+          } catch (error) {
+            if (retries < maxRetries - 1) {
+              console.log(`Retrying captain teams fetch due to error (attempt ${retries + 1}/${maxRetries}):`, error);
+              retries++;
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+            } else {
+              throw error;
+            }
           }
-          return r.json();
-        });
+        }
+        
         console.log('Captain teams data:', captainResponse);
         if (captainResponse?.error) throw new Error(captainResponse.error);
         setCaptainData(captainResponse);
@@ -433,13 +620,41 @@ export default function MePage() {
     (async () => {
       try {
         console.log('Fetching manager tournaments for player:', meId);
-        const managerResponse = await fetch(`/api/manager/${meId}/tournaments`).then(r => {
-          console.log('Manager tournaments response status:', r.status);
-          if (!r.ok) {
-            throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+        
+        // Retry logic for intermittent 500 errors
+        let managerResponse;
+        let retries = 0;
+        const maxRetries = 3;
+        
+        while (retries < maxRetries) {
+          try {
+            const response = await fetch(`/api/manager/${meId}/tournaments`);
+            console.log('Manager tournaments response status:', response.status);
+            
+            if (response.status === 500 && retries < maxRetries - 1) {
+              console.log(`Retrying manager tournaments fetch (attempt ${retries + 1}/${maxRetries})`);
+              retries++;
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff
+              continue;
+            }
+            
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            managerResponse = await response.json();
+            break;
+          } catch (error) {
+            if (retries < maxRetries - 1) {
+              console.log(`Retrying manager tournaments fetch due to error (attempt ${retries + 1}/${maxRetries}):`, error);
+              retries++;
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+            } else {
+              throw error;
+            }
           }
-          return r.json();
-        });
+        }
+        
         console.log('Manager tournaments data:', managerResponse);
         if (managerResponse?.error) throw new Error(managerResponse.error);
         setEventManagerData(managerResponse.items || []);
@@ -947,6 +1162,19 @@ export default function MePage() {
             fetchTeamRoster={fetchTeamRoster}
             isDragging={isDragging}
             setIsDragging={setIsDragging}
+            matchStatuses={matchStatuses}
+            setMatchStatuses={setMatchStatuses}
+            games={games}
+            setGames={setGames}
+            courtNumbers={courtNumbers}
+            setCourtNumbers={setCourtNumbers}
+            startMatch={startMatch}
+            completeMatch={completeMatch}
+            loadGamesForMatch={loadGamesForMatch}
+            updateGameScore={updateGameScore}
+            updateGameCourtNumber={updateGameCourtNumber}
+            completeGame={completeGame}
+            hasAnyMatchStarted={hasAnyMatchStarted}
           />
         )}
       </div>
@@ -1335,6 +1563,19 @@ function EventManagerTab({
   fetchTeamRoster,
   isDragging,
   setIsDragging,
+  matchStatuses,
+  setMatchStatuses,
+  games,
+  setGames,
+  courtNumbers,
+  setCourtNumbers,
+  startMatch,
+  completeMatch,
+  loadGamesForMatch,
+  updateGameScore,
+  updateGameCourtNumber,
+  completeGame,
+  hasAnyMatchStarted,
 }: {
   tournaments: EventManagerTournament[];
   onError: (m: string) => void;
@@ -1349,6 +1590,19 @@ function EventManagerTab({
   fetchTeamRoster: (teamId: string) => Promise<PlayerLite[]>;
   isDragging: boolean;
   setIsDragging: (value: boolean) => void;
+  matchStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'>;
+  setMatchStatuses: (value: Record<string, 'not_started' | 'in_progress' | 'completed'> | ((prev: Record<string, 'not_started' | 'in_progress' | 'completed'>) => Record<string, 'not_started' | 'in_progress' | 'completed'>)) => void;
+  games: Record<string, any[]>;
+  setGames: (value: Record<string, any[]> | ((prev: Record<string, any[]>) => Record<string, any[]>)) => void;
+  courtNumbers: Record<string, string>;
+  setCourtNumbers: (value: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
+  startMatch: (matchId: string) => Promise<void>;
+  completeMatch: (matchId: string) => Promise<void>;
+  loadGamesForMatch: (matchId: string) => Promise<void>;
+  updateGameScore: (gameId: string, teamAScore: number | null, teamBScore: number | null) => Promise<void>;
+  updateGameCourtNumber: (gameId: string, courtNumber: string) => Promise<void>;
+  completeGame: (gameId: string) => Promise<void>;
+  hasAnyMatchStarted: (round: any) => boolean;
 }) {
   const [expandedTournaments, setExpandedTournaments] = useState<Set<string>>(new Set());
   const [expandedStops, setExpandedStops] = useState<Set<string>>(new Set());
@@ -1434,6 +1688,17 @@ function EventManagerTab({
       if (response.ok) {
         const lineupsData = await response.json();
         setLineups(prev => ({ ...prev, ...lineupsData }));
+        
+        // Load games for matches that have confirmed lineups
+        Object.keys(lineupsData).forEach(matchId => {
+          const matchLineups = lineupsData[matchId];
+          const teamAId = Object.keys(matchLineups)[0];
+          const teamBId = Object.keys(matchLineups)[1];
+          
+          if (matchLineups[teamAId]?.length === 4 && matchLineups[teamBId]?.length === 4) {
+            loadGamesForMatch(matchId);
+          }
+        });
       }
     } catch (error) {
       console.error('Error loading lineups for stop:', error);
@@ -1489,7 +1754,7 @@ function EventManagerTab({
         newSet.add(roundId);
         // Load round data when opening edit mode, but only if we don't already have it
         if (!roundMatchups[roundId]) {
-          loadRoundMatchups(roundId);
+        loadRoundMatchups(roundId);
         }
       }
       return newSet;
@@ -1530,8 +1795,8 @@ function EventManagerTab({
       }));
 
       setRoundMatchups(prev => ({
-        ...prev,
-        [roundId]: matches
+          ...prev,
+          [roundId]: matches
       }));
     } catch (e) {
       onError((e as Error).message);
@@ -1571,15 +1836,15 @@ function EventManagerTab({
       setDragPreview(null);
       return;
     }
-    
+
     const activeData = active.data.current;
     const overData = over.data.current;
-    
+
     if (!activeData || !overData || activeData.bracketName !== overData.bracketName) {
       setDragPreview(null);
       return;
     }
-    
+
     // Set up the swap preview
     setDragPreview({
       sourceId: active.id,
@@ -1820,6 +2085,7 @@ function EventManagerTab({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {!scheduleData[stop.stopId]?.some((round: any) => hasAnyMatchStarted(round)) && (
                         <button
                           className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
                           onClick={(e) => {
@@ -1828,8 +2094,9 @@ function EventManagerTab({
                           }}
                           disabled={loading[stop.stopId]}
                         >
-                          {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
+                            {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
                         </button>
+                        )}
                       </div>
                     </div>
 
@@ -1860,19 +2127,21 @@ function EventManagerTab({
                                       <h6 className="font-medium text-sm">Round {round.idx + 1}</h6>
                                       <div className="flex items-center gap-2">
                                         {isEditing ? (
-                                          <button
-                                            className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
-                                            onClick={() => saveRoundMatchups(round.id)}
-                                          >
+                                            <button
+                                              className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                              onClick={() => saveRoundMatchups(round.id)}
+                                            >
                                             Confirm Matchups
-                                          </button>
-                                        ) : (
+                                            </button>
+                                        ) : !hasAnyMatchStarted(round) ? (
                                           <button
                                             className="px-2 py-1 border rounded text-xs bg-blue-50 hover:bg-blue-100"
                                             onClick={() => toggleRoundEdit(round.id)}
                                           >
                                             Edit Matchups
                                           </button>
+                                        ) : (
+                                          <span className="text-xs text-gray-500">Match in progress</span>
                                         )}
                                       </div>
                                     </div>
@@ -1911,11 +2180,11 @@ function EventManagerTab({
                                           </h6>
                                           
                                           {isEditing ? (
-                                            <DndContext
-                                              collisionDetection={closestCenter}
-                                              onDragStart={handleDragStart}
+                                    <DndContext
+                                      collisionDetection={closestCenter}
+                                      onDragStart={handleDragStart}
                                               onDragOver={handleDragOver}
-                                              onDragEnd={handleDragEnd}
+                                      onDragEnd={handleDragEnd}
                                             >
                                               <SortableContext 
                                                 items={bracketMatches.map((match: any) => [
@@ -1923,39 +2192,39 @@ function EventManagerTab({
                                                   `${round.id}-${bracketName}-${match.localIndex}-B`
                                                 ]).flat()}
                                                 strategy={noReorderStrategy}
-                                              >
-                                                <div className="space-y-1">
+                                    >
+                                      <div className="space-y-1">
                                                   {bracketMatches.map((match: any, localMatchIdx: number) => {
                                                     const matchIdx = match.originalIndex;
                                                     const localIndex = match.localIndex;
                                                     return (
-                                              <div key={match.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                        <div key={match.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
                                                 {!match.isBye ? (
-                                              <div className="flex items-center gap-2 flex-1">
-                                                {/* Team A */}
-                                                <DraggableTeam
-                                                  team={match.teamA}
-                                                  teamPosition="A"
-                                                  roundId={round.id}
+                                            <div className="flex items-center gap-2 flex-1">
+                                              {/* Team A */}
+                                              <DraggableTeam
+                                                team={match.teamA}
+                                                teamPosition="A"
+                                                roundId={round.id}
                                                   matchIndex={localIndex}
                                                   bracketName={bracketName}
                                                   isDragging={
                                                     activeId === `${round.id}-${bracketName}-${localIndex}-A` ||                                                                                                        
                                                     (dragPreview && (
                                                       dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||                                                                                          
-                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`)
-                                                    )
+                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`
+                                                    ))
                                                   }
                                                   dragPreview={dragPreview}
-                                                />
-                                                
-                                                <span className="text-gray-500">vs</span>
-                                                
-                                                {/* Team B */}
-                                                <DraggableTeam
-                                                  team={match.teamB}
-                                                  teamPosition="B"
-                                                  roundId={round.id}
+                                              />
+                                              
+                                              <span className="text-gray-500">vs</span>
+                                              
+                                              {/* Team B */}
+                                              <DraggableTeam
+                                                team={match.teamB}
+                                                teamPosition="B"
+                                                roundId={round.id}
                                                   matchIndex={localIndex}
                                                   bracketName={bracketName}
                                                   isDragging={
@@ -1966,39 +2235,67 @@ function EventManagerTab({
                                                     ))
                                                   }
                                                   dragPreview={dragPreview}
-                                                />
-                                              </div>
-                                            ) : (
-                                              <div className="flex items-center gap-3">
-                                                <span className="font-medium">
-                                                  {match.teamA?.name || 'TBD'} vs {match.teamB?.name || 'TBD'}
+                                              />
+                                            </div>
+                                          ) : (
+                                            <div className="flex items-center gap-3">
+                                              <span className="font-medium">
+                                                {match.teamA?.name || 'TBD'} vs {match.teamB?.name || 'TBD'}
+                                              </span>
+                                              {match.isBye && (
+                                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                                                  BYE
                                                 </span>
-                                                {match.isBye && (
-                                                  <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                                                    BYE
-                                                  </span>
-                                                )}
-                                              </div>
-                                            )}
-                                            
-                                            <div className="flex items-center gap-2">
-                                              <button
-                                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                                                onClick={() => {
-                                                  console.log('Edit Lineups clicked for match:', match.id);
-                                                  setEditingMatch(editingMatch === match.id ? null : match.id);
-                                                }}
-                                              >
-                                                {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
-                                              </button>
-                                              {match.lineupCreated && (
+                                              )}
+                                            </div>
+                                          )}
+                                          
+                                          <div className="flex items-center gap-2">
+                                              {matchStatuses[match.id] !== 'in_progress' && matchStatuses[match.id] !== 'completed' && (
                                                 <button
-                                                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                  className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                                   onClick={() => {
-                                                    // TODO: Start match
+                                                    console.log('Edit Lineups clicked for match:', match.id);
+                                                    setEditingMatch(editingMatch === match.id ? null : match.id);
                                                   }}
                                                 >
-                                                  Start Match
+                                                  {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
+                                                </button>
+                                              )}
+                                              {/* Start Match button - show when both teams have confirmed lineups */}
+                                              {lineups[match.id] && 
+                                               lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
+                                               lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
+                                                <button
+                                                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-75 disabled:cursor-not-allowed"
+                                                  onClick={() => {
+                                                    const currentStatus = matchStatuses[match.id] || 'not_started';
+                                                    if (currentStatus === 'not_started') {
+                                                      startMatch(match.id);
+                                                    } else if (currentStatus === 'in_progress') {
+                                                      completeMatch(match.id);
+                                                    }
+                                                  }}
+                                                  disabled={(() => {
+                                                    const allGames = games[match.id] || [];
+                                                    const completedGames = allGames.filter(g => g.isComplete);
+                                                    const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
+                                                    return completedGames.length === totalGames && totalGames > 0;
+                                                  })()}
+                                                >
+                                                  {(() => {
+                                                    const allGames = games[match.id] || [];
+                                                    const completedGames = allGames.filter(g => g.isComplete);
+                                                    const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
+                                                    
+                                                    if (completedGames.length === totalGames && totalGames > 0) {
+                                                      return 'Match Complete';
+                                                    } else if (matchStatuses[match.id] === 'in_progress') {
+                                                      return 'Match in Progress';
+                                                    } else {
+                                                      return 'Start Match';
+                                                    }
+                                                  })()}
                                                 </button>
                                               )}
                                             </div>
@@ -2055,25 +2352,312 @@ function EventManagerTab({
                                                         
                                                         {/* Buttons */}
                                                         <div className="flex flex-col gap-2">
-                                                          <button
-                                                            className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                                                            onClick={() => {
-                                                              console.log('Edit Lineups clicked for match:', match.id);
-                                                              setEditingMatch(editingMatch === match.id ? null : match.id);
-                                                            }}
-                                                          >
-                                                            {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
-                                                          </button>
-                                                          {match.lineupCreated && (
+                                                          {matchStatuses[match.id] !== 'in_progress' && matchStatuses[match.id] !== 'completed' && (
                                                             <button
-                                                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                              className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                                               onClick={() => {
-                                                                // TODO: Start match
+                                                                console.log('Edit Lineups clicked for match:', match.id);
+                                                                setEditingMatch(editingMatch === match.id ? null : match.id);
                                                               }}
                                                             >
-                                                              Start Match
+                                                              {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
                                                             </button>
                                                           )}
+                                                          {/* Start Match button - show when both teams have confirmed lineups */}
+                                                          {lineups[match.id] && 
+                                                           lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
+                                                           lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
+                                                            <button
+                                                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-75 disabled:cursor-not-allowed"
+                                                              onClick={() => {
+                                                                const currentStatus = matchStatuses[match.id] || 'not_started';
+                                                                if (currentStatus === 'not_started') {
+                                                                  startMatch(match.id);
+                                                                } else if (currentStatus === 'in_progress') {
+                                                                  completeMatch(match.id);
+                                                                }
+                                                              }}
+                                                              disabled={(() => {
+                                                                const allGames = games[match.id] || [];
+                                                                const completedGames = allGames.filter(g => g.isComplete);
+                                                                const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
+                                                                return completedGames.length === totalGames && totalGames > 0;
+                                                              })()}
+                                                            >
+                                                              {(() => {
+                                                                const allGames = games[match.id] || [];
+                                                                const completedGames = allGames.filter(g => g.isComplete);
+                                                                const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
+                                                                
+                                                                if (completedGames.length === totalGames && totalGames > 0) {
+                                                                  return 'Match Complete';
+                                                                } else if (matchStatuses[match.id] === 'in_progress') {
+                                                                  return 'Match in Progress';
+                                                                } else {
+                                                                  return 'Start Match';
+                                                                }
+                                                              })()}
+                                                            </button>
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                    
+                                                    {/* Games Display - only show when both teams have confirmed lineups */}
+                                                    {lineups[match.id] && 
+                                                     lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
+                                                     lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
+                                                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                                                        <h4 className="text-sm font-semibold text-blue-800 mb-3">Games & Scores</h4>
+                                                        <div className="space-y-4">
+                                                          {/* Men's and Women's Doubles Row */}
+                                                          <div className="grid grid-cols-2 gap-3">
+                                                            {games[match.id]?.filter(game => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES').map((game) => (
+                                                              <div key={game.id} className="p-3 bg-white border rounded">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                  <div className="text-xs font-medium text-gray-700">
+                                                                    {game.slot === 'MENS_DOUBLES' && "Men's Doubles"}
+                                                                    {game.slot === 'WOMENS_DOUBLES' && "Women's Doubles"}
+                                                                  </div>
+                                                                  <div className="flex items-center gap-2">
+                                                                    <label className="text-xs font-medium text-gray-600">Court #:</label>
+                                                                    <input
+                                                                      type="text"
+                                                                      className="w-12 px-1 py-1 text-xs border rounded"
+                                                                      value={game.courtNumber || ''}
+                                                                      onChange={(e) => updateGameCourtNumber(game.id, e.target.value)}
+                                                                      placeholder="1"
+                                                                    />
+                                                                    <button
+                                                                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                                                                      onClick={() => completeGame(game.id)}
+                                                                      disabled={game.isComplete || !game.teamAScore || !game.teamBScore}
+                                                                    >
+                                                                      {game.isComplete ? 'Finished' : 'Game Finished'}
+                                                                    </button>
+                                                                  </div>
+                                                                </div>
+                                                                
+       {/* Team A vs Team B with Score Inputs - Custom Column Layout */}
+       <div className="grid gap-2 items-center" style={{gridTemplateColumns: '1fr auto auto auto 1fr'}}>
+         <div className="text-sm font-medium text-gray-700 text-right">
+           {lineups[match.id][match.teamA?.id || 'teamA']?.filter(p => p.gender === (game.slot === 'MENS_DOUBLES' ? 'MALE' : 'FEMALE')).slice(0, 2).map(p => p.name).join(' & ')}
+         </div>
+         <input
+           type="number"
+           min="0"
+           className="w-12 px-1 py-0.5 text-xs border rounded text-center"
+           value={game.teamAScore || ''}
+           onChange={(e) => updateGameScore(game.id, e.target.value ? parseInt(e.target.value) : null, game.teamBScore)}
+           placeholder="0"
+           disabled={game.isComplete}
+         />
+         <div className="text-xs text-gray-400 text-center">vs</div>
+         <input
+           type="number"
+           min="0"
+           className="w-12 px-1 py-0.5 text-xs border rounded text-center"
+           value={game.teamBScore || ''}
+           onChange={(e) => updateGameScore(game.id, game.teamAScore, e.target.value ? parseInt(e.target.value) : null)}
+           placeholder="0"
+           disabled={game.isComplete}
+         />
+         <div className="text-sm font-medium text-gray-700 text-left">
+           {lineups[match.id][match.teamB?.id || 'teamB']?.filter(p => p.gender === (game.slot === 'MENS_DOUBLES' ? 'MALE' : 'FEMALE')).slice(0, 2).map(p => p.name).join(' & ')}
+         </div>
+       </div>
+                                                              </div>
+                                                            ))}
+                                                          </div>
+
+                                                          {/* Mixed Doubles 1 & 2 Row */}
+                                                          <div className="grid grid-cols-2 gap-3">
+                                                            {games[match.id]?.filter(game => game.slot === 'MIXED_1' || game.slot === 'MIXED_2').map((game) => (
+                                                              <div key={game.id} className="p-3 bg-white border rounded">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                  <div className="text-xs font-medium text-gray-700">
+                                                                    {game.slot === 'MIXED_1' && "Mixed Doubles 1"}
+                                                                    {game.slot === 'MIXED_2' && "Mixed Doubles 2"}
+                                                                  </div>
+                                                                  <div className="flex items-center gap-2">
+                                                                    <label className="text-xs font-medium text-gray-600">Court #:</label>
+                                                                    <input
+                                                                      type="text"
+                                                                      className="w-12 px-1 py-1 text-xs border rounded"
+                                                                      value={game.courtNumber || ''}
+                                                                      onChange={(e) => updateGameCourtNumber(game.id, e.target.value)}
+                                                                      placeholder="1"
+                                                                    />
+                                            <button
+                                                                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                                                                      onClick={() => completeGame(game.id)}
+                                                                      disabled={game.isComplete || !game.teamAScore || !game.teamBScore}
+                                            >
+                                                                      {game.isComplete ? 'Finished' : 'Game Finished'}
+                                            </button>
+                                                                  </div>
+                                                                </div>
+                                                                
+                                                                {/* Team A vs Team B with Score Inputs - Custom Column Layout */}
+                                                                <div className="grid gap-2 items-center" style={{gridTemplateColumns: '1fr auto auto auto 1fr'}}>
+                                                                  <div className="text-sm font-medium text-gray-700 text-right">
+                                                                    {(() => {
+                                                                      const teamA = lineups[match.id][match.teamA?.id || 'teamA'] || [];
+                                                                      const males = teamA.filter(p => p.gender === 'MALE');
+                                                                      const females = teamA.filter(p => p.gender === 'FEMALE');
+                                                                      if (game.slot === 'MIXED_1') {
+                                                                        return `${males[0]?.name || ''} & ${females[0]?.name || ''}`;
+                                                                      } else if (game.slot === 'MIXED_2') {
+                                                                        return `${males[1]?.name || ''} & ${females[1]?.name || ''}`;
+                                                                      }
+                                                                      return '';
+                                                                    })()}
+                                                                  </div>
+                                                                  <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
+                                                                    value={game.teamAScore || ''}
+                                                                    onChange={(e) => updateGameScore(game.id, e.target.value ? parseInt(e.target.value) : null, game.teamBScore)}
+                                                                    placeholder="0"
+                                                                    disabled={game.isComplete}
+                                                                  />
+                                                                  <div className="text-xs text-gray-400 text-center">vs</div>
+                                                                  <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
+                                                                    value={game.teamBScore || ''}
+                                                                    onChange={(e) => updateGameScore(game.id, game.teamAScore, e.target.value ? parseInt(e.target.value) : null)}
+                                                                    placeholder="0"
+                                                                    disabled={game.isComplete}
+                                                                  />
+                                                                  <div className="text-sm font-medium text-gray-700 text-left">
+                                                                    {(() => {
+                                                                      const teamB = lineups[match.id][match.teamB?.id || 'teamB'] || [];
+                                                                      const males = teamB.filter(p => p.gender === 'MALE');
+                                                                      const females = teamB.filter(p => p.gender === 'FEMALE');
+                                                                      if (game.slot === 'MIXED_1') {
+                                                                        return `${males[0]?.name || ''} & ${females[0]?.name || ''}`;
+                                                                      } else if (game.slot === 'MIXED_2') {
+                                                                        return `${males[1]?.name || ''} & ${females[1]?.name || ''}`;
+                                                                      }
+                                                                      return '';
+                                                                    })()}
+                                                                  </div>
+                                                                </div>
+                                        </div>
+                                      ))}
+                                      </div>
+                                                          
+                                                          {/* Tiebreaker Game - only show when all 4 games are complete and tied */}
+                                                          {(() => {
+                                                            const completedGames = games[match.id]?.filter(g => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
+                                                            const teamAWins = completedGames.filter(g => g.teamAScore > g.teamBScore).length;
+                                                            const teamBWins = completedGames.filter(g => g.teamBScore > g.teamAScore).length;
+                                                            const needsTiebreaker = completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
+                                                            
+                                                            if (needsTiebreaker && !games[match.id]?.find(g => g.slot === 'TIEBREAKER')) {
+                                                              // Create tiebreaker game in database
+                                                              const createTiebreaker = async () => {
+                                                                try {
+                                                                  const response = await fetch(`/api/admin/matches/${match.id}/games`, {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({
+                                                                      games: [{
+                                                                        slot: 'TIEBREAKER',
+                                                                        teamAScore: null,
+                                                                        teamBScore: null
+                                                                      }]
+                                                                    })
+                                                                  });
+                                                                  
+                                                                  if (response.ok) {
+                                                                    // Reload games to get the real tiebreaker with database ID
+                                                                    await loadGamesForMatch(match.id);
+                                                                  }
+                                                                } catch (error) {
+                                                                  console.error('Error creating tiebreaker:', error);
+                                                                }
+                                                              };
+                                                              
+                                                              createTiebreaker();
+                                                            }
+                                                            
+                                                            return needsTiebreaker && games[match.id]?.find(g => g.slot === 'TIEBREAKER') && (
+                                                              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                  <div className="text-xs font-medium text-yellow-800">Tiebreaker</div>
+                                                                  <div className="flex items-center gap-2">
+                                                                    <label className="text-xs font-medium text-gray-600">Court #:</label>
+                                                                    <input
+                                                                      type="text"
+                                                                      className="w-16 px-2 py-1 text-xs border rounded"
+                                                                      value={games[match.id].find(g => g.slot === 'TIEBREAKER')?.courtNumber || ''}
+                                                                      onChange={(e) => {
+                                                                        const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
+                                                                        if (tiebreakerGame) {
+                                                                          updateGameCourtNumber(tiebreakerGame.id, e.target.value);
+                                                                        }
+                                                                      }}
+                                                                      placeholder="1"
+                                                                      disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete}
+                                                                    />
+                                      </div>
+                                                                </div>
+                                                                
+                                                                <div className="grid gap-2 items-center" style={{gridTemplateColumns: '1fr auto auto auto 1fr'}}>
+                                                                  <div className="text-sm font-medium text-gray-700 text-right">{match.teamA?.name || 'Team A'}</div>
+                                                                  <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
+                                                                    value={games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamAScore || ''}
+                                                                    onChange={(e) => {
+                                                                      const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
+                                                                      if (tiebreakerGame) {
+                                                                        updateGameScore(tiebreakerGame.id, e.target.value ? parseInt(e.target.value) : null, tiebreakerGame.teamBScore);
+                                                                      }
+                                                                    }}
+                                                                    placeholder="0"
+                                                                    disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete}
+                                                                  />
+                                                                  <div className="text-xs text-gray-400 text-center">vs</div>
+                                                                  <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
+                                                                    value={games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamBScore || ''}
+                                                                    onChange={(e) => {
+                                                                      const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
+                                                                      if (tiebreakerGame) {
+                                                                        updateGameScore(tiebreakerGame.id, tiebreakerGame.teamAScore, e.target.value ? parseInt(e.target.value) : null);
+                                                                      }
+                                                                    }}
+                                                                    placeholder="0"
+                                                                    disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete}
+                                                                  />
+                                                                  <div className="text-sm font-medium text-gray-700 text-left">{match.teamB?.name || 'Team B'}</div>
+                                                                </div>
+                                                                
+                                                                <div className="mt-2 flex justify-end">
+                                                                  <button
+                                                                    className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                                                                    onClick={() => {
+                                                                      const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
+                                                                      if (tiebreakerGame) {
+                                                                        completeGame(tiebreakerGame.id);
+                                                                      }
+                                                                    }}
+                                                                    disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete || !games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamAScore || !games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamBScore}
+                                                                  >
+                                                                    {games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete ? 'Finished' : 'Game Finished'}
+                                                                  </button>
+                                                                </div>
+                                                              </div>
+                                                            );
+                                                          })()}
                                                         </div>
                                                       </div>
                                                     )}
