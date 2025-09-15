@@ -5,6 +5,9 @@ import { DndContext, DragEndEvent, DragStartEvent, closestCenter } from '@dnd-ki
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// Custom strategy that disables automatic reordering
+const noReorderStrategy = () => null;
+
 type Id = string;
 type CountrySel = 'Canada' | 'USA' | 'Other';
 
@@ -17,7 +20,8 @@ function DraggableTeam({
   roundId, 
   matchIndex, 
   bracketName,
-  isDragging = false 
+  isDragging = false,
+  dragPreview = null
 }: { 
   team: any; 
   teamPosition: 'A' | 'B'; 
@@ -25,7 +29,10 @@ function DraggableTeam({
   matchIndex: number; 
   bracketName: string;
   isDragging?: boolean;
+  dragPreview?: any;
 }) {
+  const teamId = `${roundId}-${bracketName}-${matchIndex}-${teamPosition}`;
+  
   const {
     attributes,
     listeners,
@@ -34,7 +41,7 @@ function DraggableTeam({
     transition,
     isDragging: isSortableDragging,
   } = useSortable({
-    id: `${roundId}-${bracketName}-${matchIndex}-${teamPosition}`,
+    id: teamId,
     data: {
       roundId,
       matchIndex,
@@ -44,13 +51,17 @@ function DraggableTeam({
     }
   });
 
-  // Debug logging disabled to prevent infinite loop
+  // Determine visual state
+  const isSourceTeam = dragPreview && dragPreview.sourceId === teamId;
+  const isTargetTeam = dragPreview && dragPreview.targetId === teamId;
+  const isBeingDragged = isDragging && isSourceTeam;
+  const isPreviewTarget = isDragging && isTargetTeam;
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging || isSortableDragging ? 0.6 : 1,
-    zIndex: isDragging || isSortableDragging ? 1000 : 'auto',
+    opacity: isBeingDragged ? 0.6 : isPreviewTarget ? 0.8 : 1,
+    zIndex: isBeingDragged ? 1000 : isPreviewTarget ? 999 : 'auto',
   };
 
   return (
@@ -60,7 +71,11 @@ function DraggableTeam({
       {...attributes}
       {...listeners}
       className={`px-3 py-2 border rounded cursor-move transition-all duration-200 ${
-        isDragging || isSortableDragging ? 'opacity-60 scale-105 shadow-lg border-blue-400 bg-blue-50' : ''
+        isBeingDragged 
+          ? 'opacity-60 scale-105 shadow-lg border-blue-400 bg-blue-50' 
+          : isPreviewTarget 
+            ? 'opacity-80 scale-102 shadow-md border-green-400 bg-green-50'
+            : ''
       } ${
         !team ? 'border-dashed border-gray-300 bg-gray-50 cursor-not-allowed' : 'bg-white hover:shadow-md'
       }`}
@@ -366,7 +381,7 @@ export default function MePage() {
         if (captainResponse?.error) throw new Error(captainResponse.error);
         setCaptainData(captainResponse);
       } catch (e) {
-        console.error('Failed to load captain data:', e);
+        // Handle error silently
       }
     })();
   }, [meId, captainSet.size]);
@@ -380,7 +395,7 @@ export default function MePage() {
         if (managerResponse?.error) throw new Error(managerResponse.error);
         setEventManagerData(managerResponse.items || []);
       } catch (e) {
-        console.error('Failed to load event manager data:', e);
+        // Handle error silently
       }
     })();
   }, [meId]);
@@ -1405,19 +1420,15 @@ function EventManagerTab({
 
   const loadRoundMatchups = async (roundId: string) => {
     try {
-      console.log('loadRoundMatchups: Starting to load round', roundId);
       const response = await fetch(`/api/admin/rounds/${roundId}`);
-      console.log('loadRoundMatchups: Response status', response.status);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const roundData = await response.json();
-      console.log('loadRoundMatchups: Raw API response', roundData);
       
       if (!roundData.matches) {
-        console.error('loadRoundMatchups: No matches in response', roundData);
         return;
       }
       
@@ -1440,17 +1451,11 @@ function EventManagerTab({
         games: match.games || [], // Include the games array
       }));
 
-      console.log('loadRoundMatchups: Setting matches for round', roundId, ':', matches);
-      setRoundMatchups(prev => {
-        const newMatchups = {
-          ...prev,
-          [roundId]: matches
-        };
-        console.log('loadRoundMatchups: Updated roundMatchups:', newMatchups);
-        return newMatchups;
-      });
+      setRoundMatchups(prev => ({
+        ...prev,
+        [roundId]: matches
+      }));
     } catch (e) {
-      console.error('loadRoundMatchups: Error loading round', roundId, e);
       onError((e as Error).message);
     }
   };
@@ -1458,6 +1463,12 @@ function EventManagerTab({
 
   // @dnd-kit drag handlers
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<{
+    sourceId: string;
+    targetId: string;
+    sourceTeam: any;
+    targetTeam: any;
+  } | null>(null);
   const isProcessingRef = useRef(false);
   const lastDragEndRef = useRef<string | null>(null);
   const dragOperationIdRef = useRef<string | null>(null);
@@ -1466,21 +1477,44 @@ function EventManagerTab({
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const operationId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     dragOperationIdRef.current = operationId;
-    setActiveId(event.active.id as string);
+    const activeId = event.active.id as string;
+    const activeData = event.active.data.current;
+    
+    setActiveId(activeId);
     setIsDragging(true);
     isProcessingRef.current = false;
-    console.log('=== DND-KIT DRAG START ===');
-    console.log('Operation ID:', operationId);
-    console.log('Dragging:', event.active.id);
-    console.log('Active data:', event.active.data.current);
+    setDragPreview(null); // Clear any previous preview
+  }, []);
+
+  const handleDragOver = useCallback((event: any) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) {
+      setDragPreview(null);
+      return;
+    }
+    
+    const activeData = active.data.current;
+    const overData = over.data.current;
+    
+    if (!activeData || !overData || activeData.bracketName !== overData.bracketName) {
+      setDragPreview(null);
+      return;
+    }
+    
+    // Set up the swap preview
+    setDragPreview({
+      sourceId: active.id,
+      targetId: over.id,
+      sourceTeam: activeData.team,
+      targetTeam: overData.team
+    });
   }, []);
 
   // Auto-save function for drag and drop (doesn't exit edit mode)
   const autoSaveRoundMatchups = async (roundId: string) => {
     const matches = roundMatchups[roundId];
     if (!matches) return;
-    
-    console.log('autoSaveRoundMatchups: Current roundMatchups for round', roundId, ':', matches);
     
     try {
       // Create the update payload
@@ -1490,17 +1524,12 @@ function EventManagerTab({
         teamBId: match.teamB?.id || null,
       }));
 
-      console.log('autoSaveRoundMatchups: Sending updates:', updates);
-
       await fetch(`/api/admin/rounds/${roundId}/matchups`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates }),
       });
-
-      console.log('✅ Changes saved to database');
     } catch (e) {
-      console.error('❌ Failed to save changes:', e);
       onError((e as Error).message);
     }
   };
@@ -1510,8 +1539,6 @@ function EventManagerTab({
     const matches = roundMatchups[roundId];
     if (!matches) return;
     
-    console.log('saveRoundMatchups: Current roundMatchups for round', roundId, ':', matches);
-    
     try {
       // Create the update payload
       const updates = matches.map(match => ({
@@ -1519,8 +1546,6 @@ function EventManagerTab({
         teamAId: match.teamA?.id || null,
         teamBId: match.teamB?.id || null,
       }));
-
-      console.log('saveRoundMatchups: Sending updates:', updates);
 
       await fetch(`/api/admin/rounds/${roundId}/matchups`, {
         method: 'PATCH',
@@ -1554,9 +1579,12 @@ function EventManagerTab({
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
     
+    // Clear all drag state
+    setActiveId(null);
+    setIsDragging(false);
+    setDragPreview(null);
+    
     if (!over || active.id === over.id) {
-      setActiveId(null);
-      setIsDragging(false);
       return;
     }
     
@@ -1564,15 +1592,11 @@ function EventManagerTab({
     const overData = over.data.current;
     
     if (!activeData || !overData) {
-      setActiveId(null);
-      setIsDragging(false);
       return;
     }
     
     // Check if teams are in the same bracket
     if (activeData.bracketName !== overData.bracketName) {
-      setActiveId(null);
-      setIsDragging(false);
       return;
     }
     
@@ -1601,8 +1625,6 @@ function EventManagerTab({
     );
     
     if (sourceGlobalIndex === -1 || targetGlobalIndex === -1) {
-      setActiveId(null);
-      setIsDragging(false);
       return;
     }
     
@@ -1610,19 +1632,22 @@ function EventManagerTab({
     const sourceMatch = { ...currentMatches[sourceGlobalIndex] };
     const targetMatch = { ...currentMatches[targetGlobalIndex] };
     
-    // Perform the swap
+    // Perform the swap - directly swap the teams
+    const sourceTeam = activeData.team;
+    const targetTeam = overData.team;
+    
     if (sourceTeamPosition === 'A' && targetTeamPosition === 'A') {
-      sourceMatch.teamA = targetMatch.teamA;
-      targetMatch.teamA = activeData.team;
+      sourceMatch.teamA = targetTeam;
+      targetMatch.teamA = sourceTeam;
     } else if (sourceTeamPosition === 'B' && targetTeamPosition === 'B') {
-      sourceMatch.teamB = targetMatch.teamB;
-      targetMatch.teamB = activeData.team;
+      sourceMatch.teamB = targetTeam;
+      targetMatch.teamB = sourceTeam;
     } else if (sourceTeamPosition === 'A' && targetTeamPosition === 'B') {
-      sourceMatch.teamA = targetMatch.teamB;
-      targetMatch.teamB = activeData.team;
+      sourceMatch.teamA = targetTeam;
+      targetMatch.teamB = sourceTeam;
     } else if (sourceTeamPosition === 'B' && targetTeamPosition === 'A') {
-      sourceMatch.teamB = targetMatch.teamA;
-      targetMatch.teamA = activeData.team;
+      sourceMatch.teamB = targetTeam;
+      targetMatch.teamA = sourceTeam;
     }
     
     // Update the matches array
@@ -1640,227 +1665,11 @@ function EventManagerTab({
     try {
       await autoSaveRoundMatchups(roundId);
     } catch (error) {
-      console.error('Failed to auto-save changes:', error);
+      // Handle error silently
     }
-    
-    // Reset drag state
-    setActiveId(null);
-    setIsDragging(false);
     
   }, [roundMatchups, autoSaveRoundMatchups]);
   
-  // Old processDragEnd function removed - using inline logic in handleDragEnd
-  const unusedProcessDragEnd = useCallback((event: DragEndEvent, operationId: string) => {
-    const { active, over } = event;
-    
-    console.log('=== PROCESSING DRAG END ===');
-    console.log('Operation ID:', operationId);
-    console.log('Active ID:', active.id);
-    console.log('Over ID:', over?.id);
-    
-    // Double-check we're not already processing
-    if (isProcessingRef.current) {
-      console.log('❌ Already processing, aborting');
-      return;
-    }
-    
-    if (!over || active.id === over.id) {
-      console.log('No valid drop target or same position');
-      setActiveId(null);
-      setIsDragging(false);
-      isProcessingRef.current = false;
-      dragOperationIdRef.current = null;
-      return;
-    }
-
-    // Prevent double triggering
-    if (!isDragging) {
-      console.log('Not currently dragging, ignoring');
-      setActiveId(null);
-      isProcessingRef.current = false;
-      dragOperationIdRef.current = null;
-      return;
-    }
-    
-    // Set processing flag and timestamp
-    isProcessingRef.current = true;
-    lastDragEndRef.current = Date.now().toString();
-
-    console.log('=== DND-KIT DRAG END ===');
-    console.log('Active:', active.id);
-    console.log('Over:', over.id);
-
-    // Extract data from the dragged item
-    const activeData = active.data.current;
-    const overData = over.data.current;
-
-    console.log('Active data:', activeData);
-    console.log('Over data:', overData);
-
-    if (!activeData || !overData) {
-      console.log('Missing drag data, aborting');
-      setActiveId(null);
-      setIsDragging(false);
-      isProcessingRef.current = false;
-      dragOperationIdRef.current = null;
-      return;
-    }
-
-    const { roundId: sourceRoundId, matchIndex: sourceMatchIndex, teamPosition: sourceTeamPosition, team: sourceTeam } = activeData;
-    const { roundId: targetRoundId, matchIndex: targetMatchIndex, teamPosition: targetTeamPosition, team: targetTeam } = overData;
-
-    console.log('Source:', { roundId: sourceRoundId, matchIndex: sourceMatchIndex, teamPosition: sourceTeamPosition, team: sourceTeam?.name });
-    console.log('Target:', { roundId: targetRoundId, matchIndex: targetMatchIndex, teamPosition: targetTeamPosition, team: targetTeam?.name });
-
-    // Don't allow dropping on the same position
-    if (sourceRoundId === targetRoundId && sourceMatchIndex === targetMatchIndex && sourceTeamPosition === targetTeamPosition) {
-      console.log('Same position, aborting');
-      setActiveId(null);
-      setIsDragging(false);
-      isProcessingRef.current = false;
-      dragOperationIdRef.current = null;
-      return;
-    }
-
-    // Validate bracket compatibility
-    const sourceBracketName = sourceTeam?.bracketName;
-    const targetBracketName = targetTeam?.bracketName;
-    
-    console.log('Source team bracket:', sourceBracketName);
-    console.log('Target team bracket:', targetBracketName);
-    
-    if (sourceBracketName && targetBracketName && sourceBracketName !== targetBracketName) {
-      console.log('❌ BRACKET MISMATCH: Teams are from different brackets, aborting swap');
-      alert(`Cannot swap teams from different brackets!\n${sourceTeam?.name} is in ${sourceBracketName} bracket\n${targetTeam?.name} is in ${targetBracketName} bracket`);
-      setActiveId(null);
-      setIsDragging(false);
-      isProcessingRef.current = false;
-      dragOperationIdRef.current = null;
-      return;
-    }
-
-    console.log('✅ Bracket validation passed, proceeding with swap');
-    console.log('Swapping teams:', sourceTeam?.name, 'with', targetTeam?.name);
-    
-    // Use functional update to ensure we get the latest state
-    setRoundMatchups(prev => {
-      console.log('=== STATE UPDATE START ===');
-      console.log('Previous state keys:', Object.keys(prev));
-      console.log('Source round ID:', sourceRoundId);
-      console.log('Target round ID:', targetRoundId);
-      
-      const sourceMatches = [...(prev[sourceRoundId] || [])];
-      const targetMatches = [...(prev[targetRoundId] || [])];
-      
-      console.log('Source matches count:', sourceMatches.length);
-      console.log('Target matches count:', targetMatches.length);
-      
-      const sourceMatchData = sourceMatches[sourceMatchIndex];
-      const targetMatchData = targetMatches[targetMatchIndex];
-      
-      console.log('Source match:', sourceMatchData);
-      console.log('Target match:', targetMatchData);
-      
-      if (!sourceMatchData || !targetMatchData || sourceMatchData.isBye || targetMatchData.isBye) {
-        console.log('Invalid match or bye match, aborting');
-        return prev;
-      }
-    
-      // Get the teams
-      const movingTeam = sourceMatchData[sourceTeamPosition === 'A' ? 'teamA' : 'teamB'];
-      const targetTeam = targetMatchData[targetTeamPosition === 'A' ? 'teamA' : 'teamB'];
-      
-      console.log('Moving team:', movingTeam?.name, movingTeam?.bracketName);
-      console.log('Target team:', targetTeam?.name, targetTeam?.bracketName);
-      
-      if (!movingTeam) {
-        console.log('No moving team found, aborting');
-        return prev;
-      }
-      
-      console.log('BEFORE SWAP:');
-      console.log('  Source match:', sourceMatchData.teamA?.name, 'vs', sourceMatchData.teamB?.name);
-      console.log('  Target match:', targetMatchData.teamA?.name, 'vs', targetMatchData.teamB?.name);
-      
-      const newMatchups = { ...prev };
-      const newSourceMatches = [...sourceMatches];
-      const newTargetMatches = [...targetMatches];
-      
-      // Create new match objects
-      const newSourceMatch = { ...sourceMatchData };
-      const newTargetMatch = { ...targetMatchData };
-      
-      // Perform the swap
-      if (sourceRoundId === targetRoundId && sourceMatchIndex === targetMatchIndex) {
-        // Same match - swap A and B positions
-        if (sourceTeamPosition === 'A' && targetTeamPosition === 'B') {
-          const temp = newSourceMatch.teamA;
-          newSourceMatch.teamA = newSourceMatch.teamB;
-          newSourceMatch.teamB = temp;
-        } else if (sourceTeamPosition === 'B' && targetTeamPosition === 'A') {
-          const temp = newSourceMatch.teamB;
-          newSourceMatch.teamB = newSourceMatch.teamA;
-          newSourceMatch.teamA = temp;
-        }
-      } else {
-        // Different matches - swap teams between matches
-        // Store the original teams before swapping
-        const originalSourceTeam = sourceMatchData[sourceTeamPosition === 'A' ? 'teamA' : 'teamB'];
-        const originalTargetTeam = targetMatchData[targetTeamPosition === 'A' ? 'teamA' : 'teamB'];
-        
-        // Perform the swap
-        if (sourceTeamPosition === 'A') {
-          newSourceMatch.teamA = originalTargetTeam;
-        } else {
-          newSourceMatch.teamB = originalTargetTeam;
-        }
-        
-        if (targetTeamPosition === 'A') {
-          newTargetMatch.teamA = originalSourceTeam;
-        } else {
-          newTargetMatch.teamB = originalSourceTeam;
-        }
-      }
-      
-      console.log('AFTER SWAP:');
-      console.log('  Source match:', newSourceMatch.teamA?.name, 'vs', newSourceMatch.teamB?.name);
-      console.log('  Target match:', newTargetMatch.teamA?.name, 'vs', newTargetMatch.teamB?.name);
-      
-      // Update the arrays
-      newSourceMatches[sourceMatchIndex] = newSourceMatch;
-      newTargetMatches[targetMatchIndex] = newTargetMatch;
-      
-      newMatchups[sourceRoundId] = newSourceMatches;
-      if (sourceRoundId !== targetRoundId) {
-        newMatchups[targetRoundId] = newTargetMatches;
-      }
-      
-      console.log('=== STATE UPDATE COMPLETE ===');
-      console.log('New state keys:', Object.keys(newMatchups));
-      console.log('Source round matches count:', newMatchups[sourceRoundId]?.length);
-      console.log('Target round matches count:', newMatchups[targetRoundId]?.length);
-      
-      return newMatchups;
-    });
-    
-    // State update will trigger re-render automatically
-    console.log('State update complete, re-render will happen automatically');
-    
-    // Reset dragging state
-    console.log('Resetting drag state');
-    setIsDragging(false);
-    setActiveId(null);
-    dragOperationIdRef.current = null;
-    
-    // Reset processing flag after a delay to prevent rapid successive calls
-    setTimeout(() => {
-      isProcessingRef.current = false;
-      console.log('Processing flag reset');
-    }, 200);
-    
-    console.log('=== DRAG END COMPLETE ===');
-    
-  }, []);
 
 
 
@@ -1868,35 +1677,7 @@ function EventManagerTab({
 
   // Memoized function to get matches for a round
   const getMatchesForRound = useCallback((round: any, isEditing: boolean) => {
-    console.log('🔍 getMatchesForRound DEBUG - isEditing:', isEditing, 'hasRoundMatchups:', !!roundMatchups[round.id]);
     const matches = isEditing ? (roundMatchups[round.id] || round.matches) : round.matches;
-    console.log('🔍 getMatchesForRound DEBUG - matches === roundMatchups[round.id]:', matches === roundMatchups[round.id]);
-    console.log('🔍 getMatchesForRound DEBUG - matches === round.matches:', matches === round.matches);
-    console.log('🔍 getMatchesForRound DEBUG - roundMatchups[round.id] first match:', roundMatchups[round.id]?.[0] ? `${roundMatchups[round.id][0].teamA?.name} vs ${roundMatchups[round.id][0].teamB?.name}` : 'none');
-    console.log('🔍 getMatchesForRound DEBUG - round.matches first match:', round.matches?.[0] ? `${round.matches[0].teamA?.name} vs ${round.matches[0].teamB?.name}` : 'none');
-    console.log('🔍 getMatchesForRound DEBUG - final matches first match:', matches?.[0] ? `${matches[0].teamA?.name} vs ${matches[0].teamB?.name}` : 'none');
-    console.log('🔍 getMatchesForRound DEBUG - roundMatchups[round.id] last match:', roundMatchups[round.id]?.[7] ? `${roundMatchups[round.id][7].teamA?.name} vs ${roundMatchups[round.id][7].teamB?.name}` : 'none');
-    console.log('🔍 getMatchesForRound DEBUG - round.matches last match:', round.matches?.[7] ? `${round.matches[7].teamA?.name} vs ${round.matches[7].teamB?.name}` : 'none');
-    console.log('🔍 getMatchesForRound DEBUG - final matches last match:', matches?.[7] ? `${matches[7].teamA?.name} vs ${matches[7].teamB?.name}` : 'none');
-    console.log('getMatchesForRound:', {
-      roundId: round.id,
-      isEditing,
-      hasRoundMatchups: !!roundMatchups[round.id],
-      matchesCount: matches?.length,
-      firstMatch: matches?.[0] ? `${matches[0].teamA?.name} vs ${matches[0].teamB?.name}` : 'none',
-      roundMatchupsData: roundMatchups[round.id] ? roundMatchups[round.id].map(m => `${m.teamA?.name} vs ${m.teamB?.name}`) : 'none',
-      roundMatchupsKeys: Object.keys(roundMatchups),
-      roundMatchupsValue: roundMatchups[round.id] ? 'EXISTS' : 'MISSING',
-      usingRoundMatchups: isEditing && !!roundMatchups[round.id],
-      actualMatches: matches === roundMatchups[round.id] ? 'roundMatchups' : 'round.matches',
-      DEBUGGING: {
-        roundMatchupsExists: !!roundMatchups[round.id],
-        roundMatchupsLength: roundMatchups[round.id]?.length,
-        roundMatchesLength: round.matches?.length,
-        isEditingFlag: isEditing,
-        finalChoice: isEditing ? (roundMatchups[round.id] ? 'roundMatchups' : 'round.matches') : 'round.matches'
-      }
-    });
     return matches;
   }, [roundMatchups]);
 
@@ -1994,37 +1775,12 @@ function EventManagerTab({
                                 // Force re-render when updateKey changes
                                 const _ = updateKey;
                                 
-                                if (isEditing) {
-                                  console.log('=== RENDERING ===');
-                                  console.log('Round ID:', round.id);
-                                  console.log('roundMatchups keys:', Object.keys(roundMatchups));
-                                  console.log('roundMatchups for this round exists:', !!roundMatchups[round.id]);
-                                  console.log('roundMatchups data:', roundMatchups[round.id]);
-                                  console.log('Original round.matches:', round.matches);
-                                  console.log('Using matches:', matches);
-                                  console.log('First match:', matches[0]?.teamA?.name, 'vs', matches[0]?.teamB?.name);
-                                  console.log('Second match:', matches[1]?.teamA?.name, 'vs', matches[1]?.teamB?.name);
-                                  console.log('=== END RENDERING ===');
-                                }
                                 
                                 return (
                                   <div key={`${round.id}-${renderKey}-${updateKey}`} className="border rounded p-3">
                                     <div className="flex items-center justify-between mb-2">
                                       <h6 className="font-medium text-sm">Round {round.idx + 1}</h6>
                                       <div className="flex items-center gap-2">
-                                        <button 
-                                          onClick={() => {
-                                            console.log('ROUND DEBUG:');
-                                            console.log('- Round ID:', round.id);
-                                            console.log('- isEditing:', isEditing);
-                                            console.log('- editingRounds:', editingRounds);
-                                            console.log('- roundMatchups keys:', Object.keys(roundMatchups));
-                                            console.log('- round.matches:', round.matches);
-                                          }}
-                                          className="px-2 py-1 bg-gray-500 text-white rounded text-xs"
-                                        >
-                                          Debug
-                                        </button>
                                         {isEditing ? (
                                           <button
                                             className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
@@ -2046,17 +1802,6 @@ function EventManagerTab({
                                     {isEditing && (
                                       <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
                                         <strong>Drag teams to swap:</strong> Drag any team over another team to swap their positions.
-                                        <button 
-                                          onClick={() => {
-                                            console.log('TEST: Current roundMatchups:', roundMatchups);
-                                            console.log('TEST: editingRounds:', editingRounds);
-                                            console.log('TEST: scheduleData:', scheduleData);
-                                            console.log('TEST: Current round ID:', round.id);
-                                          }}
-                                          className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
-                                        >
-                                          Test Log
-                                        </button>
                                       </div>
                                     )}
                                     
@@ -2074,6 +1819,13 @@ function EventManagerTab({
                                         matchesByBracket[bracketName].push({ ...match, originalIndex: matchIdx });
                                       });
                                       
+                                      // Ensure each bracket has unique local indices
+                                      Object.keys(matchesByBracket).forEach(bracketName => {
+                                        matchesByBracket[bracketName].forEach((match: any, localIdx: number) => {
+                                          match.localIndex = localIdx;
+                                        });
+                                      });
+                                      
                                       return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
                                         <div key={bracketName} className="space-y-2 mb-4">
                                           <h6 className="font-medium text-sm text-gray-700 border-b pb-1">
@@ -2084,18 +1836,20 @@ function EventManagerTab({
                                             <DndContext
                                               collisionDetection={closestCenter}
                                               onDragStart={handleDragStart}
+                                              onDragOver={handleDragOver}
                                               onDragEnd={handleDragEnd}
                                             >
                                               <SortableContext 
-                                                items={bracketMatches.map((_, idx) => [
-                                                  `${round.id}-${bracketName}-${idx}-A`,
-                                                  `${round.id}-${bracketName}-${idx}-B`
+                                                items={bracketMatches.map((match: any) => [
+                                                  `${round.id}-${bracketName}-${match.localIndex}-A`,
+                                                  `${round.id}-${bracketName}-${match.localIndex}-B`
                                                 ]).flat()}
-                                                strategy={verticalListSortingStrategy}
+                                                strategy={noReorderStrategy}
                                               >
                                                 <div className="space-y-1">
                                                   {bracketMatches.map((match: any, localMatchIdx: number) => {
                                                     const matchIdx = match.originalIndex;
+                                                    const localIndex = match.localIndex;
                                                     return (
                                               <div key={match.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
                                                 {!match.isBye ? (
@@ -2105,9 +1859,16 @@ function EventManagerTab({
                                                   team={match.teamA}
                                                   teamPosition="A"
                                                   roundId={round.id}
-                                                  matchIndex={localMatchIdx}
+                                                  matchIndex={localIndex}
                                                   bracketName={bracketName}
-                                                  isDragging={activeId === `${round.id}-${bracketName}-${localMatchIdx}-A`}
+                                                  isDragging={
+                                                    activeId === `${round.id}-${bracketName}-${localIndex}-A` ||
+                                                    (dragPreview && (
+                                                      dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||
+                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`
+                                                    ))
+                                                  }
+                                                  dragPreview={dragPreview}
                                                 />
                                                 
                                                 <span className="text-gray-500">vs</span>
@@ -2117,9 +1878,16 @@ function EventManagerTab({
                                                   team={match.teamB}
                                                   teamPosition="B"
                                                   roundId={round.id}
-                                                  matchIndex={localMatchIdx}
+                                                  matchIndex={localIndex}
                                                   bracketName={bracketName}
-                                                  isDragging={activeId === `${round.id}-${bracketName}-${localMatchIdx}-B`}
+                                                  isDragging={
+                                                    activeId === `${round.id}-${bracketName}-${localIndex}-B` ||
+                                                    (dragPreview && (
+                                                      dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-B` ||
+                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-B`
+                                                    ))
+                                                  }
+                                                  dragPreview={dragPreview}
                                                 />
                                               </div>
                                             ) : (
@@ -2140,9 +1908,6 @@ function EventManagerTab({
                                                 className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                                 onClick={() => {
                                                   // TODO: Get team roster and open lineup editor
-                                                  console.log('Edit lineups for match:', match.id);
-                                                  // For now, just show a placeholder
-                                                  alert('Lineup editor will open here. Team roster needs to be loaded first.');
                                                 }}
                                               >
                                                 Edit Lineups
@@ -2152,7 +1917,6 @@ function EventManagerTab({
                                                   className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                                                   onClick={() => {
                                                     // TODO: Start match
-                                                    console.log('Start match:', match.id);
                                                   }}
                                                 >
                                                   Start Match
@@ -2189,9 +1953,6 @@ function EventManagerTab({
                                                         className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                                         onClick={() => {
                                                           // TODO: Get team roster and open lineup editor
-                                                          console.log('Edit lineups for match:', match.id);
-                                                          // For now, just show a placeholder
-                                                          alert('Lineup editor will open here. Team roster needs to be loaded first.');
                                                         }}
                                                       >
                                                         Edit Lineups
@@ -2201,7 +1962,6 @@ function EventManagerTab({
                                                           className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                                                           onClick={() => {
                                                             // TODO: Start match
-                                                            console.log('Start match:', match.id);
                                                           }}
                                                         >
                                                           Start Match
