@@ -232,7 +232,38 @@ export default function MePage() {
 
   // Lineup management state
   const [editingLineup, setEditingLineup] = useState<{ matchId: string; teamId: string } | null>(null);
+  const [editingMatch, setEditingMatch] = useState<string | null>(null);
   const [lineups, setLineups] = useState<Record<string, Record<string, PlayerLite[]>>>({});
+  const [teamRosters, setTeamRosters] = useState<Record<string, PlayerLite[]>>({});
+  
+  // Function to fetch team roster
+  const fetchTeamRoster = async (teamId: string): Promise<PlayerLite[]> => {
+    if (teamRosters[teamId]) {
+      return teamRosters[teamId];
+    }
+    
+    try {
+      const response = await fetch(`/api/admin/teams/${teamId}/members`);
+      if (!response.ok) {
+        console.error('Failed to fetch team roster:', response.statusText);
+        return [];
+      }
+      
+      const data = await response.json();
+      const roster = data.members || [];
+      
+      // Cache the roster
+      setTeamRosters(prev => ({
+        ...prev,
+        [teamId]: roster
+      }));
+      
+      return roster;
+    } catch (error) {
+      console.error('Error fetching team roster:', error);
+      return [];
+    }
+  };
   
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -377,10 +408,20 @@ export default function MePage() {
     if (!meId || !captainSet.size) return;
     (async () => {
       try {
-        const captainResponse = await fetch(`/api/captain/${meId}/teams`).then(r => r.json());
+        console.log('Fetching captain teams for player:', meId);
+        const captainResponse = await fetch(`/api/captain/${meId}/teams`).then(r => {
+          console.log('Captain teams response status:', r.status);
+          if (!r.ok) {
+            throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+          }
+          return r.json();
+        });
+        console.log('Captain teams data:', captainResponse);
         if (captainResponse?.error) throw new Error(captainResponse.error);
         setCaptainData(captainResponse);
+        console.log('Captain teams loaded successfully');
       } catch (e) {
+        console.error('Error loading captain teams:', e);
         // Handle error silently
       }
     })();
@@ -391,10 +432,20 @@ export default function MePage() {
     if (!meId) return;
     (async () => {
       try {
-        const managerResponse = await fetch(`/api/manager/${meId}/tournaments`).then(r => r.json());
+        console.log('Fetching manager tournaments for player:', meId);
+        const managerResponse = await fetch(`/api/manager/${meId}/tournaments`).then(r => {
+          console.log('Manager tournaments response status:', r.status);
+          if (!r.ok) {
+            throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+          }
+          return r.json();
+        });
+        console.log('Manager tournaments data:', managerResponse);
         if (managerResponse?.error) throw new Error(managerResponse.error);
         setEventManagerData(managerResponse.items || []);
+        console.log('Manager tournaments loaded successfully');
       } catch (e) {
+        console.error('Error loading manager tournaments:', e);
         // Handle error silently
       }
     })();
@@ -888,8 +939,12 @@ export default function MePage() {
             onInfo={(m) => setInfo(m)}
             editingLineup={editingLineup}
             setEditingLineup={setEditingLineup}
+            editingMatch={editingMatch}
+            setEditingMatch={setEditingMatch}
             lineups={lineups}
             setLineups={setLineups}
+            teamRosters={teamRosters}
+            fetchTeamRoster={fetchTeamRoster}
             isDragging={isDragging}
             setIsDragging={setIsDragging}
           />
@@ -1272,8 +1327,12 @@ function EventManagerTab({
   onInfo,
   editingLineup,
   setEditingLineup,
+  editingMatch,
+  setEditingMatch,
   lineups,
   setLineups,
+  teamRosters,
+  fetchTeamRoster,
   isDragging,
   setIsDragging,
 }: {
@@ -1282,8 +1341,12 @@ function EventManagerTab({
   onInfo: (m: string) => void;
   editingLineup: { matchId: string; teamId: string } | null;
   setEditingLineup: (value: { matchId: string; teamId: string } | null) => void;
+  editingMatch: string | null;
+  setEditingMatch: (value: string | null) => void;
   lineups: Record<string, Record<string, PlayerLite[]>>;
   setLineups: (value: Record<string, Record<string, PlayerLite[]>> | ((prev: Record<string, Record<string, PlayerLite[]>>) => Record<string, Record<string, PlayerLite[]>>)) => void;
+  teamRosters: Record<string, PlayerLite[]>;
+  fetchTeamRoster: (teamId: string) => Promise<PlayerLite[]>;
   isDragging: boolean;
   setIsDragging: (value: boolean) => void;
 }) {
@@ -1354,11 +1417,26 @@ function EventManagerTab({
       if (!response.ok) throw new Error('Failed to load schedule');
       const data = await response.json();
       setScheduleData(prev => ({ ...prev, [stopId]: data || [] }));
+      
+      // Load lineups for all matches in this stop
+      await loadLineupsForStop(stopId);
     } catch (e) {
       onError(`Failed to load schedule: ${(e as Error).message}`);
       setScheduleData(prev => ({ ...prev, [stopId]: [] }));
     } finally {
       setLoading(prev => ({ ...prev, [stopId]: false }));
+    }
+  };
+
+  const loadLineupsForStop = async (stopId: string) => {
+    try {
+      const response = await fetch(`/api/admin/stops/${stopId}/lineups`);
+      if (response.ok) {
+        const lineupsData = await response.json();
+        setLineups(prev => ({ ...prev, ...lineupsData }));
+      }
+    } catch (error) {
+      console.error('Error loading lineups for stop:', error);
     }
   };
 
@@ -1862,11 +1940,11 @@ function EventManagerTab({
                                                   matchIndex={localIndex}
                                                   bracketName={bracketName}
                                                   isDragging={
-                                                    activeId === `${round.id}-${bracketName}-${localIndex}-A` ||
+                                                    activeId === `${round.id}-${bracketName}-${localIndex}-A` ||                                                                                                        
                                                     (dragPreview && (
-                                                      dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||
-                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`
-                                                    ))
+                                                      dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||                                                                                          
+                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`)
+                                                    )
                                                   }
                                                   dragPreview={dragPreview}
                                                 />
@@ -1907,10 +1985,11 @@ function EventManagerTab({
                                               <button
                                                 className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                                 onClick={() => {
-                                                  // TODO: Get team roster and open lineup editor
+                                                  console.log('Edit Lineups clicked for match:', match.id);
+                                                  setEditingMatch(editingMatch === match.id ? null : match.id);
                                                 }}
                                               >
-                                                Edit Lineups
+                                                {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
                                               </button>
                                               {match.lineupCreated && (
                                                 <button
@@ -1929,45 +2008,139 @@ function EventManagerTab({
                                               </div>
                                             </SortableContext>
                                           </DndContext>
-                                          ) : (
+                                          
+                                        ) : (
                                             <div className="space-y-1">
                                               {bracketMatches.map((match: any, localMatchIdx: number) => {
                                                 const matchIdx = match.originalIndex;
                                                 return (
-                                                  <div key={match.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                                                    {!match.isBye ? (
-                                                      <div className="flex items-center gap-2 flex-1">
-                                                        <span className="font-medium">{match.teamA?.name || 'TBD'}</span>
-                                                        <span className="text-gray-500">vs</span>
-                                                        <span className="font-medium">{match.teamB?.name || 'TBD'}</span>
-                                                      </div>
-                                                    ) : (
-                                                      <div className="flex items-center gap-2 flex-1">
-                                                        <span className="font-medium">{match.teamA?.name || 'TBD'}</span>
-                                                        <span className="text-gray-500">(Bye)</span>
+                                                  <div key={match.id} className="p-2 bg-gray-50 rounded text-sm">
+                                                    {/* Confirmed Lineup Display with buttons */}
+                                                    {!editingMatch && (
+                                                      <div className="flex items-start gap-3">
+                                                        {/* Team A Lineup Box */}
+                                                        <div className="flex-1 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                                                          <div className="font-medium text-green-800 mb-1">{match.teamA?.name || 'Team A'}</div>
+                                                          <div className="text-green-700">
+                                                            {lineups[match.id] && lineups[match.id][match.teamA?.id || 'teamA']?.length > 0 ? (
+                                                              lineups[match.id][match.teamA?.id || 'teamA']?.map((player, idx) => (
+                                                                <div key={player.id} className="text-xs">
+                                                                  {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
+                                                                </div>
+                                                              ))
+                                                            ) : (
+                                                              <div className="text-xs text-gray-500">No lineup set</div>
+                                                            )}
+                                                          </div>
+                                                        </div>
+                                                        
+                                                        {/* VS separator */}
+                                                        <div className="text-gray-500 font-medium text-sm">vs</div>
+                                                        
+                                                        {/* Team B Lineup Box */}
+                                                        <div className="flex-1 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                                                          <div className="font-medium text-green-800 mb-1">{match.teamB?.name || 'Team B'}</div>
+                                                          <div className="text-green-700">
+                                                            {lineups[match.id] && lineups[match.id][match.teamB?.id || 'teamB']?.length > 0 ? (
+                                                              lineups[match.id][match.teamB?.id || 'teamB']?.map((player, idx) => (
+                                                                <div key={player.id} className="text-xs">
+                                                                  {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
+                                                                </div>
+                                                              ))
+                                                            ) : (
+                                                              <div className="text-xs text-gray-500">No lineup set</div>
+                                                            )}
+                                                          </div>
+                                                        </div>
+                                                        
+                                                        {/* Buttons */}
+                                                        <div className="flex flex-col gap-2">
+                                                          <button
+                                                            className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                                            onClick={() => {
+                                                              console.log('Edit Lineups clicked for match:', match.id);
+                                                              setEditingMatch(editingMatch === match.id ? null : match.id);
+                                                            }}
+                                                          >
+                                                            {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
+                                                          </button>
+                                                          {match.lineupCreated && (
+                                                            <button
+                                                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                              onClick={() => {
+                                                                // TODO: Start match
+                                                              }}
+                                                            >
+                                                              Start Match
+                                                            </button>
+                                                          )}
+                                                        </div>
                                                       </div>
                                                     )}
                                                     
-                                                    <div className="flex items-center gap-2">
-                                                      <button
-                                                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                                                        onClick={() => {
-                                                          // TODO: Get team roster and open lineup editor
-                                                        }}
-                                                      >
-                                                        Edit Lineups
-                                                      </button>
-                                                      {match.lineupCreated && (
-                                                        <button
-                                                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                                                          onClick={() => {
-                                                            // TODO: Start match
+                                                    {/* Third row: Inline Lineup Editor */}
+                                                    {editingMatch === match.id && (
+                                                      <div className="mt-2">
+                                                        <InlineLineupEditor
+                                                          matchId={match.id}
+                                                          teamA={match.teamA || { id: 'teamA', name: 'Team A' }}
+                                                          teamB={match.teamB || { id: 'teamB', name: 'Team B' }}
+                                                          teamARoster={teamRosters[match.teamA?.id || ''] || []}
+                                                          teamBRoster={teamRosters[match.teamB?.id || ''] || []}
+                                                          fetchTeamRoster={fetchTeamRoster}
+                                                          lineups={lineups}
+                                                          onSave={async (lineups) => {
+                                                            console.log('Save button clicked (non-draggable), lineups data:', lineups);
+                                                            try {
+                                                              // Validate lineups have 4 players each
+                                                              if (lineups.teamA.length !== 4 || lineups.teamB.length !== 4) {
+                                                                throw new Error(`Invalid lineup: Team A has ${lineups.teamA.length} players, Team B has ${lineups.teamB.length} players. Need exactly 4 each.`);
+                                                              }
+                                                              
+                                                              console.log('Saving lineups for teams (non-draggable):', {
+                                                                teamA: { id: match.teamA?.id, players: lineups.teamA.map(p => ({ id: p.id, name: p.name })) },
+                                                                teamB: { id: match.teamB?.id, players: lineups.teamB.map(p => ({ id: p.id, name: p.name })) }
+                                                              });
+                                                              
+                                                              // Use batch save API
+                                                              const response = await fetch(`/api/admin/stops/${stop.stopId}/lineups`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                  lineups: {
+                                                                    [match.id]: {
+                                                                      [match.teamA?.id || 'teamA']: lineups.teamA,
+                                                                      [match.teamB?.id || 'teamB']: lineups.teamB
+                                                                    }
+                                                                  }
+                                                                })
+                                                              });
+                                                              
+                                                              if (!response.ok) {
+                                                                const errorText = await response.text();
+                                                                throw new Error(`Save failed: ${response.status} ${errorText}`);
+                                                              }
+                                                              
+                                                              // Update local state
+                                                              setLineups(prev => ({
+                                                                ...prev,
+                                                                [match.id]: {
+                                                                  [match.teamA?.id || 'teamA']: lineups.teamA,
+                                                                  [match.teamB?.id || 'teamB']: lineups.teamB
+                                                                }
+                                                              }));
+                                                              
+                                                              setEditingMatch(null);
+                                                              onInfo('Lineups saved successfully!');
+                                                            } catch (error) {
+                                                              console.error('Error saving lineups:', error);
+                                                              onError(`Failed to save lineups: ${error.message}`);
+                                                            }
                                                           }}
-                                                        >
-                                                          Start Match
-                                                        </button>
-                                                      )}
-                                                    </div>
+                                                          onCancel={() => setEditingMatch(null)}
+                                                        />
+                                                      </div>
+                                                    )}
                                                   </div>
                                                 );
                                               })}
@@ -1991,6 +2164,7 @@ function EventManagerTab({
           </div>
         ))}
       </div>
+
 
       {/* No tournaments message */}
       {tournaments.length === 0 && (
@@ -2176,6 +2350,471 @@ function LineupEditor({
           >
             Save Lineup
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Inline Lineup Editor Component
+function InlineLineupEditor({
+  matchId,
+  teamA,
+  teamB,
+  teamARoster,
+  teamBRoster,
+  fetchTeamRoster,
+  lineups,
+  onSave,
+  onCancel,
+}: {
+  matchId: string;
+  teamA: { id: string; name: string };
+  teamB: { id: string; name: string };
+  teamARoster: PlayerLite[];
+  teamBRoster: PlayerLite[];
+  fetchTeamRoster: (teamId: string) => Promise<PlayerLite[]>;
+  lineups: Record<string, Record<string, PlayerLite[]>>;
+  onSave: (lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
+  onCancel: () => void;
+}) {
+  const [teamALineup, setTeamALineup] = useState<(PlayerLite | undefined)[]>([undefined, undefined, undefined, undefined]);
+  const [teamBLineup, setTeamBLineup] = useState<(PlayerLite | undefined)[]>([undefined, undefined, undefined, undefined]);
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadedRosters, setLoadedRosters] = useState<{ teamA: PlayerLite[]; teamB: PlayerLite[] }>({ teamA: [], teamB: [] });
+
+  // Fetch team rosters when component mounts
+  useEffect(() => {
+    const loadRosters = async () => {
+      if (teamA.id && teamB.id) {
+        const [rosterA, rosterB] = await Promise.all([
+          fetchTeamRoster(teamA.id),
+          fetchTeamRoster(teamB.id)
+        ]);
+        setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+      }
+    };
+    loadRosters();
+  }, [teamA.id, teamB.id, fetchTeamRoster]);
+
+  // Initialize lineups when component mounts or when editing starts
+  useEffect(() => {
+    // Check if we have existing lineups for this match
+    const existingLineups = lineups[matchId];
+    if (existingLineups) {
+      const teamALineupData = existingLineups[teamA.id] || [];
+      const teamBLineupData = existingLineups[teamB.id] || [];
+      
+      // Set the lineups with existing data
+      setTeamALineup([
+        teamALineupData[0] || undefined,
+        teamALineupData[1] || undefined,
+        teamALineupData[2] || undefined,
+        teamALineupData[3] || undefined
+      ]);
+      
+      setTeamBLineup([
+        teamBLineupData[0] || undefined,
+        teamBLineupData[1] || undefined,
+        teamBLineupData[2] || undefined,
+        teamBLineupData[3] || undefined
+      ]);
+      
+      // Set selected players
+      const allSelectedPlayers = new Set([
+        ...teamALineupData.map(p => p.id),
+        ...teamBLineupData.map(p => p.id)
+      ]);
+      setSelectedPlayers(allSelectedPlayers);
+    } else {
+      // Reset to empty state
+      setTeamALineup([undefined, undefined, undefined, undefined]);
+      setTeamBLineup([undefined, undefined, undefined, undefined]);
+      setSelectedPlayers(new Set());
+    }
+  }, [matchId, teamA.id, teamB.id]); // Removed 'lineups' from dependencies
+
+  // Separate effect to handle lineup changes for this specific match
+  useEffect(() => {
+    const existingLineups = lineups[matchId];
+    if (existingLineups) {
+      const teamALineupData = existingLineups[teamA.id] || [];
+      const teamBLineupData = existingLineups[teamB.id] || [];
+      
+      // Only update if the data has actually changed
+      const currentTeamAIds = teamALineup.map(p => p?.id).filter(Boolean);
+      const currentTeamBIds = teamBLineup.map(p => p?.id).filter(Boolean);
+      const newTeamAIds = teamALineupData.map(p => p.id);
+      const newTeamBIds = teamBLineupData.map(p => p.id);
+      
+      const teamAChanged = JSON.stringify(currentTeamAIds.sort()) !== JSON.stringify(newTeamAIds.sort());
+      const teamBChanged = JSON.stringify(currentTeamBIds.sort()) !== JSON.stringify(newTeamBIds.sort());
+      
+      if (teamAChanged || teamBChanged) {
+        setTeamALineup([
+          teamALineupData[0] || undefined,
+          teamALineupData[1] || undefined,
+          teamALineupData[2] || undefined,
+          teamALineupData[3] || undefined
+        ]);
+        
+        setTeamBLineup([
+          teamBLineupData[0] || undefined,
+          teamBLineupData[1] || undefined,
+          teamBLineupData[2] || undefined,
+          teamBLineupData[3] || undefined
+        ]);
+        
+        const allSelectedPlayers = new Set([
+          ...teamALineupData.map(p => p.id),
+          ...teamBLineupData.map(p => p.id)
+        ]);
+        setSelectedPlayers(allSelectedPlayers);
+      }
+    }
+  }, [lineups[matchId]]); // Only watch this specific match's lineup data
+
+  const addPlayerToLineup = (player: PlayerLite, teamId: string, slotIndex: number) => {
+    const isTeamA = teamId === teamA.id;
+    const currentLineup = isTeamA ? teamALineup : teamBLineup;
+    const currentPlayer = currentLineup[slotIndex];
+    
+    // Check gender constraints: slots 0,1 are male, slots 2,3 are female
+    const expectedGender = slotIndex < 2 ? 'MALE' : 'FEMALE';
+    if (player.gender !== expectedGender) return;
+
+    // Update selectedPlayers first to avoid race conditions
+    setSelectedPlayers(prev => {
+      const newSet = new Set(prev);
+      
+      // Remove current player from selectedPlayers if there is one
+      if (currentPlayer) {
+        newSet.delete(currentPlayer.id);
+      }
+      
+      // Remove the new player from selectedPlayers if they're already selected elsewhere
+      if (newSet.has(player.id)) {
+        newSet.delete(player.id);
+      }
+      
+      // Add the new player
+      newSet.add(player.id);
+      
+      return newSet;
+    });
+
+    // Update lineup state
+    if (isTeamA) {
+      setTeamALineup(prev => {
+        const newLineup = [...prev];
+        
+        // Remove the new player from other slots if they exist
+        for (let i = 0; i < newLineup.length; i++) {
+          if (newLineup[i]?.id === player.id) {
+            newLineup[i] = undefined;
+          }
+        }
+        
+        // Add player to the new slot
+        newLineup[slotIndex] = player;
+        return newLineup;
+      });
+    } else {
+      setTeamBLineup(prev => {
+        const newLineup = [...prev];
+        
+        // Remove the new player from other slots if they exist
+        for (let i = 0; i < newLineup.length; i++) {
+          if (newLineup[i]?.id === player.id) {
+            newLineup[i] = undefined;
+          }
+        }
+        
+        // Add player to the new slot
+        newLineup[slotIndex] = player;
+        return newLineup;
+      });
+    }
+  };
+
+  const removePlayerFromLineup = (playerId: string, teamId: string, slotIndex: number) => {
+    const isTeamA = teamId === teamA.id;
+    
+    // Update selectedPlayers first
+    setSelectedPlayers(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(playerId);
+      return newSet;
+    });
+    
+    // Update lineup state
+    if (isTeamA) {
+      setTeamALineup(prev => {
+        const newLineup = [...prev];
+        newLineup[slotIndex] = undefined as any;
+        return newLineup;
+      });
+    } else {
+      setTeamBLineup(prev => {
+        const newLineup = [...prev];
+        newLineup[slotIndex] = undefined as any;
+        return newLineup;
+      });
+    }
+  };
+
+  const getAvailablePlayers = (teamId: string, slotIndex: number) => {
+    const isTeamA = teamId === teamA.id;
+    const roster = isTeamA ? loadedRosters.teamA : loadedRosters.teamB;
+    const expectedGender = slotIndex < 2 ? 'MALE' : 'FEMALE';
+    const currentLineup = isTeamA ? teamALineup : teamBLineup;
+    const currentPlayer = currentLineup[slotIndex];
+    
+    // Filter by gender and exclude players selected in OTHER slots
+    return roster.filter(p => {
+      if (p.gender !== expectedGender) return false;
+      
+      // If this is the currently selected player in this slot, include them
+      if (currentPlayer && p.id === currentPlayer.id) return true;
+      
+      // Otherwise, exclude if they're selected in any other slot
+      return !selectedPlayers.has(p.id);
+    });
+  };
+
+  const isLineupComplete = teamALineup.filter(p => p !== undefined).length === 4 && teamBLineup.filter(p => p !== undefined).length === 4;
+
+  const handleSave = async () => {
+    if (isSaving) return; // Prevent double-clicks
+    
+    setIsSaving(true);
+    try {
+      await onSave({ 
+        teamA: teamALineup.filter(p => p !== undefined) as PlayerLite[], 
+        teamB: teamBLineup.filter(p => p !== undefined) as PlayerLite[] 
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 p-3 bg-gray-50 rounded border">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold">Edit Lineups</h3>
+        <div className="flex gap-2">
+          <button
+            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            onClick={handleSave}
+            disabled={!isLineupComplete || isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Confirm Lineup'}
+          </button>
+          <button
+            className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Team A */}
+        <div>
+          <h4 className="text-xs font-medium mb-2 text-gray-600">{teamA.name}</h4>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">1:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamALineup[0]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamARoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamA.id, 0);
+                  } else if (teamALineup[0]) {
+                    removePlayerFromLineup(teamALineup[0].id, teamA.id, 0);
+                  }
+                }}
+              >
+                <option value="">Select Player 1</option>
+                {getAvailablePlayers(teamA.id, 0).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">2:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamALineup[1]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamARoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamA.id, 1);
+                  } else if (teamALineup[1]) {
+                    removePlayerFromLineup(teamALineup[1].id, teamA.id, 1);
+                  }
+                }}
+              >
+                <option value="">Select Player 2</option>
+                {getAvailablePlayers(teamA.id, 1).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">3:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamALineup[2]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamARoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamA.id, 2);
+                  } else if (teamALineup[2]) {
+                    removePlayerFromLineup(teamALineup[2].id, teamA.id, 2);
+                  }
+                }}
+              >
+                <option value="">Select Player 3</option>
+                {getAvailablePlayers(teamA.id, 2).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">4:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamALineup[3]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamARoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamA.id, 3);
+                  } else if (teamALineup[3]) {
+                    removePlayerFromLineup(teamALineup[3].id, teamA.id, 3);
+                  }
+                }}
+              >
+                <option value="">Select Player 4</option>
+                {getAvailablePlayers(teamA.id, 3).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Team B */}
+        <div>
+          <h4 className="text-xs font-medium mb-2 text-gray-600">{teamB.name}</h4>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">1:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamBLineup[0]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamB.id, 0);
+                  } else if (teamBLineup[0]) {
+                    removePlayerFromLineup(teamBLineup[0].id, teamB.id, 0);
+                  }
+                }}
+              >
+                <option value="">Select Player 1</option>
+                {getAvailablePlayers(teamB.id, 0).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">2:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamBLineup[1]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamB.id, 1);
+                  } else if (teamBLineup[1]) {
+                    removePlayerFromLineup(teamBLineup[1].id, teamB.id, 1);
+                  }
+                }}
+              >
+                <option value="">Select Player 2</option>
+                {getAvailablePlayers(teamB.id, 1).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">3:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamBLineup[2]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamB.id, 2);
+                  } else if (teamBLineup[2]) {
+                    removePlayerFromLineup(teamBLineup[2].id, teamB.id, 2);
+                  }
+                }}
+              >
+                <option value="">Select Player 3</option>
+                {getAvailablePlayers(teamB.id, 2).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium w-4">4:</label>
+              <select
+                className="flex-1 p-1 text-xs border rounded"
+                value={teamBLineup[3]?.id || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    if (player) addPlayerToLineup(player, teamB.id, 3);
+                  } else if (teamBLineup[3]) {
+                    removePlayerFromLineup(teamBLineup[3].id, teamB.id, 3);
+                  }
+                }}
+              >
+                <option value="">Select Player 4</option>
+                {getAvailablePlayers(teamB.id, 3).map(player => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
     </div>
