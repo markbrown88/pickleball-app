@@ -11,9 +11,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const body = await req.json();
     const { updates } = body;
     
-    console.log('=== API RECEIVED ===');
-    console.log('Round ID:', roundId);
-    console.log('Updates:', JSON.stringify(updates, null, 2));
     
     if (!Array.isArray(updates)) {
       return NextResponse.json({ error: 'Updates must be an array' }, { status: 400 });
@@ -61,8 +58,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       return updatedMatches;
     });
     
-    console.log('=== API RESULT ===');
-    console.log('Updated matches:', JSON.stringify(result, null, 2));
     
     return NextResponse.json({
       ok: true,

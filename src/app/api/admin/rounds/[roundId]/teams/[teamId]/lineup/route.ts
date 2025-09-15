@@ -1,115 +1,231 @@
-// src/app/api/admin/rounds/[roundId]/teams/[teamId]/lineup/route.ts
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/prisma';
 
 type Params = { roundId: string; teamId: string };
 
 function displayName(p: { firstName?: string | null; lastName?: string | null; name?: string | null }) {
-  const fn = (p.firstName ?? '').trim();
-  const ln = (p.lastName ?? '').trim();
-  const full = [fn, ln].filter(Boolean).join(' ');
-  return full || (p.name ?? 'Unknown');
+  return p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown';
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
   const prisma = getPrisma();
   try {
     const { roundId, teamId } = await ctx.params;
-
-    // Verify round (for stopId)
+    
+    console.log('API received:', { roundId, teamId });
+    
+    // Verify round exists
     const round = await prisma.round.findUnique({
       where: { id: roundId },
-      select: { id: true, stopId: true },
+      select: { id: true, stopId: true }
     });
-    if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+    
+    if (!round) {
+      return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+    }
+    
+    console.log('Round found:', round);
+    
+    // Get or create lineup
+    const lineup = await prisma.lineup.upsert({
+      where: { roundId_teamId: { roundId, teamId } },
+      update: {},
+      create: { roundId, teamId, stopId: round.stopId },
+      select: {
+        id: true,
+        teamId: true
+      }
+    });
 
-    // Ensure a lineup row exists for (roundId, teamId)
-    let lineup = await prisma.lineup.findFirst({
-      where: { roundId, teamId },
-      select: { id: true },
+    // Get team info and roster separately
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: {
+        id: true,
+        name: true
+      }
     });
-    if (!lineup) {
-      lineup = await prisma.lineup.create({
-        data: { roundId, teamId, stopId: round.stopId },
-        select: { id: true },
-      });
+
+    if (!team) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
 
-    // Load full lineup
+    // Get team roster from TeamPlayer relationship
+    const teamPlayers = await prisma.teamPlayer.findMany({
+      where: { teamId },
+      include: {
+        player: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            name: true,
+            gender: true
+          }
+        }
+      }
+    });
+
+    // Build roster from team players
+    const roster = teamPlayers.map(tp => ({
+      id: tp.player.id,
+      firstName: tp.player.firstName || '',
+      lastName: tp.player.lastName || '',
+      name: tp.player.name || displayName(tp.player),
+      gender: tp.player.gender
+    }));
+
+    // Load lineup entries
     const full = await prisma.lineup.findUnique({
       where: { id: lineup.id },
       include: {
-        team: {
-          select: {
-            id: true,
-            name: true,
-            club: { select: { id: true, name: true } },
-            bracket: { select: { id: true, name: true } },
-          },
-        },
         entries: {
-          orderBy: { slot: 'asc' },
           include: {
-            player1: { select: { id: true, firstName: true, lastName: true, name: true, gender: true } },
-            player2: { select: { id: true, firstName: true, lastName: true, name: true, gender: true } },
-          },
-        },
-      },
-    });
-
-    // Roster for this team at this stop
-    const rosterRows = await prisma.stopTeamPlayer.findMany({
-      where: { stopId: round.stopId, teamId },
-      include: { player: { select: { id: true, firstName: true, lastName: true, name: true, gender: true } } },
-      orderBy: { createdAt: 'asc' },
-    });
-    const roster = rosterRows.map((r) => ({
-      id: r.player.id,
-      firstName: r.player.firstName,
-      lastName: r.player.lastName,
-      name: displayName(r.player),
-      gender: r.player.gender,
-    }));
-
-    return NextResponse.json({
-      roundId,
-      stopId: round.stopId,
-      lineup: full
-        ? {
-            id: full.id,
-            team: {
-              id: full.team.id,
-              name: full.team.name,
-              club: full.team.club ? { id: full.team.club.id, name: full.team.club.name } : null,
-              bracket: full.team.bracket ? { id: full.team.bracket.id, name: full.team.bracket.name } : null,
+            player1: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                name: true,
+                gender: true
+              }
             },
-            entries: full.entries.map((e) => ({
-              id: e.id,
-              slot: e.slot,
-              player1: {
-                id: e.player1.id,
-                firstName: e.player1.firstName,
-                lastName: e.player1.lastName,
-                name: displayName(e.player1),
-                gender: e.player1.gender,
-              },
-              player2: {
-                id: e.player2.id,
-                firstName: e.player2.firstName,
-                lastName: e.player2.lastName,
-                name: displayName(e.player2),
-                gender: e.player2.gender,
-              },
-            })),
-            roster,
+            player2: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                name: true,
+                gender: true
+              }
+            }
           }
-        : null,
+        }
+      }
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'Failed to load team lineup' }, { status: 500 });
+
+    // Build lineup data (4 players in order: Man1, Man2, Woman1, Woman2)
+    const lineupPlayers = [];
+    const entries = full.entries || [];
+    
+    // Extract players from entries - we need to reconstruct the 4-player lineup
+    // from the stored pairs: [man1, man2], [woman1, woman2], [man1, woman1], [man2, woman2]
+    if (entries.length >= 4) {
+      // Men's doubles: entries[0] = [man1, man2]
+      // Women's doubles: entries[1] = [woman1, woman2]  
+      // Mixed 1: entries[2] = [man1, woman1]
+      // Mixed 2: entries[3] = [man2, woman2]
+      
+      const menDoubles = entries[0];
+      const womenDoubles = entries[1];
+      
+      if (menDoubles && womenDoubles) {
+        lineupPlayers.push(
+          menDoubles.player1,    // Man 1
+          menDoubles.player2,    // Man 2
+          womenDoubles.player1,  // Woman 1
+          womenDoubles.player2   // Woman 2
+        );
+      }
+    }
+    
+    return NextResponse.json({
+      lineup: {
+        id: full?.id || lineup.id,
+        teamId: team.id,
+        teamName: team.name,
+        roster: roster,
+        players: lineupPlayers // This will be the 4 selected players
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in lineup API:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// New endpoint for saving 4-player lineups
+export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
+  const prisma = getPrisma();
+  try {
+    const { roundId, teamId } = await ctx.params;
+    const body = await req.json();
+    
+    const { players } = body; // Array of 4 player IDs: [man1, man2, woman1, woman2]
+    
+    if (!Array.isArray(players) || players.length !== 4) {
+      return NextResponse.json({ error: 'Exactly 4 players required' }, { status: 400 });
+    }
+    
+    // Verify round exists
+    const round = await prisma.round.findUnique({
+      where: { id: roundId },
+      select: { id: true, stopId: true }
+    });
+    
+    if (!round) {
+      return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+    }
+    
+    // Verify all players exist and are on the team
+    const teamPlayers = await prisma.teamPlayer.findMany({
+      where: { teamId },
+      select: { playerId: true }
+    });
+    
+    const teamPlayerIds = new Set(teamPlayers.map(tp => tp.playerId));
+    const invalidPlayers = players.filter(id => !teamPlayerIds.has(id));
+    
+    if (invalidPlayers.length > 0) {
+      return NextResponse.json({ 
+        error: `Players not on team: ${invalidPlayers.join(', ')}` 
+      }, { status: 400 });
+    }
+    
+    // Save lineup using transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create or update lineup
+      const lineup = await tx.lineup.upsert({
+        where: { roundId_teamId: { roundId, teamId } },
+        update: {},
+        create: { roundId, teamId, stopId: round.stopId },
+        select: { id: true }
+      });
+      
+      // Clear existing entries
+      await tx.lineupEntry.deleteMany({
+        where: { lineupId: lineup.id }
+      });
+      
+      // Create new entries for the 4 players
+      // We'll store them as pairs: [man1, man2], [woman1, woman2], [man1, woman1], [man2, woman2]
+      const entries = [
+        { player1Id: players[0], player2Id: players[1] }, // Men's doubles
+        { player1Id: players[2], player2Id: players[3] }, // Women's doubles  
+        { player1Id: players[0], player2Id: players[2] }, // Mixed 1
+        { player1Id: players[1], player2Id: players[3] }  // Mixed 2
+      ];
+      
+      await tx.lineupEntry.createMany({
+        data: entries.map(entry => ({
+          lineupId: lineup.id,
+          player1Id: entry.player1Id,
+          player2Id: entry.player2Id
+        }))
+      });
+      
+      return lineup;
+    });
+    
+    return NextResponse.json({ 
+      success: true, 
+      lineupId: result.id,
+      message: 'Lineup saved successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Error saving lineup:', error);
+    return NextResponse.json({ error: 'Failed to save lineup' }, { status: 500 });
   }
 }
