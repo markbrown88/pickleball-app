@@ -8,9 +8,9 @@ export async function PATCH(
   try {
     const { gameId } = await params;
     const body = await request.json();
-    const { teamAScore, teamBScore, courtNumber, isComplete } = body;
+    const { teamAScore, teamBScore, courtNumber, isComplete, status } = body;
 
-    console.log('Updating game:', { gameId, teamAScore, teamBScore, courtNumber, isComplete });
+    console.log('Updating game:', { gameId, teamAScore, teamBScore, courtNumber, isComplete, status });
 
     // Update the game with new scores and other fields
     const updatedGame = await prisma.game.update({
@@ -20,6 +20,7 @@ export async function PATCH(
         teamBScore: teamBScore !== undefined ? teamBScore : undefined,
         courtNumber: courtNumber !== undefined ? courtNumber : undefined,
         isComplete: isComplete !== undefined ? isComplete : undefined,
+        status: status !== undefined ? status : undefined,
       }
     });
 
