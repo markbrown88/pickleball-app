@@ -8,9 +8,9 @@ export async function PATCH(
   try {
     const { gameId } = await params;
     const body = await request.json();
-    const { teamAScore, teamBScore, courtNumber, isComplete, status } = body;
+    const { teamAScore, teamBScore, courtNumber, isComplete, status, startedAt, endedAt } = body;
 
-    console.log('Updating game:', { gameId, teamAScore, teamBScore, courtNumber, isComplete, status });
+    console.log('Updating game:', { gameId, teamAScore, teamBScore, courtNumber, isComplete, status, startedAt, endedAt });
 
     // Prepare update data
     const updateData: any = {
@@ -19,13 +19,15 @@ export async function PATCH(
       courtNumber: courtNumber !== undefined ? courtNumber : undefined,
       isComplete: isComplete !== undefined ? isComplete : undefined,
       status: status !== undefined ? status : undefined,
+      startedAt: startedAt !== undefined ? (startedAt ? new Date(startedAt) : null) : undefined,
+      endedAt: endedAt !== undefined ? (endedAt ? new Date(endedAt) : null) : undefined,
     };
 
-    // Handle timestamps based on game state changes
-    if (isComplete === false) {
+    // Handle timestamps based on game state changes (fallback if not provided directly)
+    if (isComplete === false && !startedAt) {
       // Game is being started - set startedAt
       updateData.startedAt = new Date();
-    } else if (isComplete === true) {
+    } else if (isComplete === true && !endedAt) {
       // Game is being ended - set endedAt
       updateData.endedAt = new Date();
     }

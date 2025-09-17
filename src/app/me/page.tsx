@@ -324,10 +324,10 @@ export default function MePage() {
         // Initialize game statuses from database
         const newGameStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'> = {};
         gamesData.forEach((game: any) => {
-          // Map isComplete field to game status - preserve existing state
+          // Map isComplete field to game status - use startedAt to determine if actually started
           if (game.isComplete === true) {
             newGameStatuses[game.id] = 'completed';
-          } else if (game.isComplete === false) {
+          } else if (game.isComplete === false && game.startedAt) {
             newGameStatuses[game.id] = 'in_progress';
           } else {
             newGameStatuses[game.id] = 'not_started';
@@ -347,11 +347,14 @@ export default function MePage() {
     try {
       setGameStatuses(prev => ({ ...prev, [gameId]: 'in_progress' }));
       
-      // Update in database - when starting, set isComplete to false
+      // Update in database - when starting, set isComplete to false and startedAt to now
       const response = await fetch(`/api/admin/games/${gameId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isComplete: false })
+        body: JSON.stringify({ 
+          isComplete: false,
+          startedAt: new Date().toISOString()
+        })
       });
       
       if (!response.ok) {
@@ -390,11 +393,14 @@ export default function MePage() {
       
       setGameStatuses(prev => ({ ...prev, [gameId]: 'completed' }));
       
-      // Update in database - when ending, set isComplete to true
+      // Update in database - when ending, set isComplete to true and endedAt to now
       const response = await fetch(`/api/admin/games/${gameId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isComplete: true })
+        body: JSON.stringify({ 
+          isComplete: true,
+          endedAt: new Date().toISOString()
+        })
       });
       
       if (!response.ok) {
@@ -2898,6 +2904,9 @@ function EventManagerTab({
                                                                   [match.teamB?.id || 'teamB']: lineups.teamB
                                                                 }
                                                               }));
+                                                              
+                                                              // Load games for this match to show them immediately
+                                                              await loadGamesForMatch(match.id);
                                                               
                                                               setEditingMatch(null);
                                                               onInfo('Lineups saved successfully!');
