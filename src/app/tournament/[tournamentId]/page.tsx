@@ -228,10 +228,18 @@ export default function TournamentPage() {
   const getGameStartTime = (game: Game) => {
     // Use startedAt if available, otherwise fall back to updatedAt
     if (game.startedAt) {
-      return new Date(game.startedAt).toLocaleTimeString();
+      return new Date(game.startedAt).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
     }
     if (game.isComplete === false || game.isComplete === true) {
-      return new Date(game.updatedAt || game.createdAt || '').toLocaleTimeString();
+      return new Date(game.updatedAt || game.createdAt || '').toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
     }
     return null;
   };
@@ -239,7 +247,11 @@ export default function TournamentPage() {
   const getGameEndTime = (game: Game) => {
     // Use endedAt if available
     if (game.endedAt) {
-      return new Date(game.endedAt).toLocaleTimeString();
+      return new Date(game.endedAt).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
     }
     return null;
   };
@@ -267,9 +279,10 @@ export default function TournamentPage() {
         // A game is considered "started" if:
         // 1. It's marked as in progress (isComplete === false)
         // 2. It has confirmed lineups
-        return game.isComplete === false && hasLineups;
+        // 3. It has actually been started (has startedAt timestamp)
+        return game.isComplete === false && hasLineups && game.startedAt;
       })
-      .sort((a, b) => new Date(a.game.updatedAt).getTime() - new Date(b.game.updatedAt).getTime());
+      .sort((a, b) => new Date(a.game.startedAt).getTime() - new Date(b.game.startedAt).getTime());
     
     const completed = allGames.filter(({ game }) => game.isComplete === true);
     
@@ -383,44 +396,31 @@ export default function TournamentPage() {
         <div className="grid grid-cols-3 gap-8">
           {/* Column 1: In Progress Games */}
           <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200 bg-yellow-50">
+            <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                 <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
                 In Progress
               </h2>
-              <p className="text-sm text-gray-500 mt-1">{inProgress.length} games started</p>
+              <p className="text-sm text-gray-500">{inProgress.length} games started</p>
             </div>
             <div className="p-6">
               {inProgress.length > 0 ? (
                 <div className="space-y-4">
                   {inProgress.map(({ game, match, round }) => (
                     <div key={game.id} className="border border-gray-200 rounded-lg p-4">
-                      {/* Team names and start time at top */}
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                        <span>{match.teamA?.name} vs {match.teamB?.name}</span>
-                        <div className="flex items-center gap-2">
-                          {game.courtNumber && (
-                            <span>Court {game.courtNumber}</span>
-                          )}
-                          {getGameStartTime(game) && (
-                            <span>Started: {getGameStartTime(game)}</span>
-                          )}
-                        </div>
+                      {/* Team names at top */}
+                      <div className="text-xs text-gray-500 mb-1">
+                        {match.teamA?.name} vs {match.teamB?.name}
                       </div>
                       
-                      {/* Game type and status */}
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-medium text-gray-700">
-                          {game.slot.replace('_', ' ')}
-                        </span>
-                        <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800">
-                          In Progress
-                        </span>
+                      {/* Game type - no space between team names and game type */}
+                      <div className="text-sm font-medium text-gray-700 mb-4">
+                        {game.slot.replace('_', ' ')}
                       </div>
                       
                       {/* Player names and scores */}
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                      <div className="flex items-center justify-between text-sm mb-4">
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-left">
                           {getPlayerNames(game, match, 'A')}
                         </div>
                         <span className="font-medium">
@@ -430,8 +430,22 @@ export default function TournamentPage() {
                         <span className="font-medium">
                           {game.teamBScore !== null ? game.teamBScore : '-'}
                         </span>
-                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-left">
                           {getPlayerNames(game, match, 'B')}
+                        </div>
+                      </div>
+                      
+                      {/* Start time and Court at bottom */}
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div>
+                          {getGameStartTime(game) && (
+                            <span>Started: {getGameStartTime(game)}</span>
+                          )}
+                        </div>
+                        <div>
+                          {game.courtNumber && (
+                            <span>Court {game.courtNumber}</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -447,44 +461,31 @@ export default function TournamentPage() {
 
           {/* Column 2: Completed Games */}
           <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200 bg-green-50">
+            <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                 <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
                 Completed
               </h2>
-              <p className="text-sm text-gray-500 mt-1">{completed.length} games</p>
+              <p className="text-sm text-gray-500">{completed.length} games</p>
             </div>
             <div className="p-6">
               {completed.length > 0 ? (
                 <div className="space-y-4">
                   {completed.map(({ game, match, round }) => (
                     <div key={game.id} className="border border-gray-200 rounded-lg p-4">
-                      {/* Team names and end time at top */}
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                        <span>{match.teamA?.name} vs {match.teamB?.name}</span>
-                        <div className="flex items-center gap-2">
-                          {game.courtNumber && (
-                            <span>Court {game.courtNumber}</span>
-                          )}
-                          {getGameEndTime(game) && (
-                            <span>Ended: {getGameEndTime(game)}</span>
-                          )}
-                        </div>
+                      {/* Team names at top */}
+                      <div className="text-xs text-gray-500 mb-1">
+                        {match.teamA?.name} vs {match.teamB?.name}
                       </div>
                       
-                      {/* Game type and status */}
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-medium text-gray-700">
-                          {game.slot.replace('_', ' ')}
-                        </span>
-                        <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
-                          Completed
-                        </span>
+                      {/* Game type - no space between team names and game type */}
+                      <div className="text-sm font-medium text-gray-700 mb-4">
+                        {game.slot.replace('_', ' ')}
                       </div>
                       
                       {/* Player names and scores */}
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                      <div className="flex items-center justify-between text-sm mb-4">
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-left">
                           {getPlayerNames(game, match, 'A')}
                         </div>
                         <span className="font-medium">
@@ -494,8 +495,22 @@ export default function TournamentPage() {
                         <span className="font-medium">
                           {game.teamBScore !== null ? game.teamBScore : '-'}
                         </span>
-                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-left">
                           {getPlayerNames(game, match, 'B')}
+                        </div>
+                      </div>
+                      
+                      {/* End time and Court at bottom */}
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div>
+                          {getGameEndTime(game) && (
+                            <span>Ended: {getGameEndTime(game)}</span>
+                          )}
+                        </div>
+                        <div>
+                          {game.courtNumber && (
+                            <span>Court {game.courtNumber}</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -511,12 +526,12 @@ export default function TournamentPage() {
 
           {/* Column 3: Tournament Standings */}
           <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200 bg-blue-50">
+            <div className="px-6 py-4 border-b border-gray-200 bg-blue-50">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                 <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
                 Standings
               </h2>
-              <p className="text-sm text-gray-500 mt-1">Tournament rankings</p>
+              <p className="text-sm text-gray-500">Tournament rankings</p>
             </div>
             <div className="p-6">
               <div className="text-center py-8 text-gray-500">
