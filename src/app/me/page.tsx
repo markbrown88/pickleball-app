@@ -798,6 +798,52 @@ export default function MePage() {
     }
   }, [overview]);
 
+  // Handle tiebreaker creation when games are completed and tied
+  useEffect(() => {
+    const checkAndCreateTiebreakers = async () => {
+      console.log('Checking for tiebreakers, games:', games);
+      for (const [matchId, matchGames] of Object.entries(games)) {
+        if (!matchGames || matchGames.length === 0) continue;
+        
+        const completedGames = matchGames.filter(g => g.slot !== 'TIEBREAKER' && g.isComplete);
+        const teamAWins = completedGames.filter(g => g.teamAScore > g.teamBScore).length;
+        const teamBWins = completedGames.filter(g => g.teamBScore > g.teamAScore).length;
+        const needsTiebreaker = completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
+        
+        console.log(`Match ${matchId}: completed=${completedGames.length}, teamA=${teamAWins}, teamB=${teamBWins}, needsTiebreaker=${needsTiebreaker}`);
+        
+        if (needsTiebreaker && !matchGames.find(g => g.slot === 'TIEBREAKER')) {
+          console.log('Creating tiebreaker for match:', matchId);
+          try {
+            const response = await fetch(`/api/admin/matches/${matchId}/games`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                games: [{
+                  slot: 'TIEBREAKER',
+                  teamAScore: null,
+                  teamBScore: null
+                }]
+              })
+            });
+            
+            if (response.ok) {
+              console.log('Tiebreaker created successfully, reloading games...');
+              // Reload games to get the new tiebreaker
+              await loadGamesForMatch(matchId);
+            } else {
+              console.error('Failed to create tiebreaker:', response.status);
+            }
+          } catch (error) {
+            console.error('Error creating tiebreaker:', error);
+          }
+        }
+      }
+    };
+    
+    checkAndCreateTiebreakers();
+  }, [games]);
+
   function ymdToDateString(y?: number|null, m?: number|null, d?: number|null) {
     if (!y || !m || !d) return '';
     const mm = String(m).padStart(2,'0'); const dd = String(d).padStart(2,'0');
@@ -2765,34 +2811,6 @@ function EventManagerTab({
                                                             const teamAWins = completedGames.filter(g => g.teamAScore > g.teamBScore).length;
                                                             const teamBWins = completedGames.filter(g => g.teamBScore > g.teamAScore).length;
                                                             const needsTiebreaker = completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
-                                                            
-                                                            if (needsTiebreaker && !games[match.id]?.find(g => g.slot === 'TIEBREAKER')) {
-                                                              // Create tiebreaker game in database
-                                                              const createTiebreaker = async () => {
-                                                                try {
-                                                                  const response = await fetch(`/api/admin/matches/${match.id}/games`, {
-                                                                    method: 'POST',
-                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({
-                                                                      games: [{
-                                                                        slot: 'TIEBREAKER',
-                                                                        teamAScore: null,
-                                                                        teamBScore: null
-                                                                      }]
-                                                                    })
-                                                                  });
-                                                                  
-                                                                  if (response.ok) {
-                                                                    // Reload games to get the real tiebreaker with database ID
-                                                                    await loadGamesForMatch(match.id);
-                                                                  }
-                                                                } catch (error) {
-                                                                  console.error('Error creating tiebreaker:', error);
-                                                                }
-                                                              };
-                                                              
-                                                              createTiebreaker();
-                                                            }
                                                             
                                                             return needsTiebreaker && games[match.id]?.find(g => g.slot === 'TIEBREAKER') && (
                                                               <GameScoreBox
