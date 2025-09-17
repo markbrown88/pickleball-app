@@ -12,16 +12,28 @@ export async function PATCH(
 
     console.log('Updating game:', { gameId, teamAScore, teamBScore, courtNumber, isComplete, status });
 
+    // Prepare update data
+    const updateData: any = {
+      teamAScore: teamAScore !== undefined ? teamAScore : undefined,
+      teamBScore: teamBScore !== undefined ? teamBScore : undefined,
+      courtNumber: courtNumber !== undefined ? courtNumber : undefined,
+      isComplete: isComplete !== undefined ? isComplete : undefined,
+      status: status !== undefined ? status : undefined,
+    };
+
+    // Handle timestamps based on game state changes
+    if (isComplete === false) {
+      // Game is being started - set startedAt
+      updateData.startedAt = new Date();
+    } else if (isComplete === true) {
+      // Game is being ended - set endedAt
+      updateData.endedAt = new Date();
+    }
+
     // Update the game with new scores and other fields
     const updatedGame = await prisma.game.update({
       where: { id: gameId },
-      data: {
-        teamAScore: teamAScore !== undefined ? teamAScore : undefined,
-        teamBScore: teamBScore !== undefined ? teamBScore : undefined,
-        courtNumber: courtNumber !== undefined ? courtNumber : undefined,
-        isComplete: isComplete !== undefined ? isComplete : undefined,
-        status: status !== undefined ? status : undefined,
-      }
+      data: updateData
     });
 
     console.log('Game updated successfully:', updatedGame);

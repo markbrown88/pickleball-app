@@ -48,6 +48,17 @@ interface Game {
   teamBScore: number | null;
   isComplete: boolean | null;
   courtNumber?: string;
+  teamALineup?: Player[];
+  teamBLineup?: Player[];
+  startedAt?: string; // Added for start timestamp
+  endedAt?: string; // Added for end timestamp
+  updatedAt?: string; // Added for timestamp
+  createdAt?: string; // Added for timestamp comparison
+}
+
+interface Player {
+  id: string;
+  name: string;
 }
 
 export default function TournamentPage() {
@@ -56,16 +67,24 @@ export default function TournamentPage() {
   
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [lineups, setLineups] = useState<Record<string, Record<string, any[]>>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTournamentData();
   }, [tournamentId]);
 
-  const loadTournamentData = async () => {
+  const loadTournamentData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
       
       // Load tournament details
       const tournamentResponse = await fetch(`/api/tournaments`);
@@ -83,12 +102,22 @@ export default function TournamentPage() {
         const allStops = await stopsResponse.json();
         const tournamentStops = allStops.filter((stop: any) => stop.tournamentId === tournamentId);
         setStops(tournamentStops);
+        
+        // Auto-select first stop if available
+        if (tournamentStops.length > 0) {
+          setSelectedStopId(tournamentStops[0].id);
+          loadStopData(tournamentStops[0].id);
+        }
       }
 
     } catch (err) {
       setError(`Failed to load tournament data: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -116,31 +145,135 @@ export default function TournamentPage() {
             ? { ...stop, rounds: roundsWithMatches }
             : stop
         ));
+
+        // Load lineups for this stop (with timeout)
+        try {
+          const lineupPromise = loadLineupsForStop(stopId);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Lineup loading timeout')), 10000)
+          );
+          await Promise.race([lineupPromise, timeoutPromise]);
+        } catch (lineupError) {
+          console.warn('Lineup loading failed or timed out:', lineupError);
+          // Continue without lineups - games will show as "Team A" vs "Team B"
+        }
       }
     } catch (err) {
       console.error('Error loading stop data:', err);
     }
   };
 
-  const getGameStatus = (game: Game) => {
-    if (game.isComplete === true) return 'completed';
-    if (game.isComplete === false) return 'in_progress';
-    return 'not_started';
+  const loadLineupsForStop = async (stopId: string) => {
+    try {
+      const response = await fetch(`/api/admin/stops/${stopId}/lineups`);
+      if (response.ok) {
+        const lineupsData = await response.json();
+        setLineups(prev => ({ ...prev, ...lineupsData }));
+      }
+    } catch (error) {
+      console.error('Error loading lineups for stop:', error);
+    }
   };
 
-  const getMatchStatus = (match: Match) => {
-    const completedGames = match.games.filter(g => g.isComplete === true);
-    const teamAWins = completedGames.filter(g => (g.teamAScore || 0) > (g.teamBScore || 0)).length;
-    const teamBWins = completedGames.filter(g => (g.teamBScore || 0) > (g.teamAScore || 0)).length;
-    
-    if (completedGames.length === 4) {
-      if (teamAWins > teamBWins) return 'Team A Wins';
-      if (teamBWins > teamAWins) return 'Team B Wins';
-      return 'Tied';
+  const getGameStatus = (game: Game) => {
+    // Use the same logic as Event Manager to map isComplete to game status
+    if (game.isComplete === true) return 'completed';
+    if (game.isComplete === false) return 'in_progress';
+    return 'not_started'; // isComplete === null (default state)
+  };
+
+  const getPlayerNames = (game: Game, match: Match, team: 'A' | 'B') => {
+    // First try to get lineup from game data
+    const gameLineup = team === 'A' ? game.teamALineup : game.teamBLineup;
+    if (gameLineup && Array.isArray(gameLineup) && gameLineup.length >= 2) {
+      return `${gameLineup[0]?.name || 'Player 1'} &\n${gameLineup[1]?.name || 'Player 2'}`;
     }
+
+    // If not in game data, try to get from lineup state
+    const teamId = team === 'A' ? match.teamA?.id : match.teamB?.id;
+    if (teamId && lineups[match.id] && lineups[match.id][teamId]) {
+      const teamLineup = lineups[match.id][teamId];
+      if (Array.isArray(teamLineup) && teamLineup.length >= 2) {
+        // Generate lineup based on game slot
+        const man1 = teamLineup[0];
+        const man2 = teamLineup[1];
+        const woman1 = teamLineup[2];
+        const woman2 = teamLineup[3];
+        
+        switch (game.slot) {
+          case 'MENS_DOUBLES':
+            return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+          case 'WOMENS_DOUBLES':
+            return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+          case 'MIXED_1':
+            return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+          case 'MIXED_2':
+            return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+          case 'TIEBREAKER':
+            return team === 'A' ? (match.teamA?.name || 'Team A') : (match.teamB?.name || 'Team B');
+          default:
+            return team === 'A' ? 'Team A' : 'Team B';
+        }
+      }
+    }
+
+    // For tiebreakers, show team names
+    if (game.slot === 'TIEBREAKER') {
+      return team === 'A' ? (match.teamA?.name || 'Team A') : (match.teamB?.name || 'Team B');
+    }
+
+    return team === 'A' ? 'Team A' : 'Team B';
+  };
+
+  const getGameStartTime = (game: Game) => {
+    // Use startedAt if available, otherwise fall back to updatedAt
+    if (game.startedAt) {
+      return new Date(game.startedAt).toLocaleTimeString();
+    }
+    if (game.isComplete === false || game.isComplete === true) {
+      return new Date(game.updatedAt || game.createdAt || '').toLocaleTimeString();
+    }
+    return null;
+  };
+
+  const getGameEndTime = (game: Game) => {
+    // Use endedAt if available
+    if (game.endedAt) {
+      return new Date(game.endedAt).toLocaleTimeString();
+    }
+    return null;
+  };
+
+  const getGamesByStatus = (stop: Stop) => {
+    const allGames: Array<{ game: Game; match: Match; round: Round }> = [];
     
-    if (completedGames.length > 0) return 'In Progress';
-    return 'Not Started';
+    stop.rounds?.forEach(round => {
+      round.matches?.forEach(match => {
+        match.games?.forEach(game => {
+          allGames.push({ game, match, round });
+        });
+      });
+    });
+
+    // Only include games that have actually been started (isComplete === false)
+    // and have lineups confirmed
+    const inProgress = allGames
+      .filter(({ game, match }) => {
+        const hasLineups = match.teamA?.id && match.teamB?.id && 
+          lineups[match.id] && 
+          lineups[match.id][match.teamA.id]?.length === 4 && 
+          lineups[match.id][match.teamB.id]?.length === 4;
+        
+        // A game is considered "started" if:
+        // 1. It's marked as in progress (isComplete === false)
+        // 2. It has confirmed lineups
+        return game.isComplete === false && hasLineups;
+      })
+      .sort((a, b) => new Date(a.game.updatedAt).getTime() - new Date(b.game.updatedAt).getTime());
+    
+    const completed = allGames.filter(({ game }) => game.isComplete === true);
+    
+    return { inProgress, completed };
   };
 
   if (loading) {
@@ -182,122 +315,217 @@ export default function TournamentPage() {
     );
   }
 
+  const selectedStop = stops.find(stop => stop.id === selectedStopId);
+  const { inProgress, completed } = selectedStop ? getGamesByStatus(selectedStop) : { inProgress: [], completed: [] };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="w-full px-4 py-8">
         {/* Tournament Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{tournament.name}</h1>
-          {tournament.description && (
-            <p className="text-gray-600 mb-4">{tournament.description}</p>
-          )}
-          <div className="flex items-center space-x-6 text-sm text-gray-500">
-            {tournament.startDate && (
-              <span>Start: {new Date(tournament.startDate).toLocaleDateString()}</span>
-            )}
-            {tournament.endDate && (
-              <span>End: {new Date(tournament.endDate).toLocaleDateString()}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Stops */}
-        <div className="space-y-8">
-          {stops.map((stop) => (
-            <div key={stop.id} className="bg-white rounded-lg shadow-sm">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">{stop.name}</h2>
-                <button
-                  onClick={() => loadStopData(stop.id)}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                >
-                  Load Results
-                </button>
-              </div>
-              
-              <div className="p-6">
-                {stop.rounds && stop.rounds.length > 0 ? (
-                  <div className="space-y-6">
-                    {stop.rounds.map((round) => (
-                      <div key={round.id} className="border border-gray-200 rounded-lg p-4">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">{round.name}</h3>
-                        
-                        {round.matches && round.matches.length > 0 ? (
-                          <div className="space-y-4">
-                            {round.matches.map((match) => (
-                              <div key={match.id} className="bg-gray-50 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center space-x-4">
-                                    <div className="text-lg font-medium text-gray-900">
-                                      {match.teamA?.name || 'Team A'} vs {match.teamB?.name || 'Team B'}
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                      {match.teamA?.club?.name} vs {match.teamB?.club?.name}
-                                    </div>
-                                  </div>
-                                  <div className="text-sm font-medium text-gray-700">
-                                    {getMatchStatus(match)}
-                                  </div>
-                                </div>
-                                
-                                {/* Games */}
-                                <div className="grid grid-cols-2 gap-4">
-                                  {match.games.map((game) => (
-                                    <div key={game.id} className="bg-white rounded p-3 border">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-sm font-medium text-gray-700">
-                                          {game.slot.replace('_', ' ')}
-                                        </span>
-                                        <span className={`text-xs px-2 py-1 rounded ${
-                                          getGameStatus(game) === 'completed' 
-                                            ? 'bg-green-100 text-green-800'
-                                            : getGameStatus(game) === 'in_progress'
-                                            ? 'bg-yellow-100 text-yellow-800'
-                                            : 'bg-gray-100 text-gray-800'
-                                        }`}>
-                                          {getGameStatus(game).replace('_', ' ')}
-                                        </span>
-                                      </div>
-                                      
-                                      <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">Team A</span>
-                                        <span className="font-medium">
-                                          {game.teamAScore !== null ? game.teamAScore : '-'}
-                                        </span>
-                                        <span className="text-gray-400">vs</span>
-                                        <span className="font-medium">
-                                          {game.teamBScore !== null ? game.teamBScore : '-'}
-                                        </span>
-                                        <span className="text-gray-600">Team B</span>
-                                      </div>
-                                      
-                                      {game.courtNumber && (
-                                        <div className="text-xs text-gray-500 mt-1">
-                                          Court {game.courtNumber}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-gray-500 text-center py-8">
-                            No matches found for this round
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-center py-8">
-                    Click "Load Results" to view match data
-                  </div>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{tournament.name}</h1>
+              {tournament.description && (
+                <p className="text-gray-600 mb-4">{tournament.description}</p>
+              )}
+              <div className="flex items-center space-x-6 text-sm text-gray-500">
+                {tournament.startDate && (
+                  <span>Start: {new Date(tournament.startDate).toLocaleDateString()}</span>
+                )}
+                {tournament.endDate && (
+                  <span>End: {new Date(tournament.endDate).toLocaleDateString()}</span>
                 )}
               </div>
             </div>
-          ))}
+            <button
+              onClick={() => loadTournamentData(true)}
+              disabled={refreshing}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {refreshing ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Stop Tabs */}
+        <div className="bg-white rounded-lg shadow-sm mb-8">
+          <div className="border-b border-gray-200">
+            <nav className="flex space-x-8 px-6" aria-label="Tabs">
+              {stops.map((stop) => (
+                <button
+                  key={stop.id}
+                  onClick={() => {
+                    setSelectedStopId(stop.id);
+                    loadStopData(stop.id);
+                  }}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    selectedStopId === stop.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {stop.name}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+
+        {/* Three Column Layout */}
+        <div className="grid grid-cols-3 gap-8">
+          {/* Column 1: In Progress Games */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-6 border-b border-gray-200 bg-yellow-50">
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                In Progress
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">{inProgress.length} games started</p>
+            </div>
+            <div className="p-6">
+              {inProgress.length > 0 ? (
+                <div className="space-y-4">
+                  {inProgress.map(({ game, match, round }) => (
+                    <div key={game.id} className="border border-gray-200 rounded-lg p-4">
+                      {/* Team names and start time at top */}
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                        <span>{match.teamA?.name} vs {match.teamB?.name}</span>
+                        <div className="flex items-center gap-2">
+                          {game.courtNumber && (
+                            <span>Court {game.courtNumber}</span>
+                          )}
+                          {getGameStartTime(game) && (
+                            <span>Started: {getGameStartTime(game)}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Game type and status */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-700">
+                          {game.slot.replace('_', ' ')}
+                        </span>
+                        <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800">
+                          In Progress
+                        </span>
+                      </div>
+                      
+                      {/* Player names and scores */}
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                          {getPlayerNames(game, match, 'A')}
+                        </div>
+                        <span className="font-medium">
+                          {game.teamAScore !== null ? game.teamAScore : '-'}
+                        </span>
+                        <span className="text-gray-400">vs</span>
+                        <span className="font-medium">
+                          {game.teamBScore !== null ? game.teamBScore : '-'}
+                        </span>
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                          {getPlayerNames(game, match, 'B')}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No games started yet
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 2: Completed Games */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-6 border-b border-gray-200 bg-green-50">
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                Completed
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">{completed.length} games</p>
+            </div>
+            <div className="p-6">
+              {completed.length > 0 ? (
+                <div className="space-y-4">
+                  {completed.map(({ game, match, round }) => (
+                    <div key={game.id} className="border border-gray-200 rounded-lg p-4">
+                      {/* Team names and end time at top */}
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                        <span>{match.teamA?.name} vs {match.teamB?.name}</span>
+                        <div className="flex items-center gap-2">
+                          {game.courtNumber && (
+                            <span>Court {game.courtNumber}</span>
+                          )}
+                          {getGameEndTime(game) && (
+                            <span>Ended: {getGameEndTime(game)}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Game type and status */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-700">
+                          {game.slot.replace('_', ' ')}
+                        </span>
+                        <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
+                          Completed
+                        </span>
+                      </div>
+                      
+                      {/* Player names and scores */}
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                          {getPlayerNames(game, match, 'A')}
+                        </div>
+                        <span className="font-medium">
+                          {game.teamAScore !== null ? game.teamAScore : '-'}
+                        </span>
+                        <span className="text-gray-400">vs</span>
+                        <span className="font-medium">
+                          {game.teamBScore !== null ? game.teamBScore : '-'}
+                        </span>
+                        <div className="text-gray-600 text-xs whitespace-pre-line text-center">
+                          {getPlayerNames(game, match, 'B')}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No completed games
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 3: Tournament Standings */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-6 border-b border-gray-200 bg-blue-50">
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                Standings
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">Tournament rankings</p>
+            </div>
+            <div className="p-6">
+              <div className="text-center py-8 text-gray-500">
+                <div className="text-4xl mb-2">🏆</div>
+                <p>Standings coming soon</p>
+                <p className="text-xs mt-2">This feature will show team rankings and statistics</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

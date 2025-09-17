@@ -217,22 +217,22 @@ export async function GET(
   const url = new URL(req.url);
   const wantDebug = url.searchParams.get('debug') === '1';
 
-  const { client: prisma, diag } = prisma;
-  if (!prisma) {
+  const client = prisma;
+  if (!client) {
     return NextResponse.json(
-      { error: 'Prisma client could not be created', detail: diag },
+      { error: 'Prisma client could not be created' },
       { status: 500 }
     );
   }
 
   const envDiag: any = { connected: false, counts: {} as Record<string, any> };
   try {
-    await prisma.$connect();
+    await client.$connect();
     envDiag.connected = true;
-    try { envDiag.counts.Team = await prisma.team.count(); } catch (e: any) { envDiag.counts.Team = `ERR: ${e?.message}`; }
-    try { envDiag.counts.Tournament = await prisma.tournament.count(); } catch (e: any) { envDiag.counts.Tournament = `ERR: ${e?.message}`; }
-    try { envDiag.counts.TournamentBracket = await prisma.tournamentBracket.count(); } catch (e: any) { envDiag.counts.TournamentBracket = `ERR: ${e?.message}`; }
-    try { envDiag.counts.TournamentCaptain = await (prisma as any).tournamentCaptain?.count?.() ?? 'N/A'; } catch (e: any) { envDiag.counts.TournamentCaptain = `ERR: ${e?.message}`; }
+    try { envDiag.counts.Team = await client.team.count(); } catch (e: any) { envDiag.counts.Team = `ERR: ${e?.message}`; }
+    try { envDiag.counts.Tournament = await client.tournament.count(); } catch (e: any) { envDiag.counts.Tournament = `ERR: ${e?.message}`; }
+    try { envDiag.counts.TournamentBracket = await client.tournamentBracket.count(); } catch (e: any) { envDiag.counts.TournamentBracket = `ERR: ${e?.message}`; }
+    try { envDiag.counts.TournamentCaptain = await (client as any).tournamentCaptain?.count?.() ?? 'N/A'; } catch (e: any) { envDiag.counts.TournamentCaptain = `ERR: ${e?.message}`; }
   } catch (e: any) {
     envDiag.connected = `ERR: ${e?.message ?? String(e)}`;
   }
@@ -241,20 +241,24 @@ export async function GET(
     // Next 13/14 vs 15 param shapes
     const raw: any = (ctx as any).params;
     const { playerId } = typeof raw?.then === 'function' ? await raw : raw;
-
+    
     // Canonical governance: (tournament, club) via TournamentCaptain
     const assignments =
-      (await (prisma as any).tournamentCaptain?.findMany?.({
+      (await (client as any).tournamentCaptain?.findMany?.({
         where: { playerId },
         select: { tournamentId: true, clubId: true },
         orderBy: [{ tournamentId: 'asc' }],
       })) ?? [];
 
     // Legacy assist (if some tournaments still rely on captainId on a team)
-    const legacyTeams = await prisma.team.findMany({
-      where: { captainId: playerId, tournamentId: { not: null }, clubId: { not: null } },
+    const allLegacyTeams = await client.team.findMany({
+      where: { 
+        captainId: playerId
+      },
       select: { tournamentId: true, clubId: true },
     });
+    // Filter out teams with null tournamentId or clubId
+    const legacyTeams = allLegacyTeams.filter(t => t.tournamentId && t.clubId);
 
     const governed = new Map<string, { tournamentId: string; clubId: string }>();
     for (const a of assignments) governed.set(`${a.tournamentId}:${a.clubId}`, a);
@@ -266,14 +270,14 @@ export async function GET(
 
     if (governed.size === 0) {
       const payload: any = { teams: [] };
-      if (wantDebug) payload._debug = { prisma: diag, env: envDiag, playerId, confCount: 0 };
+      if (wantDebug) payload._debug = { env: envDiag, playerId, confCount: 0 };
       return NextResponse.json(payload);
     }
 
     // Ensure & load teams for every bracket for each governed club/tournament
     const allTeams: any[] = [];
     for (const { tournamentId, clubId } of governed.values()) {
-      const teams = await ensureTeamsForClubAcrossBrackets(prisma, tournamentId, clubId);
+      const teams = await ensureTeamsForClubAcrossBrackets(client, tournamentId, clubId);
       allTeams.push(...teams);
     }
 
@@ -281,7 +285,7 @@ export async function GET(
     const teamsWithTournament = allTeams.filter(hasTournament);
 
     // Stop rosters (once) for those teams
-    const stopTeamPlayers = await prisma.stopTeamPlayer.findMany({
+    const stopTeamPlayers = await client.stopTeamPlayer.findMany({
       where: { teamId: { in: teamsWithTournament.map((t: any) => t.id) } },
       include: { player: true, stop: true },
       orderBy: { stopId: 'asc' },
@@ -343,11 +347,11 @@ export async function GET(
     });
 
     const okPayload: any = { teams: shaped };
-    if (wantDebug) okPayload._debug = { prisma: diag, env: envDiag, playerId, confCount: assignments.length };
+    if (wantDebug) okPayload._debug = { env: envDiag, playerId, confCount: assignments.length };
     return NextResponse.json(okPayload);
   } catch (e) {
     return NextResponse.json(
-      { error: (e as Error).message, detail: { prisma: diag, env: envDiag } },
+      { error: (e as Error).message, detail: { env: envDiag } },
       { status: 500 }
     );
   }

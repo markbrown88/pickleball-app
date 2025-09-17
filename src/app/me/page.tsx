@@ -1399,9 +1399,11 @@ function TeamsTab({
                   className="text-lg font-medium text-blue-600 cursor-pointer hover:text-blue-800"
                   onClick={() => setActiveTournamentId(activeTournamentId === row.tournamentId ? null : row.tournamentId)}
                 >
-                  {row.tournamentName}
+                  {row.tournamentName} <span className="text-xs text-black">- {row.dates}</span>
                 </h3>
-                <p className="text-sm text-gray-600">{row.dates}</p>
+                <p className="text-sm text-gray-600">
+                  Team: {Array.from(row.bracketTeams.values())[0]?.club?.name || 'Unknown'}
+                </p>
                 <p className="text-sm text-gray-500">
                   Brackets: {row.bracketNames.length ? row.bracketNames.join(', ') : 'General'}
                 </p>

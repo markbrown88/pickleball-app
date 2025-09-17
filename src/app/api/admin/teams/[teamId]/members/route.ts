@@ -28,7 +28,6 @@ export async function GET(
   _req: Request,
   ctx: { params: { teamId: string } } | { params: Promise<{ teamId: string }> }
 ) {
-  const prisma = prisma;
   const raw: any = (ctx as any).params;
   const { teamId } = typeof raw?.then === 'function' ? await raw : raw;
 

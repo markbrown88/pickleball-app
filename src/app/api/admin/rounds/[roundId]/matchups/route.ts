@@ -3,6 +3,65 @@ import { prisma } from '@/lib/prisma';
 
 type Ctx = { params: Promise<{ roundId: string }> };
 
+export async function GET(req: NextRequest, ctx: Ctx) {
+  try {
+    const { roundId } = await ctx.params;
+    
+    // Get all matches for this round
+    const matches = await prisma.match.findMany({
+      where: { roundId },
+      include: {
+        teamA: {
+          select: {
+            id: true,
+            name: true,
+            club: {
+              select: {
+                name: true
+              }
+            }
+          }
+        },
+        teamB: {
+          select: {
+            id: true,
+            name: true,
+            club: {
+              select: {
+                name: true
+              }
+            }
+          }
+        },
+        games: {
+          orderBy: { slot: 'asc' },
+          select: {
+            id: true,
+            slot: true,
+            teamAScore: true,
+            teamBScore: true,
+            teamALineup: true,
+            teamBLineup: true,
+            lineupConfirmed: true,
+            courtNumber: true,
+            isComplete: true,
+            startedAt: true, // Added startedAt
+            endedAt: true, // Added endedAt
+            createdAt: true,
+            updatedAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+    
+    return NextResponse.json(matches);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   try {
     const { roundId } = await ctx.params;
