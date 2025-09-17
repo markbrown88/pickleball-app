@@ -321,33 +321,16 @@ export default function MePage() {
         console.log('Loaded games data:', gamesData);
         setGames(prev => ({ ...prev, [matchId]: gamesData }));
         
-        // Check if both teams have complete lineups
-        const matchLineups = lineups[matchId];
-        const hasCompleteLineups = matchLineups && 
-          Object.keys(matchLineups).length >= 2 &&
-          Object.values(matchLineups).every(teamLineup => teamLineup.length === 4);
-        
         // Initialize game statuses from database
         const newGameStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'> = {};
         gamesData.forEach((game: any) => {
-          // If lineups are not complete, force all games to not_started
-          if (!hasCompleteLineups) {
-            newGameStatuses[game.id] = 'not_started';
-            // Also reset the game in the database
-            fetch(`/api/admin/games/${game.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ isComplete: null })
-            }).catch(console.error);
+          // Map isComplete field to game status - preserve existing state
+          if (game.isComplete === true) {
+            newGameStatuses[game.id] = 'completed';
+          } else if (game.isComplete === false) {
+            newGameStatuses[game.id] = 'in_progress';
           } else {
-            // Map isComplete field to game status
-            if (game.isComplete === true) {
-              newGameStatuses[game.id] = 'completed';
-            } else if (game.isComplete === false) {
-              newGameStatuses[game.id] = 'in_progress';
-            } else {
-              newGameStatuses[game.id] = 'not_started';
-            }
+            newGameStatuses[game.id] = 'not_started';
           }
         });
         setGameStatuses(prev => ({ ...prev, ...newGameStatuses }));
@@ -362,30 +345,6 @@ export default function MePage() {
   // Function to start a game
   const startGame = async (gameId: string) => {
     try {
-      // Find the match for this game
-      const matchId = Object.keys(games).find(id => 
-        games[id]?.some(game => game.id === gameId)
-      );
-      
-      if (!matchId) {
-        throw new Error('Match not found for game');
-      }
-      
-      // Validate that both teams have complete lineups
-      const matchLineups = lineups[matchId];
-      if (!matchLineups) {
-        throw new Error('No lineups found for this match');
-      }
-      
-      const teamAId = Object.keys(matchLineups)[0];
-      const teamBId = Object.keys(matchLineups)[1];
-      
-      if (!teamAId || !teamBId || 
-          !matchLineups[teamAId] || matchLineups[teamAId].length !== 4 ||
-          !matchLineups[teamBId] || matchLineups[teamBId].length !== 4) {
-        throw new Error('Both teams must have complete lineups before starting games');
-      }
-      
       setGameStatuses(prev => ({ ...prev, [gameId]: 'in_progress' }));
       
       // Update in database - when starting, set isComplete to false
@@ -399,7 +358,7 @@ export default function MePage() {
         throw new Error('Failed to start game');
       }
     } catch (error) {
-      onError(`Failed to start game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setErr(`Failed to start game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -419,7 +378,7 @@ export default function MePage() {
         throw new Error('Failed to end game');
       }
     } catch (error) {
-      onError(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setErr(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -559,7 +518,7 @@ export default function MePage() {
         throw new Error('Failed to create tiebreaker');
       }
     } catch (error) {
-      onError(`Failed to create tiebreaker: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setErr(`Failed to create tiebreaker: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setCreatingTiebreakers(prev => {
         const newSet = new Set(prev);
