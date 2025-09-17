@@ -365,6 +365,29 @@ export default function MePage() {
   // Function to end a game
   const endGame = async (gameId: string) => {
     try {
+      // Find the game to check for ties
+      let gameToCheck = null;
+      for (const matchGames of Object.values(games)) {
+        const foundGame = matchGames?.find(game => game.id === gameId);
+        if (foundGame) {
+          gameToCheck = foundGame;
+          break;
+        }
+      }
+      
+      if (!gameToCheck) {
+        throw new Error('Game not found');
+      }
+      
+      // Check for ties - cannot end game if scores are equal
+      const teamAScore = gameToCheck.teamAScore || 0;
+      const teamBScore = gameToCheck.teamBScore || 0;
+      
+      if (teamAScore === teamBScore) {
+        setErr('Cannot end game with tied scores. One team must win.');
+        return;
+      }
+      
       setGameStatuses(prev => ({ ...prev, [gameId]: 'completed' }));
       
       // Update in database - when ending, set isComplete to true
@@ -801,7 +824,6 @@ export default function MePage() {
   // Handle tiebreaker creation when games are completed and tied
   useEffect(() => {
     const checkAndCreateTiebreakers = async () => {
-      console.log('Checking for tiebreakers, games:', games);
       for (const [matchId, matchGames] of Object.entries(games)) {
         if (!matchGames || matchGames.length === 0) continue;
         
@@ -810,10 +832,7 @@ export default function MePage() {
         const teamBWins = completedGames.filter(g => g.teamBScore > g.teamAScore).length;
         const needsTiebreaker = completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
         
-        console.log(`Match ${matchId}: completed=${completedGames.length}, teamA=${teamAWins}, teamB=${teamBWins}, needsTiebreaker=${needsTiebreaker}`);
-        
         if (needsTiebreaker && !matchGames.find(g => g.slot === 'TIEBREAKER')) {
-          console.log('Creating tiebreaker for match:', matchId);
           try {
             const response = await fetch(`/api/admin/matches/${matchId}/games`, {
               method: 'POST',
@@ -828,11 +847,8 @@ export default function MePage() {
             });
             
             if (response.ok) {
-              console.log('Tiebreaker created successfully, reloading games...');
               // Reload games to get the new tiebreaker
               await loadGamesForMatch(matchId);
-            } else {
-              console.error('Failed to create tiebreaker:', response.status);
             }
           } catch (error) {
             console.error('Error creating tiebreaker:', error);
