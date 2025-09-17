@@ -1835,12 +1835,12 @@ function GameScoreBox({
           }`}>
             {teamAScore}
           </div>
-        ) : (
+        ) : isInProgress ? (
           <input
             type="number"
             min="0"
             max="99"
-            className="w-8 px-1 py-0.5 text-xs border rounded text-center"
+            className="w-8 px-1 py-0.5 text-xs border rounded text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             value={teamAScore || ''}
             onChange={(e) => {
               const value = e.target.value;
@@ -1851,6 +1851,8 @@ function GameScoreBox({
             placeholder="0"
             disabled={isCompleted}
           />
+        ) : (
+          <div className="w-8 text-center text-gray-400">-</div>
         )}
         
         {/* VS */}
@@ -1863,12 +1865,12 @@ function GameScoreBox({
           }`}>
             {teamBScore}
           </div>
-        ) : (
+        ) : isInProgress ? (
           <input
             type="number"
             min="0"
             max="99"
-            className="w-8 px-1 py-0.5 text-xs border rounded text-center"
+            className="w-8 px-1 py-0.5 text-xs border rounded text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             value={teamBScore || ''}
             onChange={(e) => {
               const value = e.target.value;
@@ -1879,6 +1881,8 @@ function GameScoreBox({
             placeholder="0"
             disabled={isCompleted}
           />
+        ) : (
+          <div className="w-8 text-center text-gray-400">-</div>
         )}
         
         {/* Team B */}
