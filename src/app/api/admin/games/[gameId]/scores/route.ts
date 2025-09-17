@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 import { GameSlot as GameSlotEnum } from '@prisma/client';
 
@@ -50,7 +50,7 @@ function summarize(matches: Array<{ slot: GameSlot; teamAScore: number | null; t
 }
 
 export async function PUT(req: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { gameId } = await ctx.params;
 
   try {

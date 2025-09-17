@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Ctx = { params: Promise<{ teamId: string }> };
 
@@ -42,7 +42,7 @@ async function assertEligible(
 
 /** POST: add a player (and optionally add them to a specific stop). */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId } = await ctx.params;
 
   // Allow query or JSON body
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
  * - If stopId is NOT provided → remove lineup entries + all StopTeamPlayer rows for this team; then do the same release logic.
  */
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId } = await ctx.params;
 
   const url = new URL(req.url);

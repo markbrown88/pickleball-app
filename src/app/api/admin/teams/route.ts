@@ -2,11 +2,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
     const tournamentId = searchParams.get('tournamentId') ?? undefined;
     const rows = await prisma.team.findMany({
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const body = (await req.json()) as { name?: string; tournamentId?: string };
     if (!body?.name || !body?.tournamentId) return NextResponse.json({ error: 'name and tournamentId required' }, { status: 400 });
     const t = await prisma.team.create({ data: { name: body.name.trim(), tournamentId: body.tournamentId } });

@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Ctx = { params: Promise<{ teamId: string }> };
 
@@ -19,7 +19,7 @@ async function safeJson<T>(req: NextRequest): Promise<{ ok: true; value: T } | {
 }
 
 export async function PUT(req: NextRequest, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId } = await ctx.params;
 
   const parsed = await safeJson<{ name?: string; clubId?: string }>(req);

@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Params = { playerId: string };
 
@@ -42,12 +42,11 @@ export async function GET(
   try {
     const { playerId } = await ctx.params;
 
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     // First find stops where the player is an event manager
     const managedStops = await prisma.stop.findMany({
       where: { 
-        // @ts-ignore - eventManagerId field exists but TypeScript doesn't recognize it
         eventManagerId: playerId 
       },
       select: { tournamentId: true },
@@ -68,7 +67,6 @@ export async function GET(
         },
         stops: {
           where: { 
-            // @ts-ignore - eventManagerId field exists but TypeScript doesn't recognize it
             eventManagerId: playerId 
           }, // Only get stops managed by this player
           orderBy: { startAt: 'asc' },
@@ -78,9 +76,7 @@ export async function GET(
               orderBy: { idx: 'asc' },
               include: {
                 matches: {
-                  include: {
-                    games: { select: { id: true } },
-                  },
+                  select: { id: true },
                 },
               },
             },
@@ -99,9 +95,8 @@ export async function GET(
         startAt: toYMD(s.startAt),
         endAt: toYMD(s.endAt),
         rounds: (s.rounds ?? []).map((r: any) => {
-          const matchCount = r.matches.length;  // r.matches are team vs team matchups
-          const gameCount = r.matches.reduce((acc: number, m: any) => acc + m.games.length, 0);  // m.games are individual game slots
-          return { roundId: r.id, idx: r.idx, gameCount, matchCount };
+          const matchCount = r.matches?.length || 0;
+          return { roundId: r.id, idx: r.idx, gameCount: 0, matchCount };
         }),
       }));
 

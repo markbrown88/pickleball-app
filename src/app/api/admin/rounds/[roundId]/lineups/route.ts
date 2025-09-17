@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Params = { roundId: string };
 
@@ -27,7 +27,7 @@ function computeAge(y?: number | null, m?: number | null, d?: number | null): nu
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const { roundId } = await ctx.params;
 
@@ -224,7 +224,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const { roundId } = await ctx.params;
     const { action } = await req.json();

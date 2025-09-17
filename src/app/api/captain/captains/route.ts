@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type CaptainOut = {
   id: string;
@@ -34,26 +34,10 @@ function addCaptain(acc: Map<string, CaptainOut>, p: any, t?: any) {
   acc.set(p.id, existing);
 }
 
-function resolvePrisma(): PrismaClient {
-  // 1) Preferred: project helper
-  try {
-    const p = typeof getPrisma === 'function' ? (getPrisma() as unknown as PrismaClient | undefined) : undefined;
-    if (p) return p;
-  } catch {/* ignore */}
-  // 2) Optional singleton (if your project exports it)
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const maybe = require('@/server/db')?.prisma as PrismaClient | undefined;
-    if (maybe) return maybe;
-  } catch {/* ignore */}
-  // 3) Safe process-wide singleton
-  const g = globalThis as any;
-  if (!g.__PRISMA_SINGLETON__) g.__PRISMA_SINGLETON__ = new PrismaClient();
-  return g.__PRISMA_SINGLETON__ as PrismaClient;
-}
+// Use singleton prisma instance
 
 export async function GET(req: Request) {
-  const prisma = resolvePrisma();
+  const prisma = prisma;
 
   const url = new URL(req.url);
   const debug = url.searchParams.get('debug') === '1';

@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { Division } from '@prisma/client';
 
 type Params = { tournamentId: string };
@@ -21,7 +21,7 @@ export async function GET(_req: Request, ctx: { params: Params } | { params: Pro
     const raw: any = (ctx as any).params;
     const { tournamentId } = typeof raw?.then === 'function' ? await raw : raw;
 
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     const t = await prisma.tournament.findUnique({
       where: { id: tournamentId },

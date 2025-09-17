@@ -2,11 +2,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
     const playerId = searchParams.get('playerId');
     if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 });
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const body = (await req.json()) as { playerId?: string; name?: string; gender?: 'MALE'|'FEMALE' };
     if (!body?.playerId || !body?.name || !body?.gender) {
       return NextResponse.json({ error: 'playerId, name, gender required' }, { status: 400 });

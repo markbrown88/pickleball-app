@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { Division, TournamentType } from '@prisma/client';
 
 function divLabel(d: Division) {
@@ -31,7 +31,7 @@ export async function DELETE(
   _req: NextRequest,
   ctx: { params: Promise<{ tournamentId: string }> }
 ) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { tournamentId } = await ctx.params;
 
   const exists = await prisma.tournament.findUnique({
@@ -63,7 +63,7 @@ export async function PUT(
   req: NextRequest,
   ctx: { params: Promise<{ tournamentId: string }> }
 ) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { tournamentId } = await ctx.params;
 
   const body = await req.json().catch(() => ({}));

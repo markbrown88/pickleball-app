@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
 
@@ -33,7 +33,7 @@ const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
  */
 export async function GET(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
 
     const rawTerm = searchParams.get('term') || '';

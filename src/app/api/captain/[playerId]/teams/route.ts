@@ -3,9 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import type { PrismaClient } from '@prisma/client';
-import { PrismaClient as PrismaClientCtor } from '@prisma/client';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Id = string;
 
@@ -38,47 +36,7 @@ function hasTournament<T extends { tournament: unknown | null }>(
   return tm.tournament != null;
 }
 
-/** Resolve a Prisma client and explain exactly how. */
-function resolvePrismaWithDiag() {
-  const diag: any = { tried: {} as Record<string, any>, pathUsed: null as string | null };
-  let client: PrismaClient | undefined;
-
-  // Preferred helper
-  try {
-    const p = typeof getPrisma === 'function' ? (getPrisma() as unknown as PrismaClient | undefined) : undefined;
-    diag.tried.getPrisma = !!p;
-    if (p) { client = p; diag.pathUsed = 'getPrisma()'; }
-  } catch (e: any) {
-    diag.tried.getPrisma = `threw: ${e?.message ?? String(e)}`;
-  }
-
-  // Optional singleton at @/server/db
-  if (!client) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const maybe = require('@/server/db')?.prisma as PrismaClient | undefined;
-      diag.tried['@/server/db'] = !!maybe;
-      if (maybe) { client = maybe; diag.pathUsed = '@/server/db'; }
-    } catch (e: any) {
-      diag.tried['@/server/db'] = `threw: ${e?.message ?? String(e)}`;
-    }
-  }
-
-  // Fallback singleton
-  if (!client) {
-    try {
-      const g = globalThis as any;
-      if (!g.__PRISMA_SINGLETON__) g.__PRISMA_SINGLETON__ = new PrismaClientCtor();
-      client = g.__PRISMA_SINGLETON__ as PrismaClient;
-      diag.tried['new PrismaClient()'] = true;
-      diag.pathUsed = 'new PrismaClient() singleton';
-    } catch (e: any) {
-      diag.tried['new PrismaClient()'] = `threw: ${e?.message ?? String(e)}`;
-    }
-  }
-
-  return { client, diag };
-}
+// Use singleton prisma instance
 
 /* ---------------- ensure helpers ---------------- */
 
@@ -235,9 +193,9 @@ async function ensureTeamsForClubAcrossBrackets(
           stops: { include: { club: true } },
         },
       },
-      playerLinks: { include: { player: true }, orderBy: { createdAt: 'asc' } },
+      playerLinks: { include: { player: true } },
     },
-    orderBy: [{ bracket: { idx: 'asc' } }, { name: 'asc' }],
+    orderBy: { name: 'asc' },
   });
 
   // Ensure stop links for each team — only when tournament is present
@@ -259,7 +217,7 @@ export async function GET(
   const url = new URL(req.url);
   const wantDebug = url.searchParams.get('debug') === '1';
 
-  const { client: prisma, diag } = resolvePrismaWithDiag();
+  const { client: prisma, diag } = prisma;
   if (!prisma) {
     return NextResponse.json(
       { error: 'Prisma client could not be created', detail: diag },
@@ -326,7 +284,7 @@ export async function GET(
     const stopTeamPlayers = await prisma.stopTeamPlayer.findMany({
       where: { teamId: { in: teamsWithTournament.map((t: any) => t.id) } },
       include: { player: true, stop: true },
-      orderBy: [{ stopId: 'asc' }, { createdAt: 'asc' }],
+      orderBy: { stopId: 'asc' },
     });
     const stopRosterMap = new Map<string, any[]>();
     for (const stp of stopTeamPlayers) {
@@ -342,12 +300,6 @@ export async function GET(
 
       // Build stops with rosters
       const stops = (tournament.stops ?? [])
-        .slice()
-        .sort((a: any, b: any) => {
-          const aStart = a.startAt ? +a.startAt : Number.MAX_SAFE_INTEGER;
-          const bStart = b.startAt ? +b.startAt : Number.MAX_SAFE_INTEGER;
-          return aStart - bStart;
-        })
         .map((s: any) => {
           const key = `${t.id}:${s.id}`;
           const stopRoster = (stopRosterMap.get(key) ?? []).map(toPlayerLite);

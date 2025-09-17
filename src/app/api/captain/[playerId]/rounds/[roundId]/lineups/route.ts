@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 
 type Params = { playerId: string; roundId: string };
@@ -46,7 +46,7 @@ function label(p: PlayerLite) {
    }
 */
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { playerId, roundId } = await ctx.params;
 
   try {
@@ -246,7 +246,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
    - No duplicate player across slots in the same lineup.
 */
 export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { playerId, roundId } = await ctx.params;
 
   try {

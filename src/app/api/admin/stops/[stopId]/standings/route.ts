@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
@@ -53,7 +53,7 @@ type TeamRow = {
 export async function GET(req: NextRequest, ctx: Ctx) {
   try {
     const { stopId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
     const bracketFilter = normalizeBracketId(searchParams.get('bracketId'));
 

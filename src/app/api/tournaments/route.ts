@@ -4,10 +4,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const tournaments = await prisma.tournament.findMany({
       orderBy: { createdAt: 'desc' },
@@ -22,7 +22,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const body = (await req.json()) as { name?: string };
     const name = (body?.name ?? '').toString().trim();
     if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 });

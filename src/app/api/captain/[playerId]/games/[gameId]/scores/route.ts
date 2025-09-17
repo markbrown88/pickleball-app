@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 
 type Params = { playerId: string; gameId: string };
@@ -82,7 +82,7 @@ async function canEditScores(prisma: ReturnType<typeof getPrisma>, playerId: str
 // --------------- GET ---------------
 // Returns the per-slot scores for a game.
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { playerId, gameId } = await ctx.params;
 
   try {
@@ -119,7 +119,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 // --------------- PUT ---------------
 // Body: { scores: Array<{ slot: GameSlot, teamAScore: number|null, teamBScore: number|null }> }
 export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { playerId, gameId } = await ctx.params;
 
   try {

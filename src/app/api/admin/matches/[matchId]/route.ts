@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Params = { matchId: string };
 type Ctx = { params: Promise<Params> };
@@ -23,7 +23,7 @@ function isValidScore(v: unknown) {
 }
 
 async function updateMatchScores(matchId: string, body: PutBody) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   if (!isValidScore(body.teamAScore) || !isValidScore(body.teamBScore)) {
     return bad('Scores must be non-negative integers or null');
@@ -113,7 +113,7 @@ async function updateMatchScores(matchId: string, body: PutBody) {
 // ---------- GET /api/admin/matches/:matchId ----------
 export async function GET(_req: Request, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   try {
     const match = await prisma.match.findUnique({

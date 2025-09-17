@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Ctx = { params: Promise<{ teamId: string; playerId: string }> };
 
@@ -40,7 +40,7 @@ async function assertEligibleForTournament(
 
 /* POST → add player to THIS stop (and create TeamPlayer claim) */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId, playerId } = await ctx.params;
 
   // stopId via query or body
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
 /* DELETE → remove player from THIS stop, and release tournament claim if no other stops remain */
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId, playerId } = await ctx.params;
 
   const url = new URL(req.url);

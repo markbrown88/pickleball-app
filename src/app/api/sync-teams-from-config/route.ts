@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // Heuristic: map a free-form level name to a legacy Division (only used to avoid the unique constraint)
 function inferDivision(levelName?: string | null): 'INTERMEDIATE' | 'ADVANCED' | null {
@@ -14,7 +14,7 @@ function inferDivision(levelName?: string | null): 'INTERMEDIATE' | 'ADVANCED' |
 }
 
 export async function GET() {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   try {
     const tournaments = await prisma.tournament.findMany({

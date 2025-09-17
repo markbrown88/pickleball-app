@@ -8,12 +8,24 @@ export async function GET(
   try {
     const { matchId } = await params;
 
+    // Simple match check - we don't need team data for basic games
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: { id: true }
+    });
+
+    if (!match) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
     // Get all games for this match
     const games = await prisma.game.findMany({
       where: { matchId },
       orderBy: { slot: 'asc' }
     });
 
+    // Return games without complex lineup generation
+    // The frontend will handle displaying team names for tiebreakers
     return NextResponse.json(games);
   } catch (error) {
     console.error('Error fetching games:', error);

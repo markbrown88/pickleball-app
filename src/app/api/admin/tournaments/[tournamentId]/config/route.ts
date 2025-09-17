@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { TournamentType } from '@prisma/client';
 
 type CtxPromise = { params: Promise<{ tournamentId: string }> };
@@ -66,7 +66,7 @@ function playerLabel(p?: { firstName?: string | null; lastName?: string | null; 
 
 // ---------- GET ----------
 export async function GET(_req: Request, ctx: CtxPromise) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { tournamentId } = await ctx.params;
 
   const t = await prisma.tournament.findUnique({
@@ -166,7 +166,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
 
 // ---------- PUT ----------
 export async function PUT(req: Request, ctx: CtxPromise) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { tournamentId } = await ctx.params;
 
   const body = (await req.json().catch(() => ({}))) as Payload;

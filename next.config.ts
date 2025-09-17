@@ -1,10 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // turn off the auto-generated typed route validator
-    typedRoutes: false,
-  },
+  // turn off the auto-generated typed route validator
+  typedRoutes: false,
   // Temporarily ignore TypeScript errors to get the page working
   typescript: {
     ignoreBuildErrors: true,

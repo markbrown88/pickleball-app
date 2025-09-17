@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 import { GameSlot as GameSlotEnum } from '@prisma/client';
 
@@ -68,7 +68,7 @@ function generateRoundRobin(teamIds: string[]) {
 }
 
 export async function POST(req: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { stopId } = await ctx.params;
 
   try {

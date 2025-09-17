@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 
 type Params = { matchId: string };
@@ -34,7 +34,7 @@ function isValidSlot(v: unknown): v is GameSlot {
 // ---------- GET /api/admin/matches/:matchId/lineup ----------
 export async function GET(_req: Request, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   try {
     const match = await prisma.match.findUnique({
@@ -79,7 +79,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 // ---------- PATCH /api/admin/matches/:matchId/lineup ----------
 export async function PATCH(req: Request, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   try {
     const body = (await req.json().catch(() => ({}))) as LineupData;

@@ -2,11 +2,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
     const teamId = searchParams.get('teamId');
     if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });

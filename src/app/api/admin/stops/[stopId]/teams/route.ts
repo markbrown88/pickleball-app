@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 /** GET /api/admin/stops/:stopId/teams */
 export async function GET(
@@ -12,7 +12,7 @@ export async function GET(
 ) {
   try {
     const { stopId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     const rows = await prisma.stopTeam.findMany({
       where: { stopId },
@@ -47,7 +47,7 @@ export async function POST(
 
     if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
 
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     const [stop, team] = await Promise.all([
       prisma.stop.findUnique({ where: { id: stopId }, select: { id: true, tournamentId: true } }),
@@ -85,7 +85,7 @@ export async function DELETE(
 
     if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
 
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     // Remove any per-stop roster links first (safer if FKs aren’t cascading)
     await prisma.stopTeamPlayer.deleteMany({ where: { stopId, teamId } });

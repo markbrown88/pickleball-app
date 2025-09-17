@@ -3,21 +3,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import type { PrismaClient } from '@prisma/client';
-import { PrismaClient as PrismaClientCtor } from '@prisma/client';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Id = string;
-
-function prismaOrSingleton(): PrismaClient {
-  try {
-    const p = getPrisma();
-    if (p) return p as unknown as PrismaClient;
-  } catch {}
-  const g = globalThis as any;
-  if (!g.__PRISMA_SINGLETON__) g.__PRISMA_SINGLETON__ = new PrismaClientCtor({ log: ['error', 'warn'] });
-  return g.__PRISMA_SINGLETON__ as PrismaClient;
-}
 
 function toPlayerLite(p: any) {
   return {
@@ -40,7 +28,7 @@ export async function GET(
   _req: Request,
   ctx: { params: { teamId: string } } | { params: Promise<{ teamId: string }> }
 ) {
-  const prisma = prismaOrSingleton();
+  const prisma = prisma;
   const raw: any = (ctx as any).params;
   const { teamId } = typeof raw?.then === 'function' ? await raw : raw;
 

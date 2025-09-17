@@ -238,8 +238,10 @@ export default function MePage() {
   
   // Games and match status state
   const [matchStatuses, setMatchStatuses] = useState<Record<string, 'not_started' | 'in_progress' | 'completed'>>({});
+  const [gameStatuses, setGameStatuses] = useState<Record<string, 'not_started' | 'in_progress' | 'completed'>>({});
   const [games, setGames] = useState<Record<string, any[]>>({});
   const [courtNumbers, setCourtNumbers] = useState<Record<string, string>>({});
+  const [creatingTiebreakers, setCreatingTiebreakers] = useState<Set<string>>(new Set());
   
   // Function to fetch team roster
   const fetchTeamRoster = async (teamId: string): Promise<PlayerLite[]> => {
@@ -309,6 +311,8 @@ export default function MePage() {
 
   // Function to load games for a match
   const loadGamesForMatch = async (matchId: string) => {
+    if (games[matchId]) return; // Already loaded
+    
     try {
       console.log('Loading games for match:', matchId);
       const response = await fetch(`/api/admin/matches/${matchId}/games`);
@@ -316,6 +320,37 @@ export default function MePage() {
         const gamesData = await response.json();
         console.log('Loaded games data:', gamesData);
         setGames(prev => ({ ...prev, [matchId]: gamesData }));
+        
+        // Check if both teams have complete lineups
+        const matchLineups = lineups[matchId];
+        const hasCompleteLineups = matchLineups && 
+          Object.keys(matchLineups).length >= 2 &&
+          Object.values(matchLineups).every(teamLineup => teamLineup.length === 4);
+        
+        // Initialize game statuses from database
+        const newGameStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'> = {};
+        gamesData.forEach((game: any) => {
+          // If lineups are not complete, force all games to not_started
+          if (!hasCompleteLineups) {
+            newGameStatuses[game.id] = 'not_started';
+            // Also reset the game in the database
+            fetch(`/api/admin/games/${game.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ isComplete: null })
+            }).catch(console.error);
+          } else {
+            // Map isComplete field to game status
+            if (game.isComplete === true) {
+              newGameStatuses[game.id] = 'completed';
+            } else if (game.isComplete === false) {
+              newGameStatuses[game.id] = 'in_progress';
+            } else {
+              newGameStatuses[game.id] = 'not_started';
+            }
+          }
+        });
+        setGameStatuses(prev => ({ ...prev, ...newGameStatuses }));
       } else {
         console.error('Failed to load games:', response.status);
       }
@@ -324,71 +359,159 @@ export default function MePage() {
     }
   };
 
-  // Function to update game score
-  const updateGameScore = async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
+  // Function to start a game
+  const startGame = async (gameId: string) => {
     try {
-      console.log('Updating game score:', { gameId, teamAScore, teamBScore });
+      // Find the match for this game
+      const matchId = Object.keys(games).find(id => 
+        games[id]?.some(game => game.id === gameId)
+      );
+      
+      if (!matchId) {
+        throw new Error('Match not found for game');
+      }
+      
+      // Validate that both teams have complete lineups
+      const matchLineups = lineups[matchId];
+      if (!matchLineups) {
+        throw new Error('No lineups found for this match');
+      }
+      
+      const teamAId = Object.keys(matchLineups)[0];
+      const teamBId = Object.keys(matchLineups)[1];
+      
+      if (!teamAId || !teamBId || 
+          !matchLineups[teamAId] || matchLineups[teamAId].length !== 4 ||
+          !matchLineups[teamBId] || matchLineups[teamBId].length !== 4) {
+        throw new Error('Both teams must have complete lineups before starting games');
+      }
+      
+      setGameStatuses(prev => ({ ...prev, [gameId]: 'in_progress' }));
+      
+      // Update in database - when starting, set isComplete to false
       const response = await fetch(`/api/admin/games/${gameId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamAScore, teamBScore })
+        body: JSON.stringify({ isComplete: false })
       });
-
-      if (response.ok) {
-        console.log('Game score updated successfully');
-        // Update local state
-        const updatedGame = await response.json();
-        setGames(prev => {
-          const newGames = { ...prev };
-          Object.keys(newGames).forEach(matchId => {
-            newGames[matchId] = newGames[matchId].map(game =>
-              game.id === gameId ? updatedGame : game
-            );
-          });
-          return newGames;
-        });
-      } else {
-        const errorData = await response.json();
-        console.error('Failed to update game score:', errorData);
+      
+      if (!response.ok) {
+        throw new Error('Failed to start game');
       }
     } catch (error) {
-      console.error('Error updating game score:', error);
+      onError(`Failed to start game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const updateGameCourtNumber = async (gameId: string, courtNumber: string) => {
+  // Function to end a game
+  const endGame = async (gameId: string) => {
     try {
-      console.log('Updating game court number:', { gameId, courtNumber });
+      setGameStatuses(prev => ({ ...prev, [gameId]: 'completed' }));
+      
+      // Update in database - when ending, set isComplete to true
       const response = await fetch(`/api/admin/games/${gameId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courtNumber })
+        body: JSON.stringify({ isComplete: true })
       });
-
-      if (response.ok) {
-        console.log('Game court number updated successfully');
-        // Update local state
-        setGames(prev => {
-          const newGames = { ...prev };
-          Object.keys(newGames).forEach(matchId => {
-            newGames[matchId] = newGames[matchId].map(game =>
-              game.id === gameId ? { ...game, courtNumber } : game
-            );
-          });
-          return newGames;
-        });
-      } else {
-        const errorData = await response.json();
-        console.error('Failed to update game court number:', errorData);
+      
+      if (!response.ok) {
+        throw new Error('Failed to end game');
       }
     } catch (error) {
-      console.error('Error updating game court number:', error);
+      onError(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  // Debounced score update function
+  const debouncedScoreUpdate = useRef<Record<string, NodeJS.Timeout>>({});
+  
+  const updateGameScore = async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
+    // Clear existing timeout for this game
+    if (debouncedScoreUpdate.current[gameId]) {
+      clearTimeout(debouncedScoreUpdate.current[gameId]);
+    }
+    
+    // Update local state immediately for responsive UI
+    setGames(prev => {
+      const newGames = { ...prev };
+      Object.keys(newGames).forEach(matchId => {
+        newGames[matchId] = newGames[matchId].map(game =>
+          game.id === gameId ? { ...game, teamAScore, teamBScore } : game
+        );
+      });
+      return newGames;
+    });
+    
+    // Debounce the API call
+    debouncedScoreUpdate.current[gameId] = setTimeout(async () => {
+      try {
+        console.log('Updating game score:', { gameId, teamAScore, teamBScore });
+        const response = await fetch(`/api/admin/games/${gameId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamAScore, teamBScore })
+        });
+
+        if (response.ok) {
+          console.log('Game score updated successfully');
+        } else {
+          const errorData = await response.json();
+          console.error('Failed to update game score:', errorData);
+        }
+      } catch (error) {
+        console.error('Error updating game score:', error);
+      }
+    }, 500); // 500ms debounce
+  };
+
+  // Debounced court number update function
+  const debouncedCourtUpdate = useRef<Record<string, NodeJS.Timeout>>({});
+  
+  const updateGameCourtNumber = async (gameId: string, courtNumber: string) => {
+    // Clear existing timeout for this game
+    if (debouncedCourtUpdate.current[gameId]) {
+      clearTimeout(debouncedCourtUpdate.current[gameId]);
+    }
+    
+    // Update local state immediately for responsive UI
+    setGames(prev => {
+      const newGames = { ...prev };
+      Object.keys(newGames).forEach(matchId => {
+        newGames[matchId] = newGames[matchId].map(game =>
+          game.id === gameId ? { ...game, courtNumber } : game
+        );
+      });
+      return newGames;
+    });
+    
+    // Debounce the API call
+    debouncedCourtUpdate.current[gameId] = setTimeout(async () => {
+      try {
+        console.log('Updating game court number:', { gameId, courtNumber });
+        const response = await fetch(`/api/admin/games/${gameId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courtNumber })
+        });
+
+        if (response.ok) {
+          console.log('Game court number updated successfully');
+        } else {
+          const errorData = await response.json();
+          console.error('Failed to update game court number:', errorData);
+        }
+      } catch (error) {
+        console.error('Error updating game court number:', error);
+      }
+    }, 500); // 500ms debounce
   };
 
   const completeGame = async (gameId: string) => {
     try {
       console.log('Completing game:', { gameId });
+      setGameStatuses(prev => ({ ...prev, [gameId]: 'completed' }));
+      
       const response = await fetch(`/api/admin/games/${gameId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -413,6 +536,36 @@ export default function MePage() {
       }
     } catch (error) {
       console.error('Error completing game:', error);
+    }
+  };
+
+  // Function to create tiebreaker
+  const createTiebreaker = async (matchId: string) => {
+    if (creatingTiebreakers.has(matchId)) return;
+    
+    try {
+      setCreatingTiebreakers(prev => new Set([...prev, matchId]));
+      
+      const response = await fetch(`/api/admin/matches/${matchId}/games`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ createTiebreaker: true })
+      });
+      
+      if (response.ok) {
+        // Reload games for this match
+        await loadGamesForMatch(matchId);
+      } else {
+        throw new Error('Failed to create tiebreaker');
+      }
+    } catch (error) {
+      onError(`Failed to create tiebreaker: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setCreatingTiebreakers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(matchId);
+        return newSet;
+      });
     }
   };
 
@@ -1160,20 +1313,27 @@ export default function MePage() {
             setLineups={setLineups}
             teamRosters={teamRosters}
             fetchTeamRoster={fetchTeamRoster}
-            isDragging={isDragging}
+            isDragging={isDragging || false}
             setIsDragging={setIsDragging}
             matchStatuses={matchStatuses}
             setMatchStatuses={setMatchStatuses}
+            gameStatuses={gameStatuses}
+            setGameStatuses={setGameStatuses}
             games={games}
             setGames={setGames}
             courtNumbers={courtNumbers}
             setCourtNumbers={setCourtNumbers}
+            creatingTiebreakers={creatingTiebreakers}
+            setCreatingTiebreakers={setCreatingTiebreakers}
             startMatch={startMatch}
+            startGame={startGame}
+            endGame={endGame}
             completeMatch={completeMatch}
             loadGamesForMatch={loadGamesForMatch}
             updateGameScore={updateGameScore}
             updateGameCourtNumber={updateGameCourtNumber}
             completeGame={completeGame}
+            createTiebreaker={createTiebreaker}
             hasAnyMatchStarted={hasAnyMatchStarted}
           />
         )}
@@ -1547,6 +1707,232 @@ function BracketRosterEditor({
   );
 }
 
+/* ================= Game Score Box Component ================= */
+
+function GameScoreBox({
+  game,
+  match,
+  gameStatuses,
+  lineups,
+  startGame,
+  endGame,
+  updateGameScore,
+  updateGameCourtNumber,
+}: {
+  game: any;
+  match: any;
+  gameStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'>;
+  lineups: Record<string, Record<string, any[]>>;
+  startGame: (gameId: string) => Promise<void>;
+  endGame: (gameId: string) => Promise<void>;
+  updateGameScore: (gameId: string, teamAScore: number | null, teamBScore: number | null) => Promise<void>;
+  updateGameCourtNumber: (gameId: string, courtNumber: string) => Promise<void>;
+}) {
+  const gameStatus = gameStatuses[game.id] || 'not_started';
+  const isCompleted = gameStatus === 'completed';
+  const isInProgress = gameStatus === 'in_progress';
+  
+  const getGameTitle = () => {
+    switch (game.slot) {
+      case 'MENS_DOUBLES': return "Men's Doubles";
+      case 'WOMENS_DOUBLES': return "Women's Doubles";
+      case 'MIXED_1': return "Mixed Doubles 1";
+      case 'MIXED_2': return "Mixed Doubles 2";
+      case 'TIEBREAKER': return "Tiebreaker";
+      default: return game.slot;
+    }
+  };
+
+  const getTeamALineup = () => {
+    if (game.teamALineup && Array.isArray(game.teamALineup)) {
+      return game.teamALineup.map((player: any) => player.name).join(' & ');
+    }
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamA?.name || 'Team A';
+    }
+    // Generate lineup from team roster based on game slot and lineup positions
+    if (match && match.teamA && lineups[match.id]) {
+      const teamALineup = lineups[match.id][match.teamA.id] || [];
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = teamALineup[0];
+      const man2 = teamALineup[1];
+      const woman1 = teamALineup[2];
+      const woman2 = teamALineup[3];
+      
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+        default:
+          return 'Team A';
+      }
+    }
+    return 'Team A';
+  };
+
+  const getTeamBLineup = () => {
+    if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
+      return game.teamBLineup.map((player: any) => player.name).join(' & ');
+    }
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamB?.name || 'Team B';
+    }
+    // Generate lineup from team roster based on game slot and lineup positions
+    if (match && match.teamB && lineups[match.id]) {
+      const teamBLineup = lineups[match.id][match.teamB.id] || [];
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = teamBLineup[0];
+      const man2 = teamBLineup[1];
+      const woman1 = teamBLineup[2];
+      const woman2 = teamBLineup[3];
+      
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team B';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team B';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
+        default:
+          return 'Team B';
+      }
+    }
+    return 'Team B';
+  };
+
+  const teamAScore = game.teamAScore || 0;
+  const teamBScore = game.teamBScore || 0;
+  const teamAWon = teamAScore > teamBScore;
+  const teamBWon = teamBScore > teamAScore;
+
+  return (
+    <div className="p-1.5 bg-white border rounded space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-bold text-gray-700">
+          {getGameTitle()}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {!isCompleted && (
+            <>
+              <label className="text-xs font-medium text-gray-600">Court #:</label>
+              <input
+                type="text"
+                className="w-10 px-1 py-0.5 text-xs border rounded text-center"
+                value={game.courtNumber || ''}
+                onChange={(e) => updateGameCourtNumber(game.id, e.target.value)}
+                placeholder="1"
+                disabled={isCompleted}
+              />
+            </>
+          )}
+          {gameStatus !== 'completed' && (
+            <button
+              className={`px-2 py-1 text-xs rounded text-white ${
+                gameStatus === 'not_started' 
+                  ? 'bg-green-600 hover:bg-green-700' 
+                  : 'bg-red-600 hover:bg-red-700'
+              } disabled:opacity-50`}
+              onClick={() => {
+                if (gameStatus === 'not_started') {
+                  startGame(game.id);
+                } else if (gameStatus === 'in_progress') {
+                  endGame(game.id);
+                }
+              }}
+            >
+              {gameStatus === 'not_started' ? 'Start Game' : 'End Game'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isInProgress && (
+        <div className="text-xs text-yellow-600 font-medium text-center">
+          Game in Progress
+        </div>
+      )}
+
+      <div className="flex items-center justify-between text-xs">
+        {/* Team A */}
+        <div className={`font-medium text-gray-700 whitespace-pre-line ${
+          isCompleted && teamAWon ? 'font-bold text-green-800' : ''
+        }`}>
+          {getTeamALineup()}
+        </div>
+        
+        {/* Score A */}
+        {isCompleted ? (
+          <div className={`w-8 text-center ${
+            teamAWon ? 'text-green-800 font-bold' : 'text-gray-700'
+          }`}>
+            {teamAScore}
+          </div>
+        ) : (
+          <input
+            type="number"
+            min="0"
+            max="99"
+            className="w-8 px-1 py-0.5 text-xs border rounded text-center"
+            value={teamAScore || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                updateGameScore(game.id, value ? parseInt(value) : null, teamBScore);
+              }
+            }}
+            placeholder="0"
+            disabled={isCompleted}
+          />
+        )}
+        
+        {/* VS */}
+        <div className="text-gray-400 font-medium">vs</div>
+        
+        {/* Score B */}
+        {isCompleted ? (
+          <div className={`w-8 text-center ${
+            teamBWon ? 'text-green-800 font-bold' : 'text-gray-700'
+          }`}>
+            {teamBScore}
+          </div>
+        ) : (
+          <input
+            type="number"
+            min="0"
+            max="99"
+            className="w-8 px-1 py-0.5 text-xs border rounded text-center"
+            value={teamBScore || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                updateGameScore(game.id, teamAScore, value ? parseInt(value) : null);
+              }
+            }}
+            placeholder="0"
+            disabled={isCompleted}
+          />
+        )}
+        
+        {/* Team B */}
+        <div className={`font-medium text-gray-700 whitespace-pre-line ${
+          isCompleted && teamBWon ? 'font-bold text-green-800' : ''
+        }`}>
+          {getTeamBLineup()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ================= Event Manager Tab Component ================= */
 
 function EventManagerTab({
@@ -1565,16 +1951,23 @@ function EventManagerTab({
   setIsDragging,
   matchStatuses,
   setMatchStatuses,
+  gameStatuses,
+  setGameStatuses,
   games,
   setGames,
   courtNumbers,
   setCourtNumbers,
+  creatingTiebreakers,
+  setCreatingTiebreakers,
   startMatch,
+  startGame,
+  endGame,
   completeMatch,
   loadGamesForMatch,
   updateGameScore,
   updateGameCourtNumber,
   completeGame,
+  createTiebreaker,
   hasAnyMatchStarted,
 }: {
   tournaments: EventManagerTournament[];
@@ -1592,16 +1985,23 @@ function EventManagerTab({
   setIsDragging: (value: boolean) => void;
   matchStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'>;
   setMatchStatuses: (value: Record<string, 'not_started' | 'in_progress' | 'completed'> | ((prev: Record<string, 'not_started' | 'in_progress' | 'completed'>) => Record<string, 'not_started' | 'in_progress' | 'completed'>)) => void;
+  gameStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'>;
+  setGameStatuses: (value: Record<string, 'not_started' | 'in_progress' | 'completed'> | ((prev: Record<string, 'not_started' | 'in_progress' | 'completed'>) => Record<string, 'not_started' | 'in_progress' | 'completed'>)) => void;
   games: Record<string, any[]>;
   setGames: (value: Record<string, any[]> | ((prev: Record<string, any[]>) => Record<string, any[]>)) => void;
   courtNumbers: Record<string, string>;
   setCourtNumbers: (value: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
+  creatingTiebreakers: Set<string>;
+  setCreatingTiebreakers: (value: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   startMatch: (matchId: string) => Promise<void>;
+  startGame: (gameId: string) => Promise<void>;
+  endGame: (gameId: string) => Promise<void>;
   completeMatch: (matchId: string) => Promise<void>;
   loadGamesForMatch: (matchId: string) => Promise<void>;
   updateGameScore: (gameId: string, teamAScore: number | null, teamBScore: number | null) => Promise<void>;
   updateGameCourtNumber: (gameId: string, courtNumber: string) => Promise<void>;
   completeGame: (gameId: string) => Promise<void>;
+  createTiebreaker: (matchId: string) => Promise<void>;
   hasAnyMatchStarted: (round: any) => boolean;
 }) {
   const [expandedTournaments, setExpandedTournaments] = useState<Set<string>>(new Set());
@@ -2213,7 +2613,7 @@ function EventManagerTab({
                                                     (dragPreview && (
                                                       dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||                                                                                          
                                                       dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`
-                                                    ))
+                                                    )) || false
                                                   }
                                                   dragPreview={dragPreview}
                                               />
@@ -2232,7 +2632,7 @@ function EventManagerTab({
                                                     (dragPreview && (
                                                       dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-B` ||
                                                       dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-B`
-                                                    ))
+                                                    )) || false
                                                   }
                                                   dragPreview={dragPreview}
                                               />
@@ -2251,53 +2651,28 @@ function EventManagerTab({
                                           )}
                                           
                                           <div className="flex items-center gap-2">
-                                              {matchStatuses[match.id] !== 'in_progress' && matchStatuses[match.id] !== 'completed' && (
-                                                <button
-                                                  className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                                                  onClick={() => {
-                                                    console.log('Edit Lineups clicked for match:', match.id);
-                                                    setEditingMatch(editingMatch === match.id ? null : match.id);
-                                                  }}
-                                                >
-                                                  {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
-                                                </button>
-                                              )}
-                                              {/* Start Match button - show when both teams have confirmed lineups */}
-                                              {lineups[match.id] && 
-                                               lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
-                                               lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
-                                                <button
-                                                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-75 disabled:cursor-not-allowed"
-                                                  onClick={() => {
-                                                    const currentStatus = matchStatuses[match.id] || 'not_started';
-                                                    if (currentStatus === 'not_started') {
-                                                      startMatch(match.id);
-                                                    } else if (currentStatus === 'in_progress') {
-                                                      completeMatch(match.id);
-                                                    }
-                                                  }}
-                                                  disabled={(() => {
-                                                    const allGames = games[match.id] || [];
-                                                    const completedGames = allGames.filter(g => g.isComplete);
-                                                    const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
-                                                    return completedGames.length === totalGames && totalGames > 0;
-                                                  })()}
-                                                >
-                                                  {(() => {
-                                                    const allGames = games[match.id] || [];
-                                                    const completedGames = allGames.filter(g => g.isComplete);
-                                                    const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
-                                                    
-                                                    if (completedGames.length === totalGames && totalGames > 0) {
-                                                      return 'Match Complete';
-                                                    } else if (matchStatuses[match.id] === 'in_progress') {
-                                                      return 'Match in Progress';
-                                                    } else {
-                                                      return 'Start Match';
-                                                    }
-                                                  })()}
-                                                </button>
-                                              )}
+                                              {(() => {
+                                                // Hide Edit Lineup button if any game has started
+                                                const hasAnyGameStarted = games[match.id]?.some(game => 
+                                                  gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed'
+                                                ) || false;
+                                                
+                                                if (hasAnyGameStarted || matchStatuses[match.id] === 'in_progress' || matchStatuses[match.id] === 'completed') {
+                                                  return null;
+                                                }
+                                                
+                                                return (
+                                                  <button
+                                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                                    onClick={() => {
+                                                      console.log('Edit Lineups clicked for match:', match.id);
+                                                      setEditingMatch(editingMatch === match.id ? null : match.id);
+                                                    }}
+                                                  >
+                                                    {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
+                                                  </button>
+                                                );
+                                              })()}
                                             </div>
                                           </div>
                                                   );
@@ -2313,7 +2688,17 @@ function EventManagerTab({
                                                 return (
                                                   <div key={match.id} className="p-2 bg-gray-50 rounded text-sm">
                                                     {/* Confirmed Lineup Display with buttons */}
-                                                    {!editingMatch && (
+                                                    {!editingMatch && (() => {
+                                                      // Hide lineup area if any game has started
+                                                      const hasAnyGameStarted = games[match.id]?.some(game => 
+                                                        gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed'
+                                                      ) || false;
+                                                      
+                                                      if (hasAnyGameStarted) {
+                                                        return null;
+                                                      }
+                                                      
+                                                      return (
                                                       <div className="flex items-start gap-3">
                                                         {/* Team A Lineup Box */}
                                                         <div className="flex-1 p-2 bg-green-50 border border-green-200 rounded text-sm">
@@ -2363,192 +2748,53 @@ function EventManagerTab({
                                                               {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
                                                             </button>
                                                           )}
-                                                          {/* Start Match button - show when both teams have confirmed lineups */}
-                                                          {lineups[match.id] && 
-                                                           lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
-                                                           lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
-                                                            <button
-                                                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-75 disabled:cursor-not-allowed"
-                                                              onClick={() => {
-                                                                const currentStatus = matchStatuses[match.id] || 'not_started';
-                                                                if (currentStatus === 'not_started') {
-                                                                  startMatch(match.id);
-                                                                } else if (currentStatus === 'in_progress') {
-                                                                  completeMatch(match.id);
-                                                                }
-                                                              }}
-                                                              disabled={(() => {
-                                                                const allGames = games[match.id] || [];
-                                                                const completedGames = allGames.filter(g => g.isComplete);
-                                                                const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
-                                                                return completedGames.length === totalGames && totalGames > 0;
-                                                              })()}
-                                                            >
-                                                              {(() => {
-                                                                const allGames = games[match.id] || [];
-                                                                const completedGames = allGames.filter(g => g.isComplete);
-                                                                const totalGames = allGames.filter(g => g.slot !== 'TIEBREAKER').length;
-                                                                
-                                                                if (completedGames.length === totalGames && totalGames > 0) {
-                                                                  return 'Match Complete';
-                                                                } else if (matchStatuses[match.id] === 'in_progress') {
-                                                                  return 'Match in Progress';
-                                                                } else {
-                                                                  return 'Start Match';
-                                                                }
-                                                              })()}
-                                                            </button>
-                                                          )}
                                                         </div>
                                                       </div>
-                                                    )}
+                                                      );
+                                                    })()}
                                                     
                                                     {/* Games Display - only show when both teams have confirmed lineups */}
                                                     {lineups[match.id] && 
                                                      lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
                                                      lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
                                                       <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                                                        <h4 className="text-sm font-semibold text-blue-800 mb-3">Games & Scores</h4>
+                                                        <h4 className="text-sm font-semibold text-blue-800 mb-3">
+                                                          Scores - {match.teamA?.name || 'Team A'} vs {match.teamB?.name || 'Team B'}
+                                                        </h4>
                                                         <div className="space-y-4">
                                                           {/* Men's and Women's Doubles Row */}
                                                           <div className="grid grid-cols-2 gap-3">
                                                             {games[match.id]?.filter(game => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES').map((game) => (
-                                                              <div key={game.id} className="p-3 bg-white border rounded">
-                                                                <div className="flex items-center justify-between mb-2">
-                                                                  <div className="text-xs font-medium text-gray-700">
-                                                                    {game.slot === 'MENS_DOUBLES' && "Men's Doubles"}
-                                                                    {game.slot === 'WOMENS_DOUBLES' && "Women's Doubles"}
-                                                                  </div>
-                                                                  <div className="flex items-center gap-2">
-                                                                    <label className="text-xs font-medium text-gray-600">Court #:</label>
-                                                                    <input
-                                                                      type="text"
-                                                                      className="w-12 px-1 py-1 text-xs border rounded"
-                                                                      value={game.courtNumber || ''}
-                                                                      onChange={(e) => updateGameCourtNumber(game.id, e.target.value)}
-                                                                      placeholder="1"
-                                                                    />
-                                                                    <button
-                                                                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                                                                      onClick={() => completeGame(game.id)}
-                                                                      disabled={game.isComplete || !game.teamAScore || !game.teamBScore}
-                                                                    >
-                                                                      {game.isComplete ? 'Finished' : 'Game Finished'}
-                                                                    </button>
-                                                                  </div>
-                                                                </div>
-                                                                
-       {/* Team A vs Team B with Score Inputs - Custom Column Layout */}
-       <div className="grid gap-2 items-center" style={{gridTemplateColumns: '1fr auto auto auto 1fr'}}>
-         <div className="text-sm font-medium text-gray-700 text-right">
-           {lineups[match.id][match.teamA?.id || 'teamA']?.filter(p => p.gender === (game.slot === 'MENS_DOUBLES' ? 'MALE' : 'FEMALE')).slice(0, 2).map(p => p.name).join(' & ')}
-         </div>
-         <input
-           type="number"
-           min="0"
-           className="w-12 px-1 py-0.5 text-xs border rounded text-center"
-           value={game.teamAScore || ''}
-           onChange={(e) => updateGameScore(game.id, e.target.value ? parseInt(e.target.value) : null, game.teamBScore)}
-           placeholder="0"
-           disabled={game.isComplete}
-         />
-         <div className="text-xs text-gray-400 text-center">vs</div>
-         <input
-           type="number"
-           min="0"
-           className="w-12 px-1 py-0.5 text-xs border rounded text-center"
-           value={game.teamBScore || ''}
-           onChange={(e) => updateGameScore(game.id, game.teamAScore, e.target.value ? parseInt(e.target.value) : null)}
-           placeholder="0"
-           disabled={game.isComplete}
-         />
-         <div className="text-sm font-medium text-gray-700 text-left">
-           {lineups[match.id][match.teamB?.id || 'teamB']?.filter(p => p.gender === (game.slot === 'MENS_DOUBLES' ? 'MALE' : 'FEMALE')).slice(0, 2).map(p => p.name).join(' & ')}
-         </div>
-       </div>
-                                                              </div>
+                                                              <GameScoreBox
+                                                                key={game.id}
+                                                                game={game}
+                                                                match={match}
+                                                                gameStatuses={gameStatuses}
+                                                                lineups={lineups}
+                                                                startGame={startGame}
+                                                                endGame={endGame}
+                                                                updateGameScore={updateGameScore}
+                                                                updateGameCourtNumber={updateGameCourtNumber}
+                                                              />
                                                             ))}
                                                           </div>
 
                                                           {/* Mixed Doubles 1 & 2 Row */}
                                                           <div className="grid grid-cols-2 gap-3">
                                                             {games[match.id]?.filter(game => game.slot === 'MIXED_1' || game.slot === 'MIXED_2').map((game) => (
-                                                              <div key={game.id} className="p-3 bg-white border rounded">
-                                                                <div className="flex items-center justify-between mb-2">
-                                                                  <div className="text-xs font-medium text-gray-700">
-                                                                    {game.slot === 'MIXED_1' && "Mixed Doubles 1"}
-                                                                    {game.slot === 'MIXED_2' && "Mixed Doubles 2"}
-                                                                  </div>
-                                                                  <div className="flex items-center gap-2">
-                                                                    <label className="text-xs font-medium text-gray-600">Court #:</label>
-                                                                    <input
-                                                                      type="text"
-                                                                      className="w-12 px-1 py-1 text-xs border rounded"
-                                                                      value={game.courtNumber || ''}
-                                                                      onChange={(e) => updateGameCourtNumber(game.id, e.target.value)}
-                                                                      placeholder="1"
-                                                                    />
-                                            <button
-                                                                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                                                                      onClick={() => completeGame(game.id)}
-                                                                      disabled={game.isComplete || !game.teamAScore || !game.teamBScore}
-                                            >
-                                                                      {game.isComplete ? 'Finished' : 'Game Finished'}
-                                            </button>
-                                                                  </div>
-                                                                </div>
-                                                                
-                                                                {/* Team A vs Team B with Score Inputs - Custom Column Layout */}
-                                                                <div className="grid gap-2 items-center" style={{gridTemplateColumns: '1fr auto auto auto 1fr'}}>
-                                                                  <div className="text-sm font-medium text-gray-700 text-right">
-                                                                    {(() => {
-                                                                      const teamA = lineups[match.id][match.teamA?.id || 'teamA'] || [];
-                                                                      const males = teamA.filter(p => p.gender === 'MALE');
-                                                                      const females = teamA.filter(p => p.gender === 'FEMALE');
-                                                                      if (game.slot === 'MIXED_1') {
-                                                                        return `${males[0]?.name || ''} & ${females[0]?.name || ''}`;
-                                                                      } else if (game.slot === 'MIXED_2') {
-                                                                        return `${males[1]?.name || ''} & ${females[1]?.name || ''}`;
-                                                                      }
-                                                                      return '';
-                                                                    })()}
-                                                                  </div>
-                                                                  <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
-                                                                    value={game.teamAScore || ''}
-                                                                    onChange={(e) => updateGameScore(game.id, e.target.value ? parseInt(e.target.value) : null, game.teamBScore)}
-                                                                    placeholder="0"
-                                                                    disabled={game.isComplete}
-                                                                  />
-                                                                  <div className="text-xs text-gray-400 text-center">vs</div>
-                                                                  <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
-                                                                    value={game.teamBScore || ''}
-                                                                    onChange={(e) => updateGameScore(game.id, game.teamAScore, e.target.value ? parseInt(e.target.value) : null)}
-                                                                    placeholder="0"
-                                                                    disabled={game.isComplete}
-                                                                  />
-                                                                  <div className="text-sm font-medium text-gray-700 text-left">
-                                                                    {(() => {
-                                                                      const teamB = lineups[match.id][match.teamB?.id || 'teamB'] || [];
-                                                                      const males = teamB.filter(p => p.gender === 'MALE');
-                                                                      const females = teamB.filter(p => p.gender === 'FEMALE');
-                                                                      if (game.slot === 'MIXED_1') {
-                                                                        return `${males[0]?.name || ''} & ${females[0]?.name || ''}`;
-                                                                      } else if (game.slot === 'MIXED_2') {
-                                                                        return `${males[1]?.name || ''} & ${females[1]?.name || ''}`;
-                                                                      }
-                                                                      return '';
-                                                                    })()}
-                                                                  </div>
-                                                                </div>
-                                        </div>
-                                      ))}
-                                      </div>
+                                                              <GameScoreBox
+                                                                key={game.id}
+                                                                game={game}
+                                                                match={match}
+                                                                gameStatuses={gameStatuses}
+                                                                lineups={lineups}
+                                                                startGame={startGame}
+                                                                endGame={endGame}
+                                                                updateGameScore={updateGameScore}
+                                                                updateGameCourtNumber={updateGameCourtNumber}
+                                                              />
+                                                            ))}
+                                                          </div>
                                                           
                                                           {/* Tiebreaker Game - only show when all 4 games are complete and tied */}
                                                           {(() => {
@@ -2586,76 +2832,16 @@ function EventManagerTab({
                                                             }
                                                             
                                                             return needsTiebreaker && games[match.id]?.find(g => g.slot === 'TIEBREAKER') && (
-                                                              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                                                                <div className="flex items-center justify-between mb-2">
-                                                                  <div className="text-xs font-medium text-yellow-800">Tiebreaker</div>
-                                                                  <div className="flex items-center gap-2">
-                                                                    <label className="text-xs font-medium text-gray-600">Court #:</label>
-                                                                    <input
-                                                                      type="text"
-                                                                      className="w-16 px-2 py-1 text-xs border rounded"
-                                                                      value={games[match.id].find(g => g.slot === 'TIEBREAKER')?.courtNumber || ''}
-                                                                      onChange={(e) => {
-                                                                        const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
-                                                                        if (tiebreakerGame) {
-                                                                          updateGameCourtNumber(tiebreakerGame.id, e.target.value);
-                                                                        }
-                                                                      }}
-                                                                      placeholder="1"
-                                                                      disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete}
-                                                                    />
-                                      </div>
-                                                                </div>
-                                                                
-                                                                <div className="grid gap-2 items-center" style={{gridTemplateColumns: '1fr auto auto auto 1fr'}}>
-                                                                  <div className="text-sm font-medium text-gray-700 text-right">{match.teamA?.name || 'Team A'}</div>
-                                                                  <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
-                                                                    value={games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamAScore || ''}
-                                                                    onChange={(e) => {
-                                                                      const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
-                                                                      if (tiebreakerGame) {
-                                                                        updateGameScore(tiebreakerGame.id, e.target.value ? parseInt(e.target.value) : null, tiebreakerGame.teamBScore);
-                                                                      }
-                                                                    }}
-                                                                    placeholder="0"
-                                                                    disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete}
-                                                                  />
-                                                                  <div className="text-xs text-gray-400 text-center">vs</div>
-                                                                  <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    className="w-12 px-1 py-0.5 text-xs border rounded text-center"
-                                                                    value={games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamBScore || ''}
-                                                                    onChange={(e) => {
-                                                                      const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
-                                                                      if (tiebreakerGame) {
-                                                                        updateGameScore(tiebreakerGame.id, tiebreakerGame.teamAScore, e.target.value ? parseInt(e.target.value) : null);
-                                                                      }
-                                                                    }}
-                                                                    placeholder="0"
-                                                                    disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete}
-                                                                  />
-                                                                  <div className="text-sm font-medium text-gray-700 text-left">{match.teamB?.name || 'Team B'}</div>
-                                                                </div>
-                                                                
-                                                                <div className="mt-2 flex justify-end">
-                                                                  <button
-                                                                    className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                                                                    onClick={() => {
-                                                                      const tiebreakerGame = games[match.id].find(g => g.slot === 'TIEBREAKER');
-                                                                      if (tiebreakerGame) {
-                                                                        completeGame(tiebreakerGame.id);
-                                                                      }
-                                                                    }}
-                                                                    disabled={games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete || !games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamAScore || !games[match.id].find(g => g.slot === 'TIEBREAKER')?.teamBScore}
-                                                                  >
-                                                                    {games[match.id].find(g => g.slot === 'TIEBREAKER')?.isComplete ? 'Finished' : 'Game Finished'}
-                                                                  </button>
-                                                                </div>
-                                                              </div>
+                                                              <GameScoreBox
+                                                                game={games[match.id].find(g => g.slot === 'TIEBREAKER')}
+                                                                match={match}
+                                                                gameStatuses={gameStatuses}
+                                                                lineups={lineups}
+                                                                startGame={startGame}
+                                                                endGame={endGame}
+                                                                updateGameScore={updateGameScore}
+                                                                updateGameCourtNumber={updateGameCourtNumber}
+                                                              />
                                                             );
                                                           })()}
                                                         </div>
@@ -2718,7 +2904,7 @@ function EventManagerTab({
                                                               onInfo('Lineups saved successfully!');
                                                             } catch (error) {
                                                               console.error('Error saving lineups:', error);
-                                                              onError(`Failed to save lineups: ${error.message}`);
+                                                              onError(`Failed to save lineups: ${error instanceof Error ? error.message : 'Unknown error'}`);
                                                             }
                                                           }}
                                                           onCancel={() => setEditingMatch(null)}

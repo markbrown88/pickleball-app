@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 
 type Ctx = { params: Promise<{ stopId: string }> };
@@ -56,7 +56,7 @@ async function pruneAndCompact(db: DB, stopId: string, opts?: { prune?: boolean;
 export async function GET(req: Request, ctx: Ctx) {
   try {
     const { stopId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
     const bracketFilter = normalizeBracketId(searchParams.get('bracketId'));
 
@@ -82,6 +82,20 @@ export async function GET(req: Request, ctx: Ctx) {
                 name: true,
                 clubId: true,
                 bracket: { select: { id: true, name: true } },
+                playerLinks: {
+                  include: {
+                    player: {
+                      select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        name: true,
+                        gender: true,
+                        dupr: true
+                      }
+                    }
+                  }
+                }
               },
             },
             teamB: {
@@ -90,6 +104,20 @@ export async function GET(req: Request, ctx: Ctx) {
                 name: true,
                 clubId: true,
                 bracket: { select: { id: true, name: true } },
+                playerLinks: {
+                  include: {
+                    player: {
+                      select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        name: true,
+                        gender: true,
+                        dupr: true
+                      }
+                    }
+                  }
+                }
               },
             },
             games: {
@@ -152,7 +180,7 @@ export async function GET(req: Request, ctx: Ctx) {
 export async function DELETE(req: Request, ctx: Ctx) {
   try {
     const { stopId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
     const bracketFilter = normalizeBracketId(searchParams.get('bracketId'));
     const compact = searchParams.get('compact') !== '0'; // default true
@@ -227,7 +255,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { stopId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     const body = await req.json().catch(() => ({}));
     const pruneEmpty = !!body?.pruneEmpty;

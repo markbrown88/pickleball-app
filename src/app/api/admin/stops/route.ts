@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type CreateBody = {
   tournamentId: string;
@@ -24,7 +24,7 @@ function normalizeDateInput(d?: string | null): Date | null {
 /** GET /api/admin/stops?tournamentId=... */
 export async function GET(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const url = new URL(req.url);
     const tournamentId = url.searchParams.get('tournamentId') ?? undefined;
 
@@ -68,7 +68,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const body = (await req.json().catch(() => ({}))) as CreateBody;
 
     const tournamentId = String(body.tournamentId || '').trim();

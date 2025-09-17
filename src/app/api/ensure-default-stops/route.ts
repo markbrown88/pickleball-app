@@ -2,11 +2,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // GET so you can open it in the browser
 export async function GET() {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   try {
     const tournaments = await prisma.tournament.findMany({

@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 function computeAge(y?: number | null, m?: number | null, d?: number | null): number | null {
   if (!y || !m || !d) return null;
@@ -17,14 +17,28 @@ function computeAge(y?: number | null, m?: number | null, d?: number | null): nu
 
 export async function GET(_req: Request, { params }: { params: Promise<{ playerId: string }> }) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { playerId } = await params;
 
     // Basic profile + captain teams
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      include: {
-        club: true,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        gender: true,
+        clubId: true,
+        city: true,
+        region: true,
+        country: true,
+        phone: true,
+        email: true,
+        dupr: true,
+        birthdayYear: true,
+        birthdayMonth: true,
+        birthdayDay: true,
         teamsAsCaptain: { select: { id: true, name: true, tournamentId: true } },
       },
     });
@@ -37,8 +51,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playerI
         stop: {
           include: {
             tournament: { select: { id: true, name: true } },
-            // club? (location club). If you store location in Stop.clubId, include it:
-            // club: true,
           },
         },
         team: {
@@ -73,7 +85,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playerI
         lastName: player.lastName,
         name: player.name,
         gender: player.gender,
-        club: player.club,
+        club: null, // Temporarily removed club relation
         clubId: player.clubId,
         city: player.city,
         region: player.region,

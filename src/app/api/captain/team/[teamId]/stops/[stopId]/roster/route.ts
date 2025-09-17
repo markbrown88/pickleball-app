@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // Next 15: params is a Promise
 type Ctx = { params: Promise<{ teamId: string; stopId: string }> };
@@ -27,7 +27,7 @@ function coerceStringArray(v: unknown): string[] {
 
 // -------------------- GET --------------------
 export async function GET(_: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId, stopId } = await ctx.params;
 
   try {
@@ -94,7 +94,7 @@ export async function GET(_: Request, ctx: Ctx) {
 // Replace the roster for THIS (team, stop). We *do not* write TeamPlayer here;
 // DB triggers should upsert TeamPlayer on insert, and clean it up when the last StopTeamPlayer is removed.
 export async function PUT(req: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId, stopId } = await ctx.params;
 
   try {
@@ -248,7 +248,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 // Remove a single player from this stop’s roster (query ?playerId= or body { playerId }).
 // DB trigger will clean up TeamPlayer automatically if this was the last stop in the tournament.
 export async function DELETE(req: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { teamId, stopId } = await ctx.params;
 
   try {

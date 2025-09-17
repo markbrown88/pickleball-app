@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { Division, TournamentType } from '@prisma/client';
 
 function divLabel(d: Division) {
@@ -50,7 +50,7 @@ function normalizeDateInput(d?: string | null): Date | null {
  *  - dateRange from Stops (min startAt .. max (endAt || startAt))
  */
 export async function GET() {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   const tournaments = await prisma.tournament.findMany({
     orderBy: { createdAt: 'desc' },
@@ -125,7 +125,7 @@ export async function GET() {
  * }
  */
 export async function POST(req: Request) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const body = await req.json().catch(() => ({}));
 
   const name = String(body.name ?? '').trim();

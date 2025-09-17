@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Ctx = { params: Promise<{ roundId: string }> };
 
@@ -14,7 +14,7 @@ type PatchBody = {
 
 // ---------- GET /api/admin/rounds/:roundId ----------
 export async function GET(_req: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { roundId } = await ctx.params;
 
   try {
@@ -100,7 +100,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 
 // ---------- PATCH /api/admin/rounds/:roundId ----------
 export async function PATCH(req: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { roundId } = await ctx.params;
 
   try {
@@ -154,7 +154,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
 // ---------- DELETE /api/admin/rounds/:roundId ----------
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { roundId } = await ctx.params;
 
   try {

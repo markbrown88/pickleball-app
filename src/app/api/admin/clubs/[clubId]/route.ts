@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
 function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
@@ -19,7 +19,7 @@ export async function PUT(
   req: Request,
   ctx: { params: Promise<{ clubId: string }> }
 ) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { clubId } = await ctx.params;
 
   const body = await req.json().catch(() => ({}));
@@ -50,7 +50,7 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ clubId: string }> }
 ) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { clubId } = await ctx.params;
 
   try {

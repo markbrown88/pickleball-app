@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 import { GameSlot as GameSlotEnum } from '@prisma/client';
 
@@ -88,7 +88,7 @@ function summarize(matches: Array<{ teamAScore: number | null; teamBScore: numbe
 export async function GET(_req: NextRequest, ctx: Ctx) {
   try {
     const { gameId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
@@ -128,7 +128,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function PUT(req: NextRequest, ctx: Ctx) {
   try {
     const { gameId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },

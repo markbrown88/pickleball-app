@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Params = { stopId: string };
 
@@ -18,7 +18,7 @@ function ymd(d?: Date | null): string | null {
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   try {
     const { stopId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     // Stop header + context
     const stop = await prisma.stop.findUnique({

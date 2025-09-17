@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 
 type Pair = { slot: GameSlot; player1Id: string; player2Id: string };
@@ -18,7 +18,7 @@ function label(p: { firstName?: string | null; lastName?: string | null; name?: 
 
 /** GET ?roundId=...&teamId=...  -> lineup with entries (or empty if none). */
 export async function GET(req: Request) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const url = new URL(req.url);
     const roundId = url.searchParams.get('roundId') || '';
@@ -96,7 +96,7 @@ export async function GET(req: Request) {
 
 /** PUT -> replace-all entries for (roundId, teamId). Body: { roundId, teamId, pairs: [{slot, player1Id, player2Id}] } */
 export async function PUT(req: Request) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const body = (await req.json().catch(() => ({}))) as PutBody;
     const roundId = (body?.roundId ?? '').trim();

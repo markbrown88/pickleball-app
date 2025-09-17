@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 
 type Params = { gameId: string };
@@ -24,7 +24,7 @@ function isIntOrNull(v: unknown): v is number | null {
 
 /** GET -> list of matches (slots) for a game, sorted by slot. */
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const { gameId } = await ctx.params;
 
@@ -61,7 +61,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 
 /** PUT -> replace/merge scores for slots of a game. */
 export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const { gameId } = await ctx.params;
     const body = (await req.json().catch(() => ({}))) as PutBody;

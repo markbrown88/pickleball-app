@@ -2,11 +2,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const body = await req.json() as { teamId?: string; playerId?: string };
     const { teamId, playerId } = body;
     if (!teamId || !playerId) return NextResponse.json({ error: 'teamId & playerId required' }, { status: 400 });

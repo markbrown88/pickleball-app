@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 function computeAge(y?: number | null, m?: number | null, d?: number | null): number | null {
   if (!y || !m || !d) return null;
@@ -51,7 +51,7 @@ type Ctx = { params: Promise<{ playerId: string }> };
 /** PUT /api/admin/players/:playerId */
 export async function PUT(req: NextRequest, ctx: Ctx) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { playerId } = await ctx.params;
     if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 });
 
@@ -129,7 +129,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 /** DELETE /api/admin/players/:playerId */
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const { playerId } = await ctx.params;
     if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 });
 

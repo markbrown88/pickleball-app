@@ -3,12 +3,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Params = { playerId: string; stopId: string };
 
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
 
   try {
     const { playerId, stopId } = await ctx.params;

@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
   if (!input) return { ok: true, formatted: undefined };
@@ -15,24 +15,32 @@ function normalizePhone(input?: string | null): { ok: boolean; formatted?: strin
 
 /** GET /api/admin/clubs?sort=name:asc */
 export async function GET(req: Request) {
-  const prisma = getPrisma();
-  const url = new URL(req.url);
-  const sortParam = url.searchParams.get('sort'); // e.g. "name:asc"
-  let orderBy: any = { name: 'asc' as const };
-  if (sortParam) {
-    const [field, dirRaw] = sortParam.split(':');
-    const dir = dirRaw === 'desc' ? 'desc' : 'asc';
-    if (field === 'city' || field === 'region' || field === 'country' || field === 'name') {
-      orderBy = { [field]: dir };
+  try {
+    console.log('GET /api/admin/clubs - Starting request');
+    // Use singleton prisma instance
+    const url = new URL(req.url);
+    const sortParam = url.searchParams.get('sort'); // e.g. "name:asc"
+    let orderBy: any = { name: 'asc' as const };
+    if (sortParam) {
+      const [field, dirRaw] = sortParam.split(':');
+      const dir = dirRaw === 'desc' ? 'desc' : 'asc';
+      if (field === 'city' || field === 'region' || field === 'country' || field === 'name') {
+        orderBy = { [field]: dir };
+      }
     }
+    console.log('GET /api/admin/clubs - About to query database');
+    const clubs = await prisma.club.findMany({ orderBy });
+    console.log('GET /api/admin/clubs - Query successful, returning', clubs.length, 'clubs');
+    return NextResponse.json(clubs);
+  } catch (error) {
+    console.error('GET /api/admin/clubs - Error:', error);
+    return NextResponse.json({ error: 'Failed to fetch clubs' }, { status: 500 });
   }
-  const clubs = await prisma.club.findMany({ orderBy });
-  return NextResponse.json(clubs);
 }
 
 /** POST /api/admin/clubs */
 export async function POST(req: Request) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const body = await req.json().catch(() => ({}));
 
   const name = String(body.name ?? '').trim();

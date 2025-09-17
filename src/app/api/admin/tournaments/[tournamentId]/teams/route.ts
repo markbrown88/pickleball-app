@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import type { PrismaClient } from '@prisma/client';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Id = string;
 
@@ -183,7 +183,7 @@ async function ensureTeamsForClubAcrossBrackets(
 
 /* ---------- GET /api/admin/tournaments/:tournamentId/teams ---------- */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ tournamentId: string }> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { tournamentId } = await ctx.params;
 
   try {

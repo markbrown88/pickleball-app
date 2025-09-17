@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type SortDir = 'asc' | 'desc';
 
@@ -34,7 +34,7 @@ const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
  */
 export async function GET(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const url = new URL(req.url);
     const skip = Math.max(0, parseInt(url.searchParams.get('skip') ?? '0', 10) || 0);
     const sortRaw = (url.searchParams.get('sort') ?? 'lastName:asc');
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
       case 'region':    orderBy = { region: sortDir }; break;
       case 'country':   orderBy = { country: sortDir }; break;
       case 'phone':     orderBy = { phone: sortDir }; break;
-      case 'clubname':  orderBy = { club: { name: sortDir } }; break;
+      case 'clubname':  orderBy = { clubId: sortDir }; break; // Use clubId instead of club relation
       case 'age':
         orderBy = sortDir === 'asc'
           ? [{ birthdayYear: 'desc' }, { birthdayMonth: 'desc' }, { birthdayDay: 'desc' }]
@@ -71,34 +71,31 @@ export async function GET(req: Request) {
 
     const take = flat ? undefined : 25;
 
-    const [total, rows] = await Promise.all([
-      prisma.player.count({ where }),
-      prisma.player.findMany({
-        where,
-        orderBy,
-        skip,
-        take,
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          name: true,
-          gender: true,
-          clubId: true,
-          club: { select: { id: true, name: true, city: true } },
-          city: true,
-          region: true,
-          country: true,
-          phone: true,
-          email: true,
-          dupr: true,
-          birthdayYear: true,
-          birthdayMonth: true,
-          birthdayDay: true,
-          age: true, // legacy snapshot if you have it
-        },
-      }),
-    ]);
+    const total = await prisma.player.count({ where });
+    const rows = await prisma.player.findMany({
+      where,
+      orderBy,
+      skip,
+      take,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        gender: true,
+        clubId: true,
+        city: true,
+        region: true,
+        country: true,
+        phone: true,
+        email: true,
+        dupr: true,
+        birthdayYear: true,
+        birthdayMonth: true,
+        birthdayDay: true,
+        age: true, // legacy snapshot if you have it
+      },
+    });
 
     const items = rows.map(r => ({
       id: r.id,
@@ -107,7 +104,7 @@ export async function GET(req: Request) {
       name:      r.name ?? null,
       gender:    r.gender,
       clubId:    r.clubId,
-      club:      r.club ? { id: r.club.id, name: r.club.name, city: r.club.city ?? null } : null,
+      club:      null, // Temporarily removed club relation
       city:      r.city ?? null,
       region:    r.region ?? null,
       country:   r.country ?? null,
@@ -135,7 +132,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
-    const prisma = getPrisma();
+    // Use singleton prisma instance
     const body = (await req.json().catch(() => ({}))) as {
       firstName?: string; lastName?: string; gender?: 'MALE'|'FEMALE';
       clubId?: string;

@@ -4,14 +4,14 @@ export const dynamic = 'force-dynamic';
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 /** DELETE /api/admin/stops/:stopId */
 export async function DELETE(
   _req: NextRequest,
   ctx: { params: Promise<{ stopId: string }> }
 ) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   const { stopId } = await ctx.params;
 
   if (!stopId) return new NextResponse(null, { status: 400 });

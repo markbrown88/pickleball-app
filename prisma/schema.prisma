@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider     = "postgresql"
-  url          = env("DATABASE_URL")
-  relationMode = "prisma"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
 }
 
 /// *
@@ -55,7 +54,7 @@ model Player {
   CaptainInvite          CaptainInvite[]
   lineupEntriesAsP1      LineupEntry[]            @relation("LineupPlayer1")
   lineupEntriesAsP2      LineupEntry[]            @relation("LineupPlayer2")
-  club                   Club                     @relation(fields: [clubId], references: [id], onUpdate: Restrict)
+  club                   Club                     @relation(fields: [clubId], references: [id], onUpdate: NoAction)
   stopsManaged           Stop[]                   @relation("StopEventManager")
   stopRosterLinks        StopTeamPlayer[]         @relation("PlayerRoster")
   teamsAsCaptain         Team[]                   @relation("TeamCaptain")
@@ -89,10 +88,10 @@ model Team {
   matchesB        Match[]            @relation("MatchTeamB")
   stopLinks       StopTeam[]
   stopRosterLinks StopTeamPlayer[]   @relation("TeamRoster")
-  bracket         TournamentBracket? @relation(fields: [bracketId], references: [id], onUpdate: Restrict)
-  captain         Player?            @relation("TeamCaptain", fields: [captainId], references: [id], onUpdate: Restrict)
-  club            Club               @relation(fields: [clubId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  tournament      Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  bracket         TournamentBracket? @relation(fields: [bracketId], references: [id], onUpdate: NoAction)
+  captain         Player?            @relation("TeamCaptain", fields: [captainId], references: [id], onUpdate: NoAction)
+  club            Club               @relation(fields: [clubId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  tournament      Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   playerLinks     TeamPlayer[]
 
   @@unique([tournamentId, captainId])
@@ -145,9 +144,9 @@ model TeamPlayer {
   tournamentId String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @default(now()) @db.Timestamptz(6)
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([teamId, playerId])
   @@unique([tournamentId, playerId])
@@ -173,9 +172,9 @@ model Stop {
   eventManagerId String?
   Lineup         Lineup[]
   rounds         Round[]
-  club           Club?            @relation(fields: [clubId], references: [id], onUpdate: Restrict)
-  eventManager   Player?          @relation("StopEventManager", fields: [eventManagerId], references: [id], onUpdate: Restrict)
-  tournament     Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  club           Club?            @relation(fields: [clubId], references: [id], onUpdate: NoAction)
+  eventManager   Player?          @relation("StopEventManager", fields: [eventManagerId], references: [id], onUpdate: NoAction)
+  tournament     Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   teams          StopTeam[]
   StopTeamPlayer StopTeamPlayer[] @relation("StopRoster")
 
@@ -192,8 +191,8 @@ model StopTeam {
   teamId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @db.Timestamptz(6)
-  stop      Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  stop      Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([stopId, teamId])
 }
@@ -204,9 +203,9 @@ model StopTeamPlayer {
   playerId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @db.Timestamptz(6)
-  player    Player   @relation("PlayerRoster", fields: [playerId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  stop      Stop     @relation("StopRoster", fields: [stopId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  team      Team     @relation("TeamRoster", fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  player    Player   @relation("PlayerRoster", fields: [playerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stop      Stop     @relation("StopRoster", fields: [stopId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  team      Team     @relation("TeamRoster", fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([stopId, teamId, playerId])
   @@index([playerId], map: "ix_StopTeamPlayer_player")
@@ -244,9 +243,9 @@ model Match {
   createdAt DateTime @default(now()) @db.Timestamp(6)
   updatedAt DateTime @default(now()) @db.Timestamptz(6)
   games     Game[]
-  round     Round    @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "Match_new_roundId_fkey")
-  teamA     Team?    @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "Match_new_teamAId_fkey")
-  teamB     Team?    @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "Match_new_teamBId_fkey")
+  round     Round    @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
+  teamA     Team?    @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
+  teamB     Team?    @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
 
   @@index([roundId])
   @@index([teamAId])
@@ -267,10 +266,9 @@ model Game {
   lineupConfirmed Boolean?  @default(false)
   courtNumber     String?
   isComplete      Boolean?  @default(false)
-  status          String?   @default("not_started") // not_started, in_progress, completed
   createdAt       DateTime  @default(now()) @db.Timestamp(6)
   updatedAt       DateTime  @default(now()) @db.Timestamptz(6)
-  match           Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "Game_new_matchId_fkey")
+  match           Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
 
   @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
   @@index([matchId])
@@ -319,9 +317,9 @@ model CaptainInvite {
   usedAt       DateTime?  @db.Timestamptz(6)
   expiresAt    DateTime   @db.Timestamptz(6)
   updatedAt    DateTime   @default(now()) @db.Timestamptz(6)
-  captain      Player     @relation(fields: [captainId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  captain      Player     @relation(fields: [captainId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([tournamentId, teamId], map: "captaininvite_tournament_team_idx")
 }
@@ -360,9 +358,9 @@ model TournamentCaptain {
   clubId       String
   playerId     String
   createdAt    DateTime   @default(now()) @db.Timestamptz(6)
-  club         Club       @relation(fields: [clubId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade, onUpdate: Restrict)
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  club         Club       @relation(fields: [clubId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([tournamentId, clubId])
   @@unique([tournamentId, playerId])

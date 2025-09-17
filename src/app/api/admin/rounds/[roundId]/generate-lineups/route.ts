@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { GameSlot, Gender } from '@prisma/client';
 
 type Ctx = { params: Promise<{ roundId: string }> };
@@ -29,7 +29,7 @@ interface LineupEntry {
 export async function POST(req: NextRequest, ctx: Ctx) {
   try {
     const { roundId } = await ctx.params;
-    const prisma = getPrisma();
+    // Use singleton prisma instance
 
     // Get round and stop information
     const round = await prisma.round.findUnique({

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 type Params = { roundId: string; teamId: string };
 
@@ -8,7 +8,7 @@ function displayName(p: { firstName?: string | null; lastName?: string | null; n
 }
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const { roundId, teamId } = await ctx.params;
     
@@ -147,7 +147,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
 
 // New endpoint for saving 4-player lineups
 export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
-  const prisma = getPrisma();
+  // Use singleton prisma instance
   try {
     const { roundId, teamId } = await ctx.params;
     const body = await req.json();
