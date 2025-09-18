@@ -40,6 +40,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playerI
         birthdayMonth: true,
         birthdayDay: true,
         teamsAsCaptain: { select: { id: true, name: true, tournamentId: true } },
+        club: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            region: true
+          }
+        },
       },
     });
     if (!player) return NextResponse.json({ error: 'player not found' }, { status: 404 });
@@ -85,7 +93,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playerI
         lastName: player.lastName,
         name: player.name,
         gender: player.gender,
-        club: null, // Temporarily removed club relation
+        club: player.club,
         clubId: player.clubId,
         city: player.city,
         region: player.region,

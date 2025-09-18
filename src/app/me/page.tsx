@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, closestCenter } from '@dnd-kit/core';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useUser, useAuth } from '@clerk/nextjs';
+import { SignInButton, SignOutButton } from '@clerk/nextjs';
+import { UserProfile, Tournament, PlayerRegistration, TournamentsResponse, RegistrationResponse } from '@/types';
 
 // Custom strategy that disables automatic reordering
 const noReorderStrategy = () => null;
@@ -192,7 +195,435 @@ type Overview = {
   eventManagerTournaments?: EventManagerTournament[];
 };
 
+// Tournament Registration Tab Component
+function TournamentRegistrationTab({
+  userProfile,
+  onError,
+  onInfo
+}: {
+  userProfile: UserProfile | null;
+  onError: (message: string) => void;
+  onInfo: (message: string) => void;
+}) {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [registrations, setRegistrations] = useState<Record<string, PlayerRegistration>>({});
+
+  // Load available tournaments
+  const loadTournaments = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/tournaments');
+      if (response.ok) {
+        const data: TournamentsResponse = await response.json();
+        setTournaments(data.tournaments || []);
+      } else {
+        throw new Error('Failed to load tournaments');
+      }
+    } catch (error) {
+      onError('Failed to load tournaments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load user's registrations
+  const loadRegistrations = async () => {
+    if (!userProfile) return;
+    
+    try {
+      const response = await fetch('/api/player/registrations');
+      if (response.ok) {
+        const data: PlayerRegistration[] = await response.json();
+        const regMap: Record<string, PlayerRegistration> = {};
+        data.forEach((reg: PlayerRegistration) => {
+          regMap[reg.tournamentId] = reg;
+        });
+        setRegistrations(regMap);
+      }
+    } catch (error) {
+      console.error('Failed to load registrations:', error);
+    }
+  };
+
+  // Register for a tournament
+  const registerForTournament = async (tournamentId: string, bracketId?: string) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bracketId })
+      });
+
+      if (response.ok) {
+        const data: { message: string; registration?: any } = await response.json();
+        onInfo(data.message || 'Successfully registered for tournament');
+        loadRegistrations(); // Refresh registrations
+      } else {
+        const error: { error: string } = await response.json();
+        onError(error.error || 'Failed to register for tournament');
+      }
+    } catch (error) {
+      onError('Failed to register for tournament');
+    }
+  };
+
+  // Unregister from a tournament
+  const unregisterFromTournament = async (tournamentId: string) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/register`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        onInfo('Successfully unregistered from tournament');
+        loadRegistrations(); // Refresh registrations
+      } else {
+        const error: { error: string } = await response.json();
+        onError(error.error || 'Failed to unregister from tournament');
+      }
+    } catch (error) {
+      onError('Failed to unregister from tournament');
+    }
+  };
+
+  useEffect(() => {
+    loadTournaments();
+    loadRegistrations();
+  }, [userProfile]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold mb-2">Tournament Registration</h2>
+        <p className="text-gray-600">Register for available tournaments and manage your participation.</p>
+      </div>
+
+      {tournaments.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          No tournaments available for registration.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {tournaments.map((tournament) => {
+            const registration = registrations[tournament.id];
+            const isRegistered = !!registration;
+
+            return (
+              <div key={tournament.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-medium text-lg">{tournament.name}</h3>
+                    <p className="text-sm text-gray-600">
+                      {tournament.type} • {tournament.stops?.length || 0} stops
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {isRegistered ? (
+                      <div className="space-y-2">
+                        <span className="inline-block px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                          Registered
+                        </span>
+                        <div className="text-sm text-gray-600">
+                          Team: {registration.teamName}
+                        </div>
+                        <button
+                          onClick={() => unregisterFromTournament(tournament.id)}
+                          className="text-sm text-red-600 hover:text-red-800"
+                        >
+                          Unregister
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => registerForTournament(tournament.id)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Register
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {tournament.brackets && tournament.brackets.length > 0 && (
+                  <div className="mt-3">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Available Brackets:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {tournament.brackets.map((bracket: any) => (
+                        <span
+                          key={bracket.id}
+                          className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded"
+                        >
+                          {bracket.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {tournament.stops && tournament.stops.length > 0 && (
+                  <div className="mt-3">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Stops:</h4>
+                    <div className="space-y-1">
+                      {tournament.stops.map((stop: any, index: number) => (
+                        <div key={stop.id} className="text-sm text-gray-600">
+                          {index + 1}. {stop.name}
+                          {stop.locationName && ` • ${stop.locationName}`}
+                          {stop.startAt && (
+                            <span className="ml-2">
+                              {new Date(stop.startAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Profile Setup Form Component
+function ProfileSetupForm({ 
+  user, 
+  clubs, 
+  onSave, 
+  loading 
+}: { 
+  user: any; 
+  clubs: Club[]; 
+  onSave: (data: {
+    firstName: string;
+    lastName: string;
+    gender: 'MALE' | 'FEMALE';
+    clubId: string;
+    email: string;
+    phone: string;
+    city: string;
+    region: string;
+    country: string;
+    dupr: string;
+    birthday: string;
+  }) => Promise<boolean>; 
+  loading: boolean; 
+}) {
+  const [formData, setFormData] = useState({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    gender: 'MALE' as 'MALE' | 'FEMALE',
+    clubId: '',
+    email: user?.emailAddresses?.[0]?.emailAddress || '',
+    phone: user?.phoneNumbers?.[0]?.phoneNumber || '',
+    city: '',
+    region: '',
+    country: 'Canada',
+    dupr: '',
+    birthday: ''
+  });
+
+  const [countrySel, setCountrySel] = useState<CountrySel>('Canada');
+  const [countryOther, setCountryOther] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const country = countrySel === 'Other' ? countryOther : countrySel;
+    const success = await onSave({
+      ...formData,
+      country
+    });
+    
+    if (success) {
+      // Form will be replaced by main interface
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+          <input
+            type="text"
+            required
+            className="w-full border rounded px-3 py-2"
+            value={formData.firstName}
+            onChange={e => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+          <input
+            type="text"
+            required
+            className="w-full border rounded px-3 py-2"
+            value={formData.lastName}
+            onChange={e => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+          <select
+            required
+            className="w-full border rounded px-3 py-2"
+            value={formData.gender}
+            onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value as 'MALE' | 'FEMALE' }))}
+          >
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Club</label>
+          <select
+            required
+            className="w-full border rounded px-3 py-2"
+            value={formData.clubId}
+            onChange={e => setFormData(prev => ({ ...prev, clubId: e.target.value }))}
+          >
+            <option value="">Select Club</option>
+            {clubs.map(club => (
+              <option key={club.id} value={club.id}>{club.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input
+            type="email"
+            className="w-full border rounded px-3 py-2"
+            value={formData.email}
+            onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <input
+            type="tel"
+            className="w-full border rounded px-3 py-2"
+            value={formData.phone}
+            onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+          <input
+            type="text"
+            className="w-full border rounded px-3 py-2"
+            value={formData.city}
+            onChange={e => setFormData(prev => ({ ...prev, city: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {countrySel === 'Canada' ? 'Province' : 'State'}
+          </label>
+          <select
+            className="w-full border rounded px-3 py-2"
+            value={formData.region}
+            onChange={e => setFormData(prev => ({ ...prev, region: e.target.value }))}
+          >
+            <option value="">Select {countrySel === 'Canada' ? 'Province' : 'State'}</option>
+            {(countrySel === 'Canada' ? CA_PROVINCES : US_STATES).map(region => (
+              <option key={region} value={region}>{region}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+          <select
+            className="w-full border rounded px-3 py-2"
+            value={countrySel}
+            onChange={e => {
+              const sel = e.target.value as CountrySel;
+              setCountrySel(sel);
+              setFormData(prev => ({ ...prev, region: '' }));
+            }}
+          >
+            <option value="Canada">Canada</option>
+            <option value="USA">USA</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      {countrySel === 'Other' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Country Name</label>
+          <input
+            type="text"
+            className="w-full border rounded px-3 py-2"
+            value={countryOther}
+            onChange={e => setCountryOther(e.target.value)}
+            placeholder="Enter country name"
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">DUPR Rating (optional)</label>
+          <input
+            type="number"
+            step="0.1"
+            min="1.0"
+            max="6.0"
+            className="w-full border rounded px-3 py-2"
+            value={formData.dupr}
+            onChange={e => setFormData(prev => ({ ...prev, dupr: e.target.value }))}
+            placeholder="e.g., 4.5"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Birthday (optional)</label>
+          <input
+            type="date"
+            className="w-full border rounded px-3 py-2"
+            value={formData.birthday}
+            onChange={e => setFormData(prev => ({ ...prev, birthday: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-4">
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? 'Creating Profile...' : 'Create Profile'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function MePage() {
+  const { user, isLoaded: userLoaded } = useUser();
+  const { isSignedIn } = useAuth();
+  
   const [err, setErr] = useState<string|null>(null);
   const [info, setInfo] = useState<string|null>(null);
   const clearMsg = () => { setErr(null); setInfo(null); };
@@ -202,6 +633,83 @@ export default function MePage() {
 
   const [overview, setOverview] = useState<Overview | null>(null);
   const [clubsAll, setClubsAll] = useState<Club[]>([]);
+  
+  // Authentication state
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+
+  // Load user profile from Clerk authentication
+  const loadUserProfile = async () => {
+    if (!userLoaded || !isSignedIn) return;
+    
+    setProfileLoading(true);
+    try {
+      const response = await fetch('/api/auth/user');
+      if (response.ok) {
+        const profile: UserProfile = await response.json();
+        setUserProfile(profile);
+        setMeId(profile.id);
+        setNeedsProfileSetup(false);
+      } else if (response.status === 404) {
+        // User not linked to a player profile yet
+        setNeedsProfileSetup(true);
+        setUserProfile(null);
+      } else {
+        throw new Error('Failed to load user profile');
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+      setErr('Failed to load user profile');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // Create or update user profile
+  const saveUserProfile = async (profileData: {
+    firstName: string;
+    lastName: string;
+    gender: 'MALE' | 'FEMALE';
+    clubId: string;
+    email: string;
+    phone: string;
+    city: string;
+    region: string;
+    country: string;
+    dupr: string;
+    birthday: string;
+  }): Promise<boolean> => {
+    if (!isSignedIn) return false;
+    
+    setProfileLoading(true);
+    try {
+      const method = userProfile ? 'PUT' : 'POST';
+      const response = await fetch('/api/auth/user', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData)
+      });
+      
+      if (response.ok) {
+        const profile: UserProfile = await response.json();
+        setUserProfile(profile);
+        setMeId(profile.id);
+        setNeedsProfileSetup(false);
+        setInfo('Profile saved successfully');
+        return true;
+      } else {
+        const error: { error: string } = await response.json();
+        throw new Error(error.error || 'Failed to save profile');
+      }
+    } catch (error) {
+      console.error('Error saving user profile:', error);
+      setErr(error instanceof Error ? error.message : 'Failed to save profile');
+      return false;
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   // Profile edit form
   const [showEdit, setShowEdit] = useState(false);
@@ -219,13 +727,33 @@ export default function MePage() {
     firstName:'', lastName:'', gender:'MALE', clubId:'', dupr:'', city:'', region:'', phone:'', email:'', clubRating:'', photo:''
   });
 
+  // Populate form with existing player data when overview loads
+  useEffect(() => {
+    if (overview?.player) {
+      setForm(prev => ({
+        ...prev,
+        firstName: overview.player.firstName || '',
+        lastName: overview.player.lastName || '',
+        gender: overview.player.gender || 'MALE',
+        clubId: overview.player.club?.id || '',
+        dupr: overview.player.dupr?.toString() || '',
+        city: overview.player.city || '',
+        region: overview.player.region || '',
+        phone: overview.player.phone || '',
+        email: overview.player.email || '',
+        clubRating: '',
+        photo: ''
+      }));
+    }
+  }, [overview]);
+
   // Captain functionality
   const [captainData, setCaptainData] = useState<{ teams: TeamItem[] }>({ teams: [] });
   const [activeTournamentId, setActiveTournamentId] = useState<Id | null>(null);
   const [captainRosters, setCaptainRosters] = useState<Record<string, Record<string, PlayerLite[]>>>({});
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<'profile' | 'tournaments' | 'teams' | 'manage'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'tournaments' | 'teams' | 'manage' | 'register'>('profile');
 
   // Event Manager functionality
   const [eventManagerData, setEventManagerData] = useState<EventManagerTournament[]>([]);
@@ -637,8 +1165,25 @@ export default function MePage() {
     return full || (p.name ?? 'Unknown');
   }
 
-  // Initial loads
+  // Load user profile when authentication state changes
   useEffect(() => {
+    if (userLoaded) {
+      if (isSignedIn) {
+        loadUserProfile();
+      } else {
+        // User not signed in, clear profile data
+        setUserProfile(null);
+        setMeId('');
+        setNeedsProfileSetup(false);
+        setOverview(null);
+      }
+    }
+  }, [userLoaded, isSignedIn]);
+
+  // Initial loads (only when user is authenticated)
+  useEffect(() => {
+    if (!isSignedIn || !userLoaded) return;
+    
     (async () => {
       try {
         clearMsg();
@@ -647,13 +1192,6 @@ export default function MePage() {
         const arr = await r.json();
         const playersArr: PlayerLite[] = Array.isArray(arr) ? arr : (arr?.items ?? []);
         setPlayers(playersArr);
-        if (playersArr.length && !meId) {
-          // Look for Lily Brown first, otherwise use first player
-          const lilyBrown = playersArr.find(p => 
-            p.firstName?.toLowerCase() === 'lily' && p.lastName?.toLowerCase() === 'brown'
-          );
-          setMeId(lilyBrown?.id || playersArr[0].id);
-        }
 
         // clubs for profile editing
         const rc = await fetch('/api/admin/clubs');
@@ -664,8 +1202,7 @@ export default function MePage() {
         setErr((e as Error).message);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isSignedIn, userLoaded]);
 
   // Load overview whenever meId changes
   useEffect(() => {
@@ -873,6 +1410,8 @@ export default function MePage() {
   }
 
   async function saveProfile() {
+    if (!isSignedIn) return;
+    
     try {
       clearMsg();
       const country = countrySel === 'Other' ? (countryOther || '') : countrySel;
@@ -881,7 +1420,7 @@ export default function MePage() {
         lastName: form.lastName,
         gender: form.gender,
         clubId: form.clubId,
-        dupr: form.dupr ? Number(form.dupr) : null,
+        dupr: form.dupr,
         city: form.city,
         region: form.region,
         country,
@@ -891,34 +1430,88 @@ export default function MePage() {
         clubRating: form.clubRating ? Number(form.clubRating) : null,
         photo: form.photo,
       };
-      const r = await fetch(`/api/admin/players/${meId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const body = await r.json();
-      if (!r.ok) throw new Error(body?.error || `HTTP ${r.status}`);
-      setInfo('Profile updated');
-      // refresh overview to reflect new info (age, club, etc.)
-      const ov = await fetch(`/api/players/${meId}/overview`).then(x => x.json());
-      setOverview(ov);
-      setShowEdit(false);
+      
+      
+      // Use the authentication-aware save function
+      const success = await saveUserProfile(payload);
+      if (success) {
+        // refresh overview to reflect new info (age, club, etc.)
+        const ov = await fetch(`/api/players/${meId}/overview`).then(x => x.json());
+        setOverview(ov);
+        setShowEdit(false);
+      }
     } catch (e) {
       setErr((e as Error).message);
     }
+  }
+
+  // Show loading state while authentication is loading
+  if (!userLoaded) {
+    return (
+      <main className="p-6 max-w-5xl mx-auto space-y-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Show sign-in prompt if not authenticated
+  if (!isSignedIn) {
+    return (
+      <main className="p-6 max-w-5xl mx-auto space-y-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">Welcome to Pickleball Tournaments</h1>
+            <p className="text-gray-600 mb-6">Please sign in to access your player profile and tournament information.</p>
+            <SignInButton mode="modal">
+              <button className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                Sign In
+              </button>
+            </SignInButton>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Show profile setup if user needs to create their player profile
+  if (needsProfileSetup) {
+    return (
+      <main className="p-6 max-w-5xl mx-auto space-y-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Complete Your Profile</h1>
+          <p className="text-gray-600 mb-6">Please complete your player profile to access tournaments and team management.</p>
+          <div className="max-w-md mx-auto">
+            <ProfileSetupForm 
+              user={user}
+              clubs={clubsAll}
+              onSave={saveUserProfile}
+              loading={profileLoading}
+            />
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (
     <main className="p-6 max-w-5xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Player</h1>
-        <div className="text-sm">
-          <span className="mr-2">Act as Player</span>
-          <select className="border rounded px-2 py-1" value={meId} onChange={e => setMeId(e.target.value)}>
-            {(Array.isArray(players) ? players : []).map(p => (
-              <option key={p.id} value={p.id}>{label(p)} ({p.gender})</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-4">
+          <div className="text-sm">
+            <span className="mr-2">Welcome,</span>
+            <span className="font-medium">{userProfile?.firstName || user?.firstName || 'User'}</span>
+          </div>
+          <SignOutButton>
+            <button className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 border border-gray-300">
+              Sign Out
+            </button>
+          </SignOutButton>
         </div>
       </div>
 
@@ -961,6 +1554,16 @@ export default function MePage() {
               Teams
             </button>
           )}
+          <button
+            onClick={() => setActiveTab('register')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'register'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Register
+          </button>
           {eventManagerData.length > 0 && (
             <button
               onClick={() => setActiveTab('manage')}
@@ -980,18 +1583,54 @@ export default function MePage() {
       <div className="mt-6">
         {activeTab === 'profile' && (
           <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <button className="border rounded px-3 py-1" onClick={() => setShowEdit(s => !s)}>
+        <div className="flex items-center justify-end">
+          <button className="text-sm border rounded px-2 py-1 hover:bg-gray-50" onClick={() => setShowEdit(s => !s)}>
                 {showEdit ? 'Cancel' : 'Edit Profile'}
           </button>
         </div>
 
         {overview && (
-              <div className="space-y-4">
-                {/* Photo Section */}
-                <div className="flex items-start gap-6">
-                  <div className="flex-shrink-0">
-                    <div className="w-24 h-32 bg-gray-200 rounded border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
+              <div className="space-y-6">
+                {/* First Row: Name */}
+                <div className="text-center">
+                  {showEdit ? (
+                    <div className="flex gap-4 justify-center">
+                      <div>
+                        <input
+                          type="text"
+                          value={form.firstName}
+                          onChange={(e) => setForm(f => ({ ...f, firstName: e.target.value }))}
+                          placeholder="First Name"
+                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-300 focus:outline-none focus:border-blue-500 bg-transparent"
+                        />
+                        <label className="block text-xs text-gray-500 mt-1">First Name</label>
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={form.lastName}
+                          onChange={(e) => setForm(f => ({ ...f, lastName: e.target.value }))}
+                          placeholder="Last Name"
+                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-300 focus:outline-none focus:border-blue-500 bg-transparent"
+                        />
+                        <label className="block text-xs text-gray-500 mt-1">Last Name</label>
+                      </div>
+                    </div>
+                  ) : (
+                    <h2 className="text-3xl font-bold text-gray-900">
+                      {overview.player.firstName && overview.player.lastName 
+                        ? `${overview.player.firstName} ${overview.player.lastName}`
+                        : overview.player.firstName || overview.player.lastName || 'Name Not Provided'
+                      }
+                    </h2>
+                  )}
+                </div>
+
+                {/* Second Row: Three Columns */}
+                <div className="grid grid-cols-3 gap-8">
+                  {/* First Column: Photo */}
+                  <div className="text-center">
+                    <div className="w-32 h-40 bg-gray-200 rounded border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden mx-auto">
                       {form.photo ? (
                         <img src={form.photo} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
@@ -999,263 +1638,245 @@ export default function MePage() {
                       )}
                     </div>
                     {showEdit && (
-                      <div className="mt-2">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="text-xs"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                const img = new Image();
-                                img.onload = () => {
-                                  // Create canvas for cropping to 200x300 (portrait)
-                                  const canvas = document.createElement('canvas');
-                                  const ctx = canvas.getContext('2d');
-                                  canvas.width = 200;
-                                  canvas.height = 300;
-                                  
-                                  // Calculate crop dimensions to maintain aspect ratio
-                                  const aspectRatio = img.width / img.height;
-                                  const targetAspectRatio = 200 / 300;
-                                  
-                                  let sourceX = 0, sourceY = 0, sourceWidth = img.width, sourceHeight = img.height;
-                                  
-                                  if (aspectRatio > targetAspectRatio) {
-                                    // Image is wider, crop width
-                                    sourceWidth = img.height * targetAspectRatio;
-                                    sourceX = (img.width - sourceWidth) / 2;
-                                  } else {
-                                    // Image is taller, crop height
-                                    sourceHeight = img.width / targetAspectRatio;
-                                    sourceY = (img.height - sourceHeight) / 2;
-                                  }
-                                  
-                                  ctx?.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, 200, 300);
-                                  const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                                  setForm(f => ({ ...f, photo: croppedDataUrl }));
+                      <div className="mt-3">
+                        <label className="block">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                  const img = new Image();
+                                  img.onload = () => {
+                                    // Create canvas for cropping to 200x300 (portrait)
+                                    const canvas = document.createElement('canvas');
+                                    const ctx = canvas.getContext('2d');
+                                    canvas.width = 200;
+                                    canvas.height = 300;
+                                    
+                                    // Calculate crop dimensions to maintain aspect ratio
+                                    const aspectRatio = img.width / img.height;
+                                    const targetAspectRatio = 200 / 300;
+                                    
+                                    let sourceX = 0, sourceY = 0, sourceWidth = img.width, sourceHeight = img.height;
+                                    
+                                    if (aspectRatio > targetAspectRatio) {
+                                      // Image is wider, crop width
+                                      sourceWidth = img.height * targetAspectRatio;
+                                      sourceX = (img.width - sourceWidth) / 2;
+                                    } else {
+                                      // Image is taller, crop height
+                                      sourceHeight = img.width / targetAspectRatio;
+                                      sourceY = (img.height - sourceHeight) / 2;
+                                    }
+                                    
+                                    ctx?.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, 200, 300);
+                                    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                                    setForm(f => ({ ...f, photo: croppedDataUrl }));
+                                  };
+                                  img.src = event.target?.result as string;
                                 };
-                                img.src = event.target?.result as string;
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-          </div>
-        )}
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <span className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer underline">
+                            {form.photo ? 'Change Photo' : 'Choose File'}
+                          </span>
+                        </label>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex-1 space-y-3">
-                    {/* Name Fields - Same Row */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-4">
-                        <label className="w-20 text-sm font-medium text-gray-700">First Name</label>
-                        {showEdit ? (
-                          <input
-                            className="flex-1 border rounded px-3 py-1 text-sm"
-                            value={form.firstName}
-                            onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                            placeholder="First name"
-                          />
-                        ) : (
-                          <span className="flex-1 text-sm">{overview.player.firstName || '—'}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <label className="w-20 text-sm font-medium text-gray-700">Last Name</label>
-                        {showEdit ? (
-                          <input
-                            className="flex-1 border rounded px-3 py-1 text-sm"
-                            value={form.lastName}
-                            onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-                            placeholder="Last name"
-                          />
-                        ) : (
-                          <span className="flex-1 text-sm">{overview.player.lastName || '—'}</span>
-                        )}
-                      </div>
+
+                  {/* Second Column: Sex, Age, Primary Club, Club Rating, DUPR */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <label className="w-20 text-sm font-medium text-gray-700">Sex:</label>
+                      {showEdit ? (
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="gender"
+                              value="MALE"
+                              checked={form.gender === 'MALE'}
+                              onChange={(e) => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
+                              className="text-blue-600"
+                            />
+                            <span className="text-sm">Male</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="gender"
+                              value="FEMALE"
+                              checked={form.gender === 'FEMALE'}
+                              onChange={(e) => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
+                              className="text-blue-600"
+                            />
+                            <span className="text-sm">Female</span>
+                          </label>
+                        </div>
+                      ) : (
+                        <span className="text-gray-900">{overview.player.gender || 'Not provided'}</span>
+                      )}
                     </div>
-                    
-                    {/* Age and Gender - Same Row */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-4">
-                        <label className="w-20 text-sm font-medium text-gray-700">Age</label>
-                        {showEdit ? (
-                          <input
-                            type="date"
-                            className="flex-1 border rounded px-3 py-1 text-sm"
-                            value={birthday}
-                            onChange={e => setBirthday(e.target.value)}
-                          />
-                        ) : (
-                          <span className="flex-1 text-sm">{overview.player.age ? `${overview.player.age} years old` : '—'}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <label className="w-20 text-sm font-medium text-gray-700">Sex</label>
-                        {showEdit ? (
-                          <select
-                            className="flex-1 border rounded px-3 py-1 text-sm"
-                            value={form.gender}
-                            onChange={e => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
-                          >
-              <option value="MALE">Male</option>
-              <option value="FEMALE">Female</option>
-            </select>
-                        ) : (
-                          <span className="flex-1 text-sm">{overview.player.gender?.toLowerCase() || '—'}</span>
-                        )}
-                      </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="w-20 text-sm font-medium text-gray-700">Age:</label>
+                      <span className="text-gray-900">{overview.player.age ? `${overview.player.age} years old` : 'Not calculated'}</span>
                     </div>
-                  </div>
-                </div>
 
-                {/* Primary Club */}
-                <div className="flex items-center gap-4">
-                  <label className="w-24 text-sm font-medium text-gray-700">Primary Club</label>
-                  {showEdit ? (
-                    <select
-                      className="flex-1 border rounded px-3 py-1 text-sm"
-                      value={form.clubId}
-                      onChange={e => setForm(f => ({ ...f, clubId: e.target.value as Id }))}
-                    >
-                      <option value="">Select Club</option>
-              {(Array.isArray(clubsAll) ? clubsAll : []).map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
-              ))}
-            </select>
-                  ) : (
-                    <span className="flex-1 text-sm">{overview.player.club?.name || '—'}</span>
-                  )}
-                </div>
-
-                {/* DUPR and Club Rating - Same Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-4">
-                    <label className="w-24 text-sm font-medium text-gray-700">DUPR</label>
-                    {showEdit ? (
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="8"
-                        className="flex-1 border rounded px-3 py-1 text-sm"
-                        value={form.dupr}
-                        onChange={e => setForm(f => ({ ...f, dupr: e.target.value }))}
-                        placeholder="DUPR rating"
-                      />
-                    ) : (
-                      <span className="flex-1 text-sm">{overview.player.dupr || '—'}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="w-24 text-sm font-medium text-gray-700">Club Rating</label>
-                    {showEdit ? (
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="10"
-                        className="flex-1 border rounded px-3 py-1 text-sm"
-                        value={form.clubRating}
-                        onChange={e => setForm(f => ({ ...f, clubRating: e.target.value }))}
-                        placeholder="Club rating"
-                      />
-                    ) : (
-                      <span className="flex-1 text-sm">{form.clubRating || '—'}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Location */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-4">
-                    <label className="w-24 text-sm font-medium text-gray-700">City</label>
-                    {showEdit ? (
-                      <input
-                        className="flex-1 border rounded px-3 py-1 text-sm"
-                        value={form.city}
-                        onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                        placeholder="City"
-                      />
-                    ) : (
-                      <span className="flex-1 text-sm">{overview.player.city || '—'}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="w-24 text-sm font-medium text-gray-700">Region</label>
-                    {showEdit ? (
-                      <div className="flex-1 flex gap-2">
+                    <div className="flex items-center gap-3">
+                      <label className="w-20 text-sm font-medium text-gray-700">Club:</label>
+                      {showEdit ? (
                         <select
-                          className="flex-1 border rounded px-3 py-1 text-sm"
-                          value={countrySel}
-                          onChange={e => setCountrySel(e.target.value as CountrySel)}
+                          value={form.clubId || ''}
+                          onChange={(e) => setForm(f => ({ ...f, clubId: e.target.value as Id }))}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-              <option value="Canada">Canada</option>
-              <option value="USA">USA</option>
-              <option value="Other">Other</option>
-            </select>
-            {countrySel === 'Other' ? (
-                          <input
-                            className="flex-1 border rounded px-3 py-1 text-sm"
-                            placeholder="Country"
-                            value={countryOther}
-                            onChange={e => setCountryOther(e.target.value)}
-                          />
-                        ) : (
-                          <select
-                            className="flex-1 border rounded px-3 py-1 text-sm"
-                            value={form.region}
-                            onChange={e => setForm(f => ({ ...f, region: e.target.value }))}
-                          >
-                            <option value="">Select {countrySel === 'Canada' ? 'Province' : 'State'}</option>
-                            {(countrySel === 'Canada' ? CA_PROVINCES : US_STATES).map(item => (
-                              <option key={item} value={item}>{item}</option>
-                            ))}
-              </select>
-            )}
+                          <option value="">Select Club</option>
+                          {(Array.isArray(clubsAll) ? clubsAll : []).map(c => (
+                            <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-gray-900">{overview.player.club?.name || 'Not provided'}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="w-20 text-sm font-medium text-gray-700">Rating:</label>
+                      {showEdit ? (
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          value={form.clubRating}
+                          onChange={(e) => setForm(f => ({ ...f, clubRating: e.target.value }))}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <span className="text-gray-900">{form.clubRating || 'Not provided'}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="w-20 text-sm font-medium text-gray-700">DUPR:</label>
+                      {showEdit ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="8"
+                          value={form.dupr}
+                          onChange={(e) => setForm(f => ({ ...f, dupr: e.target.value }))}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <span className="text-gray-900">{overview.player.dupr || 'Not provided'}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Third Column: Address and Contact */}
+                  <div className="space-y-3">
+                    {/* Address Section */}
+                    {!showEdit ? (
+                      <div className="flex items-center gap-3">
+                        <label className="w-20 text-sm font-medium text-gray-700">Address:</label>
+                        <span className="text-gray-900">
+                          {[
+                            overview.player.city,
+                            overview.player.region,
+                            overview.player.country
+                          ].filter(Boolean).join(', ') || 'Not provided'}
+                        </span>
                       </div>
                     ) : (
-                      <span className="flex-1 text-sm">{overview.player.region || '—'}</span>
+                      <>
+                        <div className="flex items-center gap-3">
+                          <label className="w-20 text-sm font-medium text-gray-700">City:</label>
+                          <input
+                            type="text"
+                            value={form.city}
+                            onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="w-20 text-sm font-medium text-gray-700">Province/State:</label>
+                          <input
+                            type="text"
+                            value={form.region}
+                            onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="w-20 text-sm font-medium text-gray-700">Country:</label>
+                          <div className="flex-1">
+                            <select
+                              value={countrySel}
+                              onChange={(e) => setCountrySel(e.target.value as CountrySel)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Select Country</option>
+                              <option value="Canada">Canada</option>
+                              <option value="USA">USA</option>
+                              <option value="Other">Other</option>
+                            </select>
+                            {countrySel === 'Other' && (
+                              <input
+                                type="text"
+                                value={countryOther}
+                                onChange={(e) => setCountryOther(e.target.value)}
+                                placeholder="Enter country"
+                                className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </>
                     )}
+
+                    {/* Contact Section */}
+                    <div className="flex items-center gap-3">
+                      <label className="w-20 text-sm font-medium text-gray-700">Phone:</label>
+                      {showEdit ? (
+                        <input
+                          type="tel"
+                          value={form.phone}
+                          onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <span className="text-gray-900">{overview.player.phone || 'Not provided'}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="w-20 text-sm font-medium text-gray-700">Email:</label>
+                      {showEdit ? (
+                        <input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <span className="text-gray-900">{overview.player.email || 'Not provided'}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                {/* Contact */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-4">
-                    <label className="w-24 text-sm font-medium text-gray-700">Phone</label>
-                    {showEdit ? (
-                      <input
-                        className="flex-1 border rounded px-3 py-1 text-sm"
-                        value={form.phone}
-                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                        placeholder="Phone number"
-                      />
-                    ) : (
-                      <span className="flex-1 text-sm">{overview.player.phone || '—'}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <label className="w-24 text-sm font-medium text-gray-700">Email</label>
-                    {showEdit ? (
-                      <input
-                        type="email"
-                        className="flex-1 border rounded px-3 py-1 text-sm"
-                        value={form.email}
-                        onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                        placeholder="Email address"
-                      />
-                    ) : (
-                      <span className="flex-1 text-sm">{overview.player.email || '—'}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Save/Cancel Buttons */}
+                
                 {showEdit && (
-                  <div className="flex gap-3 pt-4 border-t">
+                  <div className="flex gap-2 justify-end">
                     <button
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                       onClick={saveProfile}
@@ -1268,10 +1889,10 @@ export default function MePage() {
                     >
                       Cancel
                     </button>
-            </div>
+                  </div>
                 )}
-          </div>
-        )}
+              </div>
+            )}
       </section>
         )}
 
@@ -1322,6 +1943,14 @@ export default function MePage() {
             label={label}
             onSaved={() => setInfo('Rosters saved!')}
             onError={(m) => setErr(m)}
+          />
+        )}
+
+        {activeTab === 'register' && (
+          <TournamentRegistrationTab
+            userProfile={userProfile}
+            onError={(m) => setErr(m)}
+            onInfo={(m) => setInfo(m)}
           />
         )}
 
