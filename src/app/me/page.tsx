@@ -2035,6 +2035,8 @@ function EventManagerTab({
 }) {
   const [expandedTournaments, setExpandedTournaments] = useState<Set<string>>(new Set());
   const [expandedStops, setExpandedStops] = useState<Set<string>>(new Set());
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
   const [scheduleData, setScheduleData] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
 
@@ -2089,6 +2091,33 @@ function EventManagerTab({
       }
       return newSet;
     });
+  };
+
+  const toggleRound = (roundId: string) => {
+    setExpandedRounds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(roundId)) {
+        newSet.delete(roundId);
+      } else {
+        // Close all other rounds first (only one open at a time)
+        newSet.clear();
+        newSet.add(roundId);
+      }
+      return newSet;
+    });
+  };
+
+  // Convert tournament type enum to display name
+  const getTournamentTypeDisplayName = (type: string) => {
+    const typeMap: Record<string, string> = {
+      'TEAM_FORMAT': 'Team Format',
+      'SINGLE_ELIMINATION': 'Single Elimination',
+      'DOUBLE_ELIMINATION': 'Double Elimination',
+      'ROUND_ROBIN': 'Round Robin',
+      'POOL_PLAY': 'Pool Play',
+      'LADDER_TOURNAMENT': 'Ladder Tournament',
+    };
+    return typeMap[type] || type;
   };
 
   const loadSchedule = async (stopId: string, force = false) => {
@@ -2457,10 +2486,7 @@ function EventManagerTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Event Manager</h2>
-        <div className="text-sm text-gray-600">
-          Manage tournaments and stops you're assigned to
-        </div>
+        <h2 className="text-lg font-semibold">Tournaments</h2>
       </div>
 
       {/* Tournament Accordions */}
@@ -2468,70 +2494,70 @@ function EventManagerTab({
         {tournaments.map((tournament) => (
           <div key={tournament.tournamentId} className="border rounded-lg">
             {/* Tournament Header */}
-            <div
-              className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
-              onClick={() => toggleTournament(tournament.tournamentId)}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`transform transition-transform ${expandedTournaments.has(tournament.tournamentId) ? 'rotate-90' : ''}`}>
-                  ▶
-                </div>
-                <div>
-                  <h3 className="font-medium">{tournament.tournamentName}</h3>
-                  <p className="text-sm text-gray-600">
-                    {tournament.type} • {tournament.stops.length} stops
-                  </p>
-                </div>
-              </div>
-              <div className="text-sm text-gray-500">
-                {tournament.stops.length} stops
+            <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+              <h3 className="font-medium text-lg">{tournament.tournamentName}</h3>
+              <div className="text-sm text-gray-600">
+                {getTournamentTypeDisplayName(tournament.type)} • {tournament.stops.length} stops
               </div>
             </div>
 
-            {/* Stops Content */}
-            {expandedTournaments.has(tournament.tournamentId) && (
-              <div className="border-t bg-gray-50">
-                {tournament.stops.map((stop) => (
-                  <div key={stop.stopId} className="border-b last:border-b-0">
-                    {/* Stop Header */}
-                    <div
-                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-100"
-                      onClick={() => toggleStop(stop.stopId)}
+            {/* Stops Tabs */}
+            <div className="p-4">
+              {/* Stop Tabs */}
+              <div className="border-b border-gray-200 mb-4">
+                <nav className="flex space-x-8" aria-label="Tabs">
+                  {tournament.stops.map((stop) => (
+                    <button
+                      key={stop.stopId}
+                      onClick={() => {
+                        setSelectedStopId(stop.stopId);
+                        loadSchedule(stop.stopId);
+                      }}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                        selectedStopId === stop.stopId
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`transform transition-transform ${expandedStops.has(stop.stopId) ? 'rotate-90' : ''}`}>
-                          ▶
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{stop.stopName}</h4>
-                          <p className="text-sm text-gray-600">
-                            {stop.locationName && `${stop.locationName} • `}
-                            {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {scheduleData[stop.stopId]?.length || 0} rounds • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.length || 0), 0) || 0} matches • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.reduce((matchAcc: number, m: any) => matchAcc + (m.games?.length || 0), 0) || 0), 0) || 0} games
-                          </p>
-                        </div>
+                      {stop.stopName}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* Selected Stop Content */}
+              {selectedStopId && (() => {
+                const stop = tournament.stops.find(s => s.stopId === selectedStopId);
+                if (!stop) return null;
+                
+                return (
+                  <div>
+                    {/* Stop Info */}
+                    <div className="flex items-center justify-between mb-4 p-2 bg-gray-50 rounded">
+                      <div>
+                        <p className="text-sm text-gray-600">
+                          {stop.locationName && `${stop.locationName} • `}
+                          {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {scheduleData[stop.stopId]?.length || 0} rounds • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.length || 0), 0) || 0} matches • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.reduce((matchAcc: number, m: any) => matchAcc + (m.games?.length || 0), 0) || 0), 0) || 0} games
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         {!scheduleData[stop.stopId]?.some((round: any) => hasAnyMatchStarted(round)) && (
                         <button
                           className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            generateSchedule(stop.stopId, stop.stopName);
-                          }}
+                          onClick={() => generateSchedule(stop.stopId, stop.stopName)}
                           disabled={loading[stop.stopId]}
                         >
-                            {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
+                          {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
                         </button>
                         )}
                       </div>
                     </div>
 
                     {/* Schedule Content */}
-                    {expandedStops.has(stop.stopId) && (
-                      <div className="p-4 bg-white">
+                    <div className="bg-white">
                         {loading[stop.stopId] ? (
                           <div className="text-center py-4 text-gray-500">Loading schedule...</div>
                         ) : !scheduleData[stop.stopId] || scheduleData[stop.stopId].length === 0 ? (
@@ -2540,7 +2566,6 @@ function EventManagerTab({
                           </div>
                         ) : (
                           <div className="space-y-3">
-                            <h5 className="font-medium text-sm">Schedule</h5>
                             <div className="space-y-2">
                               {scheduleData[stop.stopId].map((round, roundIdx) => {
                                 const isEditing = editingRounds.has(round.id);
@@ -2551,21 +2576,36 @@ function EventManagerTab({
                                 
                                 
                                 return (
-                                  <div key={`${round.id}-${renderKey}-${updateKey}`} className="border rounded p-3">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <h6 className="font-medium text-sm">Round {round.idx + 1}</h6>
+                                  <div key={`${round.id}-${renderKey}-${updateKey}`} className="border rounded">
+                                    {/* Round Header */}
+                                    <div 
+                                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                                      onClick={() => toggleRound(round.id)}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className={`transform transition-transform ${expandedRounds.has(round.id) ? 'rotate-90' : ''}`}>
+                                          ▶
+                                        </div>
+                                        <h6 className="font-medium text-sm">Round {round.idx + 1}</h6>
+                                      </div>
                                       <div className="flex items-center gap-2">
                                         {isEditing ? (
                                             <button
                                               className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
-                                              onClick={() => saveRoundMatchups(round.id)}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                saveRoundMatchups(round.id);
+                                              }}
                                             >
                                             Confirm Matchups
                                             </button>
                                         ) : !hasAnyMatchStarted(round) ? (
                                           <button
                                             className="px-2 py-1 border rounded text-xs bg-blue-50 hover:bg-blue-100"
-                                            onClick={() => toggleRoundEdit(round.id)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleRoundEdit(round.id);
+                                            }}
                                           >
                                             Edit Matchups
                                           </button>
@@ -2574,6 +2614,10 @@ function EventManagerTab({
                                         )}
                                       </div>
                                     </div>
+
+                                    {/* Round Content */}
+                                    {expandedRounds.has(round.id) && (
+                                      <div className="p-3 border-t bg-gray-50">
                                     
                                     {isEditing && (
                                       <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
@@ -2924,18 +2968,19 @@ function EventManagerTab({
                                         </div>
                                       ));
                                     })()}
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })}
                             </div>
                           </div>
                         )}
-                      </div>
-                    )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })()}
+            </div>
           </div>
         ))}
       </div>
