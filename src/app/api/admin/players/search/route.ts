@@ -13,6 +13,7 @@ const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
  *   ?term=...
  *   &tournamentId=...
  *   &teamId=...
+ *   &stopId=...          // if present, use stop-specific filtering instead of tournament-wide
  *   &clubId=...          // if present AND for=captain, we constrain results to this club
  *   &excludeIds=a,b,c
  *   &for=captain|roster  // default: roster
@@ -20,7 +21,10 @@ const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
  *
  * Behavior:
  * - for=roster:
- *     If tournamentId is provided, exclude players who are rostered on ANY OTHER team
+ *     If stopId is provided, exclude players who are rostered on ANY OTHER team
+ *     for that specific stop (using StopTeamPlayer rows). This allows players to be
+ *     on different teams for different stops in the same tournament.
+ *     If tournamentId is provided (without stopId), exclude players who are rostered on ANY OTHER team
  *     in that tournament (using TeamPlayer rows). If teamId is omitted, exclude anyone
  *     already on any team in that tournament.
  * - for=captain:
@@ -42,6 +46,7 @@ export async function GET(req: Request) {
     let tournamentId = searchParams.get('tournamentId') || undefined;
     const teamId = searchParams.get('teamId') || undefined;
     const clubId = searchParams.get('clubId') || undefined;
+    const stopId = searchParams.get('stopId') || undefined;
     const mode = (searchParams.get('for') || 'roster').toLowerCase(); // 'roster' | 'captain'
     const enforceCap = searchParams.get('enforceCap') === '1';
 
@@ -77,8 +82,15 @@ export async function GET(req: Request) {
       });
       teamCapLimit = team?.tournament?.maxTeamSize ?? null;
 
-      // robust: don't rely on relation field names; just count TeamPlayer
-      teamRosterCount = await prisma.teamPlayer.count({ where: { teamId } });
+      if (stopId) {
+        // Count players for this specific stop
+        teamRosterCount = await prisma.stopTeamPlayer.count({ 
+          where: { teamId, stopId } 
+        });
+      } else {
+        // Count players across all stops (legacy behavior)
+        teamRosterCount = await prisma.teamPlayer.count({ where: { teamId } });
+      }
 
       if (teamCapLimit !== null && teamRosterCount >= teamCapLimit) {
         return NextResponse.json({
@@ -87,7 +99,7 @@ export async function GET(req: Request) {
             reached: true,
             limit: teamCapLimit,
             count: teamRosterCount,
-            message: `This bracket is at the limit (${teamRosterCount}/${teamCapLimit}).`,
+            message: `This bracket is at the limit for ${stopId ? 'this stop' : 'all stops'} (${teamRosterCount}/${teamCapLimit}).`,
           },
         });
       }
@@ -97,16 +109,29 @@ export async function GET(req: Request) {
     const excludeSet = new Set<string>(excludeIds);
 
     if (mode !== 'captain' && tournamentId) {
-      // Roster uniqueness across the tournament:
-      // exclude players already on any other team in this tournament.
-      const rosteredElsewhere = await prisma.teamPlayer.findMany({
-        where: {
-          tournamentId,
-          ...(teamId ? { NOT: { teamId } } : {}),
-        },
-        select: { playerId: true },
-      });
-      for (const r of rosteredElsewhere) excludeSet.add(r.playerId);
+      if (stopId) {
+        // Stop-specific roster uniqueness:
+        // exclude players already on any other team for this specific stop.
+        const rosteredElsewhere = await prisma.stopTeamPlayer.findMany({
+          where: {
+            stopId,
+            ...(teamId ? { NOT: { teamId } } : {}),
+          },
+          select: { playerId: true },
+        });
+        for (const r of rosteredElsewhere) excludeSet.add(r.playerId);
+      } else {
+        // Tournament-wide roster uniqueness (legacy behavior):
+        // exclude players already on any other team in this tournament.
+        const rosteredElsewhere = await prisma.teamPlayer.findMany({
+          where: {
+            tournamentId,
+            ...(teamId ? { NOT: { teamId } } : {}),
+          },
+          select: { playerId: true },
+        });
+        for (const r of rosteredElsewhere) excludeSet.add(r.playerId);
+      }
     }
 
     if (mode === 'captain' && tournamentId) {

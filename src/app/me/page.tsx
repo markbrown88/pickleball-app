@@ -1485,15 +1485,6 @@ function CaptainRosterEditor({
     }));
   }
 
-  // Unique set of players across ALL stops for a given bracket
-  function uniqueIdsAcrossStopsForBracket(bracketKey: string): Set<string> {
-    const ids = new Set<string>();
-    for (const s of tournamentRow.stops) {
-      const list = rosters[s.stopId]?.[bracketKey] ?? [];
-      for (const p of list) ids.add(p.id);
-    }
-    return ids;
-  }
 
   // Bracket limit for a given bracket (team)
   function bracketLimitFor(bracketKey: string): number | null {
@@ -1503,14 +1494,19 @@ function CaptainRosterEditor({
   }
 
   // Can we add this player to THIS bracket at THIS stop without breaking the bracket-level cap?
-  function canAddToBracket(bracketKey: string, playerId: string): boolean {
+  function canAddToBracket(bracketKey: string, playerId: string, stopId: string): boolean {
     const limit = bracketLimitFor(bracketKey);
     if (!limit) return true; // unlimited
 
-    const union = uniqueIdsAcrossStopsForBracket(bracketKey);
-    if (union.has(playerId)) return true; // already counted in bracket; adding at another stop is fine
-
-    return (union.size + 1) <= limit;
+    // Check limit for THIS stop only (not across all stops)
+    const currentStopRoster = rosters[stopId]?.[bracketKey] ?? [];
+    const currentStopCount = currentStopRoster.length;
+    
+    // If player is already in this stop's roster, they can be added
+    if (currentStopRoster.some(p => p.id === playerId)) return true;
+    
+    // Check if adding this player would exceed the limit for this stop
+    return (currentStopCount + 1) <= limit;
   }
 
   // Save: PUT per (team × stop)
@@ -1523,10 +1519,10 @@ function CaptainRosterEditor({
           if (!team) continue;
           const list = rosters[s.stopId]?.[b] ?? [];
 
-          // Soft check again for newly added players vs bracket cap
-          const union = uniqueIdsAcrossStopsForBracket(b);
-          if (union.size > (bracketLimitFor(b) ?? Number.MAX_SAFE_INTEGER)) {
-            throw new Error(`Bracket "${b}" exceeds its limit (${bracketLimitFor(b)})`);
+          // Soft check again for newly added players vs bracket cap for this stop
+          const limit = bracketLimitFor(b);
+          if (limit && list.length > limit) {
+            throw new Error(`Bracket "${b}" exceeds its limit for this stop (${list.length}/${limit})`);
           }
 
           const res = await fetch(`/api/captain/team/${team.id}/stops/${s.stopId}/roster`, {
@@ -1593,9 +1589,9 @@ function CaptainRosterEditor({
                     const team = tournamentRow.bracketTeams.get(bKey)!;
                     const list = rosters[s.stopId]?.[bKey] ?? [];
 
-                    const union = uniqueIdsAcrossStopsForBracket(bKey);
                     const limit = bracketLimitFor(bKey);
-                    const uniqueProgress = `${union.size} / ${limit ?? '∞'}`;
+                    const currentStopCount = list.length;
+                    const stopProgress = `${currentStopCount} / ${limit ?? '∞'}`;
 
                     // prevent picking same player into multiple brackets at the SAME stop (UX)
                     const excludeIdsAcrossStop = Object.values(rosters[s.stopId] ?? {}).flat().map(p => p.id);
@@ -1603,13 +1599,13 @@ function CaptainRosterEditor({
                     return (
                       <BracketRosterEditor
                         key={`${s.stopId}:${bKey}`}
-                        title={`${bKey} — unique across stops: ${uniqueProgress}`}
+                        title={`${bKey} — ${stopProgress} for this stop`}
                         stop={s}
                         teamId={team.id}
                         tournamentId={tournamentId}
                         list={list}
                         onChange={(next) => setStopBracketRoster(s.stopId, bKey, next)}
-                        canAdd={(playerId) => canAddToBracket(bKey, playerId)}
+                        canAdd={(playerId) => canAddToBracket(bKey, playerId, s.stopId)}
                         excludeIdsAcrossStop={excludeIdsAcrossStop}
                         label={label}
                       />
@@ -2858,6 +2854,7 @@ function EventManagerTab({
                                                       <div className="mt-2">
                                                         <InlineLineupEditor
                                                           matchId={match.id}
+                                                          stopId={round.stopId}
                                                           teamA={match.teamA || { id: 'teamA', name: 'Team A' }}
                                                           teamB={match.teamB || { id: 'teamB', name: 'Team B' }}
                                                           teamARoster={teamRosters[match.teamA?.id || ''] || []}
@@ -3137,6 +3134,7 @@ function LineupEditor({
 // Inline Lineup Editor Component
 function InlineLineupEditor({
   matchId,
+  stopId,
   teamA,
   teamB,
   teamARoster,
@@ -3147,6 +3145,7 @@ function InlineLineupEditor({
   onCancel,
 }: {
   matchId: string;
+  stopId: string;
   teamA: { id: string; name: string };
   teamB: { id: string; name: string };
   teamARoster: PlayerLite[];
@@ -3162,19 +3161,38 @@ function InlineLineupEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [loadedRosters, setLoadedRosters] = useState<{ teamA: PlayerLite[]; teamB: PlayerLite[] }>({ teamA: [], teamB: [] });
 
-  // Fetch team rosters when component mounts
+  // Fetch team rosters for this specific stop when component mounts
   useEffect(() => {
     const loadRosters = async () => {
-      if (teamA.id && teamB.id) {
-        const [rosterA, rosterB] = await Promise.all([
-          fetchTeamRoster(teamA.id),
-          fetchTeamRoster(teamB.id)
-        ]);
-        setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+      if (teamA.id && teamB.id && stopId) {
+        try {
+          const [responseA, responseB] = await Promise.all([
+            fetch(`/api/captain/team/${teamA.id}/stops/${stopId}/roster`),
+            fetch(`/api/captain/team/${teamB.id}/stops/${stopId}/roster`)
+          ]);
+          
+          const [dataA, dataB] = await Promise.all([
+            responseA.json(),
+            responseB.json()
+          ]);
+          
+          const rosterA = dataA.items || [];
+          const rosterB = dataB.items || [];
+          
+          setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+        } catch (error) {
+          console.error('Failed to load stop-specific rosters:', error);
+          // Fallback to tournament-wide rosters
+          const [rosterA, rosterB] = await Promise.all([
+            fetchTeamRoster(teamA.id),
+            fetchTeamRoster(teamB.id)
+          ]);
+          setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+        }
       }
     };
     loadRosters();
-  }, [teamA.id, teamB.id, fetchTeamRoster]);
+  }, [teamA.id, teamB.id, stopId, fetchTeamRoster]);
 
   // Initialize lineups when component mounts or when editing starts
   useEffect(() => {
@@ -3410,7 +3428,7 @@ function InlineLineupEditor({
                 value={teamALineup[0]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamARoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamA.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamA.id, 0);
                   } else if (teamALineup[0]) {
                     removePlayerFromLineup(teamALineup[0].id, teamA.id, 0);
@@ -3433,7 +3451,7 @@ function InlineLineupEditor({
                 value={teamALineup[1]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamARoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamA.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamA.id, 1);
                   } else if (teamALineup[1]) {
                     removePlayerFromLineup(teamALineup[1].id, teamA.id, 1);
@@ -3456,7 +3474,7 @@ function InlineLineupEditor({
                 value={teamALineup[2]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamARoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamA.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamA.id, 2);
                   } else if (teamALineup[2]) {
                     removePlayerFromLineup(teamALineup[2].id, teamA.id, 2);
@@ -3479,7 +3497,7 @@ function InlineLineupEditor({
                 value={teamALineup[3]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamARoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamA.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamA.id, 3);
                   } else if (teamALineup[3]) {
                     removePlayerFromLineup(teamALineup[3].id, teamA.id, 3);
@@ -3508,7 +3526,7 @@ function InlineLineupEditor({
                 value={teamBLineup[0]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamB.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamB.id, 0);
                   } else if (teamBLineup[0]) {
                     removePlayerFromLineup(teamBLineup[0].id, teamB.id, 0);
@@ -3531,7 +3549,7 @@ function InlineLineupEditor({
                 value={teamBLineup[1]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamB.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamB.id, 1);
                   } else if (teamBLineup[1]) {
                     removePlayerFromLineup(teamBLineup[1].id, teamB.id, 1);
@@ -3554,7 +3572,7 @@ function InlineLineupEditor({
                 value={teamBLineup[2]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamB.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamB.id, 2);
                   } else if (teamBLineup[2]) {
                     removePlayerFromLineup(teamBLineup[2].id, teamB.id, 2);
@@ -3577,7 +3595,7 @@ function InlineLineupEditor({
                 value={teamBLineup[3]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
-                    const player = teamBRoster.find(p => p.id === e.target.value);
+                    const player = loadedRosters.teamB.find(p => p.id === e.target.value);
                     if (player) addPlayerToLineup(player, teamB.id, 3);
                   } else if (teamBLineup[3]) {
                     removePlayerFromLineup(teamBLineup[3].id, teamB.id, 3);

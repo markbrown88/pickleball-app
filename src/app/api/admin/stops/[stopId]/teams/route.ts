@@ -14,7 +14,7 @@ export async function GET(
     const { stopId } = await ctx.params;
     // Use singleton prisma instance
 
-    const rows = await prisma.stopTeam.findMany({
+    const stopTeams = await prisma.stopTeam.findMany({
       where: { stopId },
       include: {
         team: {
@@ -26,6 +26,32 @@ export async function GET(
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    // Get roster data for each team
+    const rows = await Promise.all(
+      stopTeams.map(async (stopTeam) => {
+        const roster = await prisma.stopTeamPlayer.findMany({
+          where: { stopId, teamId: stopTeam.teamId },
+          include: {
+            player: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                name: true,
+                dupr: true,
+                gender: true,
+              },
+            },
+          },
+        });
+
+        return {
+          ...stopTeam,
+          roster: roster.map(r => r.player),
+        };
+      })
+    );
 
     return NextResponse.json(rows);
   } catch (e) {

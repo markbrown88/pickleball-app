@@ -325,8 +325,7 @@ export default function TournamentPage() {
       });
     });
 
-    // Only include games that have actually been started (isComplete === false)
-    // and have lineups confirmed
+    // Include games that are in progress OR tiebreakers that need to be played
     const inProgress = allGames
       .filter(({ game, match }) => {
         const hasLineups = match.teamA?.id && match.teamB?.id && 
@@ -334,15 +333,65 @@ export default function TournamentPage() {
           lineups[match.id][match.teamA.id]?.length === 4 && 
           lineups[match.id][match.teamB.id]?.length === 4;
         
-        // A game is considered "started" if:
+        // For tiebreakers, only show if:
+        // 1. All 4 regular games are completed (have scores)
+        // 2. Teams are tied 2-2
+        // 3. Tiebreaker is not completed yet
+        if (game.slot === 'TIEBREAKER') {
+          if (!hasLineups) return false;
+          
+          // Don't show completed tiebreakers in "In Progress"
+          if (game.teamAScore !== null && game.teamBScore !== null) {
+            return false;
+          }
+          
+          // Count completed regular games (excluding tiebreaker)
+          // A game is considered completed if it has both scores
+          const regularGames = match.games?.filter(g => g.slot !== 'TIEBREAKER') || [];
+          const completedRegularGames = regularGames.filter(g => 
+            g.teamAScore !== null && g.teamBScore !== null
+          );
+          
+          // Only show tiebreaker if all 4 regular games are completed
+          if (completedRegularGames.length !== 4) return false;
+          
+          // Count wins for each team
+          const teamAWins = completedRegularGames.filter(g => (g.teamAScore || 0) > (g.teamBScore || 0)).length;
+          const teamBWins = completedRegularGames.filter(g => (g.teamBScore || 0) > (g.teamAScore || 0)).length;
+          
+          // Only show tiebreaker if teams are tied 2-2
+          return teamAWins === 2 && teamBWins === 2;
+        }
+        
+        // A regular game is considered "started" if:
         // 1. It's marked as in progress (isComplete === false)
         // 2. It has confirmed lineups
         // 3. It has actually been started (has startedAt timestamp)
         return game.isComplete === false && hasLineups && game.startedAt;
       })
-      .sort((a, b) => new Date(a.game.startedAt).getTime() - new Date(b.game.startedAt).getTime());
+      .sort((a, b) => {
+        // Sort tiebreakers first, then by start time
+        if (a.game.slot === 'TIEBREAKER' && b.game.slot !== 'TIEBREAKER') return -1;
+        if (b.game.slot === 'TIEBREAKER' && a.game.slot !== 'TIEBREAKER') return 1;
+        if (a.game.startedAt && b.game.startedAt) {
+          return new Date(a.game.startedAt).getTime() - new Date(b.game.startedAt).getTime();
+        }
+        return 0;
+      });
     
-    const completed = allGames.filter(({ game }) => game.isComplete === true);
+    const completed = allGames.filter(({ game }) => {
+      // Regular games: isComplete === true
+      if (game.isComplete === true) return true;
+      
+      // Tiebreakers: consider completed if they have both scores
+      if (game.slot === 'TIEBREAKER' && 
+          game.teamAScore !== null && 
+          game.teamBScore !== null) {
+        return true;
+      }
+      
+      return false;
+    });
     
     return { inProgress, completed };
   };

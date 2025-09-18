@@ -138,9 +138,10 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
 
     // Pre-flight exclusivity check for nicer UX (DB trigger still enforces)
+    // Check stop-specific conflicts instead of tournament-wide conflicts
     if (playerIds.length) {
-      const conflicts = await prisma.teamPlayer.findMany({
-        where: { tournamentId, playerId: { in: playerIds }, teamId: { not: teamId } },
+      const conflicts = await prisma.stopTeamPlayer.findMany({
+        where: { stopId, playerId: { in: playerIds }, teamId: { not: teamId } },
         select: { playerId: true, teamId: true },
       });
       if (conflicts.length) {
@@ -148,7 +149,7 @@ export async function PUT(req: Request, ctx: Ctx) {
         return NextResponse.json(
           {
             error:
-              `Some players are already assigned to a different team in this tournament: ${conflictIds.join(', ')}`,
+              `Some players are already assigned to a different team for this stop: ${conflictIds.join(', ')}`,
             conflictPlayerIds: conflictIds,
           },
           { status: 409 }
@@ -156,21 +157,10 @@ export async function PUT(req: Request, ctx: Ctx) {
       }
     }
 
-    // Bracket cap across ALL stops for this team (unique players)
-    const allStopPlayers = await prisma.stopTeamPlayer.findMany({
-      where: { teamId },
-      select: { stopId: true, playerId: true },
-    });
-    const unique = new Set<string>();
-    for (const row of allStopPlayers) {
-      if (row.stopId === stopId) continue; // current stop will be replaced
-      unique.add(row.playerId);
-    }
-    for (const pid of playerIds) unique.add(pid);
-
-    if (bracketCap && bracketCap > 0 && unique.size > bracketCap) {
+    // Bracket cap per stop (not across all stops)
+    if (bracketCap && bracketCap > 0 && playerIds.length > bracketCap) {
       return NextResponse.json(
-        { error: `Bracket limit exceeded: ${unique.size} > ${bracketCap}`, limit: bracketCap, uniqueCount: unique.size },
+        { error: `Bracket limit exceeded for this stop: ${playerIds.length} > ${bracketCap}`, limit: bracketCap, count: playerIds.length },
         { status: 400 }
       );
     }
@@ -218,13 +208,6 @@ export async function PUT(req: Request, ctx: Ctx) {
       ok: true,
       items,
       count: items.length,
-      uniqueAcrossStops: Array.from(
-        new Set(
-          items
-            .map((p) => p.id)
-            .concat(allStopPlayers.filter((x) => x.stopId !== stopId).map((x) => x.playerId))
-        )
-      ).length,
       cap: bracketCap ?? null,
     });
   } catch (err: any) {
