@@ -525,8 +525,8 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold">Tournament Admin</h1>
         <nav className="flex gap-4 text-sm underline">
           <Link href="/">Home</Link>
-          <Link href="/captain">Captain</Link>
-          <Link href="/me">Player</Link>
+          <Link href="/me" target="_blank">Players</Link>
+          <Link href="/tournaments" target="_blank">Scoreboard</Link>
         </nav>
       </div>
 
@@ -583,9 +583,8 @@ export default function AdminPage() {
 
       {/* ===== Clubs ===== */}
       {tab === 'clubs' && (
-        <section className="border rounded p-4 space-y-4">
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Clubs</h2>
             <button className="border rounded px-3 py-1" onClick={() => openEditClub()}>Add Club</button>
           </div>
           <div className="overflow-x-auto">
@@ -662,9 +661,8 @@ export default function AdminPage() {
 
       {/* ===== Players ===== */}
       {tab === 'players' && (
-        <section className="border rounded p-4 space-y-4">
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Players</h2>
             <button className="border rounded px-3 py-1" onClick={() => openEditPlayer()}>Add Player</button>
           </div>
 
@@ -1352,9 +1350,8 @@ function TournamentsBlock(props: TournamentsBlockProps) {
   }
 
   return (
-    <section className="border rounded p-4 space-y-4">
+    <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Tournaments</h2>
         <button className="border rounded px-3 py-1" onClick={createNewTournamentPrompt}>Create Tournament</button>
       </div>
 
@@ -1390,21 +1387,21 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                     <tr>
                       <td colSpan={5} className="bg-gray-50 p-4">
                         {/* SINGLE EDITABLE PANEL */}
-                        <div className="space-y-6">
+                        <div className="space-y-6 w-fit">
                           {/* Name + Type + Max size + Checkboxes + Brackets */}
                           <div className="flex flex-wrap items-start gap-4">
-                            <div className="flex items-center gap-2 w-[20%]">
-                              <label className="w-28 text-sm text-gray-700">Name</label>
+                            <div className="flex items-center gap-1">
+                              <label className="w-10 text-sm text-gray-700">Name</label>
                               <input
-                                className="border rounded px-2 py-1 w-full"
+                                className="border rounded px-2 py-1 w-48"
                                 value={ed.name}
                                 onChange={(e) => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, name: e.target.value } }))}
                               />
                             </div>
-                            <div className="flex items-center gap-2 w-[20%]">
-                              <label className="w-28 text-sm text-gray-700">Type</label>
+                            <div className="flex items-center gap-1">
+                              <label className="w-10 text-sm text-gray-700">Type</label>
                               <select
-                                className="border rounded px-2 py-1 w-full"
+                                className="border rounded px-2 py-1 w-48"
                                 value={ed.type}
                                 onChange={(e) => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, type: e.target.value as typeof ed.type } }))}
                               >
@@ -1413,9 +1410,9 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                 ))}
                               </select>
                             </div>
-                            <div className="flex items-center gap-2 w-[10%]">
+                            <div className="flex items-center gap-1">
                               <label
-                                className="w-60 text-sm text-gray-700"
+                                className="w-30 text-sm text-gray-700"
                                 title={ed.hasBrackets
                                   ? 'Max number of players allowed in each bracket. Leave blank for unlimited.'
                                   : 'Max number of players per team. Leave blank for unlimited.'}
@@ -1423,7 +1420,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                 {ed.hasBrackets ? 'Max bracket size' : 'Max team size'}
                               </label>
                               <input
-                                className="border rounded px-2 py-1 w-full"
+                                className="border rounded px-2 py-1 w-12"
                                 type="number"
                                 min={1}
                                 placeholder="(unlimited)"
@@ -1437,7 +1434,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                               />
                             </div>
                             {/* Checkboxes - stacked vertically */}
-                            <div className="flex flex-col gap-2 w-[10%]">
+                            <div className="flex flex-col gap-2">
                               <label className="inline-flex items-center gap-2">
                                 <input type="checkbox" checked={ed.hasBrackets} onChange={e => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, hasBrackets: e.target.checked } }))} />
                                 <span>Brackets</span>
@@ -1454,17 +1451,17 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                             {/* Brackets - moved to top row */}
                             {ed.type === 'Team Format' && ed.hasBrackets && (
                               <div className="flex-1">
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <label className="text-sm text-gray-700 font-medium">Brackets:</label>
+                                <div className="flex gap-2">
+                                  <div className="flex items-start gap-1">
+                                    <label className="w-18 text-sm text-gray-700">Brackets:</label>
                                     <button className="text-blue-600 text-sm" onClick={() => addBracket(t.id)}>+</button>
                                   </div>
-                                  {ed.brackets.length === 0 && <p className="text-sm text-gray-600">No brackets yet.</p>}
                                   <div className="space-y-2">
+                                    {ed.brackets.length === 0 && <p className="text-sm text-gray-600">No brackets yet.</p>}
                                     {ed.brackets.map(level => (
                                       <div key={level.id} className="flex items-center gap-2">
                                         <input
-                                          className="border rounded px-2 py-1 flex-1"
+                                          className="border rounded px-2 py-1 w-28"
                                           placeholder="Bracket name (e.g., Intermediate)"
                                           value={level.name}
                                           onChange={e => props.setEditorById((prev: EditorState) => {
@@ -1495,26 +1492,27 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                               </div>
                               {(ed.stops || []).length === 0 && <p className="text-sm text-gray-600">No stops yet.</p>}
                               {(ed.stops || []).length > 0 && (
-                                <div className="grid grid-cols-5 gap-2 text-sm font-medium text-gray-700 mb-2">
-                                  <div>Name</div>
-                                  <div>Location</div>
-                                  <div>Start Date</div>
-                                  <div>End Date</div>
-                                  <div>Event Manager</div>
+                                <div className="flex gap-2 text-sm font-medium text-gray-700 mb-2">
+                                  <div className="w-48">Name</div>
+                                  <div className="w-60">Location</div>
+                                  <div className="w-32">Start Date</div>
+                                  <div className="w-32">End Date</div>
+                                  <div className="w-60">Event Manager</div>
+                                  <div className="w-8"></div>
                                 </div>
                               )}
                               <div className="space-y-2">
                                 {(ed.stops || []).map((s, idx) => (
                                   <div key={idx} className="">
-                                    <div className="grid grid-cols-5 gap-2 items-center">
+                                    <div className="flex items-center gap-2">
                                       <input
-                                        className="border rounded px-2 py-1"
+                                        className="border rounded px-2 py-1 w-48"
                                         placeholder="Stop name (required)"
                                         value={s.name}
                                         onChange={e => updateStopRow(t.id, idx, { name: e.target.value })}
                                       />
                                       <select
-                                        className="border rounded px-2 py-1"
+                                        className="border rounded px-2 py-1 w-60"
                                         value={s.clubId || ''}
                                         onChange={e => updateStopRow(t.id, idx, { clubId: (e.target.value || undefined) as Id | undefined })}
                                       >
@@ -1522,25 +1520,25 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                         {props.clubsAll.map(c => <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>)}
                                       </select>
                                       <input
-                                        className="border rounded px-2 py-1" type="date"
+                                        className="border rounded px-2 py-1 w-32" type="date"
                                         value={s.startAt || ''}
                                         onChange={e => updateStopRow(t.id, idx, { startAt: e.target.value })}
                                       />
                                       <input
-                                        className="border rounded px-2 py-1" type="date"
+                                        className="border rounded px-2 py-1 w-32" type="date"
                                         value={s.endAt || ''}
                                         onChange={e => updateStopRow(t.id, idx, { endAt: e.target.value })}
                                       />
 
                                       {/* Stop-level Event Manager */}
-                                      <div className="relative w-full">
+                                      <div className="relative w-60">
                                         {s.eventManager?.id ? (
                                           <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-1 bg-gray-50">
                                             <div className="text-sm">
                                               <span className="font-medium">{s.eventManager.label || '(selected)'}</span>
                                             </div>
                                             <button
-                                              className="px-2 py-1 text-red-600"
+                                              className="px-2 py-0 text-red-600"
                                               aria-label="Remove event manager"
                                               title="Remove event manager"
                                               onClick={() => removeStopEventMgr(t.id, idx)}
@@ -1551,7 +1549,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                         ) : (
                                           <div className="w-full">
                                             <input
-                                              className="border rounded px-2 py-1 w-full pr-8"
+                                              className="border rounded px-2 py-0 w-full pr-8"
                                               placeholder="Type 3+ chars to search players…"
                                               value={s.eventManagerQuery || ''}
                                               onChange={e => setStopEventMgrQuery(t.id, idx, e.target.value)}
@@ -1572,8 +1570,6 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                           </div>
                                         )}
                                       </div>
-                                    </div>
-                                    <div className="flex justify-end mt-2">
                                       <button className="px-2 py-1" aria-label="Remove stop" title="Remove stop" onClick={() => removeStopRow(t.id, idx)}>
                                         <TrashIcon />
                                       </button>
@@ -1743,49 +1739,45 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                               </div>
                               {ed.clubs.length === 0 && <p className="text-sm text-gray-600">No clubs yet.</p>}
                               {ed.clubs.length > 0 && (
-                                <div className="grid grid-cols-2 gap-2 text-sm font-medium text-gray-700 mb-2">
-                                  <div>Club Name</div>
-                                  <div>Captain</div>
+                                <div className="flex gap-2 text-sm font-medium text-gray-700 mb-2">
+                                  <div className="w-60">Club Name</div>
+                                  <div className="w-60">Captain</div>
+                                  <div className="w-8"></div>
                                 </div>
                               )}
                               <div className="space-y-2">
                                 {ed.clubs.map((row, idx) => (
                                   <div key={idx} className="">
-                                    <div className="grid grid-cols-2 gap-2 items-center">
-                                      <div className="flex items-center gap-2">
-                                        <select
-                                          className="border rounded px-2 py-1 flex-1"
-                                          value={row.clubId || ''}
-                                          onChange={e => {
-                                            const clubId = e.target.value || undefined;
-                                            props.setEditorById((prev: EditorState) => {
-                                              const ed2 = prev[t.id]; if (!ed2) return prev;
-                                              const next = [...ed2.clubs];
-                                              next[idx] = { ...next[idx], clubId };
-                                              return { ...prev, [t.id]: { ...ed2, clubs: next } };
-                                            });
-                                          }}
-                                        >
-                                          <option value="">Select Club…</option>
-                                          {availableClubsForRow(t.id, idx).map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
-                                          ))}
-                                        </select>
-                                        <button className="px-2 py-1" aria-label="Remove club" title="Remove club" onClick={() => removeClubRow(t.id, idx)}>
-                                          <TrashIcon />
-                                        </button>
-                                      </div>
+                                    <div className="flex items-center gap-2">
+                                      <select
+                                        className="border rounded px-2 py-1 w-60"
+                                        value={row.clubId || ''}
+                                        onChange={e => {
+                                          const clubId = e.target.value || undefined;
+                                          props.setEditorById((prev: EditorState) => {
+                                            const ed2 = prev[t.id]; if (!ed2) return prev;
+                                            const next = [...ed2.clubs];
+                                            next[idx] = { ...next[idx], clubId };
+                                            return { ...prev, [t.id]: { ...ed2, clubs: next } };
+                                          });
+                                        }}
+                                      >
+                                        <option value="">Select Club…</option>
+                                        {availableClubsForRow(t.id, idx).map(c => (
+                                          <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
+                                        ))}
+                                      </select>
 
                                       {/* Single-captain picker (shown only if Captains toggle ON) */}
-                                      <div className="relative w-full">
+                                      <div className="relative w-60">
                                         {ed.hasCaptains && row.clubId ? (
                                           row.singleCaptain?.id ? (
-                                            <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-1 bg-gray-50">
+                                            <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-0 bg-gray-50">
                                               <div className="text-sm">
                                                 <span className="font-medium">{row.singleCaptain.label || '(selected)'}</span>
                                               </div>
                                               <button
-                                                className="px-2 py-1 text-red-600"
+                                                className="px-2 py-0 text-red-600"
                                                 aria-label="Remove captain"
                                                 title="Remove captain"
                                                 onClick={() => removeSingleCaptain(t.id, idx)}
@@ -1796,7 +1788,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                           ) : (
                                             <div className="w-full">
                                               <input
-                                                className="border rounded px-2 py-1 w-full pr-8"
+                                                className="border rounded px-2 py-0 w-full pr-8"
                                                 placeholder="Type 3+ chars to search players…"
                                                 value={row.singleQuery}
                                                 onChange={e => setSingleCaptainQuery(t.id, idx, e.target.value)}
@@ -1822,6 +1814,9 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                           <div className="text-sm text-gray-500">Select a club first</div>
                                         )}
                                       </div>
+                                      <button className="px-2 py-1" aria-label="Remove club" title="Remove club" onClick={() => removeClubRow(t.id, idx)}>
+                                        <TrashIcon />
+                                      </button>
                                     </div>
                                   </div>
                                 ))}
@@ -2042,9 +2037,8 @@ function AdminTeamsTab({ tournaments }: { tournaments: TournamentRow[] }) {
   }, [tournaments, dataByTid]);
 
   return (
-    <section className="border rounded p-4 space-y-4">
+    <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Teams</h2>
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-700">Tournament</label>
           <select

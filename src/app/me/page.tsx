@@ -981,7 +981,6 @@ export default function MePage() {
         {activeTab === 'profile' && (
           <section className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Profile</h2>
           <button className="border rounded px-3 py-1" onClick={() => setShowEdit(s => !s)}>
                 {showEdit ? 'Cancel' : 'Edit Profile'}
           </button>
@@ -1278,7 +1277,6 @@ export default function MePage() {
 
         {activeTab === 'tournaments' && (
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Tournaments</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -2485,9 +2483,6 @@ function EventManagerTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Tournaments</h2>
-      </div>
 
       {/* Tournament Accordions */}
       <div className="space-y-3">
