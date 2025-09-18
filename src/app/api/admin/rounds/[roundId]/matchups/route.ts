@@ -19,6 +19,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
               select: {
                 name: true
               }
+            },
+            bracket: {
+              select: {
+                id: true,
+                name: true
+              }
             }
           }
         },
@@ -28,6 +34,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
             name: true,
             club: {
               select: {
+                name: true
+              }
+            },
+            bracket: {
+              select: {
+                id: true,
                 name: true
               }
             }
