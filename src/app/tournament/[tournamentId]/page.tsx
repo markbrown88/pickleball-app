@@ -326,7 +326,7 @@ export default function TournamentPage() {
     });
 
     // Include games that are in progress OR tiebreakers that need to be played
-    const inProgress = allGames
+    const inProgressGames = allGames
       .filter(({ game, match }) => {
         const hasLineups = match.teamA?.id && match.teamB?.id && 
           lineups[match.id] && 
@@ -379,7 +379,7 @@ export default function TournamentPage() {
         return 0;
       });
     
-    const completed = allGames.filter(({ game }) => {
+    const completedGames = allGames.filter(({ game }) => {
       // Regular games: isComplete === true
       if (game.isComplete === true) return true;
       
@@ -392,8 +392,34 @@ export default function TournamentPage() {
       
       return false;
     });
+
+    // Group games by match
+    const groupGamesByMatch = (games: Array<{ game: Game; match: Match; round: Round }>) => {
+      const matchGroups = new Map<string, Array<{ game: Game; match: Match; round: Round }>>();
+      
+      games.forEach(({ game, match, round }) => {
+        const matchId = match.id;
+        if (!matchGroups.has(matchId)) {
+          matchGroups.set(matchId, []);
+        }
+        matchGroups.get(matchId)!.push({ game, match, round });
+      });
+      
+      return Array.from(matchGroups.values()).map(games => ({
+        match: games[0].match,
+        round: games[0].round,
+        games: games.map(({ game }) => game).sort((a, b) => {
+          // Sort games by slot order
+          const slotOrder = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2', 'TIEBREAKER'];
+          return slotOrder.indexOf(a.slot || '') - slotOrder.indexOf(b.slot || '');
+        })
+      }));
+    };
     
-    return { inProgress, completed };
+    return { 
+      inProgress: groupGamesByMatch(inProgressGames), 
+      completed: groupGamesByMatch(completedGames) 
+    };
   };
 
   if (loading) {
@@ -594,55 +620,79 @@ export default function TournamentPage() {
                     <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
                     In Progress
                   </h2>
-                  <p className="text-sm text-gray-500">{inProgress.length} games started</p>
+                  <p className="text-sm text-gray-500">{inProgress.length} matches in progress</p>
                 </div>
                 <div className="p-6">
                   {inProgress.length > 0 ? (
-                    <div className="space-y-4">
-                      {inProgress.map(({ game, match, round }) => (
-                        <div key={game.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="space-y-6">
+                      {inProgress.map(({ match, games, round }) => {
+                        // Calculate wins for each team
+                        const teamAWins = match.games?.reduce((wins, game) => {
+                          if (game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore) return wins + 1;
+                          return wins;
+                        }, 0) || 0;
+                        const teamBWins = match.games?.reduce((wins, game) => {
+                          if (game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore) return wins + 1;
+                          return wins;
+                        }, 0) || 0;
+                        const teamAWinning = teamAWins > teamBWins;
+                        const teamBWinning = teamBWins > teamAWins;
+                        
+                        return (
+                        <div key={match.id} className="border border-gray-200 rounded-lg p-4">
                           {/* Team names at top */}
-                          <div className="text-xs text-gray-500 mb-1">
-                            {match.teamA?.name} vs {match.teamB?.name}
-                          </div>
-                          
-                          {/* Game type - no space between team names and game type */}
-                          <div className="text-sm font-medium text-gray-700 mb-4">
-                            {game.slot.replace('_', ' ')}
-                          </div>
-                          
-                          {/* Player names and scores */}
-                          <div className="flex items-center justify-between text-sm mb-4">
-                            <div className="text-gray-600 text-xs whitespace-pre-line text-left">
-                              {getPlayerNames(game, match, 'A')}
-                            </div>
-                            <span className="font-medium">
-                              {game.teamAScore !== null ? game.teamAScore : '-'}
+                          <div className="text-sm font-medium mb-4 flex items-center space-x-2">
+                            <span className="text-gray-600">Round {(round as any).idx + 1}:</span>
+                            <span className={teamAWinning ? 'text-blue-600' : 'text-gray-900'}>
+                              {match.teamA?.name?.replace(/\s+(Advanced|Intermediate)$/, '')}
                             </span>
-                            <span className="text-gray-400">vs</span>
-                            <span className="font-medium">
-                              {game.teamBScore !== null ? game.teamBScore : '-'}
+                            {teamAWinning && <span className="text-yellow-500">🏆</span>}
+                            <span className="text-gray-500">vs</span>
+                            <span className={teamBWinning ? 'text-blue-600' : 'text-gray-900'}>
+                              {match.teamB?.name?.replace(/\s+(Advanced|Intermediate)$/, '')}
                             </span>
-                            <div className="text-gray-600 text-xs whitespace-pre-line text-left">
-                              {getPlayerNames(game, match, 'B')}
-                            </div>
+                            {teamBWinning && <span className="text-yellow-500">🏆</span>}
+                            <span className="text-gray-600">- {match.teamA?.bracket?.name || 'Advanced'}</span>
                           </div>
                           
-                          {/* Start time and Court at bottom */}
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <div>
-                              {getGameStartTime(game) && (
-                                <span>Started: {getGameStartTime(game)}</span>
-                              )}
-                            </div>
-                            <div>
-                              {game.courtNumber && (
-                                <span>Court {game.courtNumber}</span>
-                              )}
-                            </div>
+                          {/* Games list */}
+                          <div className="space-y-3">
+                            {games.map((game) => (
+                              <div key={game.id} className="space-y-1">
+                                {/* Game name and time on one line */}
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                  <span className="font-bold text-gray-700">
+                                    {game.slot?.replace('_', ' ')}
+                                  </span>
+                                  {getGameStartTime(game) && (
+                                    <span>Started: {getGameStartTime(game)}</span>
+                                  )}
+                                </div>
+                                
+                                {/* Players and scores on next line - full width */}
+                                <div className="flex items-center justify-between text-sm w-full">
+                                  <div className={`text-xs whitespace-pre-line text-left ${(game.teamAScore || 0) > (game.teamBScore || 0) ? 'text-blue-600' : 'text-gray-600'}`}>
+                                    {getPlayerNames(game, match, 'A')}
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-medium">
+                                      {game.teamAScore !== null ? game.teamAScore : '-'}
+                                    </span>
+                                    <span className="text-gray-400 text-xs">vs</span>
+                                    <span className="font-medium">
+                                      {game.teamBScore !== null ? game.teamBScore : '-'}
+                                    </span>
+                                  </div>
+                                  <div className={`text-xs whitespace-pre-line text-right ${(game.teamBScore || 0) > (game.teamAScore || 0) ? 'text-blue-600' : 'text-gray-600'}`}>
+                                    {getPlayerNames(game, match, 'B')}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
@@ -659,61 +709,85 @@ export default function TournamentPage() {
                     <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
                     Completed
                   </h2>
-                  <p className="text-sm text-gray-500">{completed.length} games</p>
+                  <p className="text-sm text-gray-500">{completed.length} matches completed</p>
                 </div>
                 <div className="p-6">
                   {completed.length > 0 ? (
-                    <div className="space-y-4">
-                      {completed.map(({ game, match, round }) => (
-                        <div key={game.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="space-y-6">
+                      {completed.map(({ match, games, round }) => {
+                        // Calculate wins for each team
+                        const teamAWins = match.games?.reduce((wins, game) => {
+                          if (game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore) return wins + 1;
+                          return wins;
+                        }, 0) || 0;
+                        const teamBWins = match.games?.reduce((wins, game) => {
+                          if (game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore) return wins + 1;
+                          return wins;
+                        }, 0) || 0;
+                        const teamAWinning = teamAWins > teamBWins;
+                        const teamBWinning = teamBWins > teamAWins;
+                        
+                        return (
+                        <div key={match.id} className="border border-gray-200 rounded-lg p-4">
                           {/* Team names at top */}
-                          <div className="text-xs text-gray-500 mb-1">
-                            {match.teamA?.name} vs {match.teamB?.name}
-                          </div>
-                          
-                          {/* Game type - no space between team names and game type */}
-                          <div className="text-sm font-medium text-gray-700 mb-4">
-                            {game.slot.replace('_', ' ')}
-                          </div>
-                          
-                          {/* Player names and scores */}
-                          <div className="flex items-center justify-between text-sm mb-4">
-                            <div className="text-gray-600 text-xs whitespace-pre-line text-left flex items-center">
-                              {getPlayerNames(game, match, 'A')}
-                              {(game.teamAScore || 0) > (game.teamBScore || 0) && (
-                                <span className="ml-1 text-yellow-500">🏆</span>
-                              )}
-                            </div>
-                            <span className="font-medium">
-                              {game.teamAScore !== null ? game.teamAScore : '-'}
+                          <div className="text-sm font-medium mb-4 flex items-center space-x-2">
+                            <span className="text-gray-600">Round {(round as any).idx + 1}:</span>
+                            <span className={teamAWinning ? 'text-blue-600' : 'text-gray-900'}>
+                              {match.teamA?.name?.replace(/\s+(Advanced|Intermediate)$/, '')}
                             </span>
-                            <span className="text-gray-400">vs</span>
-                            <span className="font-medium">
-                              {game.teamBScore !== null ? game.teamBScore : '-'}
+                            {teamAWinning && <span className="text-yellow-500">🏆</span>}
+                            <span className="text-gray-500">vs</span>
+                            <span className={teamBWinning ? 'text-blue-600' : 'text-gray-900'}>
+                              {match.teamB?.name?.replace(/\s+(Advanced|Intermediate)$/, '')}
                             </span>
-                            <div className="text-gray-600 text-xs whitespace-pre-line text-left flex items-center">
-                              {getPlayerNames(game, match, 'B')}
-                              {(game.teamBScore || 0) > (game.teamAScore || 0) && (
-                                <span className="ml-1 text-yellow-500">🏆</span>
-                              )}
-                            </div>
+                            {teamBWinning && <span className="text-yellow-500">🏆</span>}
+                            <span className="text-gray-600">- {match.teamA?.bracket?.name || 'Advanced'}</span>
                           </div>
                           
-                          {/* End time and Court at bottom */}
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <div>
-                              {getGameEndTime(game) && (
-                                <span>Ended: {getGameEndTime(game)}</span>
-                              )}
-                            </div>
-                            <div>
-                              {game.courtNumber && (
-                                <span>Court {game.courtNumber}</span>
-                              )}
-                            </div>
+                          {/* Games list */}
+                          <div className="space-y-3">
+                            {games.map((game) => (
+                              <div key={game.id} className="space-y-1">
+                                {/* Game name and time on one line */}
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                  <span className="font-bold text-gray-700">
+                                    {game.slot?.replace('_', ' ')}
+                                  </span>
+                                  {getGameEndTime(game) && (
+                                    <span>Ended: {getGameEndTime(game)}</span>
+                                  )}
+                                </div>
+                                
+                                {/* Players and scores on next line - full width */}
+                                <div className="flex items-center justify-between text-sm w-full">
+                                  <div className={`text-xs whitespace-pre-line text-left flex items-center ${(game.teamAScore || 0) > (game.teamBScore || 0) ? 'text-blue-600' : 'text-gray-600'}`}>
+                                    {getPlayerNames(game, match, 'A')}
+                                    {(game.teamAScore || 0) > (game.teamBScore || 0) && (
+                                      <span className="ml-1 text-yellow-500">🏆</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-medium">
+                                      {game.teamAScore !== null ? game.teamAScore : '-'}
+                                    </span>
+                                    <span className="text-gray-400 text-xs">vs</span>
+                                    <span className="font-medium">
+                                      {game.teamBScore !== null ? game.teamBScore : '-'}
+                                    </span>
+                                  </div>
+                                  <div className={`text-xs whitespace-pre-line text-right flex items-center ${(game.teamBScore || 0) > (game.teamAScore || 0) ? 'text-blue-600' : 'text-gray-600'}`}>
+                                    {getPlayerNames(game, match, 'B')}
+                                    {(game.teamBScore || 0) > (game.teamAScore || 0) && (
+                                      <span className="ml-1 text-yellow-500">🏆</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
