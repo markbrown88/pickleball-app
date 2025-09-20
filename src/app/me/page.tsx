@@ -8,7 +8,6 @@ import { useUser, useAuth } from '@clerk/nextjs';
 import { SignInButton, SignOutButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import { UserProfile, Tournament, PlayerRegistration, TournamentsResponse, RegistrationResponse, RoleInfo } from '@/types';
-import AppAdminDashboard from '@/components/AppAdminDashboard';
 
 // Custom strategy that disables automatic reordering
 const noReorderStrategy = () => null;
@@ -123,6 +122,7 @@ type Club = {
   address?: string|null; city?: string|null; region?: string|null; country?: string|null; phone?: string|null;
 };
 type PlayerLite = { id: Id; firstName?: string|null; lastName?: string|null; name?: string|null; gender: 'MALE'|'FEMALE'; dupr?: number|null; age?: number|null; };
+type ActAsPlayer = { id: Id; firstName?: string|null; lastName?: string|null; email?: string|null; isAppAdmin: boolean; };
 
 type StopRowFromAPI = {
   stopId: Id;
@@ -896,6 +896,10 @@ export default function MePage() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
 
+  // Act As state for App Admins
+  const [actAsPlayers, setActAsPlayers] = useState<ActAsPlayer[]>([]);
+  const [selectedActAsPlayer, setSelectedActAsPlayer] = useState<string>('');
+
   // Load user profile from Clerk authentication
   const loadUserProfile = async () => {
     if (!userLoaded || !isSignedIn) return;
@@ -965,6 +969,30 @@ export default function MePage() {
       return false;
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  // Load players for "Act As" dropdown (App Admins only)
+  const loadActAsPlayers = async () => {
+    if (!userProfile?.isAppAdmin) return;
+    
+    try {
+      const response = await fetch('/api/admin/act-as');
+      if (response.ok) {
+        const data = await response.json();
+        setActAsPlayers(data.items || []);
+      }
+    } catch (error) {
+      console.error('Error loading players for Act As:', error);
+    }
+  };
+
+  // Handle "Act As" functionality
+  const handleActAs = (playerId: string) => {
+    if (playerId) {
+      console.log('Acting as player:', playerId);
+      setInfo(`Now acting as player: ${playerId}`);
+      // You can implement the actual impersonation logic here
     }
   };
 
@@ -1437,6 +1465,13 @@ export default function MePage() {
     }
   }, [userLoaded, isSignedIn]);
 
+  // Load players for "Act As" when user becomes App Admin
+  useEffect(() => {
+    if (userProfile?.isAppAdmin) {
+      loadActAsPlayers();
+    }
+  }, [userProfile?.isAppAdmin]);
+
   // Initial loads (only when user is authenticated)
   useEffect(() => {
     if (!isSignedIn || !userLoaded) return;
@@ -1770,12 +1805,35 @@ export default function MePage() {
                   <span className="font-medium text-white">{userProfile?.firstName || user?.firstName || 'User'}</span>
                 </div>
                 {userProfile?.isAppAdmin && (
-                  <Link 
-                    href="/app-admin"
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
-                  >
-                    Admin
-                  </Link>
+                  <>
+                    <div className="flex items-center space-x-2">
+                      <label htmlFor="act-as-player" className="text-sm text-gray-300">Act As:</label>
+                      <select
+                        id="act-as-player"
+                        className="px-3 py-1 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-gray-800 text-white text-sm"
+                        value={selectedActAsPlayer}
+                        onChange={(e) => {
+                          setSelectedActAsPlayer(e.target.value);
+                          if (e.target.value) {
+                            handleActAs(e.target.value);
+                          }
+                        }}
+                      >
+                        <option value="">Select player</option>
+                        {actAsPlayers.map(player => (
+                          <option key={player.id} value={player.id}>
+                            {player.firstName} {player.lastName} ({player.email})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Link 
+                      href="/app-admin"
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                    >
+                      Admin
+                    </Link>
+                  </>
                 )}
                 <SignOutButton>
                   <button className="bg-transparent border border-gray-600 text-gray-300 hover:text-white hover:border-white px-4 py-2 rounded-lg transition-colors">
@@ -1798,19 +1856,6 @@ export default function MePage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-      {/* App Admin Dashboard */}
-      {userProfile?.isAppAdmin && (
-        <div className="space-y-4">
-          <AppAdminDashboard 
-            currentUser={userProfile} 
-            onActAs={(playerId) => {
-              // Handle acting as another player
-              console.log('Acting as player:', playerId);
-              // You can implement the actual impersonation logic here
-            }} 
-          />
-        </div>
-      )}
 
       {err && <div className="border border-red-500 bg-red-900/20 text-red-400 p-3 rounded">{err}</div>}
       {info && <div className="border border-green-500 bg-green-900/20 text-green-400 p-3 rounded">{info}</div>}

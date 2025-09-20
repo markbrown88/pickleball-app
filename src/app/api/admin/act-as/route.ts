@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       ]
     });
 
-    return NextResponse.json({ players });
+    return NextResponse.json({ items: players });
 
   } catch (error) {
     console.error('Error fetching players for act-as:', error);
