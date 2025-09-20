@@ -48,7 +48,8 @@ export async function GET(req: NextRequest) {
       city: player.city,
       region: player.region,
       country: player.country,
-      club: player.club
+      club: player.club,
+      isAppAdmin: player.isAppAdmin
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -187,7 +188,8 @@ export async function POST(req: NextRequest) {
       city: player.city,
       region: player.region,
       country: player.country,
-      club: player.club
+      club: player.club,
+      isAppAdmin: player.isAppAdmin
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating user profile:', error);
@@ -328,7 +330,8 @@ export async function PUT(req: NextRequest) {
       city: updatedPlayer.city,
       region: updatedPlayer.region,
       country: updatedPlayer.country,
-      club: updatedPlayer.club
+      club: updatedPlayer.club,
+      isAppAdmin: updatedPlayer.isAppAdmin
     });
   } catch (error) {
     console.error('Error updating user profile:', error);

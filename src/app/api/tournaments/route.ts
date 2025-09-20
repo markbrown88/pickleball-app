@@ -38,13 +38,13 @@ export async function GET(req: NextRequest) {
     });
 
     // Format the response to match what the frontend expects
-    const formattedTournaments = tournaments.map(tournament => ({
+    const formattedTournaments = tournaments.map((tournament: any) => ({
       id: tournament.id,
       name: tournament.name,
       type: tournament.type,
       createdAt: tournament.createdAt,
       brackets: tournament.brackets,
-      stops: tournament.stops.map(stop => ({
+      stops: tournament.stops.map((stop: any) => ({
         id: stop.id,
         name: stop.name,
         startAt: stop.startAt,

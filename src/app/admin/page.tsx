@@ -527,6 +527,7 @@ export default function AdminPage() {
           <Link href="/">Home</Link>
           <Link href="/me" target="_blank">Players</Link>
           <Link href="/tournaments" target="_blank">Scoreboard</Link>
+          <Link href="/app-admin" className="text-purple-600 font-semibold">App Admin</Link>
         </nav>
       </div>
 

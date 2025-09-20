@@ -6,7 +6,9 @@ import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { useUser, useAuth } from '@clerk/nextjs';
 import { SignInButton, SignOutButton } from '@clerk/nextjs';
-import { UserProfile, Tournament, PlayerRegistration, TournamentsResponse, RegistrationResponse } from '@/types';
+import Link from 'next/link';
+import { UserProfile, Tournament, PlayerRegistration, TournamentsResponse, RegistrationResponse, RoleInfo } from '@/types';
+import AppAdminDashboard from '@/components/AppAdminDashboard';
 
 // Custom strategy that disables automatic reordering
 const noReorderStrategy = () => null;
@@ -80,7 +82,7 @@ function DraggableTeam({
             ? 'opacity-80 scale-102 shadow-md border-green-400 bg-green-50'
             : ''
       } ${
-        !team ? 'border-dashed border-gray-300 bg-gray-50 cursor-not-allowed' : 'bg-white hover:shadow-md'
+        !team ? 'border-dashed border-gray-600 bg-gray-50 cursor-not-allowed' : 'bg-white hover:shadow-md'
       }`}
     >
       {team ? (
@@ -195,6 +197,261 @@ type Overview = {
   eventManagerTournaments?: EventManagerTournament[];
 };
 
+// Tournament Tab Component - Combined My Tournaments and Available Tournaments
+function TournamentTab({
+  userProfile,
+  assignments,
+  captainSet,
+  onError,
+  onInfo
+}: {
+  userProfile: UserProfile | null;
+  assignments: any[];
+  captainSet: Set<string>;
+  onError: (message: string) => void;
+  onInfo: (message: string) => void;
+}) {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [registrations, setRegistrations] = useState<Record<string, PlayerRegistration>>({});
+
+  // Load available tournaments
+  const loadTournaments = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/tournaments');
+      if (response.ok) {
+        const data: TournamentsResponse = await response.json();
+        setTournaments(data.tournaments || []);
+      } else {
+        throw new Error('Failed to load tournaments');
+      }
+    } catch (error) {
+      onError('Failed to load tournaments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load user's registrations
+  const loadRegistrations = async () => {
+    if (!userProfile) return;
+    
+    try {
+      const response = await fetch('/api/player/registrations');
+      if (response.ok) {
+        const data: PlayerRegistration[] = await response.json();
+        const regMap: Record<string, PlayerRegistration> = {};
+        data.forEach((reg: PlayerRegistration) => {
+          regMap[reg.tournamentId] = reg;
+        });
+        setRegistrations(regMap);
+      }
+    } catch (error) {
+      console.error('Failed to load registrations:', error);
+    }
+  };
+
+  // Register for a tournament
+  const registerForTournament = async (tournamentId: string, bracketId?: string) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bracketId })
+      });
+
+      if (response.ok) {
+        const data: { message: string; registration?: any } = await response.json();
+        onInfo(data.message || 'Successfully registered for tournament');
+        loadRegistrations(); // Refresh registrations
+      } else {
+        const error: { error: string } = await response.json();
+        onError(error.error || 'Failed to register for tournament');
+      }
+    } catch (error) {
+      onError('Failed to register for tournament');
+    }
+  };
+
+  // Unregister from a tournament
+  const unregisterFromTournament = async (tournamentId: string) => {
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/register`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        onInfo('Successfully unregistered from tournament');
+        loadRegistrations(); // Refresh registrations
+      } else {
+        const error: { error: string } = await response.json();
+        onError(error.error || 'Failed to unregister from tournament');
+      }
+    } catch (error) {
+      onError('Failed to unregister from tournament');
+    }
+  };
+
+  useEffect(() => {
+    loadTournaments();
+    loadRegistrations();
+  }, [userProfile]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Separate tournaments into registered and available
+  const registeredTournamentIds = new Set(Object.keys(registrations));
+  const myTournaments = tournaments.filter(t => registeredTournamentIds.has(t.id));
+  const availableTournaments = tournaments.filter(t => !registeredTournamentIds.has(t.id));
+
+  return (
+    <div className="space-y-8">
+      {/* My Tournaments Section */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">My Tournaments</h2>
+        {assignments.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 bg-gray-800 rounded-lg">
+            <p>You're not currently registered for any tournaments.</p>
+            <p className="text-sm mt-1">Check the "Available Tournaments" section below to register.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left border-b border-gray-700 bg-gray-800">
+                  <th className="py-3 px-4 font-medium text-gray-300">Tournament</th>
+                  <th className="py-3 px-4 font-medium text-gray-300">Team</th>
+                  <th className="py-3 px-4 font-medium text-gray-300">Stop</th>
+                  <th className="py-3 px-4 font-medium text-gray-300">Dates</th>
+                  <th className="py-3 px-4 font-medium text-gray-300">Team Club</th>
+                  <th className="py-3 px-4 font-medium text-gray-300">Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignments.map((row, i) => {
+                  const isCaptain = captainSet.has(row.teamId);
+                  return (
+                    <tr key={i} className="border-b border-gray-700 hover:bg-gray-800">
+                      <td className="py-3 px-4">
+                        <button 
+                          className="text-blue-400 hover:text-blue-300 hover:underline font-medium"
+                          onClick={() => {
+                            // TODO: Navigate to tournament detail page
+                            console.log('Navigate to tournament:', row.tournamentName);
+                          }}
+                        >
+                          {row.tournamentName}
+                        </button>
+                      </td>
+                      <td className="py-3 px-4 text-gray-300">{row.teamName}</td>
+                      <td className="py-3 px-4 text-gray-300">{row.stopName}</td>
+                      <td className="py-3 px-4 text-gray-300">{between(row.stopStartAt ?? null, row.stopEndAt ?? null)}</td>
+                      <td className="py-3 px-4 text-gray-300">{row.teamClubName ?? '—'}</td>
+                      <td className="py-3 px-4">
+                        {isCaptain ? (
+                          <span className="px-2 py-1 rounded-full border border-amber-400 bg-amber-900/20 text-amber-400 text-xs font-medium">
+                            Captain
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">Player</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Available Tournaments Section */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Available Tournaments</h2>
+        {availableTournaments.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 bg-gray-800 rounded-lg">
+            <p>No tournaments available for registration at this time.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {availableTournaments.map((tournament) => (
+              <div key={tournament.id} className="border border-gray-700 rounded-lg p-6 hover:shadow-md transition-shadow bg-gray-800">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <button 
+                      className="text-lg font-semibold text-blue-400 hover:text-blue-300 hover:underline mb-2"
+                      onClick={() => {
+                        // TODO: Navigate to tournament detail page
+                        console.log('Navigate to tournament:', tournament.name);
+                      }}
+                    >
+                      {tournament.name}
+                    </button>
+                    <p className="text-sm text-gray-400 mb-3">
+                      {tournament.type} • {tournament.stops?.length || 0} stops
+                    </p>
+                    
+                    {tournament.brackets && tournament.brackets.length > 0 && (
+                      <div className="mb-3">
+                        <h4 className="text-sm font-medium text-gray-300 mb-2">Available Brackets:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {tournament.brackets.map((bracket: any) => (
+                            <span
+                              key={bracket.id}
+                              className="px-2 py-1 bg-gray-700 text-gray-300 text-sm rounded"
+                            >
+                              {bracket.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {tournament.stops && tournament.stops.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-300 mb-2">Stops:</h4>
+                        <div className="space-y-1">
+                          {tournament.stops.map((stop: any, index: number) => (
+                            <div key={stop.id} className="text-sm text-gray-400">
+                              {index + 1}. {stop.name}
+                              {stop.locationName && ` • ${stop.locationName}`}
+                              {stop.startAt && (
+                                <span className="ml-2 text-gray-400">
+                                  {new Date(stop.startAt).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="ml-6">
+                    <button
+                      onClick={() => registerForTournament(tournament.id)}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      Register
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 // Tournament Registration Tab Component
 function TournamentRegistrationTab({
   userProfile,
@@ -308,7 +565,7 @@ function TournamentRegistrationTab({
       </div>
 
       {tournaments.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-400">
           No tournaments available for registration.
         </div>
       ) : (
@@ -355,12 +612,12 @@ function TournamentRegistrationTab({
 
                 {tournament.brackets && tournament.brackets.length > 0 && (
                   <div className="mt-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Available Brackets:</h4>
+                    <h4 className="text-sm font-medium text-gray-300 mb-2">Available Brackets:</h4>
                     <div className="flex flex-wrap gap-2">
                       {tournament.brackets.map((bracket: any) => (
                         <span
                           key={bracket.id}
-                          className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded"
+                          className="px-2 py-1 bg-gray-100 text-gray-300 text-sm rounded"
                         >
                           {bracket.name}
                         </span>
@@ -371,7 +628,7 @@ function TournamentRegistrationTab({
 
                 {tournament.stops && tournament.stops.length > 0 && (
                   <div className="mt-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Stops:</h4>
+                    <h4 className="text-sm font-medium text-gray-300 mb-2">Stops:</h4>
                     <div className="space-y-1">
                       {tournament.stops.map((stop: any, index: number) => (
                         <div key={stop.id} className="text-sm text-gray-600">
@@ -455,21 +712,21 @@ function ProfileSetupForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">First Name</label>
           <input
             type="text"
             required
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.firstName}
             onChange={e => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
           <input
             type="text"
             required
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.lastName}
             onChange={e => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
           />
@@ -478,10 +735,10 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Gender</label>
           <select
             required
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.gender}
             onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value as 'MALE' | 'FEMALE' }))}
           >
@@ -490,10 +747,10 @@ function ProfileSetupForm({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Club</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Club</label>
           <select
             required
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.clubId}
             onChange={e => setFormData(prev => ({ ...prev, clubId: e.target.value }))}
           >
@@ -507,19 +764,19 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
           <input
             type="email"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.email}
             onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
           <input
             type="tel"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.phone}
             onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
           />
@@ -528,20 +785,20 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">City</label>
           <input
             type="text"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.city}
             onChange={e => setFormData(prev => ({ ...prev, city: e.target.value }))}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             {countrySel === 'Canada' ? 'Province' : 'State'}
           </label>
           <select
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.region}
             onChange={e => setFormData(prev => ({ ...prev, region: e.target.value }))}
           >
@@ -552,9 +809,9 @@ function ProfileSetupForm({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Country</label>
           <select
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={countrySel}
             onChange={e => {
               const sel = e.target.value as CountrySel;
@@ -571,10 +828,10 @@ function ProfileSetupForm({
 
       {countrySel === 'Other' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Country Name</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Country Name</label>
           <input
             type="text"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={countryOther}
             onChange={e => setCountryOther(e.target.value)}
             placeholder="Enter country name"
@@ -584,23 +841,23 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">DUPR Rating (optional)</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">DUPR Rating (optional)</label>
           <input
             type="number"
             step="0.1"
             min="1.0"
             max="6.0"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.dupr}
             onChange={e => setFormData(prev => ({ ...prev, dupr: e.target.value }))}
             placeholder="e.g., 4.5"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Birthday (optional)</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Birthday (optional)</label>
           <input
             type="date"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
             value={formData.birthday}
             onChange={e => setFormData(prev => ({ ...prev, birthday: e.target.value }))}
           />
@@ -753,7 +1010,7 @@ export default function MePage() {
   const [captainRosters, setCaptainRosters] = useState<Record<string, Record<string, PlayerLite[]>>>({});
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<'profile' | 'tournaments' | 'teams' | 'manage' | 'register'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'tournaments' | 'teams' | 'manage' | 'register'>('tournaments');
 
   // Event Manager functionality
   const [eventManagerData, setEventManagerData] = useState<EventManagerTournament[]>([]);
@@ -1499,78 +1756,108 @@ export default function MePage() {
   }
 
   return (
-    <main className="p-6 max-w-5xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Player</h1>
-        <div className="flex items-center gap-4">
-          <div className="text-sm">
-            <span className="mr-2">Welcome,</span>
-            <span className="font-medium">{userProfile?.firstName || user?.firstName || 'User'}</span>
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Header */}
+      <header className="bg-gray-800 border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-white">TournaVerse</h1>
+            </div>
+              <div className="flex items-center space-x-4">
+                <div className="text-sm">
+                  <span className="mr-2 text-gray-300">Welcome,</span>
+                  <span className="font-medium text-white">{userProfile?.firstName || user?.firstName || 'User'}</span>
+                </div>
+                {userProfile?.isAppAdmin && (
+                  <Link 
+                    href="/app-admin"
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                  >
+                    Admin
+                  </Link>
+                )}
+                <SignOutButton>
+                  <button className="bg-transparent border border-gray-600 text-gray-300 hover:text-white hover:border-white px-4 py-2 rounded-lg transition-colors">
+                    Sign Out
+                  </button>
+                </SignOutButton>
+              </div>
           </div>
-          <SignOutButton>
-            <button className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 border border-gray-300">
-              Sign Out
-            </button>
-          </SignOutButton>
+        </div>
+      </header>
+
+      {/* Banner Section */}
+      <div className="bg-gray-800 border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <h1 className="text-3xl font-bold text-white">Player Dashboard</h1>
+          <p className="text-gray-400 mt-2">Manage your profile, tournaments, and team participation</p>
         </div>
       </div>
 
-      {err && <div className="border border-red-300 bg-red-50 text-red-700 p-3 rounded">{err}</div>}
-      {info && <div className="border border-green-300 bg-green-50 text-green-700 p-3 rounded">{info}</div>}
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+      {/* App Admin Dashboard */}
+      {userProfile?.isAppAdmin && (
+        <div className="space-y-4">
+          <AppAdminDashboard 
+            currentUser={userProfile} 
+            onActAs={(playerId) => {
+              // Handle acting as another player
+              console.log('Acting as player:', playerId);
+              // You can implement the actual impersonation logic here
+            }} 
+          />
+        </div>
+      )}
+
+      {err && <div className="border border-red-500 bg-red-900/20 text-red-400 p-3 rounded">{err}</div>}
+      {info && <div className="border border-green-500 bg-green-900/20 text-green-400 p-3 rounded">{info}</div>}
 
 
       {/* Tab Navigation */}
-      <div className="border-b">
+      <div className="border-b border-gray-700">
         <nav className="flex space-x-8">
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'profile'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Profile
-          </button>
           <button
             onClick={() => setActiveTab('tournaments')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'tournaments'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
             }`}
           >
             Tournaments
+          </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'profile'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+            }`}
+          >
+            Profile
           </button>
           {captainSet.size > 0 && (
             <button
               onClick={() => setActiveTab('teams')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'teams'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
               }`}
             >
               Teams
             </button>
           )}
-          <button
-            onClick={() => setActiveTab('register')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'register'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Register
-          </button>
           {eventManagerData.length > 0 && (
             <button
               onClick={() => setActiveTab('manage')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'manage'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
               }`}
             >
               Manage
@@ -1584,7 +1871,7 @@ export default function MePage() {
         {activeTab === 'profile' && (
           <section className="space-y-6">
         <div className="flex items-center justify-end">
-          <button className="text-sm border rounded px-2 py-1 hover:bg-gray-50" onClick={() => setShowEdit(s => !s)}>
+          <button className="text-sm border border-gray-600 rounded px-2 py-1 hover:bg-gray-700 text-gray-300" onClick={() => setShowEdit(s => !s)}>
                 {showEdit ? 'Cancel' : 'Edit Profile'}
           </button>
         </div>
@@ -1601,9 +1888,9 @@ export default function MePage() {
                           value={form.firstName}
                           onChange={(e) => setForm(f => ({ ...f, firstName: e.target.value }))}
                           placeholder="First Name"
-                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-300 focus:outline-none focus:border-blue-500 bg-transparent"
+                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-600 focus:outline-none focus:border-blue-500 bg-transparent text-white placeholder-gray-400"
                         />
-                        <label className="block text-xs text-gray-500 mt-1">First Name</label>
+                        <label className="block text-xs text-gray-400 mt-1">First Name</label>
                       </div>
                       <div>
                         <input
@@ -1611,13 +1898,13 @@ export default function MePage() {
                           value={form.lastName}
                           onChange={(e) => setForm(f => ({ ...f, lastName: e.target.value }))}
                           placeholder="Last Name"
-                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-300 focus:outline-none focus:border-blue-500 bg-transparent"
+                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-600 focus:outline-none focus:border-blue-500 bg-transparent text-white placeholder-gray-400"
                         />
-                        <label className="block text-xs text-gray-500 mt-1">Last Name</label>
+                        <label className="block text-xs text-gray-400 mt-1">Last Name</label>
                       </div>
                     </div>
                   ) : (
-                    <h2 className="text-3xl font-bold text-gray-900">
+                    <h2 className="text-3xl font-bold text-white">
                       {overview.player.firstName && overview.player.lastName 
                         ? `${overview.player.firstName} ${overview.player.lastName}`
                         : overview.player.firstName || overview.player.lastName || 'Name Not Provided'
@@ -1630,11 +1917,11 @@ export default function MePage() {
                 <div className="grid grid-cols-3 gap-8">
                   {/* First Column: Photo */}
                   <div className="text-center">
-                    <div className="w-32 h-40 bg-gray-200 rounded border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden mx-auto">
+                    <div className="w-32 h-40 bg-gray-700 rounded border-2 border-dashed border-gray-600 flex items-center justify-center overflow-hidden mx-auto">
                       {form.photo ? (
                         <img src={form.photo} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-gray-500 text-sm">No Photo</span>
+                        <span className="text-gray-400 text-sm">No Photo</span>
                       )}
                     </div>
                     {showEdit && (
@@ -1694,7 +1981,7 @@ export default function MePage() {
                   {/* Second Column: Sex, Age, Primary Club, Club Rating, DUPR */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-700">Sex:</label>
+                      <label className="w-20 text-sm font-medium text-gray-300">Sex:</label>
                       {showEdit ? (
                         <div className="flex gap-4">
                           <label className="flex items-center gap-2">
@@ -1706,7 +1993,7 @@ export default function MePage() {
                               onChange={(e) => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
                               className="text-blue-600"
                             />
-                            <span className="text-sm">Male</span>
+                            <span className="text-sm text-gray-300">Male</span>
                           </label>
                           <label className="flex items-center gap-2">
                             <input
@@ -1717,26 +2004,26 @@ export default function MePage() {
                               onChange={(e) => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
                               className="text-blue-600"
                             />
-                            <span className="text-sm">Female</span>
+                            <span className="text-sm text-gray-300">Female</span>
                           </label>
                         </div>
                       ) : (
-                        <span className="text-gray-900">{overview.player.gender || 'Not provided'}</span>
+                        <span className="text-gray-300">{overview.player.gender || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-700">Age:</label>
-                      <span className="text-gray-900">{overview.player.age ? `${overview.player.age} years old` : 'Not calculated'}</span>
+                      <label className="w-20 text-sm font-medium text-gray-300">Age:</label>
+                      <span className="text-gray-300">{overview.player.age ? `${overview.player.age} years old` : 'Not calculated'}</span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-700">Club:</label>
+                      <label className="w-20 text-sm font-medium text-gray-300">Club:</label>
                       {showEdit ? (
                         <select
                           value={form.clubId || ''}
                           onChange={(e) => setForm(f => ({ ...f, clubId: e.target.value as Id }))}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                         >
                           <option value="">Select Club</option>
                           {(Array.isArray(clubsAll) ? clubsAll : []).map(c => (
@@ -1744,12 +2031,12 @@ export default function MePage() {
                           ))}
                         </select>
                       ) : (
-                        <span className="text-gray-900">{overview.player.club?.name || 'Not provided'}</span>
+                        <span className="text-gray-300">{overview.player.club?.name || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-700">Rating:</label>
+                      <label className="w-20 text-sm font-medium text-gray-300">Rating:</label>
                       {showEdit ? (
                         <input
                           type="number"
@@ -1758,15 +2045,15 @@ export default function MePage() {
                           max="10"
                           value={form.clubRating}
                           onChange={(e) => setForm(f => ({ ...f, clubRating: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                         />
                       ) : (
-                        <span className="text-gray-900">{form.clubRating || 'Not provided'}</span>
+                        <span className="text-gray-300">{form.clubRating || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-700">DUPR:</label>
+                      <label className="w-20 text-sm font-medium text-gray-300">DUPR:</label>
                       {showEdit ? (
                         <input
                           type="number"
@@ -1775,10 +2062,10 @@ export default function MePage() {
                           max="8"
                           value={form.dupr}
                           onChange={(e) => setForm(f => ({ ...f, dupr: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                         />
                       ) : (
-                        <span className="text-gray-900">{overview.player.dupr || 'Not provided'}</span>
+                        <span className="text-gray-300">{overview.player.dupr || 'Not provided'}</span>
                       )}
                     </div>
                   </div>
@@ -1788,8 +2075,8 @@ export default function MePage() {
                     {/* Address Section */}
                     {!showEdit ? (
                       <div className="flex items-center gap-3">
-                        <label className="w-20 text-sm font-medium text-gray-700">Address:</label>
-                        <span className="text-gray-900">
+                        <label className="w-20 text-sm font-medium text-gray-300">Address:</label>
+                        <span className="text-gray-300">
                           {[
                             overview.player.city,
                             overview.player.region,
@@ -1800,30 +2087,30 @@ export default function MePage() {
                     ) : (
                       <>
                         <div className="flex items-center gap-3">
-                          <label className="w-20 text-sm font-medium text-gray-700">City:</label>
+                          <label className="w-20 text-sm font-medium text-gray-300">City:</label>
                           <input
                             type="text"
                             value={form.city}
                             onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                           />
                         </div>
                         <div className="flex items-center gap-3">
-                          <label className="w-20 text-sm font-medium text-gray-700">Province/State:</label>
+                          <label className="w-20 text-sm font-medium text-gray-300">Province/State:</label>
                           <input
                             type="text"
                             value={form.region}
                             onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                           />
                         </div>
                         <div className="flex items-center gap-3">
-                          <label className="w-20 text-sm font-medium text-gray-700">Country:</label>
+                          <label className="w-20 text-sm font-medium text-gray-300">Country:</label>
                           <div className="flex-1">
                             <select
                               value={countrySel}
                               onChange={(e) => setCountrySel(e.target.value as CountrySel)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                             >
                               <option value="">Select Country</option>
                               <option value="Canada">Canada</option>
@@ -1836,7 +2123,7 @@ export default function MePage() {
                                 value={countryOther}
                                 onChange={(e) => setCountryOther(e.target.value)}
                                 placeholder="Enter country"
-                                className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full mt-2 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                             )}
                           </div>
@@ -1846,30 +2133,30 @@ export default function MePage() {
 
                     {/* Contact Section */}
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-700">Phone:</label>
+                      <label className="w-20 text-sm font-medium text-gray-300">Phone:</label>
                       {showEdit ? (
                         <input
                           type="tel"
                           value={form.phone}
                           onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                         />
                       ) : (
-                        <span className="text-gray-900">{overview.player.phone || 'Not provided'}</span>
+                        <span className="text-gray-300">{overview.player.phone || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-700">Email:</label>
+                      <label className="w-20 text-sm font-medium text-gray-300">Email:</label>
                       {showEdit ? (
                         <input
                           type="email"
                           value={form.email}
                           onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
                         />
                       ) : (
-                        <span className="text-gray-900">{overview.player.email || 'Not provided'}</span>
+                        <span className="text-gray-300">{overview.player.email || 'Not provided'}</span>
                       )}
                     </div>
                   </div>
@@ -1884,7 +2171,7 @@ export default function MePage() {
                       Save Changes
                     </button>
                     <button
-                      className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                      className="px-4 py-2 border border-gray-600 rounded hover:bg-gray-50"
                       onClick={() => setShowEdit(false)}
                     >
                       Cancel
@@ -1897,42 +2184,13 @@ export default function MePage() {
         )}
 
         {activeTab === 'tournaments' && (
-          <section className="space-y-3">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="py-2 pr-4">Tournament</th>
-                <th className="py-2 pr-4">Team</th>
-                <th className="py-2 pr-4">Stop</th>
-                <th className="py-2 pr-4">Dates</th>
-                <th className="py-2 pr-4">Team Club</th>
-                <th className="py-2 pr-4">Role</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(overview?.assignments ?? []).length === 0 && (
-                <tr><td colSpan={6} className="py-4 text-gray-600">No assignments yet.</td></tr>
-              )}
-              {(overview?.assignments ?? []).map((row, i) => {
-                const isCaptain = captainSet.has(row.teamId);
-                return (
-                  <tr key={i} className="border-b">
-                    <td className="py-2 pr-4">{row.tournamentName}</td>
-                    <td className="py-2 pr-4">{row.teamName}</td>
-                    <td className="py-2 pr-4">{row.stopName}</td>
-                    <td className="py-2 pr-4">{between(row.stopStartAt ?? null, row.stopEndAt ?? null)}</td>
-                    <td className="py-2 pr-4">{row.teamClubName ?? '—'}</td>
-                    <td className="py-2 pr-4">
-                      {isCaptain ? <span className="px-2 py-0.5 rounded-full border border-amber-400 bg-amber-50">Captain</span> : 'Player'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <TournamentTab
+            userProfile={userProfile}
+            assignments={overview?.assignments ?? []}
+            captainSet={captainSet}
+            onError={(m) => setErr(m)}
+            onInfo={(m) => setInfo(m)}
+          />
         )}
 
         {activeTab === 'teams' && captainSet.size > 0 && (
@@ -1946,13 +2204,6 @@ export default function MePage() {
           />
         )}
 
-        {activeTab === 'register' && (
-          <TournamentRegistrationTab
-            userProfile={userProfile}
-            onError={(m) => setErr(m)}
-            onInfo={(m) => setInfo(m)}
-          />
-        )}
 
         {activeTab === 'manage' && eventManagerData.length > 0 && (
           <EventManagerTab
@@ -1993,7 +2244,8 @@ export default function MePage() {
         )}
       </div>
 
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -2037,7 +2289,7 @@ function TeamsTab({
                 <p className="text-sm text-gray-600">
                   Team: {Array.from(row.bracketTeams.values())[0]?.club?.name || 'Unknown'}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-400">
                   Brackets: {row.bracketNames.length ? row.bracketNames.join(', ') : 'General'}
                 </p>
               </div>
@@ -2064,7 +2316,7 @@ function TeamsTab({
         ))}
       </div>
       
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-gray-400">
         Limits are enforced <em>per bracket</em> (unique players across all stops). A player cannot be on multiple brackets in the same tournament.
       </p>
     </section>
@@ -2191,7 +2443,7 @@ function CaptainRosterEditor({
                 <div className="flex items-center justify-between">
                   <div className="font-medium">
                     {s.stopName}
-                    <span className="text-gray-500"> • {s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span>
+                    <span className="text-gray-400"> • {s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span>
                   </div>
 
                   {prev && (
@@ -2337,10 +2589,10 @@ function BracketRosterEditor({
                 title="Add to this stop for this bracket"
               >
                 {label(opt)}{' '}
-                <span className="text-gray-500">• {opt.gender} • {opt.dupr ?? '—'} • {opt.age ?? '—'}</span>
+                <span className="text-gray-400">• {opt.gender} • {opt.dupr ?? '—'} • {opt.age ?? '—'}</span>
               </li>
             ))}
-            {loading && <li className="px-3 py-2 text-sm text-gray-500">Searching…</li>}
+            {loading && <li className="px-3 py-2 text-sm text-gray-400">Searching…</li>}
           </ul>
         )}
       </div>
@@ -2349,9 +2601,9 @@ function BracketRosterEditor({
         {list.map((p) => (
           <li key={p.id} className="flex items-center justify-between">
             <span className="text-sm">
-              {label(p)} <span className="text-gray-500">• {p.gender} • {p.dupr ?? '—'} • {p.age ?? '—'}</span>
+              {label(p)} <span className="text-gray-400">• {p.gender} • {p.dupr ?? '—'} • {p.age ?? '—'}</span>
             </span>
-            <button className="text-gray-500 hover:text-red-600 text-sm" title="Remove" onClick={() => remove(p.id)}>🗑️</button>
+            <button className="text-gray-400 hover:text-red-600 text-sm" title="Remove" onClick={() => remove(p.id)}>🗑️</button>
           </li>
         ))}
       </ul>
@@ -2469,7 +2721,7 @@ function GameScoreBox({
   return (
     <div className="p-1.5 bg-white border rounded space-y-1.5">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-bold text-gray-700">
+        <div className="text-sm font-bold text-gray-300">
           {getGameTitle()}
         </div>
         <div className="flex items-center gap-1.5">
@@ -2515,7 +2767,7 @@ function GameScoreBox({
 
       <div className="flex items-center justify-between text-xs">
         {/* Team A */}
-        <div className={`font-medium text-gray-700 whitespace-pre-line ${
+        <div className={`font-medium text-gray-300 whitespace-pre-line ${
           isCompleted && teamAWon ? 'font-bold text-green-800' : ''
         }`}>
           {getTeamALineup()}
@@ -2524,7 +2776,7 @@ function GameScoreBox({
         {/* Score A */}
         {isCompleted ? (
           <div className={`w-8 text-center ${
-            teamAWon ? 'text-green-800 font-bold' : 'text-gray-700'
+            teamAWon ? 'text-green-800 font-bold' : 'text-gray-300'
           }`}>
             {teamAScore}
           </div>
@@ -2554,7 +2806,7 @@ function GameScoreBox({
         {/* Score B */}
         {isCompleted ? (
           <div className={`w-8 text-center ${
-            teamBWon ? 'text-green-800 font-bold' : 'text-gray-700'
+            teamBWon ? 'text-green-800 font-bold' : 'text-gray-300'
           }`}>
             {teamBScore}
           </div>
@@ -2579,7 +2831,7 @@ function GameScoreBox({
         )}
         
         {/* Team B */}
-        <div className={`font-medium text-gray-700 whitespace-pre-line ${
+        <div className={`font-medium text-gray-300 whitespace-pre-line ${
           isCompleted && teamBWon ? 'font-bold text-green-800' : ''
         }`}>
           {getTeamBLineup()}
@@ -3140,7 +3392,7 @@ function EventManagerTab({
                       className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                         selectedStopId === stop.stopId
                           ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
                       }`}
                     >
                       {stop.stopName}
@@ -3163,7 +3415,7 @@ function EventManagerTab({
                           {stop.locationName && `${stop.locationName} • `}
                           {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-400">
                           {scheduleData[stop.stopId]?.length || 0} rounds • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.length || 0), 0) || 0} matches • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.reduce((matchAcc: number, m: any) => matchAcc + (m.games?.length || 0), 0) || 0), 0) || 0} games
                         </p>
                       </div>
@@ -3183,9 +3435,9 @@ function EventManagerTab({
                     {/* Schedule Content */}
                     <div className="bg-white">
                         {loading[stop.stopId] ? (
-                          <div className="text-center py-4 text-gray-500">Loading schedule...</div>
+                          <div className="text-center py-4 text-gray-400">Loading schedule...</div>
                         ) : !scheduleData[stop.stopId] || scheduleData[stop.stopId].length === 0 ? (
-                          <div className="text-center py-4 text-gray-500">
+                          <div className="text-center py-4 text-gray-400">
                             No matchups generated yet. Click "Regenerate Matchups" to create them.
                           </div>
                         ) : (
@@ -3234,7 +3486,7 @@ function EventManagerTab({
                                             Edit Matchups
                                           </button>
                                         ) : (
-                                          <span className="text-xs text-gray-500">Match in progress</span>
+                                          <span className="text-xs text-gray-400">Match in progress</span>
                                         )}
                                       </div>
                                     </div>
@@ -3272,7 +3524,7 @@ function EventManagerTab({
                                       
                                       return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
                                         <div key={bracketName} className="space-y-2 mb-4">
-                                          <h6 className="font-medium text-sm text-gray-700 border-b pb-1">
+                                          <h6 className="font-medium text-sm text-gray-300 border-b pb-1">
                                             {bracketName}
                                           </h6>
                                           
@@ -3315,7 +3567,7 @@ function EventManagerTab({
                                                   dragPreview={dragPreview}
                                               />
                                               
-                                              <span className="text-gray-500">vs</span>
+                                              <span className="text-gray-400">vs</span>
                                               
                                               {/* Team B */}
                                               <DraggableTeam
@@ -3408,13 +3660,13 @@ function EventManagerTab({
                                                                 </div>
                                                               ))
                                                             ) : (
-                                                              <div className="text-xs text-gray-500">No lineup set</div>
+                                                              <div className="text-xs text-gray-400">No lineup set</div>
                                                             )}
                                                           </div>
                                                         </div>
                                                         
                                                         {/* VS separator */}
-                                                        <div className="text-gray-500 font-medium text-sm">vs</div>
+                                                        <div className="text-gray-400 font-medium text-sm">vs</div>
                                                         
                                                         {/* Team B Lineup Box */}
                                                         <div className="flex-1 p-2 bg-green-50 border border-green-200 rounded text-sm">
@@ -3427,7 +3679,7 @@ function EventManagerTab({
                                                                 </div>
                                                               ))
                                                             ) : (
-                                                              <div className="text-xs text-gray-500">No lineup set</div>
+                                                              <div className="text-xs text-gray-400">No lineup set</div>
                                                             )}
                                                           </div>
                                                         </div>
@@ -3612,7 +3864,7 @@ function EventManagerTab({
 
       {/* No tournaments message */}
       {tournaments.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-400">
           You are not assigned as an event manager for any tournaments.
         </div>
       )}
@@ -3698,7 +3950,7 @@ function LineupEditor({
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Edit Lineup - {teamName}</h3>
           <button
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-400 hover:text-gray-300"
             onClick={onCancel}
           >
             ✕
@@ -3782,7 +4034,7 @@ function LineupEditor({
 
         <div className="flex justify-end gap-2">
           <button
-            className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+            className="px-4 py-2 border border-gray-600 rounded hover:bg-gray-50"
             onClick={onCancel}
           >
             Cancel
@@ -4077,7 +4329,7 @@ function InlineLineupEditor({
             {isSaving ? 'Saving...' : 'Confirm Lineup'}
           </button>
           <button
-            className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100"
+            className="px-2 py-1 text-xs border border-gray-600 rounded hover:bg-gray-100"
             onClick={onCancel}
           >
             Cancel

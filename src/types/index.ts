@@ -14,12 +14,26 @@ export interface UserProfile {
   city: string | null;
   region: string | null;
   country: string | null;
+  isAppAdmin: boolean;
   club: {
     id: string;
     name: string;
     city: string | null;
     region: string | null;
   };
+}
+
+// Role Types
+export type UserRole = 'APP_ADMIN' | 'TOURNAMENT_ADMIN' | 'EVENT_MANAGER' | 'CAPTAIN' | 'PLAYER';
+
+export interface RoleInfo {
+  isAppAdmin: boolean;
+  isTournamentAdmin: boolean;
+  isEventManager: boolean;
+  isCaptain: boolean;
+  admins: string[];
+  eventManagers: string[];
+  captains: string[];
 }
 
 // Tournament Types

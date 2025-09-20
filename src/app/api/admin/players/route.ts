@@ -1,181 +1,187 @@
-export const runtime = 'nodejs';
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/prisma';
+import { hasRole } from '@/lib/roles';
+
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-
-type SortDir = 'asc' | 'desc';
-
-function parseBirthdayStr(s?: string | null): { y: number|null, m: number|null, d: number|null } {
-  if (!s) return { y: null, m: null, d: null };
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return { y: null, m: null, d: null };
-  const y = Number(m[1]); const mo = Number(m[2]); const da = Number(m[3]);
-  if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || da < 1 || da > 31) return { y: null, m: null, d: null };
-  return { y, m: mo, d: da };
-}
-
-function computeAge(y?: number | null, m?: number | null, d?: number | null): number | null {
-  if (!y || !m || !d) return null;
+export async function GET(req: NextRequest) {
   try {
-    const today = new Date();
-    let age = today.getFullYear() - y;
-    const mm = m - 1;
-    if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < d)) age -= 1;
-    return age;
-  } catch { return null; }
-}
-
-const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
-
-/**
- * GET /api/admin/players?skip=0&sort=lastName:asc&clubId=...
- * Always returns 25 items per page to match the UI.
- */
-export async function GET(req: Request) {
-  try {
-    // Use singleton prisma instance
-    const url = new URL(req.url);
-    const skip = Math.max(0, parseInt(url.searchParams.get('skip') ?? '0', 10) || 0);
-    const sortRaw = (url.searchParams.get('sort') ?? 'lastName:asc');
-    const [sortColRaw, sortDirRaw] = sortRaw.split(':');
-    const sortCol = (sortColRaw || 'lastName').toLowerCase();
-    const sortDir: SortDir = sortDirRaw === 'desc' ? 'desc' : 'asc';
-    const clubId = url.searchParams.get('clubId') || undefined;
-    const flat = url.searchParams.get('flat') === '1';
-
-    const where: any = {};
-    if (clubId) where.clubId = clubId;
-
-    // Map UI sort keys -> Prisma orderBy
-    // Age is derived from y/m/d: younger first (age asc) ⇒ later birthday ⇒ desc on (y,m,d)
-    // older first (age desc) ⇒ asc on (y,m,d)
-    let orderBy: any = { lastName: sortDir };
-    switch (sortCol) {
-      case 'firstname': orderBy = { firstName: sortDir }; break;
-      case 'lastname':  orderBy = { lastName: sortDir }; break;
-      case 'gender':    orderBy = { gender: sortDir }; break;
-      case 'dupr':      orderBy = { dupr: sortDir }; break;
-      case 'city':      orderBy = { city: sortDir }; break;
-      case 'region':    orderBy = { region: sortDir }; break;
-      case 'country':   orderBy = { country: sortDir }; break;
-      case 'phone':     orderBy = { phone: sortDir }; break;
-      case 'clubname':  orderBy = { clubId: sortDir }; break; // Use clubId instead of club relation
-      case 'age':
-        orderBy = sortDir === 'asc'
-          ? [{ birthdayYear: 'desc' }, { birthdayMonth: 'desc' }, { birthdayDay: 'desc' }]
-          : [{ birthdayYear: 'asc'  }, { birthdayMonth: 'asc'  }, { birthdayDay: 'asc'  }];
-        break;
-      default:          orderBy = { lastName: sortDir };
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const take = flat ? undefined : 25;
+    // Get the player record for the authenticated user
+    const currentPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: { id: true, isAppAdmin: true }
+    });
 
-    const total = await prisma.player.count({ where });
-    const rows = await prisma.player.findMany({
-      where,
-      orderBy,
-      skip,
-      take,
+    if (!currentPlayer) {
+      return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+    }
+
+    // Check if user is App Admin
+    if (!currentPlayer.isAppAdmin) {
+      return NextResponse.json({ error: 'Access denied. App Admin required.' }, { status: 403 });
+    }
+
+    const url = new URL(req.url);
+    const take = parseInt(url.searchParams.get('take') || '25');
+    const skip = parseInt(url.searchParams.get('skip') || '0');
+    const sort = url.searchParams.get('sort') || 'lastName:asc';
+    const search = url.searchParams.get('search') || '';
+    const clubId = url.searchParams.get('clubId') || '';
+
+    // Parse sort parameter and handle computed fields
+    const [sortField, sortOrder] = sort.split(':');
+    let orderBy: any = {};
+    
+    // Map computed fields to actual database fields
+    if (sortField === 'clubName') {
+      orderBy = { club: { name: sortOrder } };
+    } else if (sortField === 'age') {
+      // For age, sort by birthdayYear (descending for age)
+      orderBy = { birthdayYear: sortOrder === 'asc' ? 'desc' : 'asc' };
+    } else if (sortField === 'clubId') {
+      orderBy = { clubId: sortOrder };
+    } else {
+      orderBy = { [sortField]: sortOrder };
+    }
+
+    // Build where clause for search and club filter
+    const where: any = {};
+    
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    if (clubId) {
+      where.clubId = clubId;
+    }
+
+    const [players, total] = await Promise.all([
+      prisma.player.findMany({
+        where,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          name: true,
+          gender: true,
+          email: true,
+          phone: true,
+          city: true,
+          region: true,
+          country: true,
+          dupr: true,
+          birthdayYear: true,
+          birthdayMonth: true,
+          birthdayDay: true,
+          isAppAdmin: true,
+          createdAt: true,
+          club: {
+            select: {
+              id: true,
+              name: true,
+              city: true
+            }
+          }
+        },
+        orderBy,
+        take,
+        skip
+      }),
+      prisma.player.count({ where })
+    ]);
+
+    // Add computed fields for admin page
+    const playersWithComputedFields = players.map(player => {
+      // Calculate age from birthday
+      let age = null;
+      if (player.birthdayYear) {
+        const currentYear = new Date().getFullYear();
+        age = currentYear - player.birthdayYear;
+      }
+
+      return {
+        ...player,
+        age,
+        clubName: player.club?.name || null
+      };
+    });
+
+    return NextResponse.json({
+      items: playersWithComputedFields,
+      total,
+      hasMore: skip + take < total
+    });
+
+  } catch (error) {
+    console.error('Error fetching players:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch players' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Get the player record for the authenticated user
+    const currentPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: { id: true, isAppAdmin: true }
+    });
+
+    if (!currentPlayer) {
+      return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+    }
+
+    // Check if user is App Admin
+    if (!currentPlayer.isAppAdmin) {
+      return NextResponse.json({ error: 'Access denied. App Admin required.' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { playerId, isAppAdmin } = body;
+
+    if (!playerId || typeof isAppAdmin !== 'boolean') {
+      return NextResponse.json({ error: 'playerId and isAppAdmin required' }, { status: 400 });
+    }
+
+    // Update the player's App Admin status
+    const updatedPlayer = await prisma.player.update({
+      where: { id: playerId },
+      data: { isAppAdmin },
       select: {
         id: true,
         firstName: true,
         lastName: true,
-        name: true,
-        gender: true,
-        clubId: true,
-        city: true,
-        region: true,
-        country: true,
-        phone: true,
         email: true,
-        dupr: true,
-        birthdayYear: true,
-        birthdayMonth: true,
-        birthdayDay: true,
-        age: true, // legacy snapshot if you have it
-      },
+        isAppAdmin: true
+      }
     });
 
-    const items = rows.map(r => ({
-      id: r.id,
-      firstName: r.firstName ?? null,
-      lastName:  r.lastName ?? null,
-      name:      r.name ?? null,
-      gender:    r.gender,
-      clubId:    r.clubId,
-      club:      null, // Temporarily removed club relation
-      city:      r.city ?? null,
-      region:    r.region ?? null,
-      country:   r.country ?? null,
-      phone:     r.phone ?? null,
-      email:     r.email ?? null,
-      dupr:      r.dupr ?? null,
-      age:       computeAge(r.birthdayYear, r.birthdayMonth, r.birthdayDay) ?? (r.age ?? null),
-    }));
+    return NextResponse.json(updatedPlayer);
 
-    // When flat=1, return just the array of items for the dropdown
-    if (flat) {
-      return NextResponse.json(items);
-    }
-
-    return NextResponse.json({ items, total });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
-}
-
-/**
- * POST /api/admin/players
- * Body: { firstName, lastName, gender, clubId, dupr?, city?, region?, country?, phone?, email?, birthday? (YYYY-MM-DD) }
- */
-export async function POST(req: Request) {
-  try {
-    // Use singleton prisma instance
-    const body = (await req.json().catch(() => ({}))) as {
-      firstName?: string; lastName?: string; gender?: 'MALE'|'FEMALE';
-      clubId?: string;
-      dupr?: number | null;
-      city?: string; region?: string; country?: string;
-      phone?: string; email?: string;
-      birthday?: string | null; // "YYYY-MM-DD"
-    };
-
-    const firstName = squeeze(String(body.firstName || ''));
-    const lastName  = squeeze(String(body.lastName  || ''));
-    const gender    = body.gender === 'FEMALE' ? 'FEMALE' : 'MALE';
-    const clubId    = (body.clubId || '').trim();
-
-    if (!firstName || !lastName) return NextResponse.json({ error: 'firstName and lastName are required' }, { status: 400 });
-    if (!clubId)                  return NextResponse.json({ error: 'clubId is required' }, { status: 400 });
-
-    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
-    if (!club) return NextResponse.json({ error: 'club not found' }, { status: 404 });
-
-    const { y, m, d } = parseBirthdayStr(body.birthday);
-
-    const created = await prisma.player.create({
-      data: {
-        firstName,
-        lastName,
-        name: `${firstName} ${lastName}`,
-        gender,
-        clubId,
-        dupr: typeof body.dupr === 'number' ? body.dupr : null,
-        city: (body.city ?? '').trim() || null,
-        region: (body.region ?? '').trim() || null,
-        country: (body.country ?? '').trim() || 'Canada',
-        phone: (body.phone ?? '').trim() || null,
-        email: (body.email ?? '').trim() || null,
-        birthdayYear: y, birthdayMonth: m, birthdayDay: d,
-      },
-      select: { id: true },
-    });
-
-    return NextResponse.json({ id: created.id }, { status: 201 });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+  } catch (error) {
+    console.error('Error updating player admin status:', error);
+    return NextResponse.json(
+      { error: 'Failed to update player admin status' },
+      { status: 500 }
+    );
   }
 }
