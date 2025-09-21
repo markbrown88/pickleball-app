@@ -520,49 +520,55 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tournament Admin</h1>
-        <nav className="flex gap-4 text-sm underline">
-          <Link href="/">Home</Link>
-          <Link href="/me" target="_blank">Players</Link>
-          <Link href="/tournaments" target="_blank">Scoreboard</Link>
-          <Link href="/app-admin" className="text-purple-600 font-semibold">App Admin</Link>
-        </nav>
-      </div>
+    <div className="min-h-screen bg-app">
+      <main className="max-w-7xl mx-auto p-6 space-y-6">
+        <header className="bg-surface-1 border-b border-subtle -mx-6 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-primary">Tournament Admin</h1>
+              <p className="text-muted mt-1">Manage tournaments, clubs, players, and teams</p>
+            </div>
+            <nav className="flex items-center gap-4">
+              <Link href="/" className="nav-link">Home</Link>
+              <Link href="/me" target="_blank" className="nav-link">Players</Link>
+              <Link href="/tournaments" target="_blank" className="nav-link">Scoreboard</Link>
+              <Link href="/app-admin" className="nav-link text-secondary font-semibold">App Admin</Link>
+            </nav>
+          </div>
+        </header>
 
-      {/* Tabs header */}
-      <div className="border-b mb-2">
-        <div className="flex gap-2">
-          <TabButton active={tab==='tournaments'} onClick={()=>setTab('tournaments')}>Tournaments</TabButton>
-          <TabButton active={tab==='clubs'} onClick={()=>setTab('clubs')}>Clubs</TabButton>
-          <TabButton active={tab==='players'} onClick={()=>setTab('players')}>Players</TabButton>
-          <TabButton active={tab==='teams'} onClick={()=>setTab('teams')}>Teams</TabButton>
+        {/* Tabs header */}
+        <div className="border-b border-subtle mb-6">
+          <div className="flex gap-2">
+            <TabButton active={tab==='tournaments'} onClick={()=>setTab('tournaments')}>Tournaments</TabButton>
+            <TabButton active={tab==='clubs'} onClick={()=>setTab('clubs')}>Clubs</TabButton>
+            <TabButton active={tab==='players'} onClick={()=>setTab('players')}>Players</TabButton>
+            <TabButton active={tab==='teams'} onClick={()=>setTab('teams')}>Teams</TabButton>
+          </div>
         </div>
-      </div>
 
       {/* status messages */}
-      {err ? (
-        <div
-          role="status"
-          aria-live="assertive"
-          aria-atomic="true"
-          className="border border-red-300 bg-red-50 text-red-700 p-3 rounded"
-        >
-          {err}
-        </div>
-      ) : null}
+        {err && (
+          <div
+            role="status"
+            aria-live="assertive"
+            aria-atomic="true"
+            className="error-message"
+          >
+            {err}
+          </div>
+        )}
 
-      {info ? (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="border border-green-300 bg-green-50 text-green-700 p-3 rounded"
-        >
-          {info}
-        </div>
-      ) : null}
+        {info && (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="success-message"
+          >
+            {info}
+          </div>
+        )}
       {/* ===== Tournaments ===== */}
       {tab === 'tournaments' && (
         <TournamentsBlock
@@ -582,41 +588,44 @@ export default function AdminPage() {
         />
       )}
 
-      {/* ===== Clubs ===== */}
-      {tab === 'clubs' && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <button className="border rounded px-3 py-1" onClick={() => openEditClub()}>Add Club</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <SortableTh label="Name" onClick={() => clickSortClubs('name')} active={clubSort.col === 'name'} dir={clubSort.dir} />
-                  <SortableTh label="City" onClick={() => clickSortClubs('city')} active={clubSort.col === 'city'} dir={clubSort.dir} />
-                  <SortableTh label="Province/State" onClick={() => clickSortClubs('region')} active={clubSort.col === 'region'} dir={clubSort.dir} />
-                  <SortableTh label="Country" onClick={() => clickSortClubs('country')} active={clubSort.col === 'country'} dir={clubSort.dir} />
-                  <SortableTh label="Phone" onClick={() => clickSortClubs('phone')} active={clubSort.col === 'phone'} dir={clubSort.dir} />
-                  <th className="py-2 pr-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {clubsAll.length === 0 && <tr><td colSpan={6} className="py-4 text-gray-600">No clubs yet.</td></tr>}
-                {clubsAll.map(c => (
-                  <tr key={c.id} className="border-b">
-                    <td className="py-2 pr-4"><button className="underline" onClick={() => openEditClub(c)}>{c.name}</button></td>
-                    <td className="py-2 pr-4">{c.city ?? '—'}</td>
-                    <td className="py-2 pr-4">{c.region ?? '—'}</td>
-                    <td className="py-2 pr-4">{c.country ?? '—'}</td>
-                    <td className="py-2 pr-4">{c.phone ?? '—'}</td>
-                    <td className="py-2 pr-2 text-right align-middle">
-                      <button aria-label="Delete club" onClick={() => removeClub(c.id)} title="Delete"><TrashIcon /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {/* ===== Clubs ===== */}
+        {tab === 'clubs' && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-primary">Clubs</h2>
+              <button className="btn btn-primary" onClick={() => openEditClub()}>Add Club</button>
+            </div>
+            <div className="card">
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <SortableTh label="Name" onClick={() => clickSortClubs('name')} active={clubSort.col === 'name'} dir={clubSort.dir} />
+                      <SortableTh label="City" onClick={() => clickSortClubs('city')} active={clubSort.col === 'city'} dir={clubSort.dir} />
+                      <SortableTh label="Province/State" onClick={() => clickSortClubs('region')} active={clubSort.col === 'region'} dir={clubSort.dir} />
+                      <SortableTh label="Country" onClick={() => clickSortClubs('country')} active={clubSort.col === 'country'} dir={clubSort.dir} />
+                      <SortableTh label="Phone" onClick={() => clickSortClubs('phone')} active={clubSort.col === 'phone'} dir={clubSort.dir} />
+                      <th className="py-2 pr-2 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clubsAll.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted">No clubs yet.</td></tr>}
+                    {clubsAll.map(c => (
+                      <tr key={c.id}>
+                        <td className="py-2 pr-4"><button className="text-secondary hover:text-secondary-hover hover:underline" onClick={() => openEditClub(c)}>{c.name}</button></td>
+                        <td className="py-2 pr-4 text-muted">{c.city ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted">{c.region ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted">{c.country ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted">{c.phone ?? '—'}</td>
+                        <td className="py-2 pr-2 text-right align-middle">
+                          <button aria-label="Delete club" onClick={() => removeClub(c.id)} title="Delete" className="text-error hover:text-error-hover p-1"><TrashIcon /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
           {clubEditOpen && (
             <div className="border rounded p-3 space-y-3">
@@ -660,90 +669,95 @@ export default function AdminPage() {
         </section>
       )}
 
-      {/* ===== Players ===== */}
-      {tab === 'players' && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <button className="border rounded px-3 py-1" onClick={() => openEditPlayer()}>Add Player</button>
-          </div>
-
-          {/* Players Filters */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-700">Primary Club</label>
-              <select
-                className="border rounded px-2 py-1"
-                value={playersClubFilter}
-                onChange={(e) => changePlayersClubFilter(e.target.value)}
-              >
-                <option value="">All Clubs</option>
-                {clubsAll.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}{c.city ? ` (${c.city})` : ''}
-                  </option>
-                ))}
-              </select>
+        {/* ===== Players ===== */}
+        {tab === 'players' && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-primary">Players</h2>
+              <button className="btn btn-primary" onClick={() => openEditPlayer()}>Add Player</button>
             </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <SortableTh label="First Name" onClick={() => clickSortPlayers('firstName')} active={playerSort.col === 'firstName'} dir={playerSort.dir} />
-                  <SortableTh label="Last Name" onClick={() => clickSortPlayers('lastName')} active={playerSort.col === 'lastName'} dir={playerSort.dir} />
-                  <SortableTh label="Sex" onClick={() => clickSortPlayers('gender')} active={playerSort.col === 'gender'} dir={playerSort.dir} />
-                  <SortableTh label="Primary Club" onClick={() => clickSortPlayers('clubName')} active={playerSort.col === 'clubName'} dir={playerSort.dir} />
-                  <SortableTh label="Age" onClick={() => clickSortPlayers('age')} active={playerSort.col === 'age'} dir={playerSort.dir} />
-                  <SortableTh label="DUPR" onClick={() => clickSortPlayers('dupr')} active={playerSort.col === 'dupr'} dir={playerSort.dir} />
-                  <SortableTh label="City" onClick={() => clickSortPlayers('city')} active={playerSort.col === 'city'} dir={playerSort.dir} />
-                  <SortableTh label="Province/State" onClick={() => clickSortPlayers('region')} active={playerSort.col === 'region'} dir={playerSort.dir} />
-                  <SortableTh label="Country" onClick={() => clickSortPlayers('country')} active={playerSort.col === 'country'} dir={playerSort.dir} />
-                  <SortableTh label="Phone" onClick={() => clickSortPlayers('phone')} active={playerSort.col === 'phone'} dir={playerSort.dir} />
-                  <th className="py-2 pr-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {(playersPage.items?.length ?? 0) === 0 && <tr><td colSpan={11} className="py-4 text-gray-600">No players yet.</td></tr>}
-                {(playersPage.items ?? []).map(p => (
-                  <tr key={p.id} className="border-b">
-                    <td className="py-2 pr-4">{p.firstName ?? '—'}</td>
-                    <td className="py-2 pr-4"><button className="underline" onClick={() => openEditPlayer(p)}>{p.lastName ?? '—'}</button></td>
-                    <td className="py-2 pr-4">{p.gender === 'FEMALE' ? 'F' : 'M'}</td>
-                    <td className="py-2 pr-4">{p.club?.name ?? '—'}</td>
-                    <td className="py-2 pr-4">{p.age ?? '—'}</td>
-                    <td className="py-2 pr-4">{p.dupr ?? '—'}</td>
-                    <td className="py-2 pr-4">{p.city ?? '—'}</td>
-                    <td className="py-2 pr-4">{p.region ?? '—'}</td>
-                    <td className="py-2 pr-4">{p.country ?? '—'}</td>
-                    <td className="py-2 pr-4">{p.phone ?? '—'}</td>
-                    <td className="py-2 pr-2 text-right align-middle"><button aria-label="Delete player" onClick={() => removePlayer(p.id)} title="Delete"><TrashIcon /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            {/* Players Filters */}
+            <div className="card">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted">Primary Club</label>
+                  <select
+                    className="input"
+                    value={playersClubFilter}
+                    onChange={(e) => changePlayersClubFilter(e.target.value)}
+                  >
+                    <option value="">All Clubs</option>
+                    {clubsAll.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{c.city ? ` (${c.city})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
 
-          {/* Pagination */}
-          <div className="flex items-center gap-3">
-            <button
-              className="border rounded px-3 py-1"
-              onClick={() => loadPlayersPage(playersPage.take, Math.max(0, playersPage.skip - playersPage.take), `${playerSort.col}:${playerSort.dir}`, playersClubFilter)}
-              disabled={playersPage.skip <= 0}
-            >
-              ← Prev
-            </button>
-            <span className="text-sm">
-              Page {Math.floor(playersPage.skip / playersPage.take) + 1} of {Math.max(1, Math.ceil(playersPage.total / playersPage.take))}
-            </span>
-            <button
-              className="border rounded px-3 py-1"
-              onClick={() => loadPlayersPage(playersPage.take, playersPage.skip + playersPage.take, `${playerSort.col}:${playerSort.dir}`, playersClubFilter)}
-              disabled={playersPage.skip + playersPage.take >= playersPage.total}
-            >
-              Next →
-            </button>
-          </div>
+            <div className="card">
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <SortableTh label="First Name" onClick={() => clickSortPlayers('firstName')} active={playerSort.col === 'firstName'} dir={playerSort.dir} />
+                      <SortableTh label="Last Name" onClick={() => clickSortPlayers('lastName')} active={playerSort.col === 'lastName'} dir={playerSort.dir} />
+                      <SortableTh label="Sex" onClick={() => clickSortPlayers('gender')} active={playerSort.col === 'gender'} dir={playerSort.dir} />
+                      <SortableTh label="Primary Club" onClick={() => clickSortPlayers('clubName')} active={playerSort.col === 'clubName'} dir={playerSort.dir} />
+                      <SortableTh label="Age" onClick={() => clickSortPlayers('age')} active={playerSort.col === 'age'} dir={playerSort.dir} />
+                      <SortableTh label="DUPR" onClick={() => clickSortPlayers('dupr')} active={playerSort.col === 'dupr'} dir={playerSort.dir} />
+                      <SortableTh label="City" onClick={() => clickSortPlayers('city')} active={playerSort.col === 'city'} dir={playerSort.dir} />
+                      <SortableTh label="Province/State" onClick={() => clickSortPlayers('region')} active={playerSort.col === 'region'} dir={playerSort.dir} />
+                      <SortableTh label="Country" onClick={() => clickSortPlayers('country')} active={playerSort.col === 'country'} dir={playerSort.dir} />
+                      <SortableTh label="Phone" onClick={() => clickSortPlayers('phone')} active={playerSort.col === 'phone'} dir={playerSort.dir} />
+                      <th className="py-2 pr-2 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(playersPage.items?.length ?? 0) === 0 && <tr><td colSpan={11} className="py-8 text-center text-muted">No players yet.</td></tr>}
+                    {(playersPage.items ?? []).map(p => (
+                      <tr key={p.id}>
+                        <td className="py-2 pr-4 text-muted">{p.firstName ?? '—'}</td>
+                        <td className="py-2 pr-4"><button className="text-secondary hover:text-secondary-hover hover:underline" onClick={() => openEditPlayer(p)}>{p.lastName ?? '—'}</button></td>
+                        <td className="py-2 pr-4 text-muted">{p.gender === 'FEMALE' ? 'F' : 'M'}</td>
+                        <td className="py-2 pr-4 text-muted">{p.club?.name ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted tabular">{p.age ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted tabular">{p.dupr ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted">{p.city ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted">{p.region ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted">{p.country ?? '—'}</td>
+                        <td className="py-2 pr-4 text-muted">{p.phone ?? '—'}</td>
+                        <td className="py-2 pr-2 text-right align-middle"><button aria-label="Delete player" onClick={() => removePlayer(p.id)} title="Delete" className="text-error hover:text-error-hover p-1"><TrashIcon /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center gap-3">
+              <button
+                className="btn btn-ghost"
+                onClick={() => loadPlayersPage(playersPage.take, Math.max(0, playersPage.skip - playersPage.take), `${playerSort.col}:${playerSort.dir}`, playersClubFilter)}
+                disabled={playersPage.skip <= 0}
+              >
+                ← Prev
+              </button>
+              <span className="text-sm text-muted">
+                Page {Math.floor(playersPage.skip / playersPage.take) + 1} of {Math.max(1, Math.ceil(playersPage.total / playersPage.take))}
+              </span>
+              <button
+                className="btn btn-ghost"
+                onClick={() => loadPlayersPage(playersPage.take, playersPage.skip + playersPage.take, `${playerSort.col}:${playerSort.dir}`, playersClubFilter)}
+                disabled={playersPage.skip + playersPage.take >= playersPage.total}
+              >
+                Next →
+              </button>
+            </div>
 
           {/* Add/Edit Player */}
           {playerEditOpen && (
@@ -810,11 +824,15 @@ export default function AdminPage() {
         </section>
       )}
 
-      {/* ===== Teams ===== */}
-      {tab === 'teams' && (
-        <AdminTeamsTab tournaments={tournaments} />
-      )}
-    </main>
+        {/* ===== Teams ===== */}
+        {tab === 'teams' && (
+          <section className="space-y-6">
+            <h2 className="text-xl font-semibold text-primary">Teams</h2>
+            <AdminTeamsTab tournaments={tournaments} />
+          </section>
+        )}
+      </main>
+    </div>
   );
 }
 
@@ -823,9 +841,9 @@ function FragmentRow({ children }: { children: ReactNode }) { return <>{children
 function SortableTh({ label, onClick, active, dir }: { label: string; onClick: () => void; active: boolean; dir: 'asc'|'desc' }) {
   return (
     <th className="py-2 pr-4 select-none">
-      <button className="inline-flex items-center gap-1 underline" onClick={onClick} title="Sort">
+      <button className="inline-flex items-center gap-1 text-primary hover:text-secondary font-medium" onClick={onClick} title="Sort">
         <span>{label}</span>
-        <span className="text-xs opacity-70">{active ? (dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+        <span className="text-xs text-muted">{active ? (dir === 'asc' ? '▲' : '▼') : '↕'}</span>
       </button>
     </th>
   );
@@ -844,7 +862,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-2 -mb-px border-b-2 ${active ? 'border-black font-semibold' : 'border-transparent text-gray-600 hover:text-black'}`}
+      className={`tab-button ${active ? 'active' : ''}`}
     >
       {children}
     </button>
@@ -1351,43 +1369,75 @@ function TournamentsBlock(props: TournamentsBlockProps) {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-6">
       <div className="flex items-center justify-between">
-        <button className="border rounded px-3 py-1" onClick={createNewTournamentPrompt}>Create Tournament</button>
+        <h2 className="text-xl font-semibold text-primary">Tournaments</h2>
+        <button className="btn btn-primary" onClick={createNewTournamentPrompt}>Create Tournament</button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead><tr className="text-left border-b">
-            <th className="py-2 pr-4">Name</th>
-            <th className="py-2 pr-4"># of Stops</th>
-            <th className="py-2 pr-4">Participating Clubs</th>
-            <th className="py-2 pr-4">Dates</th>
-            <th className="py-2 pr-2 w-24"></th>
-          </tr></thead>
-          <tbody>
-            {props.tournaments.map(t => {
-              const isOpen = !!props.expanded[t.id];
-              const ed = editor(t.id);
+      {props.tournaments.length === 0 ? (
+        <div className="card text-center py-8">
+          <p className="text-muted">No tournaments yet.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {props.tournaments.map(t => {
+            const isOpen = !!props.expanded[t.id];
+            const ed = editor(t.id);
 
-              return (
-                <FragmentRow key={t.id}>
-                  <tr className="border-b">
-                    <td className="py-2 pr-4">
-                      <button className="underline" onClick={() => props.toggleExpand(t.id)}>{t.name}</button>
-                    </td>
-                    <td className="py-2 pr-4">{t.stats.stopCount}</td>
-                    <td className="py-2 pr-4">{t.stats.participatingClubs.length ? t.stats.participatingClubs.join(', ') : '—'}</td>
-                    <td className="py-2 pr-4">{between(t.stats.dateRange.start, t.stats.dateRange.end)}</td>
-                    <td className="py-2 pr-2 text-right">
-                      <button aria-label="Delete tournament" onClick={() => props.onDeleteTournament(t.id)} title="Delete"><TrashIcon /></button>
-                    </td>
-                  </tr>
+            return (
+              <div key={t.id} className="card">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <button 
+                      className="text-lg font-semibold text-primary hover:text-secondary-hover hover:underline text-left"
+                      onClick={() => props.toggleExpand(t.id)}
+                    >
+                      {t.name}
+                    </button>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-muted">
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        {t.stats.stopCount} stops
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {t.stats.participatingClubs.length ? t.stats.participatingClubs.join(', ') : 'No clubs'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {between(t.stats.dateRange.start, t.stats.dateRange.end)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      className="btn btn-ghost text-sm"
+                      onClick={() => props.toggleExpand(t.id)}
+                    >
+                      {isOpen ? 'Hide Details' : 'Edit'}
+                    </button>
+                    <button 
+                      aria-label="Delete tournament" 
+                      onClick={() => props.onDeleteTournament(t.id)} 
+                      title="Delete"
+                      className="text-error hover:text-error-hover p-2"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </div>
 
-                  {isOpen && ed && (
-                    <tr>
-                      <td colSpan={5} className="bg-gray-50 p-4">
-                        {/* SINGLE EDITABLE PANEL */}
+                {isOpen && ed && (
+                  <div className="mt-4 pt-4 border-t border-subtle">
+                    {/* SINGLE EDITABLE PANEL */}
                         <div className="space-y-6 w-fit">
                           {/* Name + Type + Max size + Checkboxes + Brackets */}
                           <div className="flex flex-wrap items-start gap-4">
@@ -1838,18 +1888,16 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                             >
                               Save Changes
                             </button>
-                            <button className="border rounded px-3 py-1" onClick={() => toggleExpand(t.id)}>Close</button>
+                            <button className="btn btn-ghost text-sm" onClick={() => toggleExpand(t.id)}>Close</button>
                           </div>
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </FragmentRow>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* (Legacy create/edit panel removed) */}
 
