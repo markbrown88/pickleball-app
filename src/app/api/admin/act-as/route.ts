@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
       },
       orderBy: [
         { isAppAdmin: 'desc' },
-        { lastName: 'asc' },
-        { firstName: 'asc' }
+        { firstName: 'asc' },
+        { lastName: 'asc' }
       ]
     });
 

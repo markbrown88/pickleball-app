@@ -424,10 +424,10 @@ export default function TournamentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-app flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading tournament data...</p>
+          <div className="loading-spinner h-12 w-12 mx-auto"></div>
+          <p className="mt-4 text-muted">Loading tournament data...</p>
         </div>
       </div>
     );
@@ -435,13 +435,13 @@ export default function TournamentPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-app flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-600 text-xl mb-4">⚠️ Error</div>
-          <p className="text-gray-600">{error}</p>
+          <div className="text-error text-xl mb-4">⚠️ Error</div>
+          <p className="text-muted">{error}</p>
           <button 
             onClick={loadTournamentData}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="btn btn-primary mt-4"
           >
             Retry
           </button>
@@ -452,10 +452,10 @@ export default function TournamentPage() {
 
   if (!tournament) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-app flex items-center justify-center">
         <div className="text-center">
-          <div className="text-gray-600 text-xl mb-4">Tournament not found</div>
-          <p className="text-gray-500">The tournament you're looking for doesn't exist.</p>
+          <div className="text-muted text-xl mb-4">Tournament not found</div>
+          <p className="text-muted">The tournament you're looking for doesn't exist.</p>
         </div>
       </div>
     );
@@ -547,32 +547,32 @@ export default function TournamentPage() {
   const intermediateStandings = standings.filter(s => s.team.bracket?.name === 'Intermediate');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-app">
       <div className="w-full px-4 py-8">
         {/* Tournament Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <div className="card mb-8">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{tournament.name}</h1>
+              <h1 className="text-3xl font-bold text-primary mb-2">{tournament.name}</h1>
               {tournament.description && (
-                <p className="text-gray-600 mb-4">{tournament.description}</p>
+                <p className="text-muted mb-4">{tournament.description}</p>
               )}
-              <div className="flex items-center space-x-6 text-sm text-gray-500">
+              <div className="flex items-center space-x-6 text-sm text-muted">
                 {tournament.startDate && (
-                  <span>Start: {new Date(tournament.startDate).toLocaleDateString()}</span>
+                  <span className="tabular">Start: {new Date(tournament.startDate).toLocaleDateString()}</span>
                 )}
                 {tournament.endDate && (
-                  <span>End: {new Date(tournament.endDate).toLocaleDateString()}</span>
+                  <span className="tabular">End: {new Date(tournament.endDate).toLocaleDateString()}</span>
                 )}
               </div>
             </div>
             <button
               onClick={() => loadTournamentData(true)}
               disabled={refreshing}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {refreshing ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="loading-spinner h-4 w-4"></div>
               ) : (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -588,8 +588,8 @@ export default function TournamentPage() {
           {/* Left side - Stops and Games (2/3 width) */}
           <div className="col-span-2">
             {/* Stop Tabs */}
-            <div className="bg-white rounded-lg shadow-sm mb-8">
-              <div className="border-b border-gray-200">
+            <div className="card mb-8">
+              <div className="border-b border-subtle">
                 <nav className="flex space-x-8 px-6" aria-label="Tabs">
                   {stops.map((stop) => (
                     <button
@@ -598,10 +598,8 @@ export default function TournamentPage() {
                         setSelectedStopId(stop.id);
                         loadStopData(stop.id);
                       }}
-                      className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                        selectedStopId === stop.id
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      className={`tab-button ${
+                        selectedStopId === stop.id ? 'active' : ''
                       }`}
                     >
                       {stop.name}
@@ -614,13 +612,13 @@ export default function TournamentPage() {
             {/* Two Column Layout for Games */}
             <div className="grid grid-cols-2 gap-8">
               {/* Column 1: In Progress Games */}
-              <div className="bg-white rounded-lg shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50">
-                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                    <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+              <div className="card">
+                <div className="px-6 py-4 border-b border-subtle bg-warning/10">
+                  <h2 className="text-xl font-semibold text-primary flex items-center">
+                    <div className="w-3 h-3 bg-warning rounded-full mr-2"></div>
                     In Progress
                   </h2>
-                  <p className="text-sm text-gray-500">{inProgress.length} matches in progress</p>
+                  <p className="text-sm text-muted">{inProgress.length} matches in progress</p>
                 </div>
                 <div className="p-6">
                   {inProgress.length > 0 ? (
@@ -703,13 +701,13 @@ export default function TournamentPage() {
               </div>
 
               {/* Column 2: Completed Games */}
-              <div className="bg-white rounded-lg shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
-                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                    <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+              <div className="card">
+                <div className="px-6 py-4 border-b border-subtle bg-success/10">
+                  <h2 className="text-xl font-semibold text-primary flex items-center">
+                    <div className="w-3 h-3 bg-success rounded-full mr-2"></div>
                     Completed
                   </h2>
-                  <p className="text-sm text-gray-500">{completed.length} matches completed</p>
+                  <p className="text-sm text-muted">{completed.length} matches completed</p>
                 </div>
                 <div className="p-6">
                   {completed.length > 0 ? (

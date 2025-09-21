@@ -76,12 +76,12 @@ function DraggableTeam({
       {...listeners}
       className={`px-3 py-2 border rounded cursor-move transition-all duration-200 ${
         isBeingDragged 
-          ? 'opacity-60 scale-105 shadow-lg border-blue-400 bg-blue-50' 
+          ? 'opacity-60 scale-105 shadow-lg border-info bg-info/10' 
           : isPreviewTarget 
-            ? 'opacity-80 scale-102 shadow-md border-green-400 bg-green-50'
+            ? 'opacity-80 scale-102 shadow-md border-success bg-success/10'
             : ''
       } ${
-        !team ? 'border-dashed border-gray-600 bg-gray-50 cursor-not-allowed' : 'bg-white hover:shadow-md'
+        !team ? 'border-dashed border-subtle bg-surface-2 cursor-not-allowed' : 'bg-surface-1 hover:shadow-md'
       }`}
     >
       {team ? (
@@ -89,7 +89,7 @@ function DraggableTeam({
           <div className="font-medium">{team.name}</div>
         </div>
       ) : (
-        <div className="text-gray-400 italic">Drop team here</div>
+        <div className="text-muted italic">Drop team here</div>
       )}
     </div>
   );
@@ -301,7 +301,7 @@ function TournamentTab({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="loading-spinner"></div>
       </div>
     );
   }
@@ -317,31 +317,31 @@ function TournamentTab({
       <section>
         <h2 className="text-xl font-semibold mb-4">My Tournaments</h2>
         {assignments.length === 0 ? (
-          <div className="text-center py-8 text-gray-400 bg-gray-800 rounded-lg">
+          <div className="text-center py-8 text-muted card">
             <p>You're not currently registered for any tournaments.</p>
             <p className="text-sm mt-1">Check the "Available Tournaments" section below to register.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="table">
               <thead>
-                <tr className="text-left border-b border-gray-700 bg-gray-800">
-                  <th className="py-3 px-4 font-medium text-gray-300">Tournament</th>
-                  <th className="py-3 px-4 font-medium text-gray-300">Team</th>
-                  <th className="py-3 px-4 font-medium text-gray-300">Stop</th>
-                  <th className="py-3 px-4 font-medium text-gray-300">Dates</th>
-                  <th className="py-3 px-4 font-medium text-gray-300">Team Club</th>
-                  <th className="py-3 px-4 font-medium text-gray-300">Role</th>
+                <tr>
+                  <th>Tournament</th>
+                  <th>Team</th>
+                  <th>Stop</th>
+                  <th>Dates</th>
+                  <th>Team Club</th>
+                  <th>Role</th>
                 </tr>
               </thead>
               <tbody>
                 {assignments.map((row, i) => {
                   const isCaptain = captainSet.has(row.teamId);
                   return (
-                    <tr key={i} className="border-b border-gray-700 hover:bg-gray-800">
-                      <td className="py-3 px-4">
+                    <tr key={i}>
+                      <td>
                         <button 
-                          className="text-blue-400 hover:text-blue-300 hover:underline font-medium"
+                          className="text-secondary hover:text-secondary-hover hover:underline font-medium"
                           onClick={() => {
                             // TODO: Navigate to tournament detail page
                             console.log('Navigate to tournament:', row.tournamentName);
@@ -350,17 +350,17 @@ function TournamentTab({
                           {row.tournamentName}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-gray-300">{row.teamName}</td>
-                      <td className="py-3 px-4 text-gray-300">{row.stopName}</td>
-                      <td className="py-3 px-4 text-gray-300">{between(row.stopStartAt ?? null, row.stopEndAt ?? null)}</td>
-                      <td className="py-3 px-4 text-gray-300">{row.teamClubName ?? '—'}</td>
-                      <td className="py-3 px-4">
+                      <td className="text-muted">{row.teamName}</td>
+                      <td className="text-muted">{row.stopName}</td>
+                      <td className="text-muted tabular">{between(row.stopStartAt ?? null, row.stopEndAt ?? null)}</td>
+                      <td className="text-muted">{row.teamClubName ?? '—'}</td>
+                      <td>
                         {isCaptain ? (
-                          <span className="px-2 py-1 rounded-full border border-amber-400 bg-amber-900/20 text-amber-400 text-xs font-medium">
+                          <span className="chip chip-warning">
                             Captain
                           </span>
                         ) : (
-                          <span className="text-gray-400">Player</span>
+                          <span className="text-muted">Player</span>
                         )}
                       </td>
                     </tr>
@@ -376,17 +376,17 @@ function TournamentTab({
       <section>
         <h2 className="text-xl font-semibold mb-4">Available Tournaments</h2>
         {availableTournaments.length === 0 ? (
-          <div className="text-center py-8 text-gray-400 bg-gray-800 rounded-lg">
+          <div className="text-center py-8 text-muted card">
             <p>No tournaments available for registration at this time.</p>
           </div>
         ) : (
           <div className="space-y-4">
             {availableTournaments.map((tournament) => (
-              <div key={tournament.id} className="border border-gray-700 rounded-lg p-6 hover:shadow-md transition-shadow bg-gray-800">
+              <div key={tournament.id} className="card">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <button 
-                      className="text-lg font-semibold text-blue-400 hover:text-blue-300 hover:underline mb-2"
+                      className="text-lg font-semibold text-secondary hover:text-secondary-hover hover:underline mb-2"
                       onClick={() => {
                         // TODO: Navigate to tournament detail page
                         console.log('Navigate to tournament:', tournament.name);
@@ -394,18 +394,18 @@ function TournamentTab({
                     >
                       {tournament.name}
                     </button>
-                    <p className="text-sm text-gray-400 mb-3">
+                    <p className="text-sm text-muted mb-3">
                       {tournament.type} • {tournament.stops?.length || 0} stops
                     </p>
                     
                     {tournament.brackets && tournament.brackets.length > 0 && (
                       <div className="mb-3">
-                        <h4 className="text-sm font-medium text-gray-300 mb-2">Available Brackets:</h4>
+                        <h4 className="text-sm font-medium text-muted mb-2">Available Brackets:</h4>
                         <div className="flex flex-wrap gap-2">
                           {tournament.brackets.map((bracket: any) => (
                             <span
                               key={bracket.id}
-                              className="px-2 py-1 bg-gray-700 text-gray-300 text-sm rounded"
+                              className="px-2 py-1 bg-surface-2 text-muted text-sm rounded"
                             >
                               {bracket.name}
                             </span>
@@ -416,14 +416,14 @@ function TournamentTab({
 
                     {tournament.stops && tournament.stops.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-300 mb-2">Stops:</h4>
+                        <h4 className="text-sm font-medium text-muted mb-2">Stops:</h4>
                         <div className="space-y-1">
                           {tournament.stops.map((stop: any, index: number) => (
-                            <div key={stop.id} className="text-sm text-gray-400">
+                            <div key={stop.id} className="text-sm text-muted">
                               {index + 1}. {stop.name}
                               {stop.locationName && ` • ${stop.locationName}`}
                               {stop.startAt && (
-                                <span className="ml-2 text-gray-400">
+                                <span className="ml-2 text-muted">
                                   {new Date(stop.startAt).toLocaleDateString()}
                                 </span>
                               )}
@@ -437,7 +437,7 @@ function TournamentTab({
                   <div className="ml-6">
                     <button
                       onClick={() => registerForTournament(tournament.id)}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      className="btn btn-primary"
                     >
                       Register
                     </button>
@@ -552,7 +552,7 @@ function TournamentRegistrationTab({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="loading-spinner"></div>
       </div>
     );
   }
@@ -561,11 +561,11 @@ function TournamentRegistrationTab({
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold mb-2">Tournament Registration</h2>
-        <p className="text-gray-600">Register for available tournaments and manage your participation.</p>
+        <p className="text-muted">Register for available tournaments and manage your participation.</p>
       </div>
 
       {tournaments.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
+        <div className="text-center py-8 text-muted">
           No tournaments available for registration.
         </div>
       ) : (
@@ -575,26 +575,26 @@ function TournamentRegistrationTab({
             const isRegistered = !!registration;
 
             return (
-              <div key={tournament.id} className="border rounded-lg p-4">
+              <div key={tournament.id} className="card">
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h3 className="font-medium text-lg">{tournament.name}</h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted">
                       {tournament.type} • {tournament.stops?.length || 0} stops
                     </p>
                   </div>
                   <div className="text-right">
                     {isRegistered ? (
                       <div className="space-y-2">
-                        <span className="inline-block px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                        <span className="chip chip-success">
                           Registered
                         </span>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-muted">
                           Team: {registration.teamName}
                         </div>
                         <button
                           onClick={() => unregisterFromTournament(tournament.id)}
-                          className="text-sm text-red-600 hover:text-red-800"
+                          className="text-sm text-error hover:text-error-hover"
                         >
                           Unregister
                         </button>
@@ -602,7 +602,7 @@ function TournamentRegistrationTab({
                     ) : (
                       <button
                         onClick={() => registerForTournament(tournament.id)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        className="btn btn-primary"
                       >
                         Register
                       </button>
@@ -612,12 +612,12 @@ function TournamentRegistrationTab({
 
                 {tournament.brackets && tournament.brackets.length > 0 && (
                   <div className="mt-3">
-                    <h4 className="text-sm font-medium text-gray-300 mb-2">Available Brackets:</h4>
+                    <h4 className="text-sm font-medium text-muted mb-2">Available Brackets:</h4>
                     <div className="flex flex-wrap gap-2">
                       {tournament.brackets.map((bracket: any) => (
                         <span
                           key={bracket.id}
-                          className="px-2 py-1 bg-gray-100 text-gray-300 text-sm rounded"
+                          className="px-2 py-1 bg-surface-1 text-muted text-sm rounded"
                         >
                           {bracket.name}
                         </span>
@@ -628,10 +628,10 @@ function TournamentRegistrationTab({
 
                 {tournament.stops && tournament.stops.length > 0 && (
                   <div className="mt-3">
-                    <h4 className="text-sm font-medium text-gray-300 mb-2">Stops:</h4>
+                    <h4 className="text-sm font-medium text-muted mb-2">Stops:</h4>
                     <div className="space-y-1">
                       {tournament.stops.map((stop: any, index: number) => (
-                        <div key={stop.id} className="text-sm text-gray-600">
+                        <div key={stop.id} className="text-sm text-muted">
                           {index + 1}. {stop.name}
                           {stop.locationName && ` • ${stop.locationName}`}
                           {stop.startAt && (
@@ -712,21 +712,21 @@ function ProfileSetupForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">First Name</label>
+          <label className="block text-sm font-medium text-muted mb-1">First Name</label>
           <input
             type="text"
             required
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.firstName}
             onChange={e => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
+          <label className="block text-sm font-medium text-muted mb-1">Last Name</label>
           <input
             type="text"
             required
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.lastName}
             onChange={e => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
           />
@@ -735,10 +735,10 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Gender</label>
+          <label className="block text-sm font-medium text-muted mb-1">Gender</label>
           <select
             required
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.gender}
             onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value as 'MALE' | 'FEMALE' }))}
           >
@@ -747,10 +747,10 @@ function ProfileSetupForm({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Club</label>
+          <label className="block text-sm font-medium text-muted mb-1">Club</label>
           <select
             required
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.clubId}
             onChange={e => setFormData(prev => ({ ...prev, clubId: e.target.value }))}
           >
@@ -764,19 +764,19 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+          <label className="block text-sm font-medium text-muted mb-1">Email</label>
           <input
             type="email"
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.email}
             onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+          <label className="block text-sm font-medium text-muted mb-1">Phone</label>
           <input
             type="tel"
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.phone}
             onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
           />
@@ -785,20 +785,20 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">City</label>
+          <label className="block text-sm font-medium text-muted mb-1">City</label>
           <input
             type="text"
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.city}
             onChange={e => setFormData(prev => ({ ...prev, city: e.target.value }))}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-muted mb-1">
             {countrySel === 'Canada' ? 'Province' : 'State'}
           </label>
           <select
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.region}
             onChange={e => setFormData(prev => ({ ...prev, region: e.target.value }))}
           >
@@ -809,9 +809,9 @@ function ProfileSetupForm({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Country</label>
+          <label className="block text-sm font-medium text-muted mb-1">Country</label>
           <select
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={countrySel}
             onChange={e => {
               const sel = e.target.value as CountrySel;
@@ -828,10 +828,10 @@ function ProfileSetupForm({
 
       {countrySel === 'Other' && (
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Country Name</label>
+          <label className="block text-sm font-medium text-muted mb-1">Country Name</label>
           <input
             type="text"
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={countryOther}
             onChange={e => setCountryOther(e.target.value)}
             placeholder="Enter country name"
@@ -841,23 +841,23 @@ function ProfileSetupForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">DUPR Rating (optional)</label>
+          <label className="block text-sm font-medium text-muted mb-1">DUPR Rating (optional)</label>
           <input
             type="number"
             step="0.1"
             min="1.0"
             max="6.0"
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.dupr}
             onChange={e => setFormData(prev => ({ ...prev, dupr: e.target.value }))}
             placeholder="e.g., 4.5"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Birthday (optional)</label>
+          <label className="block text-sm font-medium text-muted mb-1">Birthday (optional)</label>
           <input
             type="date"
-            className="w-full border border-gray-600 rounded px-3 py-2 bg-gray-800 text-white"
+            className="input"
             value={formData.birthday}
             onChange={e => setFormData(prev => ({ ...prev, birthday: e.target.value }))}
           />
@@ -868,7 +868,7 @@ function ProfileSetupForm({
         <button
           type="submit"
           disabled={loading}
-          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          className="btn btn-primary disabled:opacity-50"
         >
           {loading ? 'Creating Profile...' : 'Create Profile'}
         </button>
@@ -988,11 +988,58 @@ export default function MePage() {
   };
 
   // Handle "Act As" functionality
-  const handleActAs = (playerId: string) => {
-    if (playerId) {
-      console.log('Acting as player:', playerId);
-      setInfo(`Now acting as player: ${playerId}`);
-      // You can implement the actual impersonation logic here
+  const handleActAs = async (playerId: string) => {
+    if (playerId === 'reset' || !playerId) {
+      // Reset to original user
+      setInfo('Acting as original user');
+      setSelectedActAsPlayer('');
+      await loadUserProfile();
+    } else {
+      try {
+        const response = await fetch('/api/admin/act-as', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ targetPlayerId: playerId }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setInfo(data.message);
+          
+          // Update the displayed user profile to show the target player
+          const targetPlayer = data.targetPlayer;
+          setUserProfile({
+            ...userProfile,
+            id: targetPlayer.id,
+            firstName: targetPlayer.firstName,
+            lastName: targetPlayer.lastName,
+            email: targetPlayer.email,
+            isAppAdmin: targetPlayer.isAppAdmin,
+            club: targetPlayer.club,
+            clerkUserId: userProfile?.clerkUserId || '',
+            name: targetPlayer.firstName + ' ' + targetPlayer.lastName,
+            phone: userProfile?.phone || null,
+            gender: userProfile?.gender || 'MALE',
+            dupr: userProfile?.dupr || null,
+            age: userProfile?.age || null,
+            birthday: userProfile?.birthday || null,
+            city: userProfile?.city || null,
+            region: userProfile?.region || null,
+            country: userProfile?.country || null
+          });
+          
+          // Update meId to trigger data reload
+          setMeId(targetPlayer.id);
+        } else {
+          const errorData = await response.json();
+          setErr(errorData.error || 'Failed to act as player');
+        }
+      } catch (error) {
+        console.error('Error acting as player:', error);
+        setErr('Failed to act as player');
+      }
     }
   };
 
@@ -1744,7 +1791,7 @@ export default function MePage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
+            <p className="text-muted">Loading...</p>
           </div>
         </div>
       </main>
@@ -1758,9 +1805,9 @@ export default function MePage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Welcome to Pickleball Tournaments</h1>
-            <p className="text-gray-600 mb-6">Please sign in to access your player profile and tournament information.</p>
+            <p className="text-muted mb-6">Please sign in to access your player profile and tournament information.</p>
             <SignInButton mode="modal">
-              <button className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+              <button className="btn btn-primary">
                 Sign In
               </button>
             </SignInButton>
@@ -1776,7 +1823,7 @@ export default function MePage() {
       <main className="p-6 max-w-5xl mx-auto space-y-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Complete Your Profile</h1>
-          <p className="text-gray-600 mb-6">Please complete your player profile to access tournaments and team management.</p>
+          <p className="text-muted mb-6">Please complete your player profile to access tournaments and team management.</p>
           <div className="max-w-md mx-auto">
             <ProfileSetupForm 
               user={user}
@@ -1791,52 +1838,51 @@ export default function MePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-app">
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700">
+      <header className="bg-surface-1 border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-white">TournaVerse</h1>
+              <h1 className="text-2xl font-bold text-primary">TournaVerse</h1>
             </div>
               <div className="flex items-center space-x-4">
                 <div className="text-sm">
-                  <span className="mr-2 text-gray-300">Welcome,</span>
-                  <span className="font-medium text-white">{userProfile?.firstName || user?.firstName || 'User'}</span>
+                  <span className="mr-2 text-muted">Welcome,</span>
+                  <span className="font-medium text-primary">{userProfile?.firstName || user?.firstName || 'User'}</span>
                 </div>
                 {userProfile?.isAppAdmin && (
                   <>
                     <div className="flex items-center space-x-2">
-                      <label htmlFor="act-as-player" className="text-sm text-gray-300">Act As:</label>
+                      <label htmlFor="act-as-player" className="text-sm text-muted">Act As:</label>
                       <select
                         id="act-as-player"
-                        className="px-3 py-1 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-gray-800 text-white text-sm"
+                        className="input text-sm"
                         value={selectedActAsPlayer}
                         onChange={(e) => {
                           setSelectedActAsPlayer(e.target.value);
-                          if (e.target.value) {
-                            handleActAs(e.target.value);
-                          }
+                          handleActAs(e.target.value);
                         }}
                       >
                         <option value="">Select player</option>
+                        <option value="reset">Reset to original user</option>
                         {actAsPlayers.map(player => (
                           <option key={player.id} value={player.id}>
-                            {player.firstName} {player.lastName} ({player.email})
+                            {player.firstName} {player.lastName}
                           </option>
                         ))}
                       </select>
                     </div>
                     <Link 
                       href="/app-admin"
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                      className="btn btn-primary"
                     >
                       Admin
                     </Link>
                   </>
                 )}
                 <SignOutButton>
-                  <button className="bg-transparent border border-gray-600 text-gray-300 hover:text-white hover:border-white px-4 py-2 rounded-lg transition-colors">
+                  <button className="btn btn-ghost">
                     Sign Out
                   </button>
                 </SignOutButton>
@@ -1846,10 +1892,10 @@ export default function MePage() {
       </header>
 
       {/* Banner Section */}
-      <div className="bg-gray-800 border-b border-gray-700">
+      <div className="bg-surface-1 border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-3xl font-bold text-white">Player Dashboard</h1>
-          <p className="text-gray-400 mt-2">Manage your profile, tournaments, and team participation</p>
+          <h1 className="text-3xl font-bold text-primary">Player Dashboard</h1>
+          <p className="text-muted mt-2">Manage your profile, tournaments, and team participation</p>
         </div>
       </div>
 
@@ -1857,29 +1903,25 @@ export default function MePage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
 
-      {err && <div className="border border-red-500 bg-red-900/20 text-red-400 p-3 rounded">{err}</div>}
-      {info && <div className="border border-green-500 bg-green-900/20 text-green-400 p-3 rounded">{info}</div>}
+      {err && <div className="border border-error bg-error/20 text-error p-3 rounded">{err}</div>}
+      {info && <div className="border border-success bg-success/20 text-success p-3 rounded">{info}</div>}
 
 
       {/* Tab Navigation */}
-      <div className="border-b border-gray-700">
+      <div className="border-b border-subtle">
         <nav className="flex space-x-8">
           <button
             onClick={() => setActiveTab('tournaments')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'tournaments'
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+            className={`tab-button ${
+              activeTab === 'tournaments' ? 'active' : ''
             }`}
           >
             Tournaments
           </button>
           <button
             onClick={() => setActiveTab('profile')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'profile'
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+            className={`tab-button ${
+              activeTab === 'profile' ? 'active' : ''
             }`}
           >
             Profile
@@ -1887,10 +1929,8 @@ export default function MePage() {
           {captainSet.size > 0 && (
             <button
               onClick={() => setActiveTab('teams')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'teams'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+              className={`tab-button ${
+                activeTab === 'teams' ? 'active' : ''
               }`}
             >
               Teams
@@ -1899,10 +1939,8 @@ export default function MePage() {
           {eventManagerData.length > 0 && (
             <button
               onClick={() => setActiveTab('manage')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'manage'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+              className={`tab-button ${
+                activeTab === 'manage' ? 'active' : ''
               }`}
             >
               Manage
@@ -1916,7 +1954,7 @@ export default function MePage() {
         {activeTab === 'profile' && (
           <section className="space-y-6">
         <div className="flex items-center justify-end">
-          <button className="text-sm border border-gray-600 rounded px-2 py-1 hover:bg-gray-700 text-gray-300" onClick={() => setShowEdit(s => !s)}>
+          <button className="btn btn-ghost text-sm" onClick={() => setShowEdit(s => !s)}>
                 {showEdit ? 'Cancel' : 'Edit Profile'}
           </button>
         </div>
@@ -1933,9 +1971,9 @@ export default function MePage() {
                           value={form.firstName}
                           onChange={(e) => setForm(f => ({ ...f, firstName: e.target.value }))}
                           placeholder="First Name"
-                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-600 focus:outline-none focus:border-blue-500 bg-transparent text-white placeholder-gray-400"
+                          className="text-2xl font-bold text-center border-0 border-b-2 border-subtle focus:outline-none focus:border-secondary bg-transparent text-primary placeholder-muted"
                         />
-                        <label className="block text-xs text-gray-400 mt-1">First Name</label>
+                        <label className="block text-xs text-muted mt-1">First Name</label>
                       </div>
                       <div>
                         <input
@@ -1943,13 +1981,13 @@ export default function MePage() {
                           value={form.lastName}
                           onChange={(e) => setForm(f => ({ ...f, lastName: e.target.value }))}
                           placeholder="Last Name"
-                          className="text-2xl font-bold text-center border-0 border-b-2 border-gray-600 focus:outline-none focus:border-blue-500 bg-transparent text-white placeholder-gray-400"
+                          className="text-2xl font-bold text-center border-0 border-b-2 border-subtle focus:outline-none focus:border-secondary bg-transparent text-primary placeholder-muted"
                         />
-                        <label className="block text-xs text-gray-400 mt-1">Last Name</label>
+                        <label className="block text-xs text-muted mt-1">Last Name</label>
                       </div>
                     </div>
                   ) : (
-                    <h2 className="text-3xl font-bold text-white">
+                    <h2 className="text-3xl font-bold text-primary">
                       {overview.player.firstName && overview.player.lastName 
                         ? `${overview.player.firstName} ${overview.player.lastName}`
                         : overview.player.firstName || overview.player.lastName || 'Name Not Provided'
@@ -1962,11 +2000,11 @@ export default function MePage() {
                 <div className="grid grid-cols-3 gap-8">
                   {/* First Column: Photo */}
                   <div className="text-center">
-                    <div className="w-32 h-40 bg-gray-700 rounded border-2 border-dashed border-gray-600 flex items-center justify-center overflow-hidden mx-auto">
+                    <div className="w-32 h-40 bg-surface-2 rounded border-2 border-dashed border-subtle flex items-center justify-center overflow-hidden mx-auto">
                       {form.photo ? (
                         <img src={form.photo} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-gray-400 text-sm">No Photo</span>
+                        <span className="text-muted text-sm">No Photo</span>
                       )}
                     </div>
                     {showEdit && (
@@ -2015,7 +2053,7 @@ export default function MePage() {
                               }
                             }}
                           />
-                          <span className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer underline">
+                          <span className="text-xs text-secondary hover:text-secondary-hover cursor-pointer underline">
                             {form.photo ? 'Change Photo' : 'Choose File'}
                           </span>
                         </label>
@@ -2026,7 +2064,7 @@ export default function MePage() {
                   {/* Second Column: Sex, Age, Primary Club, Club Rating, DUPR */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-300">Sex:</label>
+                      <label className="w-20 text-sm font-medium text-muted">Sex:</label>
                       {showEdit ? (
                         <div className="flex gap-4">
                           <label className="flex items-center gap-2">
@@ -2036,9 +2074,9 @@ export default function MePage() {
                               value="MALE"
                               checked={form.gender === 'MALE'}
                               onChange={(e) => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
-                              className="text-blue-600"
+                              className="text-secondary"
                             />
-                            <span className="text-sm text-gray-300">Male</span>
+                            <span className="text-sm text-muted">Male</span>
                           </label>
                           <label className="flex items-center gap-2">
                             <input
@@ -2047,28 +2085,28 @@ export default function MePage() {
                               value="FEMALE"
                               checked={form.gender === 'FEMALE'}
                               onChange={(e) => setForm(f => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))}
-                              className="text-blue-600"
+                              className="text-secondary"
                             />
-                            <span className="text-sm text-gray-300">Female</span>
+                            <span className="text-sm text-muted">Female</span>
                           </label>
                         </div>
                       ) : (
-                        <span className="text-gray-300">{overview.player.gender || 'Not provided'}</span>
+                        <span className="text-muted">{overview.player.gender || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-300">Age:</label>
-                      <span className="text-gray-300">{overview.player.age ? `${overview.player.age} years old` : 'Not calculated'}</span>
+                      <label className="w-20 text-sm font-medium text-muted">Age:</label>
+                      <span className="text-muted">{overview.player.age ? `${overview.player.age} years old` : 'Not calculated'}</span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-300">Club:</label>
+                      <label className="w-20 text-sm font-medium text-muted">Club:</label>
                       {showEdit ? (
                         <select
                           value={form.clubId || ''}
                           onChange={(e) => setForm(f => ({ ...f, clubId: e.target.value as Id }))}
-                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                          className="input"
                         >
                           <option value="">Select Club</option>
                           {(Array.isArray(clubsAll) ? clubsAll : []).map(c => (
@@ -2076,12 +2114,12 @@ export default function MePage() {
                           ))}
                         </select>
                       ) : (
-                        <span className="text-gray-300">{overview.player.club?.name || 'Not provided'}</span>
+                        <span className="text-muted">{overview.player.club?.name || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-300">Rating:</label>
+                      <label className="w-20 text-sm font-medium text-muted">Rating:</label>
                       {showEdit ? (
                         <input
                           type="number"
@@ -2090,15 +2128,15 @@ export default function MePage() {
                           max="10"
                           value={form.clubRating}
                           onChange={(e) => setForm(f => ({ ...f, clubRating: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                          className="input"
                         />
                       ) : (
-                        <span className="text-gray-300">{form.clubRating || 'Not provided'}</span>
+                        <span className="text-muted">{form.clubRating || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-300">DUPR:</label>
+                      <label className="w-20 text-sm font-medium text-muted">DUPR:</label>
                       {showEdit ? (
                         <input
                           type="number"
@@ -2107,10 +2145,10 @@ export default function MePage() {
                           max="8"
                           value={form.dupr}
                           onChange={(e) => setForm(f => ({ ...f, dupr: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                          className="input"
                         />
                       ) : (
-                        <span className="text-gray-300">{overview.player.dupr || 'Not provided'}</span>
+                        <span className="text-muted">{overview.player.dupr || 'Not provided'}</span>
                       )}
                     </div>
                   </div>
@@ -2120,8 +2158,8 @@ export default function MePage() {
                     {/* Address Section */}
                     {!showEdit ? (
                       <div className="flex items-center gap-3">
-                        <label className="w-20 text-sm font-medium text-gray-300">Address:</label>
-                        <span className="text-gray-300">
+                        <label className="w-20 text-sm font-medium text-muted">Address:</label>
+                        <span className="text-muted">
                           {[
                             overview.player.city,
                             overview.player.region,
@@ -2132,30 +2170,30 @@ export default function MePage() {
                     ) : (
                       <>
                         <div className="flex items-center gap-3">
-                          <label className="w-20 text-sm font-medium text-gray-300">City:</label>
+                          <label className="w-20 text-sm font-medium text-muted">City:</label>
                           <input
                             type="text"
                             value={form.city}
                             onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))}
-                            className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                            className="input"
                           />
                         </div>
                         <div className="flex items-center gap-3">
-                          <label className="w-20 text-sm font-medium text-gray-300">Province/State:</label>
+                          <label className="w-20 text-sm font-medium text-muted">Province/State:</label>
                           <input
                             type="text"
                             value={form.region}
                             onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
-                            className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                            className="input"
                           />
                         </div>
                         <div className="flex items-center gap-3">
-                          <label className="w-20 text-sm font-medium text-gray-300">Country:</label>
+                          <label className="w-20 text-sm font-medium text-muted">Country:</label>
                           <div className="flex-1">
                             <select
                               value={countrySel}
                               onChange={(e) => setCountrySel(e.target.value as CountrySel)}
-                              className="w-full px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                              className="input"
                             >
                               <option value="">Select Country</option>
                               <option value="Canada">Canada</option>
@@ -2168,7 +2206,7 @@ export default function MePage() {
                                 value={countryOther}
                                 onChange={(e) => setCountryOther(e.target.value)}
                                 placeholder="Enter country"
-                                className="w-full mt-2 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full mt-2 px-3 py-2 border border-subtle rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                             )}
                           </div>
@@ -2178,30 +2216,30 @@ export default function MePage() {
 
                     {/* Contact Section */}
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-300">Phone:</label>
+                      <label className="w-20 text-sm font-medium text-muted">Phone:</label>
                       {showEdit ? (
                         <input
                           type="tel"
                           value={form.phone}
                           onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                          className="input"
                         />
                       ) : (
-                        <span className="text-gray-300">{overview.player.phone || 'Not provided'}</span>
+                        <span className="text-muted">{overview.player.phone || 'Not provided'}</span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="w-20 text-sm font-medium text-gray-300">Email:</label>
+                      <label className="w-20 text-sm font-medium text-muted">Email:</label>
                       {showEdit ? (
                         <input
                           type="email"
                           value={form.email}
                           onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 text-white"
+                          className="input"
                         />
                       ) : (
-                        <span className="text-gray-300">{overview.player.email || 'Not provided'}</span>
+                        <span className="text-muted">{overview.player.email || 'Not provided'}</span>
                       )}
                     </div>
                   </div>
@@ -2210,13 +2248,13 @@ export default function MePage() {
                 {showEdit && (
                   <div className="flex gap-2 justify-end">
                     <button
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      className="btn btn-primary"
                       onClick={saveProfile}
                     >
                       Save Changes
                     </button>
                     <button
-                      className="px-4 py-2 border border-gray-600 rounded hover:bg-gray-50"
+                      className="btn btn-ghost"
                       onClick={() => setShowEdit(false)}
                     >
                       Cancel
@@ -2318,7 +2356,7 @@ function TeamsTab({
       {/* Tournament List */}
       <div className="space-y-4">
         {captainTournamentRows.length === 0 && (
-          <div className="text-gray-600">No captain assignments yet.</div>
+          <div className="text-muted">No captain assignments yet.</div>
         )}
         
         {captainTournamentRows.map((row) => (
@@ -2326,21 +2364,21 @@ function TeamsTab({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 
-                  className="text-lg font-medium text-blue-600 cursor-pointer hover:text-blue-800"
+                  className="text-lg font-medium text-secondary cursor-pointer hover:text-secondary-hover"
                   onClick={() => setActiveTournamentId(activeTournamentId === row.tournamentId ? null : row.tournamentId)}
                 >
                   {row.tournamentName} <span className="text-xs text-black">- {row.dates}</span>
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted">
                   Team: {Array.from(row.bracketTeams.values())[0]?.club?.name || 'Unknown'}
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted">
                   Brackets: {row.bracketNames.length ? row.bracketNames.join(', ') : 'General'}
                 </p>
               </div>
               <button
                 onClick={() => setActiveTournamentId(activeTournamentId === row.tournamentId ? null : row.tournamentId)}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="btn btn-primary text-sm"
               >
                 {activeTournamentId === row.tournamentId ? 'Hide Rosters' : 'Manage Rosters'}
               </button>
@@ -2361,7 +2399,7 @@ function TeamsTab({
         ))}
       </div>
       
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-muted">
         Limits are enforced <em>per bracket</em> (unique players across all stops). A player cannot be on multiple brackets in the same tournament.
       </p>
     </section>
@@ -2467,12 +2505,12 @@ function CaptainRosterEditor({
   }
 
   return (
-    <div className="border rounded-lg p-4 bg-gray-50">
+    <div className="border rounded-lg p-4 bg-surface-2">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h4 className="text-md font-semibold">Manage Bracket Rosters</h4>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50" onClick={saveAll} disabled={busy}>
+            <button className="btn btn-primary disabled:opacity-50" onClick={saveAll} disabled={busy}>
               {busy ? 'Saving…' : 'Save All'}
             </button>
             <button className="text-sm underline" onClick={onClose}>Close</button>
@@ -2488,7 +2526,7 @@ function CaptainRosterEditor({
                 <div className="flex items-center justify-between">
                   <div className="font-medium">
                     {s.stopName}
-                    <span className="text-gray-400"> • {s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span>
+                    <span className="text-muted"> • {s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span>
                   </div>
 
                   {prev && (
@@ -2624,20 +2662,20 @@ function BracketRosterEditor({
           onBlur={() => setTimeout(() => setOpen(false), 120)}
         />
         {open && options.length > 0 && (
-          <ul className="absolute z-10 mt-1 w-full bg-white rounded shadow">
+          <ul className="absolute z-10 mt-1 w-full bg-surface-1 rounded shadow">
             {options.map((opt) => (
               <li
                 key={opt.id}
-                className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                className="btn btn-ghost text-sm"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { add(opt); setTerm(''); setOptions([]); setOpen(false); }}
                 title="Add to this stop for this bracket"
               >
                 {label(opt)}{' '}
-                <span className="text-gray-400">• {opt.gender} • {opt.dupr ?? '—'} • {opt.age ?? '—'}</span>
+                <span className="text-muted">• {opt.gender} • {opt.dupr ?? '—'} • {opt.age ?? '—'}</span>
               </li>
             ))}
-            {loading && <li className="px-3 py-2 text-sm text-gray-400">Searching…</li>}
+            {loading && <li className="px-3 py-2 text-sm text-muted">Searching…</li>}
           </ul>
         )}
       </div>
@@ -2646,9 +2684,9 @@ function BracketRosterEditor({
         {list.map((p) => (
           <li key={p.id} className="flex items-center justify-between">
             <span className="text-sm">
-              {label(p)} <span className="text-gray-400">• {p.gender} • {p.dupr ?? '—'} • {p.age ?? '—'}</span>
+              {label(p)} <span className="text-muted">• {p.gender} • {p.dupr ?? '—'} • {p.age ?? '—'}</span>
             </span>
-            <button className="text-gray-400 hover:text-red-600 text-sm" title="Remove" onClick={() => remove(p.id)}>🗑️</button>
+            <button className="text-muted hover:text-red-600 text-sm" title="Remove" onClick={() => remove(p.id)}>🗑️</button>
           </li>
         ))}
       </ul>
@@ -2764,15 +2802,15 @@ function GameScoreBox({
   const teamBWon = teamBScore > teamAScore;
 
   return (
-    <div className="p-1.5 bg-white border rounded space-y-1.5">
+    <div className="p-1.5 bg-surface-1 border rounded space-y-1.5">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-bold text-gray-300">
+        <div className="text-sm font-bold text-muted">
           {getGameTitle()}
         </div>
         <div className="flex items-center gap-1.5">
           {!isCompleted && (
             <>
-              <label className="text-xs font-medium text-gray-600">Court #:</label>
+              <label className="text-xs font-medium text-muted">Court #:</label>
               <input
                 type="text"
                 className="w-10 px-1 py-0.5 text-xs border rounded text-center"
@@ -2785,10 +2823,10 @@ function GameScoreBox({
           )}
           {gameStatus !== 'completed' && (
             <button
-              className={`px-2 py-1 text-xs rounded text-white ${
+              className={`btn btn-primary text-xs ${
                 gameStatus === 'not_started' 
-                  ? 'bg-green-600 hover:bg-green-700' 
-                  : 'bg-red-600 hover:bg-red-700'
+                  ? 'bg-success hover:bg-success-hover' 
+                  : 'bg-error hover:bg-error-hover'
               } disabled:opacity-50`}
               onClick={() => {
                 if (gameStatus === 'not_started') {
@@ -2812,7 +2850,7 @@ function GameScoreBox({
 
       <div className="flex items-center justify-between text-xs">
         {/* Team A */}
-        <div className={`font-medium text-gray-300 whitespace-pre-line ${
+        <div className={`font-medium text-muted whitespace-pre-line ${
           isCompleted && teamAWon ? 'font-bold text-green-800' : ''
         }`}>
           {getTeamALineup()}
@@ -2821,7 +2859,7 @@ function GameScoreBox({
         {/* Score A */}
         {isCompleted ? (
           <div className={`w-8 text-center ${
-            teamAWon ? 'text-green-800 font-bold' : 'text-gray-300'
+            teamAWon ? 'text-green-800 font-bold' : 'text-muted'
           }`}>
             {teamAScore}
           </div>
@@ -2842,16 +2880,16 @@ function GameScoreBox({
             disabled={isCompleted}
           />
         ) : (
-          <div className="w-8 text-center text-gray-400">-</div>
+          <div className="w-8 text-center text-muted">-</div>
         )}
         
         {/* VS */}
-        <div className="text-gray-400 font-medium">vs</div>
+        <div className="text-muted font-medium">vs</div>
         
         {/* Score B */}
         {isCompleted ? (
           <div className={`w-8 text-center ${
-            teamBWon ? 'text-green-800 font-bold' : 'text-gray-300'
+            teamBWon ? 'text-green-800 font-bold' : 'text-muted'
           }`}>
             {teamBScore}
           </div>
@@ -2872,11 +2910,11 @@ function GameScoreBox({
             disabled={isCompleted}
           />
         ) : (
-          <div className="w-8 text-center text-gray-400">-</div>
+          <div className="w-8 text-center text-muted">-</div>
         )}
         
         {/* Team B */}
-        <div className={`font-medium text-gray-300 whitespace-pre-line ${
+        <div className={`font-medium text-muted whitespace-pre-line ${
           isCompleted && teamBWon ? 'font-bold text-green-800' : ''
         }`}>
           {getTeamBLineup()}
@@ -3415,9 +3453,9 @@ function EventManagerTab({
         {tournaments.map((tournament) => (
           <div key={tournament.tournamentId} className="border rounded-lg">
             {/* Tournament Header */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 border-b">
+            <div className="flex items-center justify-between p-4 bg-surface-2 border-b">
               <h3 className="font-medium text-lg">{tournament.tournamentName}</h3>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted">
                 {getTournamentTypeDisplayName(tournament.type)} • {tournament.stops.length} stops
               </div>
             </div>
@@ -3425,7 +3463,7 @@ function EventManagerTab({
             {/* Stops Tabs */}
             <div className="p-4">
               {/* Stop Tabs */}
-              <div className="border-b border-gray-200 mb-4">
+              <div className="border-b border-subtle mb-4">
                 <nav className="flex space-x-8" aria-label="Tabs">
                   {tournament.stops.map((stop) => (
                     <button
@@ -3436,8 +3474,8 @@ function EventManagerTab({
                       }}
                       className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                         selectedStopId === stop.stopId
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+                          ? 'border-secondary text-secondary'
+                          : 'border-transparent text-muted hover:text-muted hover:border-subtle'
                       }`}
                     >
                       {stop.stopName}
@@ -3454,20 +3492,20 @@ function EventManagerTab({
                 return (
                   <div>
                     {/* Stop Info */}
-                    <div className="flex items-center justify-between mb-4 p-2 bg-gray-50 rounded">
+                    <div className="flex items-center justify-between mb-4 p-2 bg-surface-2 rounded">
                       <div>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted">
                           {stop.locationName && `${stop.locationName} • `}
                           {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
                         </p>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-muted">
                           {scheduleData[stop.stopId]?.length || 0} rounds • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.length || 0), 0) || 0} matches • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.reduce((matchAcc: number, m: any) => matchAcc + (m.games?.length || 0), 0) || 0), 0) || 0} games
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         {!scheduleData[stop.stopId]?.some((round: any) => hasAnyMatchStarted(round)) && (
                         <button
-                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+                          className="btn btn-primary text-xs disabled:opacity-50"
                           onClick={() => generateSchedule(stop.stopId, stop.stopName)}
                           disabled={loading[stop.stopId]}
                         >
@@ -3478,11 +3516,11 @@ function EventManagerTab({
                     </div>
 
                     {/* Schedule Content */}
-                    <div className="bg-white">
+                    <div className="bg-surface-1">
                         {loading[stop.stopId] ? (
-                          <div className="text-center py-4 text-gray-400">Loading schedule...</div>
+                          <div className="text-center py-4 text-muted">Loading schedule...</div>
                         ) : !scheduleData[stop.stopId] || scheduleData[stop.stopId].length === 0 ? (
-                          <div className="text-center py-4 text-gray-400">
+                          <div className="text-center py-4 text-muted">
                             No matchups generated yet. Click "Regenerate Matchups" to create them.
                           </div>
                         ) : (
@@ -3500,7 +3538,7 @@ function EventManagerTab({
                                   <div key={`${round.id}-${renderKey}-${updateKey}`} className="border rounded">
                                     {/* Round Header */}
                                     <div 
-                                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-surface-2"
                                       onClick={() => toggleRound(round.id)}
                                     >
                                       <div className="flex items-center gap-3">
@@ -3512,7 +3550,7 @@ function EventManagerTab({
                                       <div className="flex items-center gap-2">
                                         {isEditing ? (
                                             <button
-                                              className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                              className="btn btn-secondary text-xs"
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 saveRoundMatchups(round.id);
@@ -3522,7 +3560,7 @@ function EventManagerTab({
                                             </button>
                                         ) : !hasAnyMatchStarted(round) ? (
                                           <button
-                                            className="px-2 py-1 border rounded text-xs bg-blue-50 hover:bg-blue-100"
+                                            className="px-2 py-1 border rounded text-xs bg-info/10 hover:bg-info/20"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               toggleRoundEdit(round.id);
@@ -3531,17 +3569,17 @@ function EventManagerTab({
                                             Edit Matchups
                                           </button>
                                         ) : (
-                                          <span className="text-xs text-gray-400">Match in progress</span>
+                                          <span className="text-xs text-muted">Match in progress</span>
                                         )}
                                       </div>
                                     </div>
 
                                     {/* Round Content */}
                                     {expandedRounds.has(round.id) && (
-                                      <div className="p-3 border-t bg-gray-50">
+                                      <div className="p-3 border-t bg-surface-2">
                                     
                                     {isEditing && (
-                                      <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                                      <div className="mb-3 p-2 bg-info/10 border border-info rounded text-xs text-info">
                                         <strong>Drag teams to swap:</strong> Drag any team over another team to swap their positions.
                                       </div>
                                     )}
@@ -3569,7 +3607,7 @@ function EventManagerTab({
                                       
                                       return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
                                         <div key={bracketName} className="space-y-2 mb-4">
-                                          <h6 className="font-medium text-sm text-gray-300 border-b pb-1">
+                                          <h6 className="font-medium text-sm text-muted border-b pb-1">
                                             {bracketName}
                                           </h6>
                                           
@@ -3592,7 +3630,7 @@ function EventManagerTab({
                                                     const matchIdx = match.originalIndex;
                                                     const localIndex = match.localIndex;
                                                     return (
-                                        <div key={match.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                        <div key={match.id} className="flex items-center justify-between p-2 bg-surface-2 rounded text-sm">
                                                 {!match.isBye ? (
                                             <div className="flex items-center gap-2 flex-1">
                                               {/* Team A */}
@@ -3612,7 +3650,7 @@ function EventManagerTab({
                                                   dragPreview={dragPreview}
                                               />
                                               
-                                              <span className="text-gray-400">vs</span>
+                                              <span className="text-muted">vs</span>
                                               
                                               {/* Team B */}
                                               <DraggableTeam
@@ -3637,7 +3675,7 @@ function EventManagerTab({
                                                 {match.teamA?.name || 'TBD'} vs {match.teamB?.name || 'TBD'}
                                               </span>
                                               {match.isBye && (
-                                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                                                <span className="text-xs bg-warning/10 text-warning px-2 py-1 rounded">
                                                   BYE
                                                 </span>
                                               )}
@@ -3657,7 +3695,7 @@ function EventManagerTab({
                                                 
                                                 return (
                                                   <button
-                                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                                    className="px-2 py-1 text-xs bg-success text-white rounded hover:bg-success-hover"
                                                     onClick={() => {
                                                       console.log('Edit Lineups clicked for match:', match.id);
                                                       setEditingMatch(editingMatch === match.id ? null : match.id);
@@ -3680,7 +3718,7 @@ function EventManagerTab({
                                               {bracketMatches.map((match: any, localMatchIdx: number) => {
                                                 const matchIdx = match.originalIndex;
                                                 return (
-                                                  <div key={match.id} className="p-2 bg-gray-50 rounded text-sm">
+                                                  <div key={match.id} className="p-2 bg-surface-2 rounded text-sm">
                                                     {/* Confirmed Lineup Display with buttons */}
                                                     {!editingMatch && (() => {
                                                       // Hide lineup area if any game has started
@@ -3695,7 +3733,7 @@ function EventManagerTab({
                                                       return (
                                                       <div className="flex items-start gap-3">
                                                         {/* Team A Lineup Box */}
-                                                        <div className="flex-1 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                                                        <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
                                                           <div className="font-medium text-green-800 mb-1">{match.teamA?.name || 'Team A'}</div>
                                                           <div className="text-green-700">
                                                             {lineups[match.id] && lineups[match.id][match.teamA?.id || 'teamA']?.length > 0 ? (
@@ -3705,16 +3743,16 @@ function EventManagerTab({
                                                                 </div>
                                                               ))
                                                             ) : (
-                                                              <div className="text-xs text-gray-400">No lineup set</div>
+                                                              <div className="text-xs text-muted">No lineup set</div>
                                                             )}
                                                           </div>
                                                         </div>
                                                         
                                                         {/* VS separator */}
-                                                        <div className="text-gray-400 font-medium text-sm">vs</div>
+                                                        <div className="text-muted font-medium text-sm">vs</div>
                                                         
                                                         {/* Team B Lineup Box */}
-                                                        <div className="flex-1 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                                                        <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
                                                           <div className="font-medium text-green-800 mb-1">{match.teamB?.name || 'Team B'}</div>
                                                           <div className="text-green-700">
                                                             {lineups[match.id] && lineups[match.id][match.teamB?.id || 'teamB']?.length > 0 ? (
@@ -3724,7 +3762,7 @@ function EventManagerTab({
                                                                 </div>
                                                               ))
                                                             ) : (
-                                                              <div className="text-xs text-gray-400">No lineup set</div>
+                                                              <div className="text-xs text-muted">No lineup set</div>
                                                             )}
                                                           </div>
                                                         </div>
@@ -3733,7 +3771,7 @@ function EventManagerTab({
                                                         <div className="flex flex-col gap-2">
                                                           {matchStatuses[match.id] !== 'in_progress' && matchStatuses[match.id] !== 'completed' && (
                                                             <button
-                                                              className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                                              className="px-2 py-1 text-xs bg-success text-white rounded hover:bg-success-hover"
                                                               onClick={() => {
                                                                 console.log('Edit Lineups clicked for match:', match.id);
                                                                 setEditingMatch(editingMatch === match.id ? null : match.id);
@@ -3751,8 +3789,8 @@ function EventManagerTab({
                                                     {lineups[match.id] && 
                                                      lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
                                                      lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
-                                                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                                                        <h4 className="text-sm font-semibold text-blue-800 mb-3">
+                                                      <div className="mt-3 p-3 bg-info/10 border border-info rounded">
+                                                        <h4 className="text-sm font-semibold text-info mb-3">
                                                           Scores - {match.teamA?.name || 'Team A'} vs {match.teamB?.name || 'Team B'}
                                                         </h4>
                                                         <div className="space-y-4">
@@ -3909,7 +3947,7 @@ function EventManagerTab({
 
       {/* No tournaments message */}
       {tournaments.length === 0 && (
-        <div className="text-center py-8 text-gray-400">
+        <div className="text-center py-8 text-muted">
           You are not assigned as an event manager for any tournaments.
         </div>
       )}
@@ -3991,11 +4029,11 @@ function LineupEditor({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
+      <div className="bg-surface-1 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Edit Lineup - {teamName}</h3>
           <button
-            className="text-gray-400 hover:text-gray-300"
+            className="text-muted hover:text-muted"
             onClick={onCancel}
           >
             ✕
@@ -4003,14 +4041,14 @@ function LineupEditor({
         </div>
 
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="text-sm text-muted mb-2">
             Select 4 players: 2 men and 2 women
           </p>
           <div className="flex gap-2">
-            <span className={`px-2 py-1 rounded text-xs ${lineup.filter(p => p.gender === 'MALE').length === 2 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+            <span className={`px-2 py-1 rounded text-xs ${lineup.filter(p => p.gender === 'MALE').length === 2 ? 'bg-green-100 text-green-800' : 'bg-surface-1 text-muted'}`}>
               Men: {lineup.filter(p => p.gender === 'MALE').length}/2
             </span>
-            <span className={`px-2 py-1 rounded text-xs ${lineup.filter(p => p.gender === 'FEMALE').length === 2 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+            <span className={`px-2 py-1 rounded text-xs ${lineup.filter(p => p.gender === 'FEMALE').length === 2 ? 'bg-green-100 text-green-800' : 'bg-surface-1 text-muted'}`}>
               Women: {lineup.filter(p => p.gender === 'FEMALE').length}/2
             </span>
           </div>
@@ -4025,8 +4063,8 @@ function LineupEditor({
                   key={player.id}
                   className={`w-full text-left px-2 py-1 rounded text-sm ${
                     selectedPlayers.has(player.id)
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'hover:bg-gray-100'
+                      ? 'bg-blue-100 text-info'
+                      : 'hover:bg-surface-1'
                   }`}
                   onClick={() => addPlayer(player)}
                   disabled={selectedPlayers.has(player.id) || lineup.length >= 4 || lineup.filter(p => p.gender === 'MALE').length >= 2}
@@ -4045,8 +4083,8 @@ function LineupEditor({
                   key={player.id}
                   className={`w-full text-left px-2 py-1 rounded text-sm ${
                     selectedPlayers.has(player.id)
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'hover:bg-gray-100'
+                      ? 'bg-blue-100 text-info'
+                      : 'hover:bg-surface-1'
                   }`}
                   onClick={() => addPlayer(player)}
                   disabled={selectedPlayers.has(player.id) || lineup.length >= 4 || lineup.filter(p => p.gender === 'FEMALE').length >= 2}
@@ -4062,7 +4100,7 @@ function LineupEditor({
           <h4 className="font-medium mb-2">Selected Lineup ({lineup.length}/4)</h4>
           <div className="space-y-1">
             {lineup.map(player => (
-              <div key={player.id} className="flex items-center justify-between px-2 py-1 bg-gray-50 rounded">
+              <div key={player.id} className="flex items-center justify-between px-2 py-1 bg-surface-2 rounded">
                 <span className="text-sm">
                   {player.firstName} {player.lastName} ({player.gender === 'MALE' ? 'M' : 'F'})
                 </span>
@@ -4079,7 +4117,7 @@ function LineupEditor({
 
         <div className="flex justify-end gap-2">
           <button
-            className="px-4 py-2 border border-gray-600 rounded hover:bg-gray-50"
+            className="btn btn-ghost"
             onClick={onCancel}
           >
             Cancel
@@ -4362,7 +4400,7 @@ function InlineLineupEditor({
   };
 
   return (
-    <div className="mt-3 p-3 bg-gray-50 rounded border">
+    <div className="mt-3 p-3 bg-surface-2 rounded border">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold">Edit Lineups</h3>
         <div className="flex gap-2">
@@ -4374,7 +4412,7 @@ function InlineLineupEditor({
             {isSaving ? 'Saving...' : 'Confirm Lineup'}
           </button>
           <button
-            className="px-2 py-1 text-xs border border-gray-600 rounded hover:bg-gray-100"
+            className="btn btn-ghost text-xs"
             onClick={onCancel}
           >
             Cancel
@@ -4385,7 +4423,7 @@ function InlineLineupEditor({
       <div className="grid grid-cols-2 gap-4">
         {/* Team A */}
         <div>
-          <h4 className="text-xs font-medium mb-2 text-gray-600">{teamA.name}</h4>
+          <h4 className="text-xs font-medium mb-2 text-muted">{teamA.name}</h4>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">1:</label>
@@ -4483,7 +4521,7 @@ function InlineLineupEditor({
 
         {/* Team B */}
         <div>
-          <h4 className="text-xs font-medium mb-2 text-gray-600">{teamB.name}</h4>
+          <h4 className="text-xs font-medium mb-2 text-muted">{teamB.name}</h4>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">1:</label>

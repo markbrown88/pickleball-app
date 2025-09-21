@@ -24,6 +24,6 @@ export default async function Page({ params }: { params: Promise<{ stopId: strin
       }
     }
   });
-  if (!stop) return <div className="p-6">Stop not found.</div>;
+  if (!stop) return <div className="min-h-screen bg-app p-6 text-primary">Stop not found.</div>;
   return <Scoreboard initial={stop} />;
 }

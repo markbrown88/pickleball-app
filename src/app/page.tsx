@@ -90,41 +90,41 @@ export default function Home() {
     });
   };
 
-  const getStatusColor = (status?: string) => {
+  const getStatusChip = (status?: string) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'chip-success';
       case 'upcoming':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'chip-info';
       case 'completed':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'chip';
       default:
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'chip-warning';
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-app">
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700">
+      <header className="bg-surface-1 border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-white">TournaVerse</h1>
+              <h1 className="text-2xl font-bold text-primary">TournaVerse</h1>
             </div>
             <div className="flex items-center space-x-4">
               <SignedIn>
                 <div className="flex items-center space-x-4">
                   <Link 
                     href="/me" 
-                    className="text-gray-300 hover:text-white transition-colors"
+                    className="nav-link"
                   >
                     Dashboard
                   </Link>
                   {userProfile?.isAppAdmin && (
                     <Link 
                       href="/app-admin"
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                      className="btn btn-primary"
                     >
                       Admin
                     </Link>
@@ -134,7 +134,7 @@ export default function Home() {
               </SignedIn>
               <SignedOut>
                 <SignInButton mode="modal">
-                  <button className="bg-transparent border border-gray-300 text-gray-300 hover:text-white hover:border-white px-4 py-2 rounded-lg transition-colors">
+                  <button className="btn btn-ghost">
                     Login
                   </button>
                 </SignInButton>
@@ -147,20 +147,20 @@ export default function Home() {
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4">
+          <h1 className="text-5xl md:text-6xl font-bold text-primary mb-4">
             TournaVerse
           </h1>
-          <p className="text-xl text-gray-400 mb-8">
-            Powered by <span className="text-blue-400 font-semibold">Klyng</span>
+          <p className="text-xl text-muted mb-8">
+            Powered by <span className="text-secondary font-semibold">Klyng</span>
           </p>
-          <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-12">
+          <p className="text-lg text-secondary max-w-2xl mx-auto mb-12">
             The ultimate platform for managing pickleball tournaments. 
             Create, organize, and compete in tournaments with ease.
           </p>
           
           <SignedOut>
             <SignUpButton mode="modal">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-xl">
+              <button className="btn btn-secondary text-lg py-4 px-8">
                 Get Started
               </button>
             </SignUpButton>
@@ -169,56 +169,56 @@ export default function Home() {
 
         {/* Upcoming Tournaments Section */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-white mb-8 text-center">
+          <h2 className="text-3xl font-bold text-primary mb-8 text-center">
             Upcoming Tournaments
           </h2>
           
           {loading ? (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <div className="loading-spinner"></div>
             </div>
           ) : err ? (
             <div className="text-center py-12">
-              <p className="text-red-400 mb-4">{err}</p>
+              <p className="text-error mb-4">{err}</p>
               <button 
                 onClick={fetchTournaments}
-                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                className="btn btn-ghost"
               >
                 Try Again
               </button>
             </div>
           ) : tournaments.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400 text-lg">No tournaments available at the moment.</p>
+              <p className="text-muted text-lg">No tournaments available at the moment.</p>
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {tournaments.map((tournament) => (
                 <div 
                   key={tournament.id} 
-                  className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors shadow-lg hover:shadow-xl"
+                  className="card"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <h3 className="text-xl font-semibold text-white line-clamp-2">
+                    <h3 className="text-xl font-semibold text-primary line-clamp-2">
                       {tournament.name}
                     </h3>
                     {tournament.status && (
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(tournament.status)}`}>
+                      <span className={`chip ${getStatusChip(tournament.status)}`}>
                         {tournament.status}
                       </span>
                     )}
                   </div>
                   
                   {tournament.description && (
-                    <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                    <p className="text-muted text-sm mb-4 line-clamp-2">
                       {tournament.description}
                     </p>
                   )}
                   
                   <div className="space-y-2">
                     {tournament.location && (
-                      <div className="flex items-center text-gray-300">
-                        <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center text-secondary">
+                        <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
@@ -227,11 +227,11 @@ export default function Home() {
                     )}
                     
                     {tournament.startDate && (
-                      <div className="flex items-center text-gray-300">
-                        <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center text-secondary">
+                        <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <span className="text-sm">
+                        <span className="text-sm tabular">
                           {formatDate(tournament.startDate)}
                           {tournament.endDate && tournament.endDate !== tournament.startDate && 
                             ` - ${formatDate(tournament.endDate)}`
@@ -244,7 +244,7 @@ export default function Home() {
                   <div className="mt-6">
                     <Link 
                       href={`/tournament/${tournament.id}`}
-                      className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-4 rounded-lg transition-colors"
+                      className="btn btn-primary w-full"
                     >
                       View Details
                     </Link>
@@ -258,41 +258,41 @@ export default function Home() {
         {/* Features Section */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           <div className="text-center">
-            <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="bg-info w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Easy Management</h3>
-            <p className="text-gray-400">Create and manage tournaments with our intuitive interface.</p>
+            <h3 className="text-xl font-semibold text-primary mb-2">Easy Management</h3>
+            <p className="text-muted">Create and manage tournaments with our intuitive interface.</p>
           </div>
           
           <div className="text-center">
-            <div className="bg-green-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="bg-success w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Team Collaboration</h3>
-            <p className="text-gray-400">Work together with captains and event managers seamlessly.</p>
+            <h3 className="text-xl font-semibold text-primary mb-2">Team Collaboration</h3>
+            <p className="text-muted">Work together with captains and event managers seamlessly.</p>
           </div>
           
           <div className="text-center">
-            <div className="bg-purple-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-accent w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Real-time Stats</h3>
-            <p className="text-gray-400">Track scores, standings, and tournament progress in real-time.</p>
+            <h3 className="text-xl font-semibold text-primary mb-2">Real-time Stats</h3>
+            <p className="text-muted">Track scores, standings, and tournament progress in real-time.</p>
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700">
+      <footer className="bg-surface-1 border-t border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center text-gray-400">
+          <div className="text-center text-muted">
             <p>&copy; 2024 TournaVerse. Powered by Klyng.</p>
           </div>
         </div>

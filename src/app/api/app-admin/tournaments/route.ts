@@ -20,7 +20,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Access denied. App Admin required.' }, { status: 403 });
     }
 
-    // Get all tournaments with their admins and stats
+    // Get all tournaments with their admins, stops, and stats
     const tournaments = await prisma.tournament.findMany({
       include: {
         admins: {
@@ -35,6 +35,15 @@ export async function GET() {
             }
           }
         },
+        stops: {
+          select: {
+            startAt: true,
+            endAt: true
+          },
+          orderBy: {
+            startAt: 'asc'
+          }
+        },
         _count: {
           select: {
             teams: true,
@@ -47,7 +56,47 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json({ tournaments });
+    // Calculate start and end dates for each tournament
+    const tournamentsWithDates = tournaments.map(tournament => {
+      const startDate = tournament.stops.length > 0 ? tournament.stops[0].startAt : null;
+      const endDate = tournament.stops.length > 0 
+        ? tournament.stops[tournament.stops.length - 1].endAt || tournament.stops[tournament.stops.length - 1].startAt
+        : null;
+      
+      // Calculate status based on dates
+      let status = 'Draft'; // Default status
+      if (startDate && endDate) {
+        const today = new Date();
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (today < start) {
+          status = 'Upcoming';
+        } else if (today >= start && today <= end) {
+          status = 'In Progress';
+        } else if (today > end) {
+          status = 'Complete';
+        }
+      } else if (startDate) {
+        const today = new Date();
+        const start = new Date(startDate);
+        
+        if (today < start) {
+          status = 'Upcoming';
+        } else {
+          status = 'In Progress';
+        }
+      }
+      
+      return {
+        ...tournament,
+        startDate,
+        endDate,
+        status
+      };
+    });
+
+    return NextResponse.json({ tournaments: tournamentsWithDates });
   } catch (error) {
     console.error('Error fetching tournaments:', error);
     return NextResponse.json(

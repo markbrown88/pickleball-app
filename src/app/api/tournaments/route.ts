@@ -38,20 +38,36 @@ export async function GET(req: NextRequest) {
     });
 
     // Format the response to match what the frontend expects
-    const formattedTournaments = tournaments.map((tournament: any) => ({
-      id: tournament.id,
-      name: tournament.name,
-      type: tournament.type,
-      createdAt: tournament.createdAt,
-      brackets: tournament.brackets,
-      stops: tournament.stops.map((stop: any) => ({
-        id: stop.id,
-        name: stop.name,
-        startAt: stop.startAt,
-        endAt: stop.endAt,
-        locationName: stop.club ? `${stop.club.name}${stop.club.city ? `, ${stop.club.city}` : ''}${stop.club.region ? `, ${stop.club.region}` : ''}` : null
-      }))
-    }));
+    const formattedTournaments = tournaments.map((tournament: any) => {
+      // Calculate start and end dates from stops
+      const startDate = tournament.stops.length > 0 ? tournament.stops[0].startAt : null;
+      const endDate = tournament.stops.length > 0 
+        ? tournament.stops[tournament.stops.length - 1].endAt || tournament.stops[tournament.stops.length - 1].startAt
+        : null;
+      
+      // Get location from first stop
+      const location = tournament.stops.length > 0 && tournament.stops[0].locationName 
+        ? tournament.stops[0].locationName 
+        : null;
+      
+      return {
+        id: tournament.id,
+        name: tournament.name,
+        type: tournament.type,
+        createdAt: tournament.createdAt,
+        startDate,
+        endDate,
+        location,
+        brackets: tournament.brackets,
+        stops: tournament.stops.map((stop: any) => ({
+          id: stop.id,
+          name: stop.name,
+          startAt: stop.startAt,
+          endAt: stop.endAt,
+          locationName: stop.club ? `${stop.club.name}${stop.club.city ? `, ${stop.club.city}` : ''}${stop.club.region ? `, ${stop.club.region}` : ''}` : null
+        }))
+      };
+    });
 
     return NextResponse.json({
       tournaments: formattedTournaments

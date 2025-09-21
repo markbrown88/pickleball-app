@@ -17,7 +17,7 @@ export const prisma: PrismaClient =
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     datasources: {
       db: {
-        url: process.env.DATABASE_URL?.replace('aws-1-ca-central-1.pooler.supabase.com:6543', 'aws-1-ca-central-1.pooler.supabase.com:5432').replace('&pgbouncer=true', ''),
+        url: process.env.DATABASE_URL,
       },
     },
   });
