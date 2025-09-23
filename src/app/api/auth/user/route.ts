@@ -8,6 +8,12 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(req: NextRequest) {
   try {
+    // Check if Clerk is properly configured
+    if (!process.env.CLERK_SECRET_KEY) {
+      console.error('CLERK_SECRET_KEY is not set');
+      return NextResponse.json({ error: 'Authentication service not configured' }, { status: 500 });
+    }
+
     const { userId } = await auth();
     
     if (!userId) {

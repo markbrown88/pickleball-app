@@ -7,6 +7,12 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(req: NextRequest) {
   try {
+    // Check if database is configured
+    if (!process.env.DATABASE_URL) {
+      console.error('DATABASE_URL is not set');
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
     const tournaments = await prisma.tournament.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
