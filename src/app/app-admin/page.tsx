@@ -255,19 +255,22 @@ export default function AppAdminPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary">TournaVerse</h1>
+              <a href="/" className="text-2xl font-bold text-primary hover:text-primary-hover transition-colors">TournaVerse</a>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-sm">
-                <span className="mr-2 text-muted">Welcome,</span>
-                <span className="font-medium text-primary">{userProfile?.firstName || user?.firstName || 'User'}</span>
-              </div>
-              <a
-                href="/me"
-                className="btn btn-primary"
+              <a href="/me" className="nav-link">Player Dashboard</a>
+              <a href="/admin" className="nav-link">Tournament Setup</a>
+              <a href="/tournaments" className="nav-link">Scoreboard</a>
+              <a href="/app-admin" className="nav-link active text-secondary font-semibold">Admin</a>
+              <button 
+                onClick={() => {
+                  // Add logout functionality here
+                  window.location.href = '/api/auth/logout';
+                }}
+                className="btn btn-ghost hover:bg-surface-2 transition-colors"
               >
-                Back to Dashboard
-              </a>
+                Logout
+              </button>
             </div>
           </div>
         </div>

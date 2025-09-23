@@ -1845,11 +1845,10 @@ export default function MePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary">TournaVerse</h1>
+              <Link href="/" className="text-2xl font-bold text-primary hover:text-primary-hover transition-colors">TournaVerse</Link>
             </div>
             <div className="flex items-center space-x-4">
-              <Link href="/" className="nav-link">Home</Link>
-              <Link href="/me" className="nav-link">Player Dashboard</Link>
+              <Link href="/me" className="nav-link active">Player Dashboard</Link>
               {(userProfile?.isTournamentAdmin || userProfile?.isAppAdmin) && (
                 <Link href="/admin" className="nav-link">Tournament Setup</Link>
               )}
@@ -1858,8 +1857,8 @@ export default function MePage() {
                 <Link href="/app-admin" className="nav-link text-secondary font-semibold">Admin</Link>
               )}
               <SignOutButton>
-                <button className="btn btn-ghost">
-                  Sign Out
+                <button className="btn btn-ghost hover:bg-surface-2 transition-colors">
+                  Logout
                 </button>
               </SignOutButton>
             </div>

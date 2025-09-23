@@ -25,14 +25,23 @@ function fmtDate(d?: string | null) {
   const day = String(dt.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+function fmtDateDisplay(d?: string | null) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  const month = dt.toLocaleDateString('en-US', { month: 'short' });
+  const day = dt.getDate();
+  const year = dt.getFullYear();
+  return `${month} ${day}, ${year}`;
+}
 function toDateInput(iso?: string | null) {
   if (!iso) return '';
   return iso.slice(0, 10);
 }
 function between(a?: string | null, b?: string | null) {
   if (!a && !b) return '—';
-  if (a && b) return `${fmtDate(a)} – ${fmtDate(b)}`;
-  return fmtDate(a || b);
+  if (a && b) return `${fmtDateDisplay(a)} – ${fmtDateDisplay(b)}`;
+  return fmtDateDisplay(a || b);
 }
 function stopTitleForDisplay(opts: {
   stopName?: string | null;
@@ -123,6 +132,9 @@ type ClubWithCaptain = {
   singleCaptain: CaptainPick;
   singleQuery: string;
   singleOptions: Array<{ id: string; label: string }>;
+  club?: CaptainPick;
+  clubQuery?: string;
+  clubOptions?: Array<{ id: string; label: string }>;
 };
 
 /** Stop row (inline editor) with Event Manager typeahead */
@@ -135,6 +147,9 @@ type StopEditorRow = {
   eventManager?: CaptainPick;
   eventManagerQuery?: string;
   eventManagerOptions?: Array<{ id: string; label: string }>;
+  club?: CaptainPick;
+  clubQuery?: string;
+  clubOptions?: Array<{ id: string; label: string }>;
 };
 
 /** Editor state shared across components */
@@ -290,6 +305,8 @@ export default function AdminPage() {
   const [playerSort, setPlayerSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'lastName', dir: 'asc' });
   const [playerEditOpen, setPlayerEditOpen] = useState(false);
   const [playerEditId, setPlayerEditId] = useState<Id | null>(null);
+  const [playerInlineEditId, setPlayerInlineEditId] = useState<Id | null>(null);
+  const [playerSlideOutOpen, setPlayerSlideOutOpen] = useState(false);
   const [playerCountrySel, setPlayerCountrySel] = useState<'Canada' | 'USA' | 'Other'>('Canada');
   const [playerCountryOther, setPlayerCountryOther] = useState('');
   const [playerBirthday, setPlayerBirthday] = useState<string>('');
@@ -470,11 +487,15 @@ export default function AdminPage() {
       setEditorById((prev: EditorState) => {
         const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(clubId => {
           const cap = (cfg.captainsSimple || []).find(c => c.clubId === clubId) || null;
+          const club = clubsAll.find(c => c.id === clubId);
           return {
             clubId,
             singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
             singleQuery: '',
             singleOptions: [],
+            club: club ? { id: club.id, label: `${club.name}${club.city ? ` (${club.city})` : ''}` } : null,
+            clubQuery: '',
+            clubOptions: [],
           };
         });
 
@@ -488,7 +509,9 @@ export default function AdminPage() {
             hasCaptains: (cfg.captainsSimple || []).length > 0,
             clubs: clubRows,
             brackets,
-            stops: (cfg.stops || []).map(s => ({
+            stops: (cfg.stops || []).map(s => {
+              const club = s.clubId ? clubsAll.find(c => c.id === s.clubId) : null;
+              return {
               id: s.id,
               name: s.name,
               clubId: (s.clubId || undefined) as Id | undefined,
@@ -497,7 +520,11 @@ export default function AdminPage() {
               eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
               eventManagerQuery: '',
               eventManagerOptions: [],
-            })),
+                club: club ? { id: club.id, label: `${club.name}${club.city ? ` (${club.city})` : ''}` } : null,
+                clubQuery: '',
+                clubOptions: [],
+              };
+            }),
             maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
 
             tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
@@ -560,6 +587,53 @@ export default function AdminPage() {
       setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', phone: '', email: '' });
     }
   }
+
+  function openInlineEditPlayer(p: Player) {
+    setPlayerInlineEditId(p.id);
+    setPlayerForm({
+      firstName: (p.firstName || '').trim(),
+      lastName: (p.lastName || '').trim(),
+      gender: p.gender || 'MALE',
+      clubId: (p.clubId as any) || '',
+      dupr: p.dupr != null ? String(p.dupr) : '',
+      city: (p.city || '').trim(),
+      region: (p.region || '').trim(),
+      phone: (p.phone || '').trim(),
+      email: (p.email || '').trim(),
+      country: p.country || 'Canada',
+    });
+  }
+
+  function openSlideOutPlayer() {
+    setPlayerSlideOutOpen(true);
+    setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', phone: '', email: '', country: 'Canada' });
+    setPlayerBirthday('');
+  }
+
+  async function saveInlinePlayer() {
+    try {
+      const payload = {
+        firstName: playerForm.firstName.trim(),
+        lastName: playerForm.lastName.trim(),
+        gender: playerForm.gender,
+        clubId: playerForm.clubId || null,
+        dupr: playerForm.dupr ? parseFloat(playerForm.dupr) : null,
+        city: playerForm.city.trim(),
+        region: playerForm.region.trim(),
+        phone: playerForm.phone.trim(),
+        email: playerForm.email.trim(),
+        birthday: playerBirthday || null,
+      };
+      await api(`/api/admin/players/${playerInlineEditId}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload) 
+      });
+      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter);
+      setPlayerInlineEditId(null);
+      setInfo('Player updated');
+    } catch (e) { setErr((e as Error).message); }
+  }
   async function savePlayer() {
     try {
       clearMsg();
@@ -584,6 +658,8 @@ export default function AdminPage() {
       }
       await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter);
       setPlayerEditOpen(false);
+      setPlayerSlideOutOpen(false);
+      setPlayerEditId(null);
       setInfo('Player saved');
     } catch (e) { setErr((e as Error).message); }
   }
@@ -618,14 +694,22 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary">TournaVerse</h1>
+              <Link href="/" className="text-2xl font-bold text-primary hover:text-primary-hover transition-colors">TournaVerse</Link>
             </div>
             <div className="flex items-center space-x-4">
-              <Link href="/" className="nav-link">Home</Link>
               <Link href="/me" className="nav-link">Player Dashboard</Link>
               <Link href="/admin" className="nav-link active">Tournament Setup</Link>
               <Link href="/tournaments" className="nav-link">Scoreboard</Link>
-              <Link href="/app-admin" className="nav-link text-secondary font-semibold">App Admin</Link>
+              <Link href="/app-admin" className="nav-link text-secondary font-semibold">Admin</Link>
+              <button 
+                onClick={() => {
+                  // Add logout functionality here
+                  window.location.href = '/api/auth/logout';
+                }}
+                className="btn btn-ghost hover:bg-surface-2 transition-colors"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
@@ -659,7 +743,7 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
-              </div>
+          </div>
             )}
           </div>
         </div>
@@ -742,60 +826,200 @@ export default function AdminPage() {
                     {clubsAll.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted">No clubs yet.</td></tr>}
                     {clubsAll.map(c => (
                       <tr key={c.id}>
-                        <td className="py-2 pr-4"><button className="text-secondary hover:text-secondary-hover hover:underline" onClick={() => openEditClub(c)}>{c.name}</button></td>
-                        <td className="py-2 pr-4 text-muted">{c.city ?? '—'}</td>
-                        <td className="py-2 pr-4 text-muted">{c.region ?? '—'}</td>
-                        <td className="py-2 pr-4 text-muted">{c.country ?? '—'}</td>
-                        <td className="py-2 pr-4 text-muted">{c.phone ?? '—'}</td>
-                        <td className="py-2 pr-2 text-right align-middle">
-                          <button aria-label="Delete club" onClick={() => removeClub(c.id)} title="Delete" className="text-error hover:text-error-hover p-1"><TrashIcon /></button>
+                        <td className="py-2 pr-4">
+                          {clubEditId === c.id ? (
+                            <input 
+                              className="input text-sm" 
+                              value={clubForm.name} 
+                              onChange={e => setClubForm(f => ({ ...f, name: e.target.value }))}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveClub();
+                                if (e.key === 'Escape') setClubEditOpen(false);
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <button 
+                              className="text-secondary hover:text-secondary-hover hover:underline" 
+                              onClick={() => openEditClub(c)}
+                            >
+                              {c.name}
+                            </button>
+                          )}
                         </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          {clubEditOpen && (
-            <div className="border rounded p-3 space-y-3">
-              <h3 className="font-medium">{clubEditId ? 'Edit Club' : 'Add Club'}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                <input className="border rounded px-2 py-1" placeholder="Name" value={clubForm.name} onChange={e => setClubForm(f => ({ ...f, name: e.target.value }))} />
-                <input className="border rounded px-2 py-1" placeholder="Address" value={clubForm.address} onChange={e => setClubForm(f => ({ ...f, address: e.target.value }))} />
-                <input className="border rounded px-2 py-1" placeholder="City" value={clubForm.city} onChange={e => setClubForm(f => ({ ...f, city: e.target.value }))} />
-                <select className="border rounded px-2 py-1" value={clubCountrySel} onChange={e => setClubCountrySel(e.target.value as any)}>
+                        <td className="py-2 pr-4 text-muted">
+                          {clubEditId === c.id ? (
+                            <input 
+                              className="input text-sm" 
+                              placeholder="City" 
+                              value={clubForm.city} 
+                              onChange={e => setClubForm(f => ({ ...f, city: e.target.value }))}
+                            />
+                          ) : (
+                            c.city ?? '—'
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-muted">
+                          {clubEditId === c.id ? (
+                            clubCountrySel === 'Canada' ? (
+                              <select className="input text-sm" value={clubForm.region} onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}>
+                                <option value="">Province…</option>
+                                {CA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                              </select>
+                            ) : clubCountrySel === 'USA' ? (
+                              <select className="input text-sm" value={clubForm.region} onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}>
+                                <option value="">State…</option>
+                                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            ) : (
+                              <input 
+                                className="input text-sm" 
+                                placeholder="Region/Province/State" 
+                                value={clubForm.region} 
+                                onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}
+                              />
+                            )
+                          ) : (
+                            c.region ?? '—'
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-muted">
+                          {clubEditId === c.id ? (
+                            <select className="input text-sm" value={clubCountrySel} onChange={e => setClubCountrySel(e.target.value as any)}>
                   <option value="Canada">Canada</option>
                   <option value="USA">USA</option>
                   <option value="Other">Other</option>
                 </select>
-                {clubCountrySel === 'Other' ? (
-                  <input className="border rounded px-2 py-1" placeholder="Country" value={clubCountryOther} onChange={e => setClubCountryOther(e.target.value)} />
-                ) : <div />}
-                {clubCountrySel === 'Canada' && (
-                  <select className="border rounded px-2 py-1" value={clubForm.region} onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}>
+                          ) : (
+                            c.country ?? '—'
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-muted">
+                          {clubEditId === c.id ? (
+                            <input 
+                              className="input text-sm" 
+                              placeholder="Phone" 
+                              value={clubForm.phone} 
+                              onChange={e => setClubForm(f => ({ ...f, phone: e.target.value }))}
+                            />
+                          ) : (
+                            c.phone ?? '—'
+                          )}
+                        </td>
+                        <td className="py-2 pr-2 text-right align-middle">
+                          {clubEditId === c.id ? (
+                            <div className="flex gap-1">
+                              <button 
+                                className="btn btn-sm btn-primary" 
+                                onClick={saveClub}
+                                title="Save"
+                              >
+                                ✓
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-ghost" 
+                                onClick={() => setClubEditOpen(false)}
+                                title="Cancel"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              aria-label="Delete club" 
+                              onClick={() => removeClub(c.id)} 
+                              title="Delete" 
+                              className="text-error hover:text-error-hover p-1"
+                            >
+                              <TrashIcon />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Add new club row */}
+                    {clubEditOpen && !clubEditId && (
+                      <tr className="bg-surface-2">
+                        <td className="py-2 pr-4">
+                          <input 
+                            className="input text-sm" 
+                            placeholder="Name" 
+                            value={clubForm.name} 
+                            onChange={e => setClubForm(f => ({ ...f, name: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') saveClub();
+                              if (e.key === 'Escape') setClubEditOpen(false);
+                            }}
+                            autoFocus
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <input 
+                            className="input text-sm" 
+                            placeholder="City" 
+                            value={clubForm.city} 
+                            onChange={e => setClubForm(f => ({ ...f, city: e.target.value }))}
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          {clubCountrySel === 'Canada' ? (
+                            <select className="input text-sm" value={clubForm.region} onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}>
                     <option value="">Province…</option>
                     {CA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
-                )}
-                {clubCountrySel === 'USA' && (
-                  <select className="border rounded px-2 py-1" value={clubForm.region} onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}>
+                          ) : clubCountrySel === 'USA' ? (
+                            <select className="input text-sm" value={clubForm.region} onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}>
                     <option value="">State…</option>
                     {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
-                )}
-                {clubCountrySel === 'Other' && (
-                  <input className="border rounded px-2 py-1" placeholder="Region/Province/State" value={clubForm.region} onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))} />
-                )}
-                <input className="border rounded px-2 py-1" placeholder="Phone" value={clubForm.phone} onChange={e => setClubForm(f => ({ ...f, phone: e.target.value }))} />
+                          ) : (
+                            <input 
+                              className="input text-sm" 
+                              placeholder="Region/Province/State" 
+                              value={clubForm.region} 
+                              onChange={e => setClubForm(f => ({ ...f, region: e.target.value }))}
+                            />
+                          )}
+                        </td>
+                        <td className="py-2 pr-4">
+                          <select className="input text-sm" value={clubCountrySel} onChange={e => setClubCountrySel(e.target.value as any)}>
+                            <option value="Canada">Canada</option>
+                            <option value="USA">USA</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <input 
+                            className="input text-sm" 
+                            placeholder="Phone" 
+                            value={clubForm.phone} 
+                            onChange={e => setClubForm(f => ({ ...f, phone: e.target.value }))}
+                          />
+                        </td>
+                        <td className="py-2 pr-2 text-right align-middle">
+                          <div className="flex gap-1">
+                            <button 
+                              className="btn btn-sm btn-primary" 
+                              onClick={saveClub}
+                              title="Save"
+                            >
+                              ✓
+                            </button>
+                            <button 
+                              className="btn btn-sm btn-ghost" 
+                              onClick={() => setClubEditOpen(false)}
+                              title="Cancel"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-              <div className="flex gap-2">
-                <button className="border rounded px-3 py-1" onClick={saveClub}>Save</button>
-                <button className="border rounded px-3 py-1" onClick={() => setClubEditOpen(false)}>Cancel</button>
-                {clubEditId && <button className="border rounded px-3 py-1 text-red-600" onClick={() => removeClub(clubEditId!)}><TrashIcon /></button>}
               </div>
-            </div>
-          )}
         </section>
       )}
 
@@ -804,7 +1028,7 @@ export default function AdminPage() {
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-primary">Players</h2>
-              <button className="btn btn-primary" onClick={() => openEditPlayer()}>Add Player</button>
+              <button className="btn btn-primary" onClick={() => openSlideOutPlayer()}>Add Player</button>
             </div>
 
             {/* Players Filters */}
@@ -851,7 +1075,27 @@ export default function AdminPage() {
                     {(playersPage.items ?? []).map(p => (
                       <tr key={p.id}>
                         <td className="py-2 pr-4 text-muted">{p.firstName ?? '—'}</td>
-                        <td className="py-2 pr-4"><button className="text-secondary hover:text-secondary-hover hover:underline" onClick={() => openEditPlayer(p)}>{p.lastName ?? '—'}</button></td>
+                        <td className="py-2 pr-4">
+                          {playerInlineEditId === p.id ? (
+                            <input 
+                              className="input text-sm" 
+                              value={playerForm.lastName} 
+                              onChange={e => setPlayerForm(f => ({ ...f, lastName: e.target.value }))}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveInlinePlayer();
+                                if (e.key === 'Escape') setPlayerInlineEditId(null);
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <button 
+                              className="text-secondary hover:text-secondary-hover hover:underline" 
+                              onClick={() => openInlineEditPlayer(p)}
+                            >
+                              {p.lastName ?? '—'}
+                            </button>
+                          )}
+                        </td>
                         <td className="py-2 pr-4 text-muted">{p.gender === 'FEMALE' ? 'F' : 'M'}</td>
                         <td className="py-2 pr-4 text-muted">{p.club?.name ?? '—'}</td>
                         <td className="py-2 pr-4 text-muted tabular">{p.age ?? '—'}</td>
@@ -860,7 +1104,35 @@ export default function AdminPage() {
                         <td className="py-2 pr-4 text-muted">{p.region ?? '—'}</td>
                         <td className="py-2 pr-4 text-muted">{p.country ?? '—'}</td>
                         <td className="py-2 pr-4 text-muted">{p.phone ?? '—'}</td>
-                        <td className="py-2 pr-2 text-right align-middle"><button aria-label="Delete player" onClick={() => removePlayer(p.id)} title="Delete" className="text-error hover:text-error-hover p-1"><TrashIcon /></button></td>
+                        <td className="py-2 pr-2 text-right align-middle">
+                          {playerInlineEditId === p.id ? (
+                            <div className="flex gap-1">
+                              <button 
+                                className="btn btn-sm btn-primary" 
+                                onClick={saveInlinePlayer}
+                                title="Save"
+                              >
+                                ✓
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-ghost" 
+                                onClick={() => setPlayerInlineEditId(null)}
+                                title="Cancel"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              aria-label="Delete player" 
+                              onClick={() => removePlayer(p.id)} 
+                              title="Delete" 
+                              className="text-error hover:text-error-hover p-1"
+                            >
+                              <TrashIcon />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -889,65 +1161,120 @@ export default function AdminPage() {
               </button>
             </div>
 
-          {/* Add/Edit Player */}
-          {playerEditOpen && (
-            <div className="border rounded p-3 space-y-3 mt-2">
-              <h3 className="font-medium">{playerEditId ? 'Edit Player' : 'Add Player'}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                <input className="border rounded px-2 py-1" placeholder="First name" value={playerForm.firstName} onChange={e => setPlayerForm(f => ({ ...f, firstName: e.target.value }))} />
-                <input className="border rounded px-2 py-1" placeholder="Last name" value={playerForm.lastName} onChange={e => setPlayerForm(f => ({ ...f, lastName: e.target.value }))} />
-                <select className="border rounded px-2 py-1" value={playerForm.gender} onChange={e => setPlayerForm(f => ({ ...f, gender: e.target.value as any }))}>
+          {/* Slide-out Add Player Panel */}
+          {playerSlideOutOpen && (
+            <div className="fixed inset-0 z-50 overflow-hidden">
+              <div 
+                className="absolute inset-0 bg-black bg-opacity-50 transition-opacity duration-300" 
+                onClick={() => setPlayerSlideOutOpen(false)}
+              ></div>
+              <div className="absolute right-0 top-1/2 transform -translate-y-1/2 h-3/4 w-2/3 max-w-4xl bg-surface-1 border-l border-subtle shadow-xl transition-transform duration-300 ease-out">
+                <div className="flex items-center justify-between p-4 border-b border-subtle">
+                  <h3 className="text-lg font-semibold text-primary">Add Player</h3>
+                  <button 
+                    className="btn btn-ghost btn-sm" 
+                    onClick={() => setPlayerSlideOutOpen(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto h-full pb-20">
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Left Column */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">First Name</label>
+                        <input className="input" placeholder="First name" value={playerForm.firstName} onChange={e => setPlayerForm(f => ({ ...f, firstName: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Last Name</label>
+                        <input className="input" placeholder="Last name" value={playerForm.lastName} onChange={e => setPlayerForm(f => ({ ...f, lastName: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Gender</label>
+                        <select className="input" value={playerForm.gender} onChange={e => setPlayerForm(f => ({ ...f, gender: e.target.value as any }))}>
                   <option value="MALE">Male</option>
                   <option value="FEMALE">Female</option>
                 </select>
-
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Birthday</label>
                 <input
-                  className="border rounded px-2 py-1" type="date" value={playerBirthday}
+                          className="input" 
+                          type="date" 
+                          value={playerBirthday}
                   onFocus={e => { if (!e.currentTarget.value) e.currentTarget.value = fortyYearsAgoISO(); }}
                   onChange={e => setPlayerBirthday(e.target.value)}
                 />
-
-                <select className="border rounded px-2 py-1" value={playerForm.clubId} onChange={e => setPlayerForm(f => ({ ...f, clubId: e.target.value as Id }))}>
-                  <option value="">Primary Club…</option>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Primary Club</label>
+                        <select className="input" value={playerForm.clubId} onChange={e => setPlayerForm(f => ({ ...f, clubId: e.target.value as Id }))}>
+                          <option value="">Select Club…</option>
                   {clubsAll.map(c => <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>)}
                 </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">DUPR Rating</label>
+                        <input className="input" type="number" step="0.01" min="0" max="8" placeholder="DUPR" value={playerForm.dupr} onChange={e => setPlayerForm(f => ({ ...f, dupr: e.target.value }))} />
+                      </div>
+                    </div>
 
-                <input className="border rounded px-2 py-1" type="number" step="0.01" min="0" max="8" placeholder="DUPR" value={playerForm.dupr} onChange={e => setPlayerForm(f => ({ ...f, dupr: e.target.value }))} />
-
-                <input className="border rounded px-2 py-1" placeholder="City" value={playerForm.city} onChange={e => setPlayerForm(f => ({ ...f, city: e.target.value }))} />
-
-                <select className="border rounded px-2 py-1" value={playerCountrySel} onChange={e => setPlayerCountrySel(e.target.value as any)}>
+                    {/* Right Column */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">City</label>
+                        <input className="input" placeholder="City" value={playerForm.city} onChange={e => setPlayerForm(f => ({ ...f, city: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Country</label>
+                        <select className="input" value={playerCountrySel} onChange={e => setPlayerCountrySel(e.target.value as any)}>
                   <option value="Canada">Canada</option>
                   <option value="USA">USA</option>
                   <option value="Other">Other</option>
                 </select>
-                {playerCountrySel === 'Other' ? (
-                  <input className="border rounded px-2 py-1" placeholder="Country" value={playerCountryOther} onChange={e => setPlayerCountryOther(e.target.value)} />
-                ) : <div />}
-
-                {playerCountrySel === 'Canada' && (
-                  <select className="border rounded px-2 py-1" value={playerForm.region} onChange={e => setPlayerForm(f => ({ ...f, region: e.target.value }))}>
-                    <option value="">Province…</option>
+                      </div>
+                      {playerCountrySel === 'Other' && (
+                        <div>
+                          <label className="block text-sm font-medium text-secondary mb-1">Custom Country</label>
+                          <input className="input" placeholder="Country" value={playerCountryOther} onChange={e => setPlayerCountryOther(e.target.value)} />
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">
+                          {playerCountrySel === 'Canada' ? 'Province' : playerCountrySel === 'USA' ? 'State' : 'Region/Province/State'}
+                        </label>
+                        {playerCountrySel === 'Canada' ? (
+                          <select className="input" value={playerForm.region} onChange={e => setPlayerForm(f => ({ ...f, region: e.target.value }))}>
+                            <option value="">Select Province…</option>
                     {CA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
-                )}
-                {playerCountrySel === 'USA' && (
-                  <select className="border rounded px-2 py-1" value={playerForm.region} onChange={e => setPlayerForm(f => ({ ...f, region: e.target.value }))}>
-                    <option value="">State…</option>
+                        ) : playerCountrySel === 'USA' ? (
+                          <select className="input" value={playerForm.region} onChange={e => setPlayerForm(f => ({ ...f, region: e.target.value }))}>
+                            <option value="">Select State…</option>
                     {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
-                )}
-                {playerCountrySel === 'Other' && (
-                  <input className="border rounded px-2 py-1" placeholder="Region/Province/State" value={playerForm.region} onChange={e => setPlayerForm(f => ({ ...f, region: e.target.value }))} />
-                )}
-
-                <input className="border rounded px-2 py-1" placeholder="Phone (10 digits)" value={playerForm.phone} onChange={e => setPlayerForm(f => ({ ...f, phone: e.target.value }))} />
-                <input className="border rounded px-2 py-1" type="email" placeholder="Email" value={playerForm.email} onChange={e => setPlayerForm(f => ({ ...f, email: e.target.value }))} />
+                        ) : (
+                          <input className="input" placeholder="Region/Province/State" value={playerForm.region} onChange={e => setPlayerForm(f => ({ ...f, region: e.target.value }))} />
+                        )}
               </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Phone</label>
+                        <input className="input" placeholder="Phone (10 digits)" value={playerForm.phone} onChange={e => setPlayerForm(f => ({ ...f, phone: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">Email</label>
+                        <input className="input" type="email" placeholder="Email" value={playerForm.email} onChange={e => setPlayerForm(f => ({ ...f, email: e.target.value }))} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-subtle bg-surface-1">
               <div className="flex gap-2">
-                <button className="border rounded px-3 py-1" onClick={savePlayer}>Save</button>
-                <button className="border rounded px-3 py-1" onClick={() => setPlayerEditOpen(false)}>Cancel</button>
-                {playerEditId && <button className="border rounded px-3 py-1 text-red-600" onClick={() => removePlayer(playerEditId!)}><TrashIcon /></button>}
+                    <button className="btn btn-primary flex-1" onClick={savePlayer}>Save Player</button>
+                    <button className="btn btn-ghost" onClick={() => setPlayerSlideOutOpen(false)}>Cancel</button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1098,6 +1425,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
           clubs: [...ed.clubs, {
             clubId: undefined,
             singleCaptain: null, singleQuery: '', singleOptions: [],
+            club: null, clubQuery: '', clubOptions: [],
           }],
         }
       };
@@ -1298,6 +1626,104 @@ function TournamentsBlock(props: TournamentsBlockProps) {
     });
   }
 
+  // Club search functions for stops
+  async function runStopClubSearch(tId: Id, stopIdx: number) {
+    const ed = editor(tId); if (!ed) return;
+    const q = (ed.stops?.[stopIdx]?.clubQuery || '').trim();
+    if (q.length < 3) {
+      setEditorById(prev => {
+        const ed2 = prev[tId]; if (!ed2) return prev;
+        const nextStops = [...(ed2.stops || [])];
+        if (nextStops[stopIdx]) nextStops[stopIdx] = { ...nextStops[stopIdx], clubOptions: [] };
+        return { ...prev, [tId]: { ...ed2, stops: nextStops } };
+      });
+      return;
+    }
+    const clubs = await api<ClubsResponse>(`/api/admin/clubs?sort=name:asc&q=${encodeURIComponent(q)}`);
+    setEditorById(prev => {
+      const ed2 = prev[tId]; if (!ed2) return prev;
+      const nextStops = [...(ed2.stops || [])];
+      if (nextStops[stopIdx]) nextStops[stopIdx] = { ...nextStops[stopIdx], clubOptions: clubs.map(c => ({ id: c.id, label: `${c.name}${c.city ? ` (${c.city})` : ''}` })) };
+      return { ...prev, [tId]: { ...ed2, stops: nextStops } };
+    });
+  }
+  function setStopClubQuery(tId: Id, stopIdx: number, q: string) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextStops = [...(ed.stops || [])];
+      if (nextStops[stopIdx]) nextStops[stopIdx] = { ...nextStops[stopIdx], clubQuery: q };
+      return { ...prev, [tId]: { ...ed, stops: nextStops } };
+    });
+    const k = `stop-club-${tId}-${stopIdx}`;
+    if (searchTimers.current[k]) clearTimeout(searchTimers.current[k]);
+    searchTimers.current[k] = window.setTimeout(() => runStopClubSearch(tId, stopIdx), 300);
+  }
+  function chooseStopClub(tId: Id, stopIdx: number, club: CaptainPick) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextStops = [...(ed.stops || [])];
+      if (nextStops[stopIdx]) nextStops[stopIdx] = { ...nextStops[stopIdx], club, clubId: club?.id, clubQuery: '', clubOptions: [] };
+      return { ...prev, [tId]: { ...ed, stops: nextStops } };
+    });
+  }
+  function removeStopClub(tId: Id, stopIdx: number) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextStops = [...(ed.stops || [])];
+      if (nextStops[stopIdx]) nextStops[stopIdx] = { ...nextStops[stopIdx], club: null, clubId: undefined, clubQuery: '', clubOptions: [] };
+      return { ...prev, [tId]: { ...ed, stops: nextStops } };
+    });
+  }
+
+  // Club search functions for participating clubs
+  async function runClubSearch(tId: Id, clubIdx: number) {
+    const ed = editor(tId); if (!ed) return;
+    const q = (ed.clubs?.[clubIdx]?.clubQuery || '').trim();
+    if (q.length < 3) {
+      setEditorById(prev => {
+        const ed2 = prev[tId]; if (!ed2) return prev;
+        const nextClubs = [...(ed2.clubs || [])];
+        if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], clubOptions: [] };
+        return { ...prev, [tId]: { ...ed2, clubs: nextClubs } };
+      });
+      return;
+    }
+    const clubs = await api<ClubsResponse>(`/api/admin/clubs?sort=name:asc&q=${encodeURIComponent(q)}`);
+    setEditorById(prev => {
+      const ed2 = prev[tId]; if (!ed2) return prev;
+      const nextClubs = [...(ed2.clubs || [])];
+      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], clubOptions: clubs.map(c => ({ id: c.id, label: `${c.name}${c.city ? ` (${c.city})` : ''}` })) };
+      return { ...prev, [tId]: { ...ed2, clubs: nextClubs } };
+    });
+  }
+  function setClubQuery(tId: Id, clubIdx: number, q: string) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextClubs = [...(ed.clubs || [])];
+      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], clubQuery: q };
+      return { ...prev, [tId]: { ...ed, clubs: nextClubs } };
+    });
+    const k = `club-${tId}-${clubIdx}`;
+    if (searchTimers.current[k]) clearTimeout(searchTimers.current[k]);
+    searchTimers.current[k] = window.setTimeout(() => runClubSearch(tId, clubIdx), 300);
+  }
+  function chooseClub(tId: Id, clubIdx: number, club: CaptainPick) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextClubs = [...(ed.clubs || [])];
+      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], club, clubId: club?.id, clubQuery: '', clubOptions: [] };
+      return { ...prev, [tId]: { ...ed, clubs: nextClubs } };
+    });
+  }
+  function removeClub(tId: Id, clubIdx: number) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      const nextClubs = [...(ed.clubs || [])];
+      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], club: null, clubId: undefined, clubQuery: '', clubOptions: [] };
+      return { ...prev, [tId]: { ...ed, clubs: nextClubs } };
+    });
+  }
+
   /* ----- Save inline to /config ----- */
   async function saveInline(tId: Id) {
     const ed = editor(tId);
@@ -1431,7 +1857,9 @@ function TournamentsBlock(props: TournamentsBlockProps) {
             hasCaptains: (cfg.captainsSimple || []).length > 0,
             clubs: clubRows,
             brackets,
-            stops: (cfg.stops || []).map(s => ({
+            stops: (cfg.stops || []).map(s => {
+              const club = s.clubId ? clubsAll.find(c => c.id === s.clubId) : null;
+              return {
               id: s.id,
               name: s.name,
               clubId: (s.clubId || undefined) as Id | undefined,
@@ -1440,7 +1868,11 @@ function TournamentsBlock(props: TournamentsBlockProps) {
               eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
               eventManagerQuery: '',
               eventManagerOptions: [],
-            })),
+                club: club ? { id: club.id, label: `${club.name}${club.city ? ` (${club.city})` : ''}` } : null,
+                clubQuery: '',
+                clubOptions: [],
+              };
+            }),
             maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
 
             tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
@@ -1461,7 +1893,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
   function addStopRow(tId: Id) {
     setEditorById((prev: EditorState) => {
       const ed = prev[tId]; if (!ed) return prev;
-      return { ...prev, [tId]: { ...ed, stops: [...(ed.stops || []), { name: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [] }] } };
+      return { ...prev, [tId]: { ...ed, stops: [...(ed.stops || []), { name: '', eventManager: null, eventManagerQuery: '', eventManagerOptions: [], club: null, clubQuery: '', clubOptions: [] }] } };
     });
   }
   function updateStopRow(tId: Id, i: number, patch: Partial<StopEditorRow>) {
@@ -1571,18 +2003,19 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                         <div className="space-y-6 w-fit">
                           {/* Name + Type + Max size + Checkboxes + Brackets */}
                           <div className="flex flex-wrap items-start gap-4">
+                            <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-1">
-                              <label className="w-10 text-sm text-gray-700">Name</label>
+                                <label className="w-10 text-sm text-secondary">Name</label>
                               <input
-                                className="border rounded px-2 py-1 w-48"
+                                  className="input w-48"
                                 value={ed.name}
                                 onChange={(e) => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, name: e.target.value } }))}
                               />
                             </div>
                             <div className="flex items-center gap-1">
-                              <label className="w-10 text-sm text-gray-700">Type</label>
+                                <label className="w-10 text-sm text-secondary">Type</label>
                               <select
-                                className="border rounded px-2 py-1 w-48"
+                                  className="input w-48"
                                 value={ed.type}
                                 onChange={(e) => props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, type: e.target.value as typeof ed.type } }))}
                               >
@@ -1590,10 +2023,11 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                   <option key={opt} value={opt}>{opt}</option>
                                 ))}
                               </select>
+                              </div>
                             </div>
                             <div className="flex items-center gap-1">
                               <label
-                                className="w-30 text-sm text-gray-700"
+                                className="w-30 text-sm text-secondary"
                                 title={ed.hasBrackets
                                   ? 'Max number of players allowed in each bracket. Leave blank for unlimited.'
                                   : 'Max number of players per team. Leave blank for unlimited.'}
@@ -1601,14 +2035,15 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                 {ed.hasBrackets ? 'Max bracket size' : 'Max team size'}
                               </label>
                               <input
-                                className="border rounded px-2 py-1 w-12"
+                                className="input w-16"
                                 type="number"
                                 min={1}
+                                max={99}
                                 placeholder="(unlimited)"
                                 value={ed.maxTeamSize}
                                 onChange={(e) => {
                                   const val = e.target.value;
-                                  if (val === '' || (/^\d+$/.test(val) && Number(val) > 0)) {
+                                  if (val === '' || (/^\d{1,2}$/.test(val) && Number(val) > 0)) {
                                     props.setEditorById((prev: EditorState) => ({ ...prev, [t.id]: { ...ed, maxTeamSize: val } }));
                                   }
                                 }}
@@ -1633,16 +2068,16 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                             {ed.type === 'Team Format' && ed.hasBrackets && (
                               <div className="flex-1">
                                 <div className="flex gap-2">
-                                  <div className="flex items-start gap-1">
-                                    <label className="w-18 text-sm text-gray-700">Brackets:</label>
-                                    <button className="text-blue-600 text-sm" onClick={() => addBracket(t.id)}>+</button>
+                                  <div className="flex flex-col gap-2">
+                                    <label className="w-18 text-sm text-secondary">Brackets:</label>
+                                    <button className="btn btn-sm btn-primary w-fit" onClick={() => addBracket(t.id)}>Add Bracket</button>
                                   </div>
                                   <div className="space-y-2">
-                                    {ed.brackets.length === 0 && <p className="text-sm text-gray-600">No brackets yet.</p>}
+                                    {ed.brackets.length === 0 && <p className="text-sm text-muted">No brackets yet.</p>}
                                     {ed.brackets.map(level => (
                                       <div key={level.id} className="flex items-center gap-2">
                                         <input
-                                          className="border rounded px-2 py-1 w-28"
+                                          className="input w-28"
                                           placeholder="Bracket name (e.g., Intermediate)"
                                           value={level.name}
                                           onChange={e => props.setEditorById((prev: EditorState) => {
@@ -1669,16 +2104,16 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
                                 <h3 className="font-medium">Stops</h3>
-                                <button className="text-blue-600 text-sm" onClick={() => addStopRow(t.id)}>+</button>
+                                <button className="btn btn-sm btn-primary" onClick={() => addStopRow(t.id)}>Add Stop</button>
                               </div>
-                              {(ed.stops || []).length === 0 && <p className="text-sm text-gray-600">No stops yet.</p>}
+                              {(ed.stops || []).length === 0 && <p className="text-sm text-muted">No stops yet.</p>}
                               {(ed.stops || []).length > 0 && (
-                                <div className="flex gap-2 text-sm font-medium text-gray-700 mb-2">
+                                <div className="flex gap-2 text-sm font-medium text-secondary mb-2">
                                   <div className="w-48">Name</div>
-                                  <div className="w-60">Location</div>
+                                  <div className="min-w-[280px]">Location</div>
                                   <div className="w-32">Start Date</div>
                                   <div className="w-32">End Date</div>
-                                  <div className="w-60">Event Manager</div>
+                                  <div className="min-w-[220px]">Event Manager</div>
                                   <div className="w-8"></div>
                                 </div>
                               )}
@@ -1687,70 +2122,98 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                   <div key={idx} className="">
                                     <div className="flex items-center gap-2">
                                       <input
-                                        className="border rounded px-2 py-1 w-48"
+                                        className="input w-48"
                                         placeholder="Stop name (required)"
                                         value={s.name}
                                         onChange={e => updateStopRow(t.id, idx, { name: e.target.value })}
                                       />
-                                      <select
-                                        className="border rounded px-2 py-1 w-60"
-                                        value={s.clubId || ''}
-                                        onChange={e => updateStopRow(t.id, idx, { clubId: (e.target.value || undefined) as Id | undefined })}
-                                      >
-                                        <option value="">Club (optional)</option>
-                                        {props.clubsAll.map(c => <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>)}
-                                      </select>
+                                      {/* Club lookup for stops */}
+                                      {s.club?.id ? (
+                                        <div className="flex items-center justify-between gap-2 min-w-[280px] input bg-surface-2">
+                                          <div className="text-sm">
+                                            <span className="font-medium text-primary">{s.club.label || '(selected)'}</span>
+                                          </div>
+                                          <button
+                                            className="px-2 py-0 text-error hover:text-error-hover"
+                                            aria-label="Remove club"
+                                            title="Remove club"
+                                            onClick={() => removeStopClub(t.id, idx)}
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="relative min-w-[280px]">
                                       <input
-                                        className="border rounded px-2 py-1 w-32" type="date"
+                                            className="input w-full pr-8"
+                                            placeholder="Type 3+ chars to search clubs…"
+                                            value={s.clubQuery || ''}
+                                            onChange={e => setStopClubQuery(t.id, idx, e.target.value)}
+                                          />
+                                          {!!s.clubOptions?.length && (
+                                            <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
+                                              {(s.clubOptions || []).map(o => (
+                                                <button
+                                                  key={o.id}
+                                                  className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
+                                                  onClick={() => chooseStopClub(t.id, idx, o)}
+                                                >
+                                                  {o.label}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      <input
+                                        className="input w-32" type="date"
                                         value={s.startAt || ''}
                                         onChange={e => updateStopRow(t.id, idx, { startAt: e.target.value })}
                                       />
                                       <input
-                                        className="border rounded px-2 py-1 w-32" type="date"
+                                        className="input w-32" type="date"
                                         value={s.endAt || ''}
                                         onChange={e => updateStopRow(t.id, idx, { endAt: e.target.value })}
                                       />
 
                                       {/* Stop-level Event Manager */}
-                                      <div className="relative w-60">
-                                        {s.eventManager?.id ? (
-                                          <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-1 bg-gray-50">
-                                            <div className="text-sm">
-                                              <span className="font-medium">{s.eventManager.label || '(selected)'}</span>
+                                      {s.eventManager?.id ? (
+                                        <div className="flex items-center justify-between gap-2 min-w-[220px] input bg-surface-2">
+                                          <div className="text-sm">
+                                            <span className="font-medium text-primary">{s.eventManager.label || '(selected)'}</span>
+                                          </div>
+                                          <button
+                                            className="px-2 py-0 text-error hover:text-error-hover"
+                                            aria-label="Remove event manager"
+                                            title="Remove event manager"
+                                            onClick={() => removeStopEventMgr(t.id, idx)}
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="relative min-w-[220px]">
+                                          <input
+                                            className="input w-full pr-8"
+                                            placeholder="Type 3+ chars to search players…"
+                                            value={s.eventManagerQuery || ''}
+                                            onChange={e => setStopEventMgrQuery(t.id, idx, e.target.value)}
+                                          />
+                                          {!!s.eventManagerOptions?.length && (
+                                            <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
+                                              {(s.eventManagerOptions || []).map(o => (
+                                                <button
+                                                  key={o.id}
+                                                  className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
+                                                  onClick={() => chooseStopEventMgr(t.id, idx, o)}
+                                                >
+                                                  {o.label}
+                                                </button>
+                                              ))}
                                             </div>
-                                            <button
-                                              className="px-2 py-0 text-red-600"
-                                              aria-label="Remove event manager"
-                                              title="Remove event manager"
-                                              onClick={() => removeStopEventMgr(t.id, idx)}
-                                            >
-                                              ✕
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div className="w-full">
-                                            <input
-                                              className="border rounded px-2 py-0 w-full pr-8"
-                                              placeholder="Type 3+ chars to search players…"
-                                              value={s.eventManagerQuery || ''}
-                                              onChange={e => setStopEventMgrQuery(t.id, idx, e.target.value)}
-                                            />
-                                            {!!s.eventManagerOptions?.length && (
-                                              <div className="absolute z-10 border rounded mt-1 bg-white max-h-40 overflow-auto w-full">
-                                                {(s.eventManagerOptions || []).map(o => (
-                                                  <button
-                                                    key={o.id}
-                                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50"
-                                                    onClick={() => chooseStopEventMgr(t.id, idx, o)}
-                                                  >
-                                                    {o.label}
-                                                  </button>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
+                                          )}
+                                        </div>
+                                      )}
                                       <button className="px-2 py-1" aria-label="Remove stop" title="Remove stop" onClick={() => removeStopRow(t.id, idx)}>
                                         <TrashIcon />
                                       </button>
@@ -1838,14 +2301,14 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                       />
 
                                       {/* Single-stop Event Manager */}
-                                      <div className="relative w-full">
+                                      <div className="relative min-w-[220px]">
                                         {s0.eventManager?.id ? (
-                                          <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-1 bg-gray-50">
+                                          <div className="flex items-center justify-between gap-2 w-full input bg-surface-2">
                                             <div className="text-sm">
-                                              <span className="font-medium">{s0.eventManager.label || '(selected)'}</span>
+                                              <span className="font-medium text-primary">{s0.eventManager.label || '(selected)'}</span>
                                             </div>
                                             <button
-                                              className="px-2 py-1 text-red-600"
+                                              className="px-2 py-1 text-error hover:text-error-hover"
                                               aria-label="Remove event manager"
                                               title="Remove event manager"
                                               onClick={() => props.setEditorById((prev: EditorState) => {
@@ -1863,7 +2326,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                         ) : (
                                           <div className="w-full">
                                             <input
-                                              className="border rounded px-2 py-1 w-full pr-8"
+                                              className="input w-full pr-8"
                                               placeholder="Type 3+ chars to search players…"
                                               value={(s0.eventManagerQuery || '') as string}
                                               onChange={e => {
@@ -1881,11 +2344,11 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                               }}
                                             />
                                             {!!s0.eventManagerOptions?.length && (
-                                              <div className="absolute z-10 border rounded mt-1 bg-white max-h-40 overflow-auto w-full">
+                                              <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
                                                 {(s0.eventManagerOptions || []).map(o => (
                                                   <button
                                                     key={o.id}
-                                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50"
+                                                    className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
                                                     onClick={() => props.setEditorById((prev: EditorState) => {
                                                       const ed2 = prev[t.id]; if (!ed2) return prev;
                                                       const nextS = ed2.stops && ed2.stops.length
@@ -1915,50 +2378,77 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                           {ed.type === 'Team Format' && (
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <h3 className="font-medium">Participating Clubs</h3>
-                                <button className="text-blue-600 text-sm" onClick={() => addClubRow(t.id)}>+</button>
+                                <h3 className="font-medium text-primary">Participating Clubs</h3>
+                                <button className="btn btn-sm btn-primary" onClick={() => addClubRow(t.id)}>Add Club</button>
                               </div>
-                              {ed.clubs.length === 0 && <p className="text-sm text-gray-600">No clubs yet.</p>}
+                              {ed.clubs.length === 0 && <p className="text-sm text-muted">No clubs yet.</p>}
                               {ed.clubs.length > 0 && (
-                                <div className="flex gap-2 text-sm font-medium text-gray-700 mb-2">
-                                  <div className="w-60">Club Name</div>
-                                  <div className="w-60">Captain</div>
-                                  <div className="w-8"></div>
+                                <div className="grid grid-cols-2 gap-6">
+                                  {/* Left column header */}
+                                  <div className="space-y-2">
+                                    <div className="text-sm font-medium text-secondary">Clubs</div>
+                                    <div className="text-sm font-medium text-secondary">Captains</div>
+                                  </div>
+                                  {/* Right column header */}
+                                  <div className="space-y-2">
+                                    <div className="text-sm font-medium text-secondary">Clubs</div>
+                                    <div className="text-sm font-medium text-secondary">Captains</div>
+                                  </div>
                                 </div>
                               )}
-                              <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-6">
                                 {ed.clubs.map((row, idx) => (
-                                  <div key={idx} className="">
-                                    <div className="flex items-center gap-2">
-                                      <select
-                                        className="border rounded px-2 py-1 w-60"
-                                        value={row.clubId || ''}
-                                        onChange={e => {
-                                          const clubId = e.target.value || undefined;
-                                          props.setEditorById((prev: EditorState) => {
-                                            const ed2 = prev[t.id]; if (!ed2) return prev;
-                                            const next = [...ed2.clubs];
-                                            next[idx] = { ...next[idx], clubId };
-                                            return { ...prev, [t.id]: { ...ed2, clubs: next } };
-                                          });
-                                        }}
-                                      >
-                                        <option value="">Select Club…</option>
-                                        {availableClubsForRow(t.id, idx).map(c => (
-                                          <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
-                                        ))}
-                                      </select>
+                                  <div key={idx} className="flex items-center gap-2">
+                                    {/* Club lookup */}
+                                    {row.club?.id ? (
+                                      <div className="flex items-center justify-between gap-2 min-w-[220px] input bg-surface-2">
+                                        <div className="text-sm">
+                                          <span className="font-medium text-primary">{row.club.label || '(selected)'}</span>
+                                        </div>
+                                        <button
+                                          className="px-2 py-0 text-error hover:text-error-hover"
+                                          aria-label="Remove club"
+                                          title="Remove club"
+                                          onClick={() => removeClub(t.id, idx)}
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="relative min-w-[220px]">
+                                        <input
+                                          className="input w-full pr-8"
+                                          placeholder="Type 3+ chars to search clubs…"
+                                          value={row.clubQuery || ''}
+                                          onChange={e => setClubQuery(t.id, idx, e.target.value)}
+                                        />
+                                        {!!row.clubOptions?.length && (
+                                          <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
+                                            {(row.clubOptions || []).map(o => (
+                                              <button
+                                                key={o.id}
+                                                className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
+                                                onClick={() => chooseClub(t.id, idx, o)}
+                                              >
+                                                {o.label}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
 
-                                      {/* Single-captain picker (shown only if Captains toggle ON) */}
-                                      <div className="relative w-60">
-                                        {ed.hasCaptains && row.clubId ? (
+                                    {/* Captain picker - only show if captains are enabled */}
+                                    {ed.hasCaptains && (
+                                      <div className="relative min-w-[220px]">
+                                        {row.clubId ? (
                                           row.singleCaptain?.id ? (
-                                            <div className="flex items-center justify-between gap-2 w-full border rounded px-2 py-0 bg-gray-50">
+                                            <div className="flex items-center justify-between gap-2 w-full input bg-surface-2">
                                               <div className="text-sm">
-                                                <span className="font-medium">{row.singleCaptain.label || '(selected)'}</span>
+                                                <span className="font-medium text-primary">{row.singleCaptain.label || '(selected)'}</span>
                                               </div>
                                               <button
-                                                className="px-2 py-0 text-red-600"
+                                                className="px-2 py-0 text-error hover:text-error-hover"
                                                 aria-label="Remove captain"
                                                 title="Remove captain"
                                                 onClick={() => removeSingleCaptain(t.id, idx)}
@@ -1969,19 +2459,19 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                           ) : (
                                             <div className="w-full">
                                               <input
-                                                className="border rounded px-2 py-0 w-full pr-8"
+                                                className="input w-full pr-8"
                                                 placeholder="Type 3+ chars to search players…"
                                                 value={row.singleQuery}
                                                 onChange={e => setSingleCaptainQuery(t.id, idx, e.target.value)}
                                               />
                                               {!!row.singleOptions.length && (
-                                                <div className="absolute z-10 border rounded mt-1 bg-white max-h-40 overflow-auto w-full">
+                                                <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
                                                   {row.singleOptions
                                                     .filter(o => !allChosenCaptainIdsAcrossClubs.has(o.id))
                                                     .map(o => (
                                                       <button
                                                         key={o.id}
-                                                        className="block w-full text-left px-2 py-1 hover:bg-gray-50"
+                                                        className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
                                                         onClick={() => chooseSingleCaptain(t.id, idx, o)}
                                                       >
                                                         {o.label}
@@ -1992,13 +2482,14 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                             </div>
                                           )
                                         ) : (
-                                          <div className="text-sm text-gray-500">Select a club first</div>
+                                          <div className="text-sm text-muted">Select a club first</div>
                                         )}
                                       </div>
-                                      <button className="px-2 py-1" aria-label="Remove club" title="Remove club" onClick={() => removeClubRow(t.id, idx)}>
+                                    )}
+
+                                    <button className="px-2 py-1 text-error hover:text-error-hover" aria-label="Remove club" title="Remove club" onClick={() => removeClubRow(t.id, idx)}>
                                         <TrashIcon />
                                       </button>
-                                    </div>
                                   </div>
                                 ))}
                               </div>

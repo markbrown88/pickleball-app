@@ -540,14 +540,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                           const teamBWon = teamBWins > teamAWins;
 
                           return (
-                            <div key={match.id} className="border border-subtle rounded p-2 bg-surface-2">
+                            <div key={match.id} className="border border-subtle rounded p-3 bg-surface-2">
                               {/* Round and bracket */}
                               <div className="text-sm font-medium text-muted mb-1">
                                 Round {games[0]?.round?.name?.replace('Round ', '') || '1'}: {match.teamA?.name?.includes('Advanced') ? 'Advanced' : 'Intermediate'}
                               </div>
                               
                               {/* Team names with winner highlighting */}
-                              <div className="text-sm font-medium mb-2 flex items-center justify-between">
+                              <div className="text-sm font-medium mb-2 flex items-center justify-between border-b border-medium pb-2">
                                 <div className={`flex items-center ${teamAWon ? 'text-success' : ''}`}>
                                   {teamAWon && <span className="mr-1">🏆</span>}
                                   {match.teamA?.name}
@@ -623,16 +623,18 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 <div className="mb-6">
                   <h3 className="text-base font-semibold text-primary mb-3">Advanced</h3>
                   {advancedStandings.length > 0 ? (
-                    <div className="space-y-1">
-                      {advancedStandings.map((standing, index) => (
-                        <div key={standing.team.id} className="flex items-center justify-between p-1.5 bg-surface-2 rounded">
-                          <div className="flex items-center">
-                            <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
-                            <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                    <div className="bg-surface-2 rounded p-3">
+                      <div className="space-y-1">
+                        {advancedStandings.map((standing, index) => (
+                          <div key={standing.team.id} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
                           </div>
-                          <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-3 text-muted text-sm">No Advanced teams</div>
@@ -643,16 +645,18 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 <div>
                   <h3 className="text-base font-semibold text-primary mb-3">Intermediate</h3>
                   {intermediateStandings.length > 0 ? (
-                    <div className="space-y-1">
-                      {intermediateStandings.map((standing, index) => (
-                        <div key={standing.team.id} className="flex items-center justify-between p-1.5 bg-surface-2 rounded">
-                          <div className="flex items-center">
-                            <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
-                            <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                    <div className="bg-surface-2 rounded p-3">
+                      <div className="space-y-1">
+                        {intermediateStandings.map((standing, index) => (
+                          <div key={standing.team.id} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
                           </div>
-                          <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-3 text-muted text-sm">No Intermediate teams</div>
