@@ -1942,43 +1942,43 @@ function TournamentsBlock(props: TournamentsBlockProps) {
           <p className="text-muted">No tournaments yet.</p>
         </div>
       ) : (
-        <div className="card">
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Tournament</th>
-                  <th>Stops</th>
-                  <th>Clubs</th>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+        <div className="grid gap-4">
           {props.tournaments.map(t => {
             const isOpen = !!props.expanded[t.id];
             const ed = editor(t.id);
 
             return (
-                    <tr key={t.id}>
-                      <td>
-                        <div>
-                          <div className="font-medium text-primary">{t.name}</div>
-                          <div className="text-sm text-muted">
+              <div key={t.id} className="card">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <button 
+                      className="text-lg font-semibold text-primary hover:text-secondary-hover hover:underline text-left"
+                      onClick={() => props.toggleExpand(t.id)}
+                    >
+                      {t.name}
+                    </button>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-muted">
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        {t.stats.stopCount} stops
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
                         {t.stats.participatingClubs.length ? t.stats.participatingClubs.join(', ') : 'No clubs'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {between(t.stats.dateRange.start, t.stats.dateRange.end)}
+                      </span>
                     </div>
                   </div>
-                      </td>
-                      <td className="text-muted tabular">{t.stats.stopCount}</td>
-                      <td className="text-muted tabular">{t.stats.participatingClubs.length}</td>
-                      <td className="text-muted tabular">
-                        {t.stats.dateRange.start ? fmtDateDisplay(t.stats.dateRange.start) : 'TBD'}
-                      </td>
-                      <td className="text-muted tabular">
-                        {t.stats.dateRange.end ? fmtDateDisplay(t.stats.dateRange.end) : 'TBD'}
-                      </td>
-                      <td>
                   <div className="flex items-center gap-2">
                     <button 
                       className="btn btn-ghost text-sm"
@@ -1990,29 +1990,14 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                       aria-label="Delete tournament" 
                       onClick={() => props.onDeleteTournament(t.id)} 
                       title="Delete"
-                            className="text-error hover:text-error-hover p-1"
+                      className="text-error hover:text-error-hover p-2"
                     >
                       <TrashIcon />
                     </button>
                   </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
                 </div>
-                </div>
-      )}
 
-      {/* Expandable tournament details */}
-      {props.tournaments.map(t => {
-        const isOpen = !!props.expanded[t.id];
-        const ed = editor(t.id);
-
-        return isOpen && ed ? (
-          <div key={`${t.id}-details`} className="mt-4">
-            <div className="card">
+                {isOpen && ed && (
                   <div className="mt-4 pt-4 border-t border-subtle">
                     {/* SINGLE EDITABLE PANEL */}
                         <div className="space-y-6 w-fit">
@@ -2192,43 +2177,43 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                       />
 
                                       {/* Stop-level Event Manager */}
-                                        {s.eventManager?.id ? (
+                                      {s.eventManager?.id ? (
                                         <div className="flex items-center justify-between gap-2 min-w-[220px] input bg-surface-2">
-                                            <div className="text-sm">
+                                          <div className="text-sm">
                                             <span className="font-medium text-primary">{s.eventManager.label || '(selected)'}</span>
-                                            </div>
-                                            <button
+                                          </div>
+                                          <button
                                             className="px-2 py-0 text-error hover:text-error-hover"
-                                              aria-label="Remove event manager"
-                                              title="Remove event manager"
-                                              onClick={() => removeStopEventMgr(t.id, idx)}
-                                            >
-                                              ✕
-                                            </button>
-                                          </div>
-                                        ) : (
+                                            aria-label="Remove event manager"
+                                            title="Remove event manager"
+                                            onClick={() => removeStopEventMgr(t.id, idx)}
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                      ) : (
                                         <div className="relative min-w-[220px]">
-                                            <input
+                                          <input
                                             className="input w-full pr-8"
-                                              placeholder="Type 3+ chars to search players…"
-                                              value={s.eventManagerQuery || ''}
-                                              onChange={e => setStopEventMgrQuery(t.id, idx, e.target.value)}
-                                            />
-                                            {!!s.eventManagerOptions?.length && (
+                                            placeholder="Type 3+ chars to search players…"
+                                            value={s.eventManagerQuery || ''}
+                                            onChange={e => setStopEventMgrQuery(t.id, idx, e.target.value)}
+                                          />
+                                          {!!s.eventManagerOptions?.length && (
                                             <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
-                                                {(s.eventManagerOptions || []).map(o => (
-                                                  <button
-                                                    key={o.id}
+                                              {(s.eventManagerOptions || []).map(o => (
+                                                <button
+                                                  key={o.id}
                                                   className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
-                                                    onClick={() => chooseStopEventMgr(t.id, idx, o)}
-                                                  >
-                                                    {o.label}
-                                                  </button>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
+                                                  onClick={() => chooseStopEventMgr(t.id, idx, o)}
+                                                >
+                                                  {o.label}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
                                       <button className="px-2 py-1" aria-label="Remove stop" title="Remove stop" onClick={() => removeStopRow(t.id, idx)}>
                                         <TrashIcon />
                                       </button>
@@ -2403,9 +2388,9 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                   <div className="space-y-2">
                                     <div className="text-sm font-medium text-secondary">Clubs</div>
                                     <div className="text-sm font-medium text-secondary">Captains</div>
-                                </div>
+                                  </div>
                                   {/* Right column header */}
-                              <div className="space-y-2">
+                                  <div className="space-y-2">
                                     <div className="text-sm font-medium text-secondary">Clubs</div>
                                     <div className="text-sm font-medium text-secondary">Captains</div>
                                   </div>
@@ -2527,15 +2512,15 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                             <button className="btn btn-ghost text-sm" onClick={() => toggleExpand(t.id)}>Close</button>
                           </div>
                         </div>
-                </div>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-        ) : null;
-      })}
-    </section>
+            );
+          })}
+        </div>
+      )}
 
-    {/* (Legacy create/edit panel removed) */}
+      {/* (Legacy create/edit panel removed) */}
 
       {/* ===== Generate Schedule Modal ===== */}
       {genOpen && genData && (
