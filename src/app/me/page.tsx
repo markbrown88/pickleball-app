@@ -1017,6 +1017,7 @@ export default function MePage() {
             lastName: targetPlayer.lastName,
             email: targetPlayer.email,
             isAppAdmin: targetPlayer.isAppAdmin,
+            isTournamentAdmin: targetPlayer.isTournamentAdmin || false,
             club: targetPlayer.club,
             clerkUserId: userProfile?.clerkUserId || '',
             name: targetPlayer.firstName + ' ' + targetPlayer.lastName,
@@ -1846,47 +1847,22 @@ export default function MePage() {
             <div className="flex items-center">
               <h1 className="text-2xl font-bold text-primary">TournaVerse</h1>
             </div>
-              <div className="flex items-center space-x-4">
-                <div className="text-sm">
-                  <span className="mr-2 text-muted">Welcome,</span>
-                  <span className="font-medium text-primary">{userProfile?.firstName || user?.firstName || 'User'}</span>
-                </div>
-                {userProfile?.isAppAdmin && (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <label htmlFor="act-as-player" className="text-sm text-muted">Act As:</label>
-                      <select
-                        id="act-as-player"
-                        className="input text-sm"
-                        value={selectedActAsPlayer}
-                        onChange={(e) => {
-                          setSelectedActAsPlayer(e.target.value);
-                          handleActAs(e.target.value);
-                        }}
-                      >
-                        <option value="">Select player</option>
-                        <option value="reset">Reset to original user</option>
-                        {actAsPlayers.map(player => (
-                          <option key={player.id} value={player.id}>
-                            {player.firstName} {player.lastName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <Link 
-                      href="/app-admin"
-                      className="btn btn-primary"
-                    >
-                      Admin
-                    </Link>
-                  </>
-                )}
-                <SignOutButton>
-                  <button className="btn btn-ghost">
-                    Sign Out
-                  </button>
-                </SignOutButton>
-              </div>
+            <div className="flex items-center space-x-4">
+              <Link href="/" className="nav-link">Home</Link>
+              <Link href="/me" className="nav-link">Player Dashboard</Link>
+              {(userProfile?.isTournamentAdmin || userProfile?.isAppAdmin) && (
+                <Link href="/admin" className="nav-link">Tournament Setup</Link>
+              )}
+              <Link href="/tournaments" className="nav-link">Scoreboard</Link>
+              {userProfile?.isAppAdmin && (
+                <Link href="/app-admin" className="nav-link text-secondary font-semibold">Admin</Link>
+              )}
+              <SignOutButton>
+                <button className="btn btn-ghost">
+                  Sign Out
+                </button>
+              </SignOutButton>
+            </div>
           </div>
         </div>
       </header>
@@ -1894,7 +1870,33 @@ export default function MePage() {
       {/* Banner Section */}
       <div className="bg-surface-1 border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-3xl font-bold text-primary">Player Dashboard</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-primary">
+              Welcome {userProfile?.firstName || user?.firstName || 'User'}
+            </h1>
+            {userProfile?.isAppAdmin && (
+              <div className="flex items-center space-x-2">
+                <label htmlFor="act-as-player" className="text-sm text-muted">Act As:</label>
+                <select
+                  id="act-as-player"
+                  className="input text-sm"
+                  value={selectedActAsPlayer}
+                  onChange={(e) => {
+                    setSelectedActAsPlayer(e.target.value);
+                    handleActAs(e.target.value);
+                  }}
+                >
+                  <option value="">Select player</option>
+                  <option value="reset">Reset to original user</option>
+                  {actAsPlayers.map(player => (
+                    <option key={player.id} value={player.id}>
+                      {player.firstName} {player.lastName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           <p className="text-muted mt-2">Manage your profile, tournaments, and team participation</p>
         </div>
       </div>

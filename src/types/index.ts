@@ -15,6 +15,7 @@ export interface UserProfile {
   region: string | null;
   country: string | null;
   isAppAdmin: boolean;
+  isTournamentAdmin: boolean;
   club: {
     id: string;
     name: string;

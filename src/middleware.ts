@@ -2,7 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
-  "/", "/captain/[token]", "/stop(.*)", "/api/tournaments", "/api/ping", "/api/test-db", "/api/test-simple-db", "/api/test-tournaments-simple", "/api/test-tournaments-club", "/api/test-tournaments-null-club", "/api/test-tournaments-no-club", "/api/test-tournaments-basic", "/api/test-stops", "/api/debug-env", "/sign-in(.*)", "/sign-up(.*)"
+  "/", "/captain/[token]", "/stop(.*)", "/tournament(.*)", "/api/tournaments", "/api/public(.*)", "/api/ping", "/api/test-db", "/api/test-simple-db", "/api/test-tournaments-simple", "/api/test-tournaments-club", "/api/test-tournaments-null-club", "/api/test-tournaments-no-club", "/api/test-tournaments-basic", "/api/test-stops", "/api/debug-env", "/sign-in(.*)", "/sign-up(.*)"
 ]);
 
 const isAdminRoute = createRouteMatcher([

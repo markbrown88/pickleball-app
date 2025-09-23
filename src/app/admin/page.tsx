@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useUser } from '@clerk/nextjs';
 
 type Id = string;
 
@@ -83,6 +84,7 @@ type Player = {
   city?: string | null; region?: string | null; country?: string | null;
   phone?: string | null; email?: string | null; dupr?: number | null; age?: number | null;
 };
+type ActAsPlayer = { id: Id; firstName?: string | null; lastName?: string | null; email?: string | null; isAppAdmin: boolean; };
 type PlayersResponse = { items: Player[]; total: number };
 type ClubsResponse = Club[];
 
@@ -193,7 +195,13 @@ const TYPE_TO_LABEL: Record<string, TournamentTypeLabel> = {
 
 /* ================= Page ================= */
 export default function AdminPage() {
+  const { user } = useUser();
   const [err, setErr] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // Act As state for App Admins
+  const [actAsPlayers, setActAsPlayers] = useState<ActAsPlayer[]>([]);
+  const [selectedActAsPlayer, setSelectedActAsPlayer] = useState<string>('');
   const [info, setInfo] = useState<string | null>(null);
   const clearMsg = () => { setErr(null); setInfo(null); };
 
@@ -299,6 +307,77 @@ export default function AdminPage() {
   /* ===== Inline editor state ===== */
   const [editorById, setEditorById] = useState<EditorState>({});
 
+  // Load user profile
+  const loadUserProfile = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch('/api/auth/user');
+      if (response.ok) {
+        const profile = await response.json();
+        setUserProfile(profile);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  // Load players for "Act As" dropdown (App Admins only)
+  const loadActAsPlayers = async () => {
+    if (!userProfile?.isAppAdmin) return;
+    
+    try {
+      const response = await fetch('/api/admin/act-as');
+      if (response.ok) {
+        const data = await response.json();
+        setActAsPlayers(data.items || []);
+      }
+    } catch (error) {
+      console.error('Error loading players for Act As:', error);
+    }
+  };
+
+  // Handle "Act As" functionality
+  const handleActAs = async (playerId: string) => {
+    if (playerId === 'reset' || !playerId) {
+      // Reset to original user
+      setInfo('Acting as original user');
+      setSelectedActAsPlayer('');
+      await loadUserProfile();
+    } else {
+      try {
+        const response = await fetch('/api/admin/act-as', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ targetPlayerId: playerId }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setInfo(data.message);
+          
+          // Update the displayed user profile to show the target player
+          const targetPlayer = actAsPlayers.find(p => p.id === playerId);
+          if (targetPlayer) {
+            setUserProfile({
+              ...userProfile,
+              firstName: targetPlayer.firstName,
+              lastName: targetPlayer.lastName,
+              email: targetPlayer.email
+            });
+          }
+        } else {
+          const errorData = await response.json();
+          setErr(errorData.error || 'Failed to act as player');
+        }
+      } catch (error) {
+        setErr('Failed to act as player');
+      }
+    }
+  };
+
   /* ========== initial load ========== */
   useEffect(() => {
     (async () => {
@@ -317,6 +396,20 @@ export default function AdminPage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load user profile when component mounts
+  useEffect(() => {
+    if (user) {
+      loadUserProfile();
+    }
+  }, [user]);
+
+  // Load players for "Act As" when user becomes App Admin
+  useEffect(() => {
+    if (userProfile?.isAppAdmin) {
+      loadActAsPlayers();
+    }
+  }, [userProfile?.isAppAdmin]);
 
   /* ========== players load/sort/paginate/filter ========== */
   async function loadPlayersPage(take: number, skip: number, sort: string, clubId: string) {
@@ -521,21 +614,58 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-app">
-      <main className="max-w-7xl mx-auto p-6 space-y-6">
-        <header className="bg-surface-1 border-b border-subtle -mx-6 px-6 py-4">
+      <header className="bg-surface-1 border-b border-subtle">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-primary">TournaVerse</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link href="/" className="nav-link">Home</Link>
+              <Link href="/me" className="nav-link">Player Dashboard</Link>
+              <Link href="/admin" className="nav-link active">Tournament Setup</Link>
+              <Link href="/tournaments" className="nav-link">Scoreboard</Link>
+              <Link href="/app-admin" className="nav-link text-secondary font-semibold">App Admin</Link>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Banner Section */}
+      <div className="bg-surface-1 border-b border-subtle">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-primary">Tournament Admin</h1>
-              <p className="text-muted mt-1">Manage tournaments, clubs, players, and teams</p>
+              <h1 className="text-3xl font-bold text-primary">Tournament Setup</h1>
+              <p className="text-muted mt-2">Manage tournaments, clubs, players, and teams</p>
             </div>
-            <nav className="flex items-center gap-4">
-              <Link href="/" className="nav-link">Home</Link>
-              <Link href="/me" target="_blank" className="nav-link">Players</Link>
-              <Link href="/tournaments" target="_blank" className="nav-link">Scoreboard</Link>
-              <Link href="/app-admin" className="nav-link text-secondary font-semibold">App Admin</Link>
-            </nav>
+            {userProfile?.isAppAdmin && (
+              <div className="flex items-center space-x-2">
+                <label htmlFor="act-as-player" className="text-sm text-muted">Act As:</label>
+                <select
+                  id="act-as-player"
+                  className="input text-sm"
+                  value={selectedActAsPlayer}
+                  onChange={(e) => {
+                    setSelectedActAsPlayer(e.target.value);
+                    handleActAs(e.target.value);
+                  }}
+                >
+                  <option value="">Select player</option>
+                  <option value="reset">Reset to original user</option>
+                  {actAsPlayers.map(player => (
+                    <option key={player.id} value={player.id}>
+                      {player.firstName} {player.lastName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
-        </header>
+        </div>
+      </div>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
         {/* Tabs header */}
         <div className="border-b border-subtle mb-6">

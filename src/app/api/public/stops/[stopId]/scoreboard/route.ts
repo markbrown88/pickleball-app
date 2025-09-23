@@ -45,9 +45,93 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
         matches: {
           orderBy: { id: 'asc' },
           include: {
-            teamA: { select: { id: true, name: true, clubId: true } },
-            teamB: { select: { id: true, name: true, clubId: true } },
-            games: { orderBy: { slot: 'asc' } },
+            teamA: { 
+              select: { 
+                id: true, 
+                name: true, 
+                clubId: true,
+                stopRosterLinks: {
+                  where: { stopId: stopId },
+                  include: {
+                    player: {
+                      select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        name: true,
+                        gender: true
+                      }
+                    }
+                  }
+                }
+              } 
+            },
+            teamB: { 
+              select: { 
+                id: true, 
+                name: true, 
+                clubId: true,
+                stopRosterLinks: {
+                  where: { stopId: stopId },
+                  include: {
+                    player: {
+                      select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        name: true,
+                        gender: true
+                      }
+                    }
+                  }
+                }
+              } 
+            },
+            games: { 
+              orderBy: { slot: 'asc' },
+              include: {
+                match: {
+                  select: {
+                    teamA: {
+                      select: {
+                        stopRosterLinks: {
+                          where: { stopId: stopId },
+                          include: {
+                            player: {
+                              select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                name: true,
+                                gender: true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    teamB: {
+                      select: {
+                        stopRosterLinks: {
+                          where: { stopId: stopId },
+                          include: {
+                            player: {
+                              select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                name: true,
+                                gender: true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
           },
         },
       },
@@ -81,14 +165,81 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           return {
             matchId: match.id,
             isBye: match.isBye,
-            teamA: match.teamA ? { id: match.teamA.id, name: match.teamA.name, clubId: match.teamA.clubId } : null,
-            teamB: match.teamB ? { id: match.teamB.id, name: match.teamB.name, clubId: match.teamB.clubId } : null,
-            games: match.games.map((game: any) => ({
-              id: game.id,
-              slot: game.slot, // GameSlot
-              teamAScore: game.teamAScore,
-              teamBScore: game.teamBScore,
-            })),
+            teamA: match.teamA ? { 
+              id: match.teamA.id, 
+              name: match.teamA.name, 
+              clubId: match.teamA.clubId,
+              players: match.teamA.stopRosterLinks?.map((link: any) => ({
+                id: link.player.id,
+                firstName: link.player.firstName,
+                lastName: link.player.lastName,
+                name: link.player.name,
+                gender: link.player.gender
+              })) || []
+            } : null,
+            teamB: match.teamB ? { 
+              id: match.teamB.id, 
+              name: match.teamB.name, 
+              clubId: match.teamB.clubId,
+              players: match.teamB.stopRosterLinks?.map((link: any) => ({
+                id: link.player.id,
+                firstName: link.player.firstName,
+                lastName: link.player.lastName,
+                name: link.player.name,
+                gender: link.player.gender
+              })) || []
+            } : null,
+            games: match.games.map((game: any) => {
+              // Get the specific players for this game based on the game slot
+              const teamAPlayers = match.teamA?.stopRosterLinks?.map((link: any) => link.player) || [];
+              const teamBPlayers = match.teamB?.stopRosterLinks?.map((link: any) => link.player) || [];
+              
+              // Filter players based on game type
+              let teamALineup = [];
+              let teamBLineup = [];
+              
+              if (game.slot === 'MENS_DOUBLES') {
+                teamALineup = teamAPlayers.filter(p => p.gender === 'MALE').slice(0, 2);
+                teamBLineup = teamBPlayers.filter(p => p.gender === 'MALE').slice(0, 2);
+              } else if (game.slot === 'WOMENS_DOUBLES') {
+                teamALineup = teamAPlayers.filter(p => p.gender === 'FEMALE').slice(0, 2);
+                teamBLineup = teamBPlayers.filter(p => p.gender === 'FEMALE').slice(0, 2);
+              } else if (game.slot === 'MIXED_1' || game.slot === 'MIXED_2') {
+                // Mixed doubles: 1 male + 1 female
+                const teamAMale = teamAPlayers.filter(p => p.gender === 'MALE')[0];
+                const teamAFemale = teamAPlayers.filter(p => p.gender === 'FEMALE')[0];
+                const teamBMale = teamBPlayers.filter(p => p.gender === 'MALE')[0];
+                const teamBFemale = teamBPlayers.filter(p => p.gender === 'FEMALE')[0];
+                
+                teamALineup = [teamAMale, teamAFemale].filter(Boolean);
+                teamBLineup = [teamBMale, teamBFemale].filter(Boolean);
+              } else if (game.slot === 'TIEBREAKER') {
+                // Tiebreaker: any 2 players
+                teamALineup = teamAPlayers.slice(0, 2);
+                teamBLineup = teamBPlayers.slice(0, 2);
+              }
+
+              return {
+                id: game.id,
+                slot: game.slot, // GameSlot
+                teamAScore: game.teamAScore,
+                teamBScore: game.teamBScore,
+                teamALineup: teamALineup.map(player => ({
+                  id: player.id,
+                  firstName: player.firstName,
+                  lastName: player.lastName,
+                  name: player.name,
+                  gender: player.gender
+                })),
+                teamBLineup: teamBLineup.map(player => ({
+                  id: player.id,
+                  firstName: player.firstName,
+                  lastName: player.lastName,
+                  name: player.name,
+                  gender: player.gender
+                })),
+              };
+            }),
             summary: wins,
           };
         }),
