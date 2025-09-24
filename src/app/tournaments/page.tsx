@@ -26,7 +26,8 @@ export default function TournamentsPage() {
       const response = await fetch('/api/tournaments');
       if (response.ok) {
         const data = await response.json();
-        setTournaments(data);
+        const items = Array.isArray(data?.tournaments) ? data.tournaments : [];
+        setTournaments(items);
       } else {
         setError('Failed to load tournaments');
       }

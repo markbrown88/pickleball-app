@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import TournamentClient from './TournamentClient';
 
@@ -63,9 +64,29 @@ interface Player {
   name: string;
 }
 
-async function getTournament(tournamentId: string): Promise<Tournament | null> {
+function resolveBaseUrl() {
+  const headerList = headers();
+  const host = headerList.get('x-forwarded-host') ?? headerList.get('host');
+  const protocol = headerList.get('x-forwarded-proto') ?? 'http';
+
+  if (host) {
+    return `${protocol}://${host}`;
+  }
+
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  throw new Error('Unable to resolve application URL');
+}
+
+async function getTournament(baseUrl: string, tournamentId: string): Promise<Tournament | null> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3010'}/api/tournaments`, {
+    const response = await fetch(`${baseUrl}/api/tournaments`, {
       cache: 'no-store'
     });
     
@@ -76,7 +97,7 @@ async function getTournament(tournamentId: string): Promise<Tournament | null> {
     const data = await response.json();
     const tournaments = data.tournaments || [];
     return tournaments.find((t: any) => t.id === tournamentId) || null;
-                } catch (error) {
+  } catch (error) {
     console.error('Error fetching tournament:', error);
     return null;
   }
@@ -95,10 +116,10 @@ async function getStops(tournament: Tournament): Promise<Stop[]> {
   return [];
 }
 
-async function getStopData(stopId: string, stopName: string): Promise<Stop | null> {
+async function getStopData(baseUrl: string, stopId: string, stopName: string): Promise<Stop | null> {
   try {
     // Use the public scoreboard API to get rounds, matches, and games data
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3010'}/api/public/stops/${stopId}/scoreboard`, {
+    const response = await fetch(`${baseUrl}/api/public/stops/${stopId}/scoreboard`, {
       cache: 'no-store'
     });
 
@@ -155,7 +176,8 @@ async function getStopData(stopId: string, stopName: string): Promise<Stop | nul
 }
 
 export default async function TournamentPage({ params }: { params: { tournamentId: string } }) {
-  const tournament = await getTournament(params.tournamentId);
+  const baseUrl = resolveBaseUrl();
+  const tournament = await getTournament(baseUrl, params.tournamentId);
 
   if (!tournament) {
     notFound();
@@ -166,7 +188,7 @@ export default async function TournamentPage({ params }: { params: { tournamentI
   // Load data for the first stop if available
   let firstStopData = null;
   if (stops.length > 0) {
-    firstStopData = await getStopData(stops[0].id, stops[0].name);
+    firstStopData = await getStopData(baseUrl, stops[0].id, stops[0].name);
   }
 
   return (

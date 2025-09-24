@@ -30,7 +30,8 @@ export default function AppAdminDashboard({ currentUser, onActAs }: AppAdminDash
       const response = await fetch('/api/admin/act-as');
       if (response.ok) {
         const data = await response.json();
-        setPlayers(data.players);
+        const fetched = Array.isArray(data?.items) ? data.items : [];
+        setPlayers(fetched);
       }
     } catch (error) {
       console.error('Error fetching players:', error);
@@ -112,4 +113,3 @@ export default function AppAdminDashboard({ currentUser, onActAs }: AppAdminDash
     </div>
   );
 }
-

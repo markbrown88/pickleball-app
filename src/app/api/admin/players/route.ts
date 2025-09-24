@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { hasRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 

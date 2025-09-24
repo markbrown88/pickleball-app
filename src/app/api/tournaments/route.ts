@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+function formatLocation(details?: { name: string | null; city: string | null; region: string | null } | null) {
+  if (!details) return null;
+  const parts = [details.name, details.city, details.region].filter(Boolean);
+  return parts.length ? parts.join(', ') : null;
+}
+
 /**
  * GET /api/tournaments
  * Get all tournaments with their brackets and stops for public viewing
@@ -51,9 +57,9 @@ export async function GET(req: NextRequest) {
         ? tournament.stops[tournament.stops.length - 1].endAt || tournament.stops[tournament.stops.length - 1].startAt
         : null;
       
-      // Get location from first stop
-      const location = tournament.stops.length > 0 && tournament.stops[0].locationName 
-        ? tournament.stops[0].locationName 
+      // Get location from first stop's club details if available
+      const location = tournament.stops.length > 0
+        ? formatLocation(tournament.stops[0].club)
         : null;
       
       return {
@@ -70,7 +76,7 @@ export async function GET(req: NextRequest) {
           name: stop.name,
           startAt: stop.startAt,
           endAt: stop.endAt,
-          locationName: stop.club ? `${stop.club.name}${stop.club.city ? `, ${stop.club.city}` : ''}${stop.club.region ? `, ${stop.club.region}` : ''}` : null
+          locationName: formatLocation(stop.club)
         }))
       };
     });
