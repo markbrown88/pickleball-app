@@ -224,6 +224,13 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                 slot: game.slot, // GameSlot
                 teamAScore: game.teamAScore,
                 teamBScore: game.teamBScore,
+                isComplete: game.isComplete,
+                courtNumber: game.courtNumber ?? null,
+                startedAt: game.startedAt ? game.startedAt.toISOString() : null,
+                endedAt: game.endedAt ? game.endedAt.toISOString() : null,
+                updatedAt: game.updatedAt ? game.updatedAt.toISOString() : null,
+                createdAt: game.createdAt ? game.createdAt.toISOString() : null,
+                lineupConfirmed: game.lineupConfirmed ?? false,
                 teamALineup: teamALineup.map(player => ({
                   id: player.id,
                   firstName: player.firstName,

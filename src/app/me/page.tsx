@@ -1171,30 +1171,41 @@ export default function MePage() {
   };
 
   // Function to load games for a match
-  const loadGamesForMatch = async (matchId: string) => {
-    if (games[matchId]) return; // Already loaded
+  const loadGamesForMatch = async (matchId: string, force = false) => {
+    if (!force && games[matchId]) return; // Already loaded
     
     try {
       console.log('Loading games for match:', matchId);
-      const response = await fetch(`/api/admin/matches/${matchId}/games`);
+      const response = await fetch(`/api/admin/matches/${matchId}/games`, { cache: 'no-store' });
       if (response.ok) {
         const gamesData = await response.json();
         console.log('Loaded games data:', gamesData);
         setGames(prev => ({ ...prev, [matchId]: gamesData }));
         
-        // Initialize game statuses from database
-        const newGameStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'> = {};
-        gamesData.forEach((game: any) => {
-          // Map isComplete field to game status - use startedAt to determine if actually started
-          if (game.isComplete === true) {
-            newGameStatuses[game.id] = 'completed';
-          } else if (game.isComplete === false && game.startedAt) {
-            newGameStatuses[game.id] = 'in_progress';
-          } else {
-            newGameStatuses[game.id] = 'not_started';
-          }
+        setGameStatuses(prev => {
+          const next: Record<string, 'not_started' | 'in_progress' | 'completed'> = { ...prev };
+
+          const previousGames = games[matchId] ?? [];
+          const newIds = new Set(gamesData.map((game: any) => game.id));
+
+          previousGames.forEach((game: any) => {
+            if (!newIds.has(game.id)) {
+              delete next[game.id];
+            }
+          });
+
+          gamesData.forEach((game: any) => {
+            if (game.isComplete === true) {
+              next[game.id] = 'completed';
+            } else if (game.startedAt) {
+              next[game.id] = 'in_progress';
+            } else {
+              next[game.id] = 'not_started';
+            }
+          });
+
+          return next;
         });
-        setGameStatuses(prev => ({ ...prev, ...newGameStatuses }));
       } else {
         console.error('Failed to load games:', response.status);
       }
@@ -1229,17 +1240,19 @@ export default function MePage() {
   // Function to end a game
   const endGame = async (gameId: string) => {
     try {
-      // Find the game to check for ties
-      let gameToCheck = null;
-      for (const matchGames of Object.values(games)) {
+      // Find the game to check for ties and capture the matchId
+      let gameToCheck: any = null;
+      let parentMatchId: string | null = null;
+      for (const [matchId, matchGames] of Object.entries(games)) {
         const foundGame = matchGames?.find(game => game.id === gameId);
         if (foundGame) {
           gameToCheck = foundGame;
+          parentMatchId = matchId;
           break;
         }
       }
       
-      if (!gameToCheck) {
+      if (!gameToCheck || !parentMatchId) {
         throw new Error('Game not found');
       }
       
@@ -1267,6 +1280,9 @@ export default function MePage() {
       if (!response.ok) {
         throw new Error('Failed to end game');
       }
+
+      // Reload games for this match so tiebreakers/updates appear immediately
+      await loadGamesForMatch(parentMatchId, true);
     } catch (error) {
       setErr(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -1403,7 +1419,7 @@ export default function MePage() {
       
       if (response.ok) {
         // Reload games for this match
-        await loadGamesForMatch(matchId);
+        await loadGamesForMatch(matchId, true);
       } else {
         throw new Error('Failed to create tiebreaker');
       }
@@ -1418,13 +1434,37 @@ export default function MePage() {
     }
   };
 
-  // Function to check if any match in a round has started
-  const hasAnyMatchStarted = (round: any) => {
-    if (!round.matches) return false;
-    return round.matches.some((match: any) => 
-      matchStatuses[match.id] === 'in_progress' || matchStatuses[match.id] === 'completed'
-    );
-  };
+  // Function to check if any match in a round has started (game-level awareness)
+  const hasAnyMatchStarted = useCallback((round: any) => {
+    if (!round?.matches) return false;
+
+    return round.matches.some((match: any) => {
+      if (!match?.id) return false;
+
+      // If the overall match is already marked as started or completed, stop here
+      if (matchStatuses[match.id] === 'in_progress' || matchStatuses[match.id] === 'completed') {
+        return true;
+      }
+
+      const matchGames = games[match.id] ?? match.games ?? [];
+
+      return matchGames.some((game: any) => {
+        if (!game?.id) return false;
+
+        const status = gameStatuses[game.id];
+        if (status === 'in_progress' || status === 'completed') {
+          return true;
+        }
+
+        if (game.isComplete === true) return true;
+        if (game.startedAt) return true;
+        if (game.endedAt) return true;
+        if (game.teamAScore != null || game.teamBScore != null) return true;
+
+        return false;
+      });
+    });
+  }, [games, gameStatuses, matchStatuses]);
   
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -1731,7 +1771,7 @@ export default function MePage() {
             
             if (response.ok) {
               // Reload games to get the new tiebreaker
-              await loadGamesForMatch(matchId);
+              await loadGamesForMatch(matchId, true);
             }
           } catch (error) {
             console.error('Error creating tiebreaker:', error);
@@ -3117,7 +3157,7 @@ function EventManagerTab({
           const teamBId = Object.keys(matchLineups)[1];
           
           if (matchLineups[teamAId]?.length === 4 && matchLineups[teamBId]?.length === 4) {
-            loadGamesForMatch(matchId);
+            loadGamesForMatch(matchId, true);
           }
         });
       }
@@ -3125,6 +3165,98 @@ function EventManagerTab({
       console.error('Error loading lineups for stop:', error);
     }
   };
+
+  const copyLineupsFromPreviousRound = useCallback(async (stopId: string, roundIdx: number) => {
+    const rounds = scheduleData[stopId];
+    if (!rounds || roundIdx <= 0) {
+      onInfo('No previous round available to copy lineups from.');
+      return;
+    }
+
+    const currentRound = rounds[roundIdx];
+    const previousRound = rounds[roundIdx - 1];
+
+    if (!currentRound?.matches || !previousRound?.matches) {
+      onInfo('No previous round matches found to copy lineups.');
+      return;
+    }
+
+    const teamLineupMap = new Map<string, PlayerLite[]>();
+
+    previousRound.matches.forEach((prevMatch: any) => {
+      const prevMatchLineups = lineups[prevMatch.id];
+      if (!prevMatchLineups) return;
+
+      const teamAId = prevMatch.teamA?.id;
+      const teamBId = prevMatch.teamB?.id;
+
+      if (teamAId && prevMatchLineups[teamAId]?.length) {
+        teamLineupMap.set(teamAId, prevMatchLineups[teamAId].map((p: PlayerLite) => ({ ...p })));
+      }
+      if (teamBId && prevMatchLineups[teamBId]?.length) {
+        teamLineupMap.set(teamBId, prevMatchLineups[teamBId].map((p: PlayerLite) => ({ ...p })));
+      }
+    });
+
+    const updates: Record<string, Record<string, PlayerLite[]>> = {};
+    let copiedTeams = 0;
+
+    currentRound.matches.forEach((match: any) => {
+      const matchUpdates: Record<string, PlayerLite[]> = {};
+
+      const applyTeam = (team: any) => {
+        if (!team?.id) return;
+        const previousLineup = teamLineupMap.get(team.id);
+        if (!previousLineup || previousLineup.length === 0) return;
+        matchUpdates[team.id] = previousLineup.map((p) => ({ ...p }));
+        copiedTeams += 1;
+      };
+
+      applyTeam(match.teamA);
+      applyTeam(match.teamB);
+
+      if (Object.keys(matchUpdates).length > 0) {
+        updates[match.id] = matchUpdates;
+      }
+    });
+
+    if (Object.keys(updates).length === 0) {
+      onInfo('No previous lineups found to copy.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/stops/${stopId}/lineups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineups: updates }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to copy lineups');
+      }
+
+      setLineups((prev) => {
+        const next = { ...prev };
+        for (const [matchId, teamMap] of Object.entries(updates)) {
+          const existing = { ...(next[matchId] ?? {}) };
+          for (const [teamId, players] of Object.entries(teamMap)) {
+            existing[teamId] = players.map((p) => ({ ...p }));
+          }
+          next[matchId] = existing;
+        }
+        return next;
+      });
+
+      await Promise.all(Object.keys(updates).map((matchId) => loadGamesForMatch(matchId, true)));
+
+      onInfo(`Copied previous lineups for ${copiedTeams} team${copiedTeams === 1 ? '' : 's'}.`);
+    } catch (error) {
+      console.error('Error copying previous lineups:', error);
+      onError(error instanceof Error ? error.message : 'Failed to copy lineups');
+    }
+  }, [scheduleData, lineups, loadGamesForMatch, onError, onInfo]);
 
   const generateSchedule = async (stopId: string, stopName: string) => {
     setLoading(prev => ({ ...prev, [stopId]: true }));
@@ -3489,6 +3621,21 @@ function EventManagerTab({
               {selectedStopId && (() => {
                 const stop = tournament.stops.find(s => s.stopId === selectedStopId);
                 if (!stop) return null;
+
+                const stopSchedule = scheduleData[stop.stopId] ?? [];
+                const stopHasAnyGameStarted = stopSchedule.some((round: any) => hasAnyMatchStarted(round));
+                const totalMatches = stopSchedule.reduce(
+                  (acc: number, r: any) => acc + (r.matches?.length || 0),
+                  0
+                );
+                const totalGames = stopSchedule.reduce(
+                  (acc: number, r: any) =>
+                    acc + (r.matches?.reduce((matchAcc: number, m: any) => {
+                      const matchGames = games[m.id] ?? m.games ?? [];
+                      return matchAcc + (Array.isArray(matchGames) ? matchGames.length : 0);
+                    }, 0) || 0),
+                  0
+                );
                 
                 return (
                   <div>
@@ -3500,15 +3647,15 @@ function EventManagerTab({
                           {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
                         </p>
                         <p className="text-xs text-muted">
-                          {scheduleData[stop.stopId]?.length || 0} rounds • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.length || 0), 0) || 0} matches • {scheduleData[stop.stopId]?.reduce((acc: number, r: any) => acc + (r.matches?.reduce((matchAcc: number, m: any) => matchAcc + (m.games?.length || 0), 0) || 0), 0) || 0} games
+                          {stopSchedule.length} rounds • {totalMatches} matches • {totalGames} games
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {!scheduleData[stop.stopId]?.some((round: any) => hasAnyMatchStarted(round)) && (
+                        {!stopHasAnyGameStarted && (
                         <button
                           className="btn btn-primary text-xs disabled:opacity-50"
                           onClick={() => generateSchedule(stop.stopId, stop.stopName)}
-                          disabled={loading[stop.stopId]}
+                          disabled={loading[stop.stopId] || stopHasAnyGameStarted}
                         >
                           {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
                         </button>
@@ -3520,16 +3667,50 @@ function EventManagerTab({
                     <div className="bg-surface-1">
                         {loading[stop.stopId] ? (
                           <div className="text-center py-4 text-muted">Loading schedule...</div>
-                        ) : !scheduleData[stop.stopId] || scheduleData[stop.stopId].length === 0 ? (
+                        ) : stopSchedule.length === 0 ? (
                           <div className="text-center py-4 text-muted">
                             No matchups generated yet. Click "Regenerate Matchups" to create them.
                           </div>
                         ) : (
                           <div className="space-y-3">
                             <div className="space-y-2">
-                              {scheduleData[stop.stopId].map((round, roundIdx) => {
+                              {stopSchedule.map((round, roundIdx) => {
+                                const previousRoundAvailable = roundIdx > 0 && !!stopSchedule[roundIdx - 1];
                                 const isEditing = editingRounds.has(round.id);
                                 const matches = getMatchesForRound(round, isEditing);
+                                const roundHasStarted = hasAnyMatchStarted(round);
+                                const roundHasCompletedAllMatches = matches.length > 0 && matches.every((match: any) => {
+                                  const matchStatus = matchStatuses[match.id];
+                                  if (matchStatus === 'completed') return true;
+
+                                  const matchGames = games[match.id] ?? match.games ?? [];
+
+                                  if (matchGames.length === 0) {
+                                    return false;
+                                  }
+
+                                  let teamAWins = 0;
+                                  let teamBWins = 0;
+
+                                  for (const game of matchGames) {
+                                    if (!game) continue;
+
+                                    const status = gameStatuses[game.id];
+                                    if (status === 'in_progress') {
+                                      return false;
+                                    }
+
+                                    const a = game.teamAScore;
+                                    const b = game.teamBScore;
+
+                                    if (a != null && b != null) {
+                                      if (a > b) teamAWins += 1;
+                                      else if (b > a) teamBWins += 1;
+                                    }
+                                  }
+
+                                  return (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
+                                });
                                 
                                 // Force re-render when updateKey changes
                                 const _ = updateKey;
@@ -3549,6 +3730,17 @@ function EventManagerTab({
                                         <h6 className="font-medium text-sm">Round {round.idx + 1}</h6>
                                       </div>
                                       <div className="flex items-center gap-2">
+                                        {previousRoundAvailable && !roundHasStarted && (
+                                          <button
+                                            className="px-2 py-1 border rounded text-xs bg-secondary/10 hover:bg-secondary/20"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              copyLineupsFromPreviousRound(stop.stopId, roundIdx);
+                                            }}
+                                          >
+                                            Copy Previous Lineups
+                                          </button>
+                                        )}
                                         {isEditing ? (
                                             <button
                                               className="btn btn-secondary text-xs"
@@ -3559,7 +3751,7 @@ function EventManagerTab({
                                             >
                                             Confirm Matchups
                                             </button>
-                                        ) : !hasAnyMatchStarted(round) ? (
+                                        ) : !roundHasStarted ? (
                                           <button
                                             className="px-2 py-1 border rounded text-xs bg-info/10 hover:bg-info/20"
                                             onClick={(e) => {
@@ -3570,7 +3762,9 @@ function EventManagerTab({
                                             Edit Matchups
                                           </button>
                                         ) : (
-                                          <span className="text-xs text-muted">Match in progress</span>
+                                          <span className="text-xs text-muted">
+                                            {roundHasCompletedAllMatches ? 'Matches complete' : 'Matches in progress'}
+                                          </span>
                                         )}
                                       </div>
                                     </div>
@@ -3907,7 +4101,7 @@ function EventManagerTab({
                                                               }));
                                                               
                                                               // Load games for this match to show them immediately
-                                                              await loadGamesForMatch(match.id);
+                                                              await loadGamesForMatch(match.id, true);
                                                               
                                                               setEditingMatch(null);
                                                               onInfo('Lineups saved successfully!');

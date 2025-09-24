@@ -50,18 +50,22 @@ interface Game {
   teamAScore: number | null;
   teamBScore: number | null;
   isComplete: boolean | null;
-  courtNumber?: string;
+  courtNumber?: string | null;
+  lineupConfirmed?: boolean;
   teamALineup?: Player[];
   teamBLineup?: Player[];
-  startedAt?: string;
-  endedAt?: string;
-  updatedAt?: string;
-  createdAt?: string;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 
 interface Player {
   id: string;
   name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  gender?: string | null;
 }
 
 function resolveBaseUrl() {
@@ -148,18 +152,26 @@ async function getStopData(baseUrl: string, stopId: string, stopName: string): P
           id: match.matchId,
           teamA: match.teamA,
           teamB: match.teamB,
-          games: match.games.map((game: any) => ({
-            id: game.id,
-            slot: game.slot,
-            teamAScore: game.teamAScore,
-            teamBScore: game.teamBScore,
-            isComplete: game.teamAScore !== null && game.teamBScore !== null,
-            startedAt: null, // Not available in scoreboard API
-            endedAt: null, // Not available in scoreboard API
-            courtNumber: null, // Not available in scoreboard API
-            teamALineup: game.teamALineup || [], // Now available from scoreboard API
-            teamBLineup: game.teamBLineup || [] // Now available from scoreboard API
-          })),
+          games: match.games.map((game: any) => {
+            const rawIsComplete = typeof game.isComplete === 'boolean' ? game.isComplete : null;
+            const isComplete = rawIsComplete === true || Boolean(game.endedAt);
+
+            return {
+              id: game.id,
+              slot: game.slot,
+              teamAScore: game.teamAScore,
+              teamBScore: game.teamBScore,
+              isComplete,
+              startedAt: game.startedAt ?? null,
+              endedAt: game.endedAt ?? null,
+              updatedAt: game.updatedAt ?? null,
+              createdAt: game.createdAt ?? null,
+              courtNumber: game.courtNumber ?? null,
+              lineupConfirmed: game.lineupConfirmed ?? false,
+              teamALineup: game.teamALineup || [],
+              teamBLineup: game.teamBLineup || []
+            } as Game;
+          }),
           status: 'scheduled' // Default status
         }))
       }))

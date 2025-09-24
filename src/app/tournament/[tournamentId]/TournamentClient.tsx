@@ -50,18 +50,22 @@ interface Game {
   teamAScore: number | null;
   teamBScore: number | null;
   isComplete: boolean | null;
-  courtNumber?: string;
+  courtNumber?: string | null;
+  lineupConfirmed?: boolean;
   teamALineup?: Player[];
   teamBLineup?: Player[];
-  startedAt?: string;
-  endedAt?: string;
-  updatedAt?: string;
-  createdAt?: string;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 
 interface Player {
   id: string;
   name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  gender?: string | null;
 }
 
 interface TournamentClientProps {
@@ -119,18 +123,26 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
             id: match.matchId,
             teamA: match.teamA,
             teamB: match.teamB,
-            games: match.games.map((game: any) => ({
-              id: game.id,
-              slot: game.slot,
-              teamAScore: game.teamAScore,
-              teamBScore: game.teamBScore,
-              isComplete: game.teamAScore !== null && game.teamBScore !== null,
-              startedAt: null, // Not available in scoreboard API
-              endedAt: null, // Not available in scoreboard API
-              courtNumber: null, // Not available in scoreboard API
-              teamALineup: game.teamALineup || [], // Now available from scoreboard API
-              teamBLineup: game.teamBLineup || [] // Now available from scoreboard API
-            })),
+            games: match.games.map((game: any) => {
+              const rawIsComplete = typeof game.isComplete === 'boolean' ? game.isComplete : null;
+              const isComplete = rawIsComplete === true || Boolean(game.endedAt);
+
+              return {
+                id: game.id,
+                slot: game.slot,
+                teamAScore: game.teamAScore,
+                teamBScore: game.teamBScore,
+                isComplete,
+                startedAt: game.startedAt ?? null,
+                endedAt: game.endedAt ?? null,
+                updatedAt: game.updatedAt ?? null,
+                createdAt: game.createdAt ?? null,
+                courtNumber: game.courtNumber ?? null,
+                lineupConfirmed: game.lineupConfirmed ?? false,
+                teamALineup: game.teamALineup || [],
+                teamBLineup: game.teamBLineup || []
+              } as Game;
+            }),
             status: 'scheduled' // Default status
           }))
         }))
@@ -152,9 +164,23 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     console.log('Would load lineups for stop:', stopId);
   };
 
+  const toTimestamp = (value?: string | null) => (value ? new Date(value).getTime() : null);
+
+  const resolveStartTimestamp = (game: Game) =>
+    toTimestamp(game.startedAt) ?? toTimestamp(game.updatedAt) ?? toTimestamp(game.createdAt) ?? 0;
+
+  const resolveEndTimestamp = (game: Game) =>
+    toTimestamp(game.endedAt) ?? toTimestamp(game.updatedAt) ?? toTimestamp(game.createdAt) ?? 0;
+
+  const hasGameStarted = (game: Game) =>
+    Boolean(game.startedAt || game.teamAScore !== null || game.teamBScore !== null);
+
+  const isGameComplete = (game: Game) =>
+    game.isComplete === true || Boolean(game.endedAt);
+
   const getGameStatus = (game: Game) => {
-    if (game.isComplete === true) return 'completed';
-    if (game.isComplete === false) return 'in_progress';
+    if (isGameComplete(game)) return 'completed';
+    if (hasGameStarted(game)) return 'in_progress';
     return 'not_started';
   };
 
@@ -199,33 +225,61 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     return team === 'A' ? 'Team A' : 'Team B';
   };
 
+  const formatInProgressMatchLabel = (match: Match) => {
+    const rawNameA = match.teamA?.name ?? 'Team A';
+    const rawNameB = match.teamB?.name ?? 'Team B';
+
+    const extractSuffix = (name: string) => {
+      const parts = name.trim().split(/\s+/);
+      return parts.length > 1 ? parts[parts.length - 1] : null;
+    };
+
+    const suffixA = extractSuffix(rawNameA);
+    const suffixB = extractSuffix(rawNameB);
+
+    const sharedSuffix = suffixA && suffixB && suffixA.toLowerCase() === suffixB.toLowerCase()
+      ? suffixA
+      : null;
+
+    if (!sharedSuffix) {
+      return `${rawNameA} vs ${rawNameB}`;
+    }
+
+    const trimSuffix = (name: string, suffix: string) =>
+      name.replace(new RegExp(`\\s+${suffix}$`, 'i'), '').trim();
+
+    const nameA = trimSuffix(rawNameA, sharedSuffix);
+    const nameB = trimSuffix(rawNameB, sharedSuffix);
+
+    return `${nameA || rawNameA} vs ${nameB || rawNameB} - ${sharedSuffix}`;
+  };
+
   const getGameStartTime = (game: Game) => {
-    if (game.startedAt) {
-      return new Date(game.startedAt).toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    }
-    if (game.isComplete === false || game.isComplete === true) {
-      return new Date(game.updatedAt || game.createdAt || '').toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    }
-    return null;
+    const formatTime = (value?: string | null) => (
+      value
+        ? new Date(value).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })
+        : null
+    );
+
+    return (
+      formatTime(game.startedAt) ??
+      formatTime(game.updatedAt) ??
+      formatTime(game.createdAt)
+    );
   };
 
   const getGameEndTime = (game: Game) => {
-    if (game.endedAt) {
-      return new Date(game.endedAt).toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    }
-    return null;
+    if (!game.endedAt) return null;
+
+    return new Date(game.endedAt).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   };
 
   const getGamesByStatus = (stop: Stop) => {
@@ -240,17 +294,12 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     });
 
     const inProgress = allGames
-      .filter(({ game, match }) => {
-        const hasLineups = match.teamA?.id && match.teamB?.id && 
-          lineups[match.id] && 
-          lineups[match.id][match.teamA.id]?.length === 4 && 
-          lineups[match.id][match.teamB.id]?.length === 4;
-        
-        return game.isComplete === false && hasLineups && game.startedAt;
-      })
-      .sort((a, b) => new Date(a.game.startedAt).getTime() - new Date(b.game.startedAt).getTime());
+      .filter(({ game }) => !isGameComplete(game) && hasGameStarted(game))
+      .sort((a, b) => resolveStartTimestamp(a.game) - resolveStartTimestamp(b.game));
     
-    const completed = allGames.filter(({ game }) => game.isComplete === true);
+    const completed = allGames
+      .filter(({ game }) => isGameComplete(game))
+      .sort((a, b) => resolveEndTimestamp(b.game) - resolveEndTimestamp(a.game));
     
     return { inProgress, completed };
   };
@@ -446,11 +495,23 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                     <div className="space-y-2">
                       {inProgress.map(({ game, match, round }) => (
                         <div key={game.id} className="border border-subtle rounded p-2 bg-surface-2">
-                          {/* Team names at top */}
-                          <div className="text-xs text-muted mb-1">
-                            {match.teamA?.name} vs {match.teamB?.name}
+                          <div className="flex items-start justify-between mb-1">
+                            {/* Team names at top */}
+                            <div className="text-xs text-muted pr-2">
+                              {round?.idx !== undefined
+                                ? `Round ${round.idx + 1}: ${formatInProgressMatchLabel(match)}`
+                                : `${round?.name ?? 'Round'}: ${formatInProgressMatchLabel(match)}`}
+                            </div>
+                            <div className="text-right text-xs text-green-600 whitespace-nowrap ml-2">
+                              {getGameStartTime(game) && (
+                                <div>Started: {getGameStartTime(game)}</div>
+                              )}
+                              {game.courtNumber && (
+                                <div>Court {game.courtNumber}</div>
+                              )}
+                            </div>
                           </div>
-                          
+                          {/* Team names at top */}
                           {/* Game type */}
                           <div className="text-sm font-medium text-secondary mb-2">
                             {game.slot.replace('_', ' ')}
@@ -458,11 +519,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                           
                           {/* Player names and scores */}
                           <div className="flex items-center justify-between text-sm mb-1">
-                            <div className={`text-xs whitespace-pre-line text-left flex items-center ${(game.teamAScore || 0) > (game.teamBScore || 0) ? 'text-success' : 'text-secondary'}`}>
+                            <div className="text-xs whitespace-pre-line text-left flex items-center text-secondary">
                               {getPlayerNames(game, match, 'A')}
-                              {(game.teamAScore || 0) > (game.teamBScore || 0) && (
-                                <span className="ml-1 text-warning">🏆</span>
-                              )}
                             </div>
                             <span className="font-medium text-primary">
                               {game.teamAScore !== null ? game.teamAScore : '-'}
@@ -471,27 +529,11 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                             <span className="font-medium text-primary">
                               {game.teamBScore !== null ? game.teamBScore : '-'}
                             </span>
-                            <div className={`text-xs whitespace-pre-line text-left flex items-center ${(game.teamBScore || 0) > (game.teamAScore || 0) ? 'text-success' : 'text-secondary'}`}>
+                            <div className="text-xs whitespace-pre-line text-left flex items-center text-secondary">
                               {getPlayerNames(game, match, 'B')}
-                              {(game.teamBScore || 0) > (game.teamAScore || 0) && (
-                                <span className="ml-1 text-warning">🏆</span>
-                              )}
                             </div>
                           </div>
                           
-                          {/* Start time and Court at bottom */}
-                          <div className="flex items-center justify-between text-xs text-muted">
-                            <div>
-                              {getGameStartTime(game) && (
-                                <span>Started: {getGameStartTime(game)}</span>
-                              )}
-                            </div>
-                            <div>
-                              {game.courtNumber && (
-                                <span>Court {game.courtNumber}</span>
-                              )}
-                            </div>
-                          </div>
                         </div>
                       ))}
                     </div>
@@ -525,7 +567,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                           // Calculate overall match winner
                           let teamAWins = 0;
                           let teamBWins = 0;
-                          
+
                           games.forEach(({ game }) => {
                             if (game.teamAScore !== null && game.teamBScore !== null) {
                               if (game.teamAScore > game.teamBScore) {
@@ -536,8 +578,9 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                             }
                           });
 
-                          const teamAWon = teamAWins > teamBWins;
-                          const teamBWon = teamBWins > teamAWins;
+                          const hasWinner = (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
+                          const highlightTeamA = hasWinner && teamAWins > teamBWins;
+                          const highlightTeamB = hasWinner && teamBWins > teamAWins;
 
                           return (
                             <div key={match.id} className="border border-subtle rounded p-3 bg-surface-2">
@@ -548,14 +591,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                               
                               {/* Team names with winner highlighting */}
                               <div className="text-sm font-medium mb-2 flex items-center justify-between border-b border-medium pb-2">
-                                <div className={`flex items-center ${teamAWon ? 'text-success' : ''}`}>
-                                  {teamAWon && <span className="mr-1">🏆</span>}
+                                <div className={`flex items-center ${highlightTeamA ? 'text-success' : ''}`}>
+                                  {highlightTeamA && <span className="mr-1">🏆</span>}
                                   {match.teamA?.name}
                                 </div>
                                 <span className="text-muted">vs</span>
-                                <div className={`flex items-center ${teamBWon ? 'text-success' : ''}`}>
+                                <div className={`flex items-center ${highlightTeamB ? 'text-success' : ''}`}>
                                   {match.teamB?.name}
-                                  {teamBWon && <span className="ml-1">🏆</span>}
+                                  {highlightTeamB && <span className="ml-1">🏆</span>}
                                 </div>
                               </div>
                               
