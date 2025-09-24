@@ -16,21 +16,36 @@ function normalizePhone(input?: string | null): { ok: boolean; formatted?: strin
 /** GET /api/admin/clubs?sort=name:asc */
 export async function GET(req: Request) {
   try {
-    console.log('GET /api/admin/clubs - Starting request');
-    // Use singleton prisma instance
     const url = new URL(req.url);
     const sortParam = url.searchParams.get('sort'); // e.g. "name:asc"
+    const search = (url.searchParams.get('q') || '').trim();
+    const take = Math.min(Number(url.searchParams.get('take') || '20') || 20, 50);
+
     let orderBy: any = { name: 'asc' as const };
     if (sortParam) {
       const [field, dirRaw] = sortParam.split(':');
       const dir = dirRaw === 'desc' ? 'desc' : 'asc';
-      if (field === 'city' || field === 'region' || field === 'country' || field === 'name') {
+      if (['name', 'city', 'region', 'country'].includes(field)) {
         orderBy = { [field]: dir };
       }
     }
-    console.log('GET /api/admin/clubs - About to query database');
-    const clubs = await prisma.club.findMany({ orderBy });
-    console.log('GET /api/admin/clubs - Query successful, returning', clubs.length, 'clubs');
+
+    const where = search.length >= 3
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { city: { contains: search, mode: 'insensitive' as const } },
+            { region: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : undefined;
+
+    const clubs = await prisma.club.findMany({
+      where,
+      orderBy,
+      take,
+    });
+
     return NextResponse.json(clubs);
   } catch (error) {
     console.error('GET /api/admin/clubs - Error:', error);

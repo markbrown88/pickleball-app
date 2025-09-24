@@ -13,6 +13,7 @@ type Payload = {
   clubs?: string[];
   levels?: Array<{ id?: string; name: string; idx?: number }>;
   captainsSimple?: Array<{ clubId: string; playerId: string }>;
+  hasCaptains?: boolean;
   stops?: Array<{
     id?: string;
     name: string;
@@ -93,7 +94,16 @@ export async function GET(_req: Request, ctx: CtxPromise) {
   const [clubLinks, brackets, stops, teams] = await Promise.all([
     prisma.tournamentClub.findMany({
       where: { tournamentId },
-      select: { clubId: true },
+      include: {
+        club: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            region: true,
+          },
+        },
+      },
     }),
     prisma.tournamentBracket.findMany({
       where: { tournamentId },
@@ -142,7 +152,18 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     name: t.name,
     type: ENUM_TO_TYPE_LABEL[t.type] ?? 'Team Format',
     maxTeamSize: t.maxTeamSize ?? null,
-    clubs: clubLinks.map((c) => c.clubId),
+    hasCaptains: byClubCaptain.length > 0,
+    clubs: clubLinks.map((c) => ({
+      clubId: c.clubId,
+      club: c.club
+        ? {
+            id: c.club.id,
+            name: c.club.name,
+            city: c.club.city,
+            region: c.club.region,
+          }
+        : null,
+    })),
     levels: visibleBrackets.map((b) => ({ id: b.id, name: b.name, idx: b.idx })),
     captains: [],
     captainsSimple: byClubCaptain.map((c) => ({
@@ -204,7 +225,8 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     }
   }
 
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
     if (Object.keys(updates).length) {
       await tx.tournament.update({ where: { id: tournamentId }, data: updates });
     }
@@ -237,6 +259,9 @@ export async function PUT(req: Request, ctx: CtxPromise) {
       }
       if (toRemove.length) {
         await tx.tournamentClub.deleteMany({
+          where: { tournamentId, clubId: { in: toRemove } },
+        });
+        await tx.tournamentCaptain.deleteMany({
           where: { tournamentId, clubId: { in: toRemove } },
         });
       }
@@ -396,21 +421,24 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     }
 
     // Primary team per club + captain governance (NO roster ops)
-    const tcLinks = await tx.tournamentClub.findMany({
-      where: { tournamentId },
-      include: { club: true },
-    });
-
     const captainByClub = new Map<string, string>();
-    if (Array.isArray(body.captainsSimple)) {
+    const playerUsage = new Map<string, string>();
+    const incomingCaptains = Array.isArray(body.captainsSimple) ? body.captainsSimple : [];
+    const hasCaptainsFlag = body.hasCaptains ?? incomingCaptains.length > 0;
+
+    if (hasCaptainsFlag) {
       const seen = new Set<string>();
       const clubIds: string[] = [];
       const playerIds: string[] = [];
-      for (const c of body.captainsSimple) {
+      for (const c of incomingCaptains) {
         const clubId = String(c.clubId);
         const playerId = String(c.playerId);
         if (seen.has(clubId)) throw new Error('Only one captain per club is allowed.');
         seen.add(clubId);
+        if (playerUsage.has(playerId) && playerUsage.get(playerId) !== clubId) {
+          throw new Error('A player can only captain one club per tournament.');
+        }
+        playerUsage.set(playerId, clubId);
         captainByClub.set(clubId, playerId);
         clubIds.push(clubId);
         playerIds.push(playerId);
@@ -428,6 +456,13 @@ export async function PUT(req: Request, ctx: CtxPromise) {
         if (missing.length) throw new Error(`Unknown player ids: ${missing.join(', ')}`);
       }
     }
+
+    await tx.tournamentCaptain.deleteMany({ where: { tournamentId } });
+
+    const tcLinks = await tx.tournamentClub.findMany({
+      where: { tournamentId },
+      include: { club: true },
+    });
 
     const primaryTeamByClub = new Map<string, string>();
 
@@ -457,7 +492,7 @@ export async function PUT(req: Request, ctx: CtxPromise) {
           },
           select: { id: true, bracketId: true, captainId: true, name: true },
         });
-      } else if (primary.bracketId !== firstBracketId) {
+      } else if (firstBracketId && primary.bracketId !== firstBracketId) {
         await tx.team.update({
           where: { id: primary.id },
           data: { bracketId: firstBracketId },
@@ -466,18 +501,29 @@ export async function PUT(req: Request, ctx: CtxPromise) {
 
       primaryTeamByClub.set(clubId, primary.id);
 
-      const captainId = captainByClub.get(clubId);
-      if (captainId) {
-        await tx.tournamentCaptain.upsert({
-          where: { tournamentId_clubId: { tournamentId, clubId } },
-          update: { playerId: captainId },
-          create: { tournamentId, clubId, playerId: captainId },
-        });
+      if (hasCaptainsFlag) {
+        const captainId = captainByClub.get(clubId) ?? null;
+        if (captainId) {
+          await tx.tournamentCaptain.create({
+            data: { tournamentId, clubId, playerId: captainId },
+          });
 
-        if (primary.captainId !== captainId) {
-          await tx.team.update({ where: { id: primary.id }, data: { captainId } });
+          if (primary.captainId !== captainId) {
+            await tx.team.updateMany({
+              where: {
+                tournamentId,
+                captainId,
+                NOT: { id: primary.id },
+              },
+              data: { captainId: null },
+            });
+            await tx.team.update({ where: { id: primary.id }, data: { captainId } });
+          }
+        } else if (primary.captainId) {
+          await tx.team.update({ where: { id: primary.id }, data: { captainId: null } });
         }
-        // ❌ Do NOT touch TeamPlayer/StopTeamPlayer here (roster flows will handle it)
+      } else if (primary.captainId) {
+        await tx.team.update({ where: { id: primary.id }, data: { captainId: null } });
       }
     }
 
@@ -500,7 +546,12 @@ export async function PUT(req: Request, ctx: CtxPromise) {
         skipDuplicates: true,
       });
     }
-  });
+    });
+  } catch (error) {
+    console.error('Error updating tournament config:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update tournament configuration';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -1,7 +1,7 @@
 // src/app/admin/page.tsx
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 
@@ -50,6 +50,12 @@ function stopTitleForDisplay(opts: {
   const name = (opts.stopName ?? '').trim();
   if (!opts.hasMultipleStops && name.toLowerCase() === 'main') return ''; // hide "Main" for single-stop
   return name;
+}
+function formatClubLabel(name?: string | null, city?: string | null, region?: string | null) {
+  const base = (name ?? '').trim();
+  if (!base) return '';
+  const location = (city ?? '').trim() || (region ?? '').trim();
+  return location ? `${base} (${location})` : base;
 }
 function personLabel(p: { firstName?: string | null; lastName?: string | null; name?: string | null }) {
   const fn = (p.firstName ?? '').trim();
@@ -223,6 +229,7 @@ export default function AdminPage() {
   // active tab
   type TabKey = 'tournaments' | 'clubs' | 'players' | 'teams';
   const [tab, setTab] = useState<TabKey>('tournaments');
+  const [showTeamsTab, setShowTeamsTab] = useState(false);
 
   // tournaments
   const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
@@ -421,6 +428,22 @@ export default function AdminPage() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!showTeamsTab && tab === 'teams') {
+      setTab('tournaments');
+    }
+  }, [showTeamsTab, tab]);
+
+  useEffect(() => {
+    if (userProfile?.isAppAdmin) {
+      setShowTeamsTab(true);
+    }
+  }, [userProfile?.isAppAdmin]);
+
+  const handleTeamsEligibility = useCallback((hasEligible: boolean) => {
+    setShowTeamsTab(userProfile?.isAppAdmin ? true : hasEligible);
+  }, [userProfile?.isAppAdmin]);
+
   // Load players for "Act As" when user becomes App Admin
   useEffect(() => {
     if (userProfile?.isAppAdmin) {
@@ -473,7 +496,18 @@ export default function AdminPage() {
         name: string;
         type: string; // backend returns label
         maxTeamSize?: number | null;
-        clubs: string[];
+        clubs: Array<
+          | string
+          | {
+              clubId: string;
+              club?: {
+                id: string;
+                name: string;
+                city?: string | null;
+                region?: string | null;
+              } | null;
+            }
+        >;
         levels: Array<{ id: string; name: string; idx: number }>; // brackets
         captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
         // NEW: tournament-level event manager
@@ -485,17 +519,42 @@ export default function AdminPage() {
       const brackets = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
 
       setEditorById((prev: EditorState) => {
-        const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(clubId => {
-          const cap = (cfg.captainsSimple || []).find(c => c.clubId === clubId) || null;
-          const club = clubsAll.find(c => c.id === clubId);
+        const hasCaptainsFromConfig = Array.isArray(cfg.captainsSimple) && cfg.captainsSimple.length > 0;
+        const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(entry => {
+          const normalizedId = typeof entry === 'string'
+            ? entry
+            : entry?.clubId;
+
+          if (!normalizedId) {
+            return {
+              clubId: undefined,
+              club: null,
+              clubQuery: '',
+              clubOptions: [],
+              singleCaptain: null,
+              singleQuery: '',
+              singleOptions: [],
+            };
+          }
+
+          const clubMeta = typeof entry === 'string' ? null : entry?.club;
+          const fallbackClub = clubsAll.find(c => c.id === normalizedId);
+          const label = clubMeta
+            ? formatClubLabel(clubMeta.name, clubMeta.city, clubMeta.region)
+            : fallbackClub
+              ? formatClubLabel(fallbackClub.name, fallbackClub.city, fallbackClub.region)
+              : undefined;
+
+          const cap = (cfg.captainsSimple || []).find(c => c.clubId === normalizedId) || null;
+
           return {
-            clubId,
+            clubId: normalizedId,
+            club: label ? { id: normalizedId, label } : null,
+            clubQuery: '',
+            clubOptions: [],
             singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
             singleQuery: '',
             singleOptions: [],
-            club: club ? { id: club.id, label: `${club.name}${club.city ? ` (${club.city})` : ''}` } : null,
-            clubQuery: '',
-            clubOptions: [],
           };
         });
 
@@ -757,7 +816,9 @@ export default function AdminPage() {
             <TabButton active={tab==='tournaments'} onClick={()=>setTab('tournaments')}>Tournaments</TabButton>
             <TabButton active={tab==='clubs'} onClick={()=>setTab('clubs')}>Clubs</TabButton>
             <TabButton active={tab==='players'} onClick={()=>setTab('players')}>Players</TabButton>
-            <TabButton active={tab==='teams'} onClick={()=>setTab('teams')}>Teams</TabButton>
+            {showTeamsTab && (
+              <TabButton active={tab==='teams'} onClick={()=>setTab('teams')}>Teams</TabButton>
+            )}
           </div>
         </div>
 
@@ -805,8 +866,7 @@ export default function AdminPage() {
         {/* ===== Clubs ===== */}
         {tab === 'clubs' && (
           <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-primary">Clubs</h2>
+            <div className="flex justify-end">
               <button className="btn btn-primary" onClick={() => openEditClub()}>Add Club</button>
             </div>
             <div className="card">
@@ -1026,8 +1086,7 @@ export default function AdminPage() {
         {/* ===== Players ===== */}
         {tab === 'players' && (
           <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-primary">Players</h2>
+            <div className="flex justify-end">
               <button className="btn btn-primary" onClick={() => openSlideOutPlayer()}>Add Player</button>
             </div>
 
@@ -1282,10 +1341,9 @@ export default function AdminPage() {
       )}
 
         {/* ===== Teams ===== */}
-        {tab === 'teams' && (
+        {tab === 'teams' && showTeamsTab && (
           <section className="space-y-6">
-            <h2 className="text-xl font-semibold text-primary">Teams</h2>
-            <AdminTeamsTab tournaments={tournaments} />
+            <AdminTeamsTab tournaments={tournaments} onEligibilityChange={handleTeamsEligibility} />
           </section>
         )}
       </main>
@@ -1711,7 +1769,16 @@ function TournamentsBlock(props: TournamentsBlockProps) {
     setEditorById(prev => {
       const ed = prev[tId]; if (!ed) return prev;
       const nextClubs = [...(ed.clubs || [])];
-      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], club, clubId: club?.id, clubQuery: '', clubOptions: [] };
+      if (nextClubs[clubIdx]) nextClubs[clubIdx] = {
+        ...nextClubs[clubIdx],
+        club,
+        clubId: club?.id,
+        clubQuery: '',
+        clubOptions: [],
+        singleCaptain: null,
+        singleQuery: '',
+        singleOptions: [],
+      };
       return { ...prev, [tId]: { ...ed, clubs: nextClubs } };
     });
   }
@@ -1719,7 +1786,16 @@ function TournamentsBlock(props: TournamentsBlockProps) {
     setEditorById(prev => {
       const ed = prev[tId]; if (!ed) return prev;
       const nextClubs = [...(ed.clubs || [])];
-      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], club: null, clubId: undefined, clubQuery: '', clubOptions: [] };
+      if (nextClubs[clubIdx]) nextClubs[clubIdx] = {
+        ...nextClubs[clubIdx],
+        club: null,
+        clubId: undefined,
+        clubQuery: '',
+        clubOptions: [],
+        singleCaptain: null,
+        singleQuery: '',
+        singleOptions: [],
+      };
       return { ...prev, [tId]: { ...ed, clubs: nextClubs } };
     });
   }
@@ -1738,6 +1814,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
       clubs: string[];
       levels?: Array<{ id?: string; name: string; idx?: number }>; // brackets
       captainsSimple?: Array<{ clubId: string; playerId: string }>;
+      hasCaptains?: boolean;
       stops?: Array<{ id?: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManagerId?: string | null }>;
       maxTeamSize?: number | null; // reused: team size when no brackets; bracket size when brackets enabled
       // NEW tournament-level Event Manager
@@ -1785,6 +1862,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
     } else {
       payload.captainsSimple = [];
     }
+    payload.hasCaptains = ed.hasCaptains;
 
     // Tournament-level Event Manager
     payload.eventManagerId = ed.tournamentEventManager?.id ?? null;
@@ -1827,7 +1905,19 @@ function TournamentsBlock(props: TournamentsBlockProps) {
         name: string;
         type: string;
         maxTeamSize?: number | null;
-        clubs: string[];
+        hasCaptains?: boolean;
+        clubs: Array<
+          | string
+          | {
+              clubId: string;
+              club?: {
+                id: string;
+                name: string;
+                city?: string | null;
+                region?: string | null;
+              } | null;
+            }
+        >;
         levels: Array<{ id: string; name: string; idx: number }>;
         captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
         eventManager?: { id: string; name?: string } | null;
@@ -1837,15 +1927,43 @@ function TournamentsBlock(props: TournamentsBlockProps) {
       const brackets = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
 
       setEditorById((prev: EditorState) => {
-        const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(clubId => {
-          const cap = (cfg.captainsSimple || []).find(c => c.clubId === clubId) || null;
+      const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(entry => {
+        const normalizedId = typeof entry === 'string'
+          ? entry
+          : entry?.clubId;
+
+        if (!normalizedId) {
           return {
-            clubId,
-            singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
+            clubId: undefined,
+            club: null,
+            clubQuery: '',
+            clubOptions: [],
+            singleCaptain: null,
             singleQuery: '',
             singleOptions: [],
           };
-        });
+        }
+
+        const clubMeta = typeof entry === 'string' ? null : entry?.club;
+        const fallbackClub = clubsAll.find(c => c.id === normalizedId);
+        const label = clubMeta
+          ? formatClubLabel(clubMeta.name, clubMeta.city, clubMeta.region)
+          : fallbackClub
+            ? formatClubLabel(fallbackClub.name, fallbackClub.city, fallbackClub.region)
+            : undefined;
+
+        const cap = (cfg.captainsSimple || []).find(c => c.clubId === normalizedId) || null;
+
+        return {
+          clubId: normalizedId,
+          club: label ? { id: normalizedId, label } : null,
+          clubQuery: '',
+          clubOptions: [],
+          singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
+          singleQuery: '',
+          singleOptions: [],
+        };
+      });
 
         return {
           ...prev,
@@ -1854,7 +1972,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
             type: (cfg.type as any) || 'Team Format',
             hasMultipleStops: (cfg.stops || []).length > 1,
             hasBrackets: (cfg.levels || []).length > 0,
-            hasCaptains: (cfg.captainsSimple || []).length > 0,
+            hasCaptains: cfg.hasCaptains ?? hasCaptainsFromConfig,
             clubs: clubRows,
             brackets,
             stops: (cfg.stops || []).map(s => {
@@ -1932,8 +2050,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-primary">Tournaments</h2>
+      <div className="flex justify-end">
         <button className="btn btn-primary" onClick={createNewTournamentPrompt}>Create Tournament</button>
       </div>
 
@@ -1945,12 +2062,12 @@ function TournamentsBlock(props: TournamentsBlockProps) {
         <div className="space-y-0">
           {/* Table Header */}
           <div className="grid grid-cols-12 gap-4 items-center py-3 px-4 text-base font-semibold text-white border-b border-subtle" style={{ backgroundColor: 'var(--brand-primary)' }}>
-            <div className="col-span-4">Tournament</div>
+            <div className="col-span-3">Tournament</div>
             <div className="col-span-2 text-center">Status</div>
             <div className="col-span-1 text-center">Teams</div>
             <div className="col-span-1 text-center">Stops</div>
             <div className="col-span-3 text-center">Date</div>
-            <div className="col-span-1 text-center">Actions</div>
+            <div className="col-span-2 text-center">Actions</div>
           </div>
           
           {props.tournaments.map(t => {
@@ -1976,7 +2093,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
             return (
               <div key={t.id} className="border-b border-subtle hover:bg-surface-1/50" style={{ backgroundColor: 'var(--surface-1)' }}>
                 <div className="grid grid-cols-12 gap-4 items-center py-3 px-4">
-                  <div className="col-span-4">
+                  <div className="col-span-3">
                     <button 
                       className="font-medium text-primary hover:text-secondary-hover hover:underline text-left"
                       onClick={() => props.toggleExpand(t.id)}
@@ -2003,7 +2120,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                   <div className="col-span-3 text-center text-muted tabular">
                     {between(t.stats.dateRange.start, t.stats.dateRange.end)}
                   </div>
-                  <div className="col-span-1 flex items-center gap-2 justify-end">
+                  <div className="col-span-2 flex items-center gap-2 justify-end">
                     <button 
                       className="btn btn-ghost text-sm"
                       onClick={() => props.toggleExpand(t.id)}
@@ -2022,9 +2139,9 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                 </div>
 
                 {isOpen && ed && (
-                  <div className="py-4">
+                  <div className="py-6 px-6 bg-surface-1/40">
                     {/* SINGLE EDITABLE PANEL */}
-                        <div className="space-y-4 w-fit">
+                        <div className="space-y-6 w-full">
                           {/* Name + Type + Max size + Checkboxes + Brackets */}
                           <div className="flex flex-wrap items-start gap-4">
                             <div className="flex flex-col gap-2">
@@ -2125,35 +2242,34 @@ function TournamentsBlock(props: TournamentsBlockProps) {
 
                           {/* Stops (Multiple) */}
                           {ed.type === 'Team Format' && ed.hasMultipleStops && (
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between gap-4 flex-wrap">
                                 <h3 className="font-medium">Stops</h3>
                                 <button className="btn btn-sm btn-primary" onClick={() => addStopRow(t.id)}>Add Stop</button>
                               </div>
                               {(ed.stops || []).length === 0 && <p className="text-sm text-muted">No stops yet.</p>}
                               {(ed.stops || []).length > 0 && (
-                                <div className="flex gap-2 text-sm font-medium text-secondary mb-2">
-                                  <div className="w-48">Name</div>
-                                  <div className="min-w-[280px]">Location</div>
-                                  <div className="w-32">Start Date</div>
-                                  <div className="w-32">End Date</div>
-                                  <div className="min-w-[220px]">Event Manager</div>
-                                  <div className="w-8"></div>
-                                </div>
-                              )}
-                              <div className="space-y-2">
-                                {(ed.stops || []).map((s, idx) => (
-                                  <div key={idx} className="">
-                                    <div className="flex items-center gap-2">
+                                <div className="overflow-x-auto">
+                                  <div className="min-w-[960px] space-y-2">
+                                    <div className="admin-stops-header text-sm font-medium text-secondary pr-2">
+                                      <div>Name</div>
+                                      <div>Location</div>
+                                      <div>Start Date</div>
+                                      <div>End Date</div>
+                                      <div>Event Manager</div>
+                                      <div></div>
+                                    </div>
+                                    {(ed.stops || []).map((s, idx) => (
+                                      <div key={idx} className="admin-stops-grid pr-2">
                                       <input
-                                        className="input w-48"
+                                        className="input w-full"
                                         placeholder="Stop name (required)"
                                         value={s.name}
                                         onChange={e => updateStopRow(t.id, idx, { name: e.target.value })}
                                       />
                                       {/* Club lookup for stops */}
                                       {s.club?.id ? (
-                                        <div className="flex items-center justify-between gap-2 min-w-[280px] input bg-surface-2">
+                                        <div className="flex items-center justify-between gap-2 input bg-surface-2 w-full">
                                           <div className="text-sm">
                                             <span className="font-medium text-primary">{s.club.label || '(selected)'}</span>
                                           </div>
@@ -2167,7 +2283,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                           </button>
                                         </div>
                                       ) : (
-                                        <div className="relative min-w-[280px]">
+                                        <div className="relative w-full">
                                       <input
                                             className="input w-full pr-8"
                                             placeholder="Type 3+ chars to search clubs…"
@@ -2190,19 +2306,19 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                         </div>
                                       )}
                                       <input
-                                        className="input w-32" type="date"
+                                        className="input w-full" type="date"
                                         value={s.startAt || ''}
                                         onChange={e => updateStopRow(t.id, idx, { startAt: e.target.value })}
                                       />
                                       <input
-                                        className="input w-32" type="date"
+                                        className="input w-full" type="date"
                                         value={s.endAt || ''}
                                         onChange={e => updateStopRow(t.id, idx, { endAt: e.target.value })}
                                       />
 
                                       {/* Stop-level Event Manager */}
                                         {s.eventManager?.id ? (
-                                        <div className="flex items-center justify-between gap-2 min-w-[220px] input bg-surface-2">
+                                        <div className="flex items-center justify-between gap-2 input bg-surface-2 w-full">
                                             <div className="text-sm">
                                             <span className="font-medium text-primary">{s.eventManager.label || '(selected)'}</span>
                                             </div>
@@ -2216,7 +2332,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                             </button>
                                           </div>
                                         ) : (
-                                        <div className="relative min-w-[220px]">
+                                        <div className="relative w-full">
                                             <input
                                             className="input w-full pr-8"
                                               placeholder="Type 3+ chars to search players…"
@@ -2236,15 +2352,16 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                                 ))}
                                               </div>
                                             )}
-                                          </div>
-                                        )}
+                                        </div>
+                                      )}
                                       <button className="px-2 py-1" aria-label="Remove stop" title="Remove stop" onClick={() => removeStopRow(t.id, idx)}>
                                         <TrashIcon />
                                       </button>
                                     </div>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -2398,122 +2515,118 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                             </div>
                           )}
 
-                          {/* Participating Clubs (with single Captain selector per club) */}
                           {ed.type === 'Team Format' && (
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between gap-4 flex-wrap">
                                 <h3 className="font-medium text-primary">Participating Clubs</h3>
                                 <button className="btn btn-sm btn-primary" onClick={() => addClubRow(t.id)}>Add Club</button>
                               </div>
                               {ed.clubs.length === 0 && <p className="text-sm text-muted">No clubs yet.</p>}
-                              {ed.clubs.length > 0 && (
-                                <div className="grid grid-cols-2 gap-6">
-                                  {/* Left column header */}
-                                  <div className="space-y-2">
-                                    <div className="text-sm font-medium text-secondary">Clubs</div>
-                                    <div className="text-sm font-medium text-secondary">Captains</div>
-                                </div>
-                                  {/* Right column header */}
-                              <div className="space-y-2">
-                                    <div className="text-sm font-medium text-secondary">Clubs</div>
-                                    <div className="text-sm font-medium text-secondary">Captains</div>
-                                  </div>
-                                </div>
-                              )}
-                              <div className="grid grid-cols-2 gap-6">
-                                {ed.clubs.map((row, idx) => (
-                                  <div key={idx} className="flex items-center gap-2">
-                                    {/* Club lookup */}
-                                    {row.club?.id ? (
-                                      <div className="flex items-center justify-between gap-2 min-w-[220px] input bg-surface-2">
-                                        <div className="text-sm">
-                                          <span className="font-medium text-primary">{row.club.label || '(selected)'}</span>
-                                        </div>
-                                        <button
-                                          className="px-2 py-0 text-error hover:text-error-hover"
-                                          aria-label="Remove club"
-                                          title="Remove club"
-                                          onClick={() => removeClub(t.id, idx)}
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div className="relative min-w-[220px]">
-                                        <input
-                                          className="input w-full pr-8"
-                                          placeholder="Type 3+ chars to search clubs…"
-                                          value={row.clubQuery || ''}
-                                          onChange={e => setClubQuery(t.id, idx, e.target.value)}
-                                        />
-                                        {!!row.clubOptions?.length && (
-                                          <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
-                                            {(row.clubOptions || []).map(o => (
-                                              <button
-                                                key={o.id}
-                                                className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
-                                                onClick={() => chooseClub(t.id, idx, o)}
-                                              >
-                                                {o.label}
-                                              </button>
-                                            ))}
+                              <div className="grid gap-4 xl:grid-cols-2">
+                                {(ed.clubs || []).map((row, idx) => (
+                                  <div key={idx} className="p-3 border border-subtle rounded-lg bg-surface-1 shadow-sm">
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:gap-4 gap-3">
+                                      <div className="flex-1 space-y-2">
+                                        <label className="block text-sm font-medium text-secondary">Club</label>
+                                        {row.club?.id ? (
+                                          <div className="flex items-center justify-between gap-2 input bg-surface-2">
+                                            <div className="text-sm">
+                                              <span className="font-medium text-primary">{row.club.label || '(selected)'}</span>
+                                            </div>
+                                            <button
+                                              className="px-2 py-0 text-error hover:text-error-hover"
+                                              aria-label="Remove club"
+                                              title="Remove club"
+                                              onClick={() => removeClub(t.id, idx)}
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="relative">
+                                            <input
+                                              className="input w-full pr-8"
+                                              placeholder="Type 3+ chars to search clubs…"
+                                              value={row.clubQuery || ''}
+                                              onChange={e => setClubQuery(t.id, idx, e.target.value)}
+                                            />
+                                            {!!row.clubOptions?.length && (
+                                              <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
+                                                {(row.clubOptions || []).map(o => (
+                                                  <button
+                                                    key={o.id}
+                                                    className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
+                                                    onClick={() => chooseClub(t.id, idx, o)}
+                                                  >
+                                                    {o.label}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            )}
                                           </div>
                                         )}
                                       </div>
-                                    )}
 
-                                    {/* Captain picker - only show if captains are enabled */}
-                                    {ed.hasCaptains && (
-                                      <div className="relative min-w-[220px]">
-                                        {row.clubId ? (
-                                          row.singleCaptain?.id ? (
-                                            <div className="flex items-center justify-between gap-2 w-full input bg-surface-2">
-                                              <div className="text-sm">
-                                                <span className="font-medium text-primary">{row.singleCaptain.label || '(selected)'}</span>
-                                              </div>
-                                              <button
-                                                className="px-2 py-0 text-error hover:text-error-hover"
-                                                aria-label="Remove captain"
-                                                title="Remove captain"
-                                                onClick={() => removeSingleCaptain(t.id, idx)}
-                                              >
-                                                ✕
-                                              </button>
-                                            </div>
-                                          ) : (
-                                            <div className="w-full">
-                                              <input
-                                                className="input w-full pr-8"
-                                                placeholder="Type 3+ chars to search players…"
-                                                value={row.singleQuery}
-                                                onChange={e => setSingleCaptainQuery(t.id, idx, e.target.value)}
-                                              />
-                                              {!!row.singleOptions.length && (
-                                                <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
-                                                  {row.singleOptions
-                                                    .filter(o => !allChosenCaptainIdsAcrossClubs.has(o.id))
-                                                    .map(o => (
-                                                      <button
-                                                        key={o.id}
-                                                        className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
-                                                        onClick={() => chooseSingleCaptain(t.id, idx, o)}
-                                                      >
-                                                        {o.label}
-                                                      </button>
-                                                    ))}
+                                      {ed.hasCaptains && (
+                                        <div className="flex-1 space-y-2">
+                                          <label className="block text-sm font-medium text-secondary">Captain</label>
+                                          {row.clubId ? (
+                                            row.singleCaptain?.id ? (
+                                              <div className="flex items-center justify-between gap-2 w-full input bg-surface-2">
+                                                <div className="text-sm">
+                                                  <span className="font-medium text-primary">{row.singleCaptain.label || '(selected)'}</span>
                                                 </div>
-                                              )}
-                                            </div>
-                                          )
-                                        ) : (
-                                          <div className="text-sm text-muted">Select a club first</div>
-                                        )}
-                                      </div>
-                                    )}
+                                                <button
+                                                  className="px-2 py-0 text-error hover:text-error-hover"
+                                                  aria-label="Remove captain"
+                                                  title="Remove captain"
+                                                  onClick={() => removeSingleCaptain(t.id, idx)}
+                                                >
+                                                  ✕
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div className="relative">
+                                                <input
+                                                  className="input w-full pr-8"
+                                                  placeholder="Type 3+ chars to search players…"
+                                                  value={row.singleQuery}
+                                                  onChange={e => setSingleCaptainQuery(t.id, idx, e.target.value)}
+                                                />
+                                                {!!row.singleOptions.length && (
+                                                  <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
+                                                    {row.singleOptions
+                                                      .filter(o => !allChosenCaptainIdsAcrossClubs.has(o.id))
+                                                      .map(o => (
+                                                        <button
+                                                          key={o.id}
+                                                          className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
+                                                          onClick={() => chooseSingleCaptain(t.id, idx, o)}
+                                                        >
+                                                          {o.label}
+                                                        </button>
+                                                      ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )
+                                          ) : (
+                                            <p className="text-sm text-muted">Select a club first.</p>
+                                          )}
+                                        </div>
+                                      )}
 
-                                    <button className="px-2 py-1 text-error hover:text-error-hover" aria-label="Remove club" title="Remove club" onClick={() => removeClubRow(t.id, idx)}>
-                                        <TrashIcon />
-                                      </button>
+                                      <div className="flex sm:self-start sm:mt-6 justify-end">
+                                        <button
+                                          className="px-2 py-1 text-error hover:text-error-hover"
+                                          aria-label="Remove club row"
+                                          title="Remove club row"
+                                          onClick={() => removeClubRow(t.id, idx)}
+                                        >
+                                          <TrashIcon />
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -2686,7 +2799,7 @@ type AdminTeamsHydrate = {
   }>;
 };
 
-function AdminTeamsTab({ tournaments }: { tournaments: TournamentRow[] }) {
+function AdminTeamsTab({ tournaments, onEligibilityChange }: { tournaments: TournamentRow[]; onEligibilityChange: (hasEligible: boolean) => void }) {
   const [activeTid, setActiveTid] = useState<Id | '">NONE<' | null>(null);
   const [dataByTid, setDataByTid] = useState<Record<Id, AdminTeamsHydrate>>({});
   const [err, setErr] = useState<string | null>(null);
@@ -2729,6 +2842,10 @@ function AdminTeamsTab({ tournaments }: { tournaments: TournamentRow[] }) {
     }
     return arr.filter(x => !x.hasCaptains);
   }, [tournaments, dataByTid]);
+
+  useEffect(() => {
+    onEligibilityChange(eligible.length > 0);
+  }, [eligible.length, onEligibilityChange]);
 
   return (
     <section className="space-y-4">

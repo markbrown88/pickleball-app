@@ -6,6 +6,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import type { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { auth } from '@clerk/nextjs/server';
 
 type Id = string;
 
@@ -52,7 +53,7 @@ async function ensureBrackets(prisma: PrismaClient, tournamentId: string) {
 async function ensureStops(prisma: PrismaClient, tournamentId: string) {
   const t = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, name: true, createdAt: true, stops: { select: { id: true } } },
+    select: { id: true, name: true, createdAt: true, stops: { select: { id: true, isAppAdmin: true } } },
   });
   if (!t) throw new Error('Tournament not found');
   if (!t.stops || t.stops.length === 0) {
@@ -187,6 +188,29 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ tournament
   const { tournamentId } = await ctx.params;
 
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const player = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: { id: true },
+    });
+
+    if (!player) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const adminLink = await prisma.tournamentAdmin.findUnique({
+      where: { tournamentId_playerId: { tournamentId, playerId: player.id } },
+      select: { playerId: true },
+    });
+
+    if (!player.isAppAdmin && !adminLink) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       select: { id: true, name: true, maxTeamSize: true },

@@ -279,7 +279,7 @@ export default function AppAdminPage() {
       {/* Banner Section */}
       <div className="bg-surface-1 border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-3xl font-bold text-primary">App Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold text-primary">Admin Dashboard</h1>
           <p className="text-muted mt-2">Manage tournaments, assign admins, and oversee the platform</p>
         </div>
       </div>

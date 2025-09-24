@@ -178,6 +178,25 @@ small, .text-muted {
   background-color: var(--border-subtle);
 }
 
+/* Admin layout helpers */
+.admin-stops-header,
+.admin-stops-grid {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.2fr) minmax(18rem, 1.7fr) minmax(9rem, 0.9fr) minmax(9rem, 0.9fr) minmax(12rem, 1.1fr) auto;
+  gap: 0.75rem;
+}
+
+.admin-stops-grid {
+  align-items: center;
+}
+
+@media (max-width: 1024px) {
+  .admin-stops-header,
+  .admin-stops-grid {
+    grid-template-columns: repeat(2, minmax(12rem, 1fr));
+  }
+}
+
 /* Status Chips */
 .chip {
   display: inline-flex;
