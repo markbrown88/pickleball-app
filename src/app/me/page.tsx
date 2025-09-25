@@ -3912,74 +3912,129 @@ function EventManagerTab({
                                             <div className="space-y-1">
                                               {bracketMatches.map((match: any, localMatchIdx: number) => {
                                                 const matchIdx = match.originalIndex;
+                                                const hasAnyGameStarted = games[match.id]?.some(game =>
+                                                  gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed'
+                                                ) || false;
+                                                const teamALineup = lineups[match.id]?.[match.teamA?.id || 'teamA'] || [];
+                                                const teamBLineup = lineups[match.id]?.[match.teamB?.id || 'teamB'] || [];
+                                                const canEditLineups = !hasAnyGameStarted && matchStatuses[match.id] !== 'in_progress' && matchStatuses[match.id] !== 'completed';
+                                                const isEditingThisMatch = editingMatch === match.id;
+
                                                 return (
                                                   <div key={match.id} className="p-2 bg-surface-2 rounded text-sm">
-                                                    {/* Confirmed Lineup Display with buttons */}
-                                                    {!editingMatch && (() => {
-                                                      // Hide lineup area if any game has started
-                                                      const hasAnyGameStarted = games[match.id]?.some(game => 
-                                                        gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed'
-                                                      ) || false;
-                                                      
-                                                      if (hasAnyGameStarted) {
-                                                        return null;
-                                                      }
-                                                      
-                                                      return (
-                                                      <div className="flex items-start gap-3">
-                                                        {/* Team A Lineup Box */}
-                                                        <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
-                                                          <div className="font-medium text-green-800 mb-1">{match.teamA?.name || 'Team A'}</div>
-                                                          <div className="text-green-700">
-                                                            {lineups[match.id] && lineups[match.id][match.teamA?.id || 'teamA']?.length > 0 ? (
-                                                              lineups[match.id][match.teamA?.id || 'teamA']?.map((player, idx) => (
-                                                                <div key={player.id} className="text-xs">
-                                                                  {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
-                                                                </div>
-                                                              ))
-                                                            ) : (
-                                                              <div className="text-xs text-muted">No lineup set</div>
-                                                            )}
+                                                    {isEditingThisMatch ? (
+                                                      <div className="mb-3">
+                                                        <InlineLineupEditor
+                                                          matchId={match.id}
+                                                          stopId={round.stopId}
+                                                          teamA={match.teamA || { id: 'teamA', name: 'Team A' }}
+                                                          teamB={match.teamB || { id: 'teamB', name: 'Team B' }}
+                                                          teamARoster={teamRosters[match.teamA?.id || ''] || []}
+                                                          teamBRoster={teamRosters[match.teamB?.id || ''] || []}
+                                                          fetchTeamRoster={fetchTeamRoster}
+                                                          lineups={lineups}
+                                                          onSave={async (lineups) => {
+                                                            console.log('Save button clicked (non-draggable), lineups data:', lineups);
+                                                            try {
+                                                              if (lineups.teamA.length !== 4 || lineups.teamB.length !== 4) {
+                                                                throw new Error(`Invalid lineup: Team A has ${lineups.teamA.length} players, Team B has ${lineups.teamB.length} players. Need exactly 4 each.`);
+                                                              }
+
+                                                              console.log('Saving lineups for teams (non-draggable):', {
+                                                                teamA: { id: match.teamA?.id, players: lineups.teamA.map(p => ({ id: p.id, name: p.name })) },
+                                                                teamB: { id: match.teamB?.id, players: lineups.teamB.map(p => ({ id: p.id, name: p.name })) }
+                                                              });
+
+                                                              const response = await fetch(`/api/admin/stops/${stop.stopId}/lineups`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                  lineups: {
+                                                                    [match.id]: {
+                                                                      [match.teamA?.id || 'teamA']: lineups.teamA,
+                                                                      [match.teamB?.id || 'teamB']: lineups.teamB
+                                                                    }
+                                                                  }
+                                                                })
+                                                              });
+
+                                                              if (!response.ok) {
+                                                                const errorText = await response.text();
+                                                                throw new Error(`Save failed: ${response.status} ${errorText}`);
+                                                              }
+
+                                                              setLineups(prev => ({
+                                                                ...prev,
+                                                                [match.id]: {
+                                                                  [match.teamA?.id || 'teamA']: lineups.teamA,
+                                                                  [match.teamB?.id || 'teamB']: lineups.teamB
+                                                                }
+                                                              }));
+
+                                                              await loadGamesForMatch(match.id, true);
+
+                                                              setEditingMatch(null);
+                                                              onInfo('Lineups saved successfully!');
+                                                            } catch (error) {
+                                                              console.error('Error saving lineups:', error);
+                                                              onError(`Failed to save lineups: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                                            }
+                                                          }}
+                                                          onCancel={() => setEditingMatch(null)}
+                                                        />
+                                                      </div>
+                                                    ) : (
+                                                      !hasAnyGameStarted && (
+                                                        <div className="flex items-start gap-3 mb-3">
+                                                          <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
+                                                            <div className="font-medium text-green-800 mb-1">{match.teamA?.name || 'Team A'}</div>
+                                                            <div className="text-green-700">
+                                                              {teamALineup.length > 0 ? (
+                                                                teamALineup.map((player, idx) => (
+                                                                  <div key={player.id} className="text-xs">
+                                                                    {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
+                                                                  </div>
+                                                                ))
+                                                              ) : (
+                                                                <div className="text-xs text-muted">No lineup set</div>
+                                                              )}
+                                                            </div>
                                                           </div>
-                                                        </div>
-                                                        
-                                                        {/* VS separator */}
-                                                        <div className="text-muted font-medium text-sm">vs</div>
-                                                        
-                                                        {/* Team B Lineup Box */}
-                                                        <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
-                                                          <div className="font-medium text-green-800 mb-1">{match.teamB?.name || 'Team B'}</div>
-                                                          <div className="text-green-700">
-                                                            {lineups[match.id] && lineups[match.id][match.teamB?.id || 'teamB']?.length > 0 ? (
-                                                              lineups[match.id][match.teamB?.id || 'teamB']?.map((player, idx) => (
-                                                                <div key={player.id} className="text-xs">
-                                                                  {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
-                                                                </div>
-                                                              ))
-                                                            ) : (
-                                                              <div className="text-xs text-muted">No lineup set</div>
-                                                            )}
+
+                                                          <div className="text-muted font-medium text-sm">vs</div>
+
+                                                          <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
+                                                            <div className="font-medium text-green-800 mb-1">{match.teamB?.name || 'Team B'}</div>
+                                                            <div className="text-green-700">
+                                                              {teamBLineup.length > 0 ? (
+                                                                teamBLineup.map((player, idx) => (
+                                                                  <div key={player.id} className="text-xs">
+                                                                    {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
+                                                                  </div>
+                                                                ))
+                                                              ) : (
+                                                                <div className="text-xs text-muted">No lineup set</div>
+                                                              )}
+                                                            </div>
                                                           </div>
-                                                        </div>
-                                                        
-                                                        {/* Buttons */}
-                                                        <div className="flex flex-col gap-2">
-                                                          {matchStatuses[match.id] !== 'in_progress' && matchStatuses[match.id] !== 'completed' && (
-                                                            <button
-                                                              className="px-2 py-1 text-xs bg-success text-white rounded hover:bg-success-hover"
-                                                              onClick={() => {
-                                                                console.log('Edit Lineups clicked for match:', match.id);
-                                                                setEditingMatch(editingMatch === match.id ? null : match.id);
-                                                              }}
-                                                            >
-                                                              {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
-                                                            </button>
+
+                                                          {canEditLineups && (
+                                                            <div className="flex flex-col gap-2">
+                                                              <button
+                                                                className="px-2 py-1 text-xs bg-success text-white rounded hover:bg-success-hover"
+                                                                onClick={() => {
+                                                                  console.log('Edit Lineups clicked for match:', match.id);
+                                                                  setEditingMatch(editingMatch === match.id ? null : match.id);
+                                                                }}
+                                                              >
+                                                                Edit Lineups
+                                                              </button>
+                                                            </div>
                                                           )}
                                                         </div>
-                                                      </div>
-                                                      );
-                                                    })()}
-                                                    
+                                                      )
+                                                    )}
+
                                                     {/* Games Display - only show when both teams have confirmed lineups */}
                                                     {lineups[match.id] && 
                                                      lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
@@ -4044,74 +4099,6 @@ function EventManagerTab({
                                                             );
                                                           })()}
                                                         </div>
-                                                      </div>
-                                                    )}
-                                                    
-                                                    {/* Third row: Inline Lineup Editor */}
-                                                    {editingMatch === match.id && (
-                                                      <div className="mt-2">
-                                                        <InlineLineupEditor
-                                                          matchId={match.id}
-                                                          stopId={round.stopId}
-                                                          teamA={match.teamA || { id: 'teamA', name: 'Team A' }}
-                                                          teamB={match.teamB || { id: 'teamB', name: 'Team B' }}
-                                                          teamARoster={teamRosters[match.teamA?.id || ''] || []}
-                                                          teamBRoster={teamRosters[match.teamB?.id || ''] || []}
-                                                          fetchTeamRoster={fetchTeamRoster}
-                                                          lineups={lineups}
-                                                          onSave={async (lineups) => {
-                                                            console.log('Save button clicked (non-draggable), lineups data:', lineups);
-                                                            try {
-                                                              // Validate lineups have 4 players each
-                                                              if (lineups.teamA.length !== 4 || lineups.teamB.length !== 4) {
-                                                                throw new Error(`Invalid lineup: Team A has ${lineups.teamA.length} players, Team B has ${lineups.teamB.length} players. Need exactly 4 each.`);
-                                                              }
-                                                              
-                                                              console.log('Saving lineups for teams (non-draggable):', {
-                                                                teamA: { id: match.teamA?.id, players: lineups.teamA.map(p => ({ id: p.id, name: p.name })) },
-                                                                teamB: { id: match.teamB?.id, players: lineups.teamB.map(p => ({ id: p.id, name: p.name })) }
-                                                              });
-                                                              
-                                                              // Use batch save API
-                                                              const response = await fetch(`/api/admin/stops/${stop.stopId}/lineups`, {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({
-                                                                  lineups: {
-                                                                    [match.id]: {
-                                                                      [match.teamA?.id || 'teamA']: lineups.teamA,
-                                                                      [match.teamB?.id || 'teamB']: lineups.teamB
-                                                                    }
-                                                                  }
-                                                                })
-                                                              });
-                                                              
-                                                              if (!response.ok) {
-                                                                const errorText = await response.text();
-                                                                throw new Error(`Save failed: ${response.status} ${errorText}`);
-                                                              }
-                                                              
-                                                              // Update local state
-                                                              setLineups(prev => ({
-                                                                ...prev,
-                                                                [match.id]: {
-                                                                  [match.teamA?.id || 'teamA']: lineups.teamA,
-                                                                  [match.teamB?.id || 'teamB']: lineups.teamB
-                                                                }
-                                                              }));
-                                                              
-                                                              // Load games for this match to show them immediately
-                                                              await loadGamesForMatch(match.id, true);
-                                                              
-                                                              setEditingMatch(null);
-                                                              onInfo('Lineups saved successfully!');
-                                                            } catch (error) {
-                                                              console.error('Error saving lineups:', error);
-                                                              onError(`Failed to save lineups: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                                                            }
-                                                          }}
-                                                          onCancel={() => setEditingMatch(null)}
-                                                        />
                                                       </div>
                                                     )}
                                                   </div>

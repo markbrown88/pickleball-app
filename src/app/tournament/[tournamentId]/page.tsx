@@ -16,6 +16,8 @@ interface Stop {
   name: string;
   tournamentId: string;
   rounds: Round[];
+  startAt?: string | null;
+  endAt?: string | null;
 }
 
 interface Round {
@@ -114,7 +116,9 @@ async function getStops(tournament: Tournament): Promise<Stop[]> {
       id: stop.id,
       name: stop.name,
       tournamentId: tournament.id,
-      rounds: [] // Will be loaded separately if needed
+      rounds: [],
+      startAt: stop.startAt ?? null,
+      endAt: stop.endAt ?? null
     }));
   }
   return [];
@@ -144,6 +148,8 @@ async function getStopData(baseUrl: string, stopId: string, stopName: string): P
       id: stopId,
       name: data.stop.name || stopName,
       tournamentId: data.stop.tournamentId || '',
+      startAt: data.stop.startAt || null,
+      endAt: data.stop.endAt || null,
       rounds: data.rounds.map((round: any) => ({
         id: round.roundId,
         name: `Round ${round.idx + 1}`,
@@ -182,7 +188,9 @@ async function getStopData(baseUrl: string, stopId: string, stopName: string): P
       id: stopId,
       name: stopName,
       tournamentId: '',
-      rounds: []
+      rounds: [],
+      startAt: null,
+      endAt: null
     };
   }
 }

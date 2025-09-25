@@ -16,6 +16,8 @@ interface Stop {
   name: string;
   tournamentId: string;
   rounds: Round[];
+  startAt?: string | null;
+  endAt?: string | null;
 }
 
 interface Round {
@@ -77,6 +79,9 @@ interface TournamentClientProps {
 export default function TournamentClient({ tournament, stops, initialStopData }: TournamentClientProps) {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [currentStopData, setCurrentStopData] = useState<Stop | null>(initialStopData);
+  const [stopDataCache, setStopDataCache] = useState<Record<string, Stop>>(
+    () => (initialStopData ? { [initialStopData.id]: initialStopData } : {})
+  );
   const [lineups, setLineups] = useState<Record<string, Record<string, any[]>>>({});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -91,10 +96,15 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
   // Load stop data when selectedStopId changes
   useEffect(() => {
-    if (selectedStopId && selectedStopId !== initialStopData?.id) {
+    if (!selectedStopId) return;
+
+    const cached = stopDataCache[selectedStopId];
+    if (cached) {
+      setCurrentStopData(cached);
+    } else {
       loadStopData(selectedStopId);
     }
-  }, [selectedStopId, initialStopData?.id]);
+  }, [selectedStopId, stopDataCache]);
 
   const loadStopData = async (stopId: string) => {
     try {
@@ -115,6 +125,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
         id: stopId,
         name: data.stop.name || 'Unknown Stop',
         tournamentId: data.stop.tournamentId || '',
+        startAt: data.stop.startAt || null,
+        endAt: data.stop.endAt || null,
         rounds: data.rounds.map((round: any) => ({
           id: round.roundId,
           name: `Round ${round.idx + 1}`,
@@ -149,6 +161,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
       };
       
       setCurrentStopData(stopData);
+      setStopDataCache(prev => ({ ...prev, [stopId]: stopData }));
     } catch (err) {
       console.error('Error loading stop data:', err);
       setError('Failed to load stop schedule.');
@@ -304,15 +317,19 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     return { inProgress, completed };
   };
 
-  const selectedStop = currentStopData || stops.find(stop => stop.id === selectedStopId);
+  const selectedStop = currentStopData || (selectedStopId ? stopDataCache[selectedStopId] : null);
   const { inProgress, completed } = selectedStop ? getGamesByStatus(selectedStop) : { inProgress: [], completed: [] };
 
   // Calculate standings for all teams across all stops
   const calculateStandings = () => {
     const teamPoints: Record<string, { team: any; points: number; wins: number; losses: number }> = {};
     
-    // Initialize all teams with 0 points
-    const allStops = currentStopData ? [currentStopData] : stops;
+    const stopDatas = Object.values(stopDataCache);
+    const allStops = stopDatas.length > 0
+      ? stopDatas
+      : currentStopData
+        ? [currentStopData]
+        : [];
     allStops.forEach(stop => {
       stop.rounds?.forEach(round => {
         round.matches?.forEach(match => {
@@ -391,69 +408,114 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   };
 
   const standings = calculateStandings();
-  const advancedStandings = standings.filter(s => s.team.name.includes('Advanced'));
-  const intermediateStandings = standings.filter(s => s.team.name.includes('Intermediate'));
+
+  const deriveClubKey = (teamName?: string | null) =>
+    (teamName ?? 'Unknown Team')
+      .replace(/\s+(Advanced|Intermediate)$/i, '')
+      .trim()
+      || 'Unknown Team';
+
+  const combinedStandingsRaw = Array.from(
+    standings.reduce((map, standing) => {
+      const teamName = standing.team?.name ?? 'Unknown Team';
+      const clubName = deriveClubKey(teamName);
+      const key = clubName.toLowerCase();
+
+      if (!map.has(key)) {
+        map.set(key, {
+          name: clubName,
+          points: 0,
+          wins: 0,
+          losses: 0,
+        });
+      }
+
+      const entry = map.get(key)!;
+      entry.points += standing.points;
+      entry.wins += standing.wins;
+      entry.losses += standing.losses;
+
+      return map;
+    }, new Map<string, { name: string; points: number; wins: number; losses: number }>()).values()
+  ).sort((a, b) => {
+    if (b.points !== a.points) {
+      return b.points - a.points;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  const advancedStandingsRaw = standings.filter(s => s.team.name.includes('Advanced'));
+  const intermediateStandingsRaw = standings.filter(s => s.team.name.includes('Intermediate'));
+
+  const attachPlaces = <T extends { points: number }>(entries: T[]) => {
+    let previousPoints: number | null = null;
+    let currentPlace = 0;
+
+    return entries.map((entry, index) => {
+      if (previousPoints === null || entry.points !== previousPoints) {
+        currentPlace = index + 1;
+        previousPoints = entry.points;
+      }
+
+      return {
+        ...entry,
+        place: currentPlace,
+      };
+    });
+  };
+
+  const combinedStandings = attachPlaces(combinedStandingsRaw);
+  const advancedStandings = attachPlaces(advancedStandingsRaw);
+  const intermediateStandings = attachPlaces(intermediateStandingsRaw);
+
+  const formatStopDates = (stop: Stop) => {
+    const cached = stopDataCache[stop.id];
+    const startRaw = cached?.startAt ?? stop.startAt ?? null;
+    const endRaw = cached?.endAt ?? stop.endAt ?? null;
+
+    const startAt = startRaw ? new Date(startRaw) : null;
+    const endAt = endRaw ? new Date(endRaw) : null;
+
+    if (!startAt && !endAt) return null;
+
+    const formatDate = (date: Date) =>
+      date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+    if (startAt && endAt && startAt.getTime() !== endAt.getTime()) {
+      return `${formatDate(startAt)} – ${formatDate(endAt)}`;
+    }
+
+    return formatDate(startAt ?? endAt!);
+  };
 
   return (
     <div className="min-h-screen bg-app">
-      <div className="w-full px-4 py-8">
-        {/* Tournament Header */}
-        <div className="card mb-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-primary mb-1">Tournament: {tournament.name}</h1>
-              {tournament.description && (
-                <p className="text-secondary mb-2">{tournament.description}</p>
-              )}
-              <div className="text-sm text-muted">
-                {(() => {
-                  if (!tournament.startDate) return null;
-                  
-                  const startDate = new Date(tournament.startDate);
-                  const endDate = tournament.endDate ? new Date(tournament.endDate) : null;
-                  
-                  const formatDate = (date: Date) => {
-                    return date.toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    });
-                  };
-                  
-                  if (endDate && startDate.getTime() !== endDate.getTime()) {
-                    // Multiple days
-                    const startFormatted = startDate.toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric'
-                    });
-                    const endFormatted = endDate.toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    });
-                    return `${startFormatted} - ${endFormatted}`;
-                  } else {
-                    // Single day
-                    return formatDate(startDate);
-                  }
-                })()}
-              </div>
-            </div>
-            <button
-              onClick={() => window.location.reload()}
-              disabled={refreshing}
-              className="btn btn-primary"
-            >
-              {refreshing ? (
-                <div className="loading-spinner"></div>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              )}
-              <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-            </button>
+      <div className="w-full px-4 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-primary">{tournament.name}</h1>
+            {tournament.description && (
+              <p className="text-secondary mt-1">{tournament.description}</p>
+            )}
           </div>
+          <button
+            onClick={() => window.location.reload()}
+            disabled={refreshing}
+            className="btn btn-primary"
+          >
+            {refreshing ? (
+              <div className="loading-spinner"></div>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
         </div>
 
         {/* Main Content Layout - Stops (2/3) and Standings (1/3) */}
@@ -464,7 +526,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
             <div className="card">
               {/* Stop Tabs */}
               <div className="px-3 py-2 border-b border-subtle">
-                <h2 className="text-lg font-semibold text-primary mb-1">Tournament Stops</h2>
+                <h2 className="text-lg font-semibold text-primary mb-1">Matches & Games</h2>
                 <nav className="flex space-x-4" aria-label="Tabs">
                   {stops.map((stop) => (
                     <button
@@ -477,7 +539,12 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                         selectedStopId === stop.id ? 'active' : ''
                       }`}
                     >
-                      {stop.name}
+                      <div className="flex flex-col items-start">
+                        <span>{stop.name}</span>
+                        {formatStopDates(stop) && (
+                          <span className="text-xs text-muted">{formatStopDates(stop)}</span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </nav>
@@ -662,16 +729,38 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </h2>
               </div>
               <div className="p-4">
+                {/* Combined Standings */}
+                <div className="mb-6">
+                  <h3 className="text-base font-semibold text-primary mb-3">Combined</h3>
+                  {combinedStandings.length > 0 ? (
+                    <div className="bg-surface-2 rounded p-3">
+                      <div className="space-y-1">
+                        {combinedStandings.map((standing) => (
+                          <div key={standing.name} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{standing.name}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-3 text-muted text-sm">No Combined results</div>
+                  )}
+                </div>
+
                 {/* Advanced Bracket Standings */}
                 <div className="mb-6">
                   <h3 className="text-base font-semibold text-primary mb-3">Advanced</h3>
                   {advancedStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
-                        {advancedStandings.map((standing, index) => (
+                        {advancedStandings.map((standing) => (
                           <div key={standing.team.id} className="flex items-center justify-between py-1">
                             <div className="flex items-center">
-                              <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
+                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
                               <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
                             </div>
                             <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
@@ -690,10 +779,10 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                   {intermediateStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
-                        {intermediateStandings.map((standing, index) => (
+                        {intermediateStandings.map((standing) => (
                           <div key={standing.team.id} className="flex items-center justify-between py-1">
                             <div className="flex items-center">
-                              <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
+                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
                               <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
                             </div>
                             <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
