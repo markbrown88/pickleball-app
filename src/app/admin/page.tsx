@@ -1,7 +1,7 @@
 // src/app/admin/page.tsx
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 
@@ -310,10 +310,9 @@ export default function AdminPage() {
     { items: [], total: 0, take: 25, skip: 0, sort: 'lastName:asc' }
   );
   const [playerSort, setPlayerSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'lastName', dir: 'asc' });
-  const [playerEditOpen, setPlayerEditOpen] = useState(false);
   const [playerEditId, setPlayerEditId] = useState<Id | null>(null);
-  const [playerInlineEditId, setPlayerInlineEditId] = useState<Id | null>(null);
   const [playerSlideOutOpen, setPlayerSlideOutOpen] = useState(false);
+  const [playerSearch, setPlayerSearch] = useState('');
   const [playerCountrySel, setPlayerCountrySel] = useState<'Canada' | 'USA' | 'Other'>('Canada');
   const [playerCountryOther, setPlayerCountryOther] = useState('');
   const [playerBirthday, setPlayerBirthday] = useState<string>('');
@@ -321,12 +320,15 @@ export default function AdminPage() {
     firstName: string; lastName: string; gender: 'MALE' | 'FEMALE';
     clubId: Id | '';
     dupr: string;
-    city: string; region: string; country?: string;
+    city: string; region: string; country: string;
     phone: string; email: string;
-  }>({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', phone: '', email: '' });
+  }>({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', country: 'Canada', phone: '', email: '' });
 
   // Players filter: primary club
   const [playersClubFilter, setPlayersClubFilter] = useState<string>(''); // '' = all
+  const playerSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playersRequestRef = useRef(0);
+  const playersListConfigRef = useRef({ take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter });
 
   /* ===== Inline editor state ===== */
   const [editorById, setEditorById] = useState<EditorState>({});
@@ -407,6 +409,8 @@ export default function AdminPage() {
     (async () => {
       try {
         clearMsg();
+        const requestId = playersRequestRef.current + 1;
+        playersRequestRef.current = requestId;
         const [ts, cs, psRaw] = await Promise.all([
           api<TournamentRow[]>('/api/admin/tournaments'),
           api<ClubsResponse>(`/api/admin/clubs?sort=${encodeURIComponent(`${clubSort.col}:${clubSort.dir}`)}`),
@@ -415,7 +419,9 @@ export default function AdminPage() {
         const ps = normalizePlayersResponse(psRaw);
         setTournaments(ts);
         setClubsAll(cs);
-        setPlayersPage({ items: ps.items, total: ps.total, take: 25, skip: 0, sort: `${playerSort.col}:${playerSort.dir}` });
+        if (requestId === playersRequestRef.current) {
+          setPlayersPage({ items: ps.items, total: ps.total, take: 25, skip: 0, sort: `${playerSort.col}:${playerSort.dir}` });
+        }
       } catch (e) { setErr((e as Error).message); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -451,26 +457,86 @@ export default function AdminPage() {
     }
   }, [userProfile?.isAppAdmin]);
 
+  useEffect(() => {
+    playersListConfigRef.current = {
+      take: playersPage.take,
+      sort: `${playerSort.col}:${playerSort.dir}`,
+      clubId: playersClubFilter,
+    };
+  }, [playersPage.take, playerSort.col, playerSort.dir, playersClubFilter]);
+
+  useEffect(() => () => {
+    if (playerSearchDebounceRef.current) {
+      clearTimeout(playerSearchDebounceRef.current);
+      playerSearchDebounceRef.current = null;
+    }
+  }, []);
+
   /* ========== players load/sort/paginate/filter ========== */
-  async function loadPlayersPage(take: number, skip: number, sort: string, clubId: string) {
+  async function loadPlayersPage(take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch) {
+    const requestId = playersRequestRef.current + 1;
+    playersRequestRef.current = requestId;
     try {
-      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}`;
+      const term = searchTerm.trim();
+      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}${term ? `&search=${encodeURIComponent(term)}` : ''}`;
       const respRaw = await api<any>(query);
       const resp = normalizePlayersResponse(respRaw);
-      setPlayersPage({ items: resp.items, total: resp.total, take, skip, sort });
+      if (requestId === playersRequestRef.current) {
+        setPlayersPage({ items: resp.items, total: resp.total, take, skip, sort });
+      }
     } catch (e) {
-      setPlayersPage({ items: [], total: 0, take, skip, sort });
-      setErr((e as Error).message);
+      if (requestId === playersRequestRef.current) {
+        setPlayersPage({ items: [], total: 0, take, skip, sort });
+        setErr((e as Error).message);
+      }
     }
   }
   function clickSortPlayers(col: string) {
     const dir = (playerSort.col === col && playerSort.dir === 'asc') ? 'desc' : 'asc';
     setPlayerSort({ col, dir });
-    loadPlayersPage(playersPage.take, 0, `${col}:${dir}`, playersClubFilter);
+    loadPlayersPage(playersPage.take, 0, `${col}:${dir}`, playersClubFilter, playerSearch);
   }
   function changePlayersClubFilter(clubId: string) {
     setPlayersClubFilter(clubId);
-    loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, clubId);
+    loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, clubId, playerSearch);
+  }
+
+  function handlePlayerSearchInput(value: string) {
+    setPlayerSearch(value);
+    if (playerSearchDebounceRef.current) {
+      clearTimeout(playerSearchDebounceRef.current);
+      playerSearchDebounceRef.current = null;
+    }
+    const term = value.trim();
+    if (!term) {
+      const cfg = playersListConfigRef.current;
+      loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, '');
+      return;
+    }
+    playerSearchDebounceRef.current = setTimeout(() => {
+      const cfg = playersListConfigRef.current;
+      loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, term);
+    }, 300);
+  }
+
+  function submitPlayerSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (playerSearchDebounceRef.current) {
+      clearTimeout(playerSearchDebounceRef.current);
+      playerSearchDebounceRef.current = null;
+    }
+    const cfg = playersListConfigRef.current;
+    loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, playerSearch);
+  }
+
+  function clearPlayerSearch() {
+    setPlayerSearch('');
+    if (playerSearchDebounceRef.current) {
+      clearTimeout(playerSearchDebounceRef.current);
+      playerSearchDebounceRef.current = null;
+    }
+    const cfg = playersListConfigRef.current;
+    loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, '');
   }
 
   /* ========== clubs load/sort ========== */
@@ -618,37 +684,35 @@ export default function AdminPage() {
   }
 
   /* ========== Players add/edit/delete (with Sex column + filter) ========== */
-  function openEditPlayer(p?: Player) {
-    setPlayerEditOpen(true);
-    if (p) {
-      setPlayerEditId(p.id);
-      const ctry = (p.country || 'Canada') as string;
-      const sel = (ctry === 'Canada' || ctry === 'USA') ? (ctry as 'Canada' | 'USA') : 'Other';
-      setPlayerCountrySel(sel);
-      setPlayerCountryOther(sel === 'Other' ? ctry : '');
-      setPlayerBirthday('');
-      setPlayerForm({
-        firstName: (p.firstName || '').trim(),
-        lastName: (p.lastName || '').trim(),
-        gender: p.gender || 'MALE',
-        clubId: (p.clubId as any) || '',
-        dupr: p.dupr != null ? String(p.dupr) : '',
-        city: (p.city || '').trim(),
-        region: (p.region || '').trim(),
-        phone: (p.phone || '').trim(),
-        email: (p.email || '').trim(),
-        country: p.country || 'Canada',
-      });
-    } else {
-      setPlayerEditId(null);
-      setPlayerCountrySel('Canada'); setPlayerCountryOther('');
-      setPlayerBirthday('');
-      setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', phone: '', email: '' });
-    }
+  function openSlideOutPlayer() {
+    setPlayerSlideOutOpen(true);
+    setPlayerEditId(null);
+    setPlayerCountrySel('Canada');
+    setPlayerCountryOther('');
+    setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', phone: '', email: '', country: 'Canada' });
+    setPlayerBirthday('');
   }
 
-  function openInlineEditPlayer(p: Player) {
-    setPlayerInlineEditId(p.id);
+  function openSlideOutEditPlayer(p: Player) {
+    setPlayerSlideOutOpen(true);
+    setPlayerEditId(p.id);
+    const country = (p.country || 'Canada').trim();
+    if (country === 'Canada' || country === 'USA') {
+      setPlayerCountrySel(country as 'Canada' | 'USA');
+      setPlayerCountryOther('');
+    } else {
+      setPlayerCountrySel('Other');
+      setPlayerCountryOther(country);
+    }
+    const birth = [p.birthdayYear, p.birthdayMonth, p.birthdayDay];
+    if (birth.every(v => typeof v === 'number' && v)) {
+      const [y, m, d] = birth as number[];
+      const mm = String(m).padStart(2, '0');
+      const dd = String(d).padStart(2, '0');
+      setPlayerBirthday(`${y}-${mm}-${dd}`);
+    } else {
+      setPlayerBirthday('');
+    }
     setPlayerForm({
       firstName: (p.firstName || '').trim(),
       lastName: (p.lastName || '').trim(),
@@ -659,40 +723,10 @@ export default function AdminPage() {
       region: (p.region || '').trim(),
       phone: (p.phone || '').trim(),
       email: (p.email || '').trim(),
-      country: p.country || 'Canada',
+      country,
     });
   }
 
-  function openSlideOutPlayer() {
-    setPlayerSlideOutOpen(true);
-    setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', phone: '', email: '', country: 'Canada' });
-    setPlayerBirthday('');
-  }
-
-  async function saveInlinePlayer() {
-    try {
-      const payload = {
-        firstName: playerForm.firstName.trim(),
-        lastName: playerForm.lastName.trim(),
-        gender: playerForm.gender,
-        clubId: playerForm.clubId || null,
-        dupr: playerForm.dupr ? parseFloat(playerForm.dupr) : null,
-        city: playerForm.city.trim(),
-        region: playerForm.region.trim(),
-        phone: playerForm.phone.trim(),
-        email: playerForm.email.trim(),
-        birthday: playerBirthday || null,
-      };
-      await api(`/api/admin/players/${playerInlineEditId}`, { 
-        method: 'PUT', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload) 
-      });
-      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter);
-      setPlayerInlineEditId(null);
-      setInfo('Player updated');
-    } catch (e) { setErr((e as Error).message); }
-  }
   async function savePlayer() {
     try {
       clearMsg();
@@ -715,8 +749,7 @@ export default function AdminPage() {
       } else {
         await api('/api/admin/players', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       }
-      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter);
-      setPlayerEditOpen(false);
+      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch);
       setPlayerSlideOutOpen(false);
       setPlayerEditId(null);
       setInfo('Player saved');
@@ -726,7 +759,7 @@ export default function AdminPage() {
     try {
       if (!confirm('Delete this player?')) return;
       await api(`/api/admin/players/${id}`, { method: 'DELETE' });
-      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter);
+      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch);
       setInfo('Player deleted');
     } catch (e) { setErr((e as Error).message); }
   }
@@ -1092,7 +1125,7 @@ export default function AdminPage() {
 
             {/* Players Filters */}
             <div className="card">
-              <div className="flex items-center gap-3">
+              <form className="flex flex-wrap items-center gap-3" onSubmit={submitPlayerSearch}>
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-muted">Primary Club</label>
                   <select
@@ -1108,7 +1141,28 @@ export default function AdminPage() {
                     ))}
                   </select>
                 </div>
-              </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted">Search</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="input"
+                      placeholder="Search name, email, or phone"
+                      value={playerSearch}
+                      onChange={(e) => handlePlayerSearchInput(e.target.value)}
+                    />
+                    {playerSearch && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={clearPlayerSearch}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <button type="submit" className="btn btn-secondary btn-sm">Apply</button>
+              </form>
             </div>
 
             <div className="card">
@@ -1134,27 +1188,7 @@ export default function AdminPage() {
                     {(playersPage.items ?? []).map(p => (
                       <tr key={p.id}>
                         <td className="py-2 pr-4 text-muted">{p.firstName ?? '—'}</td>
-                        <td className="py-2 pr-4">
-                          {playerInlineEditId === p.id ? (
-                            <input 
-                              className="input text-sm" 
-                              value={playerForm.lastName} 
-                              onChange={e => setPlayerForm(f => ({ ...f, lastName: e.target.value }))}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') saveInlinePlayer();
-                                if (e.key === 'Escape') setPlayerInlineEditId(null);
-                              }}
-                              autoFocus
-                            />
-                          ) : (
-                            <button 
-                              className="text-secondary hover:text-secondary-hover hover:underline" 
-                              onClick={() => openInlineEditPlayer(p)}
-                            >
-                              {p.lastName ?? '—'}
-                            </button>
-                          )}
-                        </td>
+                        <td className="py-2 pr-4 text-muted">{p.lastName ?? '—'}</td>
                         <td className="py-2 pr-4 text-muted">{p.gender === 'FEMALE' ? 'F' : 'M'}</td>
                         <td className="py-2 pr-4 text-muted">{p.club?.name ?? '—'}</td>
                         <td className="py-2 pr-4 text-muted tabular">{p.age ?? '—'}</td>
@@ -1164,24 +1198,15 @@ export default function AdminPage() {
                         <td className="py-2 pr-4 text-muted">{p.country ?? '—'}</td>
                         <td className="py-2 pr-4 text-muted">{p.phone ?? '—'}</td>
                         <td className="py-2 pr-2 text-right align-middle">
-                          {playerInlineEditId === p.id ? (
-                            <div className="flex gap-1">
-                              <button 
-                                className="btn btn-sm btn-primary" 
-                                onClick={saveInlinePlayer}
-                                title="Save"
-                              >
-                                ✓
-                              </button>
-                              <button 
-                                className="btn btn-sm btn-ghost" 
-                                onClick={() => setPlayerInlineEditId(null)}
-                                title="Cancel"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              aria-label="Edit player"
+                              onClick={() => openSlideOutEditPlayer(p)}
+                              title="Edit"
+                              className="text-secondary hover:text-secondary-hover p-1"
+                            >
+                              ✎
+                            </button>
                             <button 
                               aria-label="Delete player" 
                               onClick={() => removePlayer(p.id)} 
@@ -1190,7 +1215,7 @@ export default function AdminPage() {
                             >
                               <TrashIcon />
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1203,7 +1228,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-3">
               <button
                 className="btn btn-ghost"
-                onClick={() => loadPlayersPage(playersPage.take, Math.max(0, playersPage.skip - playersPage.take), `${playerSort.col}:${playerSort.dir}`, playersClubFilter)}
+                onClick={() => loadPlayersPage(playersPage.take, Math.max(0, playersPage.skip - playersPage.take), `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch)}
                 disabled={playersPage.skip <= 0}
               >
                 ← Prev
@@ -1213,7 +1238,7 @@ export default function AdminPage() {
               </span>
               <button
                 className="btn btn-ghost"
-                onClick={() => loadPlayersPage(playersPage.take, playersPage.skip + playersPage.take, `${playerSort.col}:${playerSort.dir}`, playersClubFilter)}
+                onClick={() => loadPlayersPage(playersPage.take, playersPage.skip + playersPage.take, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch)}
                 disabled={playersPage.skip + playersPage.take >= playersPage.total}
               >
                 Next →
@@ -1229,7 +1254,7 @@ export default function AdminPage() {
               ></div>
               <div className="absolute right-0 top-1/2 transform -translate-y-1/2 h-3/4 w-2/3 max-w-4xl bg-surface-1 border-l border-subtle shadow-xl transition-transform duration-300 ease-out">
                 <div className="flex items-center justify-between p-4 border-b border-subtle">
-                  <h3 className="text-lg font-semibold text-primary">Add Player</h3>
+                  <h3 className="text-lg font-semibold text-primary">{playerEditId ? 'Edit Player' : 'Add Player'}</h3>
                   <button 
                     className="btn btn-ghost btn-sm" 
                     onClick={() => setPlayerSlideOutOpen(false)}

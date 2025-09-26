@@ -2,6 +2,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
+const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+function validEmail(input?: string | null): boolean {
+  if (!input) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
+}
+
+function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
+  if (!input) return { ok: true, formatted: undefined };
+  const digits = String(input).replace(/\D/g, '');
+  let n = digits;
+  if (n.length === 11 && n.startsWith('1')) n = n.slice(1);
+  if (n.length !== 10) return { ok: false, error: 'Phone must have 10 digits (US/CA)' };
+  return { ok: true, formatted: `(${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}` };
+}
+
+function parseBirthdayStr(s?: string | null): { y: number | null; m: number | null; d: number | null } {
+  if (!s) return { y: null, m: null, d: null };
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!match) return { y: null, m: null, d: null };
+  const y = Number(match[1]);
+  const mo = Number(match[2]);
+  const da = Number(match[3]);
+  if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || da < 1 || da > 31) return { y: null, m: null, d: null };
+  return { y, m: mo, d: da };
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -155,31 +182,101 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { playerId, isAppAdmin } = body;
 
-    if (!playerId || typeof isAppAdmin !== 'boolean') {
-      return NextResponse.json({ error: 'playerId and isAppAdmin required' }, { status: 400 });
+    // Toggle App Admin role when playerId/isAppAdmin payload is provided
+    if (body && typeof body.playerId === 'string' && typeof body.isAppAdmin === 'boolean') {
+      const updatedPlayer = await prisma.player.update({
+        where: { id: body.playerId },
+        data: { isAppAdmin: body.isAppAdmin },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          isAppAdmin: true
+        }
+      });
+      return NextResponse.json(updatedPlayer);
     }
 
-    // Update the player's App Admin status
-    const updatedPlayer = await prisma.player.update({
-      where: { id: playerId },
-      data: { isAppAdmin },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        isAppAdmin: true
-      }
-    });
+    // Otherwise, treat as create-player payload
+    const firstName = squeeze(String(body?.firstName ?? ''));
+    const lastName = squeeze(String(body?.lastName ?? ''));
+    const gender = body?.gender === 'FEMALE' ? 'FEMALE' : body?.gender === 'MALE' ? 'MALE' : null;
+    const clubId = typeof body?.clubId === 'string' ? body.clubId.trim() : '';
 
-    return NextResponse.json(updatedPlayer);
+    if (!firstName || !lastName || !gender || !clubId) {
+      return NextResponse.json(
+        { error: 'firstName, lastName, gender, and clubId are required' },
+        { status: 400 }
+      );
+    }
+
+    const email: string | null = body?.email ? squeeze(String(body.email)) : null;
+    if (!validEmail(email)) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
+    const phoneRaw: string | null = body?.phone ? String(body.phone).trim() : null;
+    const phoneCheck = normalizePhone(phoneRaw);
+    if (!phoneCheck.ok) {
+      return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
+    }
+
+    const { y, m, d } = parseBirthdayStr(body?.birthday);
+
+    const dupr = typeof body?.dupr === 'number' && Number.isFinite(body.dupr)
+      ? body.dupr
+      : body?.dupr
+        ? Number(body.dupr)
+        : null;
+
+    const club = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
+    if (!club) {
+      return NextResponse.json({ error: 'club not found' }, { status: 404 });
+    }
+
+    try {
+      const created = await prisma.player.create({
+        data: {
+          firstName,
+          lastName,
+          name: squeeze(`${firstName} ${lastName}`),
+          gender,
+          clubId,
+          email,
+          phone: phoneCheck.formatted ?? null,
+          city: body?.city ? squeeze(String(body.city)) : null,
+          region: body?.region ? squeeze(String(body.region)) : null,
+          country: body?.country ? squeeze(String(body.country)) : 'Canada',
+          dupr: dupr && Number.isFinite(dupr) ? Number(dupr) : null,
+          birthdayYear: y,
+          birthdayMonth: m,
+          birthdayDay: d,
+        },
+        include: { club: true }
+      });
+
+      const age = y && m && d ? (() => {
+        const today = new Date();
+        let age = today.getFullYear() - y;
+        const mm = m - 1;
+        if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < d)) age -= 1;
+        return age;
+      })() : null;
+
+      return NextResponse.json({ ...created, age }, { status: 201 });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        return NextResponse.json({ error: 'A player with that email already exists' }, { status: 409 });
+      }
+      throw error;
+    }
 
   } catch (error) {
-    console.error('Error updating player admin status:', error);
+    console.error('Error saving player:', error);
     return NextResponse.json(
-      { error: 'Failed to update player admin status' },
+      { error: 'Failed to save player' },
       { status: 500 }
     );
   }

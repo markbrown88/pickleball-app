@@ -3673,7 +3673,7 @@ function EventManagerTab({
                               )}
 
                               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                                {(() => {
+                            {(() => {
                                   const hasAnyGameStarted =
                                     games[match.id]?.some(
                                       (game) =>
@@ -3688,16 +3688,7 @@ function EventManagerTab({
                                     return null;
                                   }
 
-                                  return (
-                                    <button
-                                      className="btn btn-xs btn-outline"
-                                      onClick={() => {
-                                        setEditingMatch(editingMatch === match.id ? null : match.id);
-                                      }}
-                                    >
-                                      {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
-                                    </button>
-                                  );
+                                  return null;
                                 })()}
                               </div>
                             </div>
@@ -4887,7 +4878,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">1:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamALineup[0]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4910,7 +4901,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">2:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamALineup[1]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4933,7 +4924,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">3:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamALineup[2]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4956,7 +4947,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">4:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamALineup[3]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4985,7 +4976,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">1:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamBLineup[0]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -5008,7 +4999,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">2:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamBLineup[1]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -5031,7 +5022,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">3:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamBLineup[2]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -5054,7 +5045,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">4:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded"
+                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
                 value={teamBLineup[3]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
