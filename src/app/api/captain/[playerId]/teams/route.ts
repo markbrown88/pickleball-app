@@ -3,6 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import type { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 type Id = string;
@@ -26,6 +27,118 @@ function toPlayerLite(p: any) {
     gender: p.gender,
     dupr: p.dupr ?? null,
     age: p.age ?? null,
+  };
+}
+
+type StopStatus = 'pending' | 'in_progress' | 'completed';
+
+function computeStopStatus(stop: any): {
+  status: StopStatus;
+  gamesTotal: number;
+  gamesStarted: number;
+  gamesCompleted: number;
+} {
+  const rounds = Array.isArray(stop?.rounds) ? stop.rounds : [];
+  let totalGames = 0;
+  let startedGames = 0;
+  let completedGames = 0;
+  let totalMatches = 0;
+  let startedMatches = 0;
+  let completedMatches = 0;
+
+  for (const round of rounds) {
+    const matches = Array.isArray(round?.matches) ? round.matches : [];
+    totalMatches += matches.length;
+    for (const match of matches) {
+      const matchGames = Array.isArray(match?.games) ? match.games : [];
+      const matchGameTotal = matchGames.length;
+      let matchGameCompleted = 0;
+      let matchGameStarted = 0;
+      const matchStartedExplicit = Boolean(
+        match?.startedAt ||
+        match?.startTime ||
+        match?.lineupConfirmed ||
+        match?.winnerId ||
+        match?.winningTeamId ||
+        match?.isComplete ||
+        match?.completedAt ||
+        match?.endedAt
+      );
+
+      for (const game of matchGames) {
+        totalGames += 1;
+        const started = Boolean(
+          game?.startedAt ||
+          game?.endedAt ||
+          game?.isComplete ||
+          game?.teamAScore != null ||
+          game?.teamBScore != null
+        );
+        if (started) {
+          startedGames += 1;
+          matchGameStarted += 1;
+        }
+        const completed = Boolean(
+          game?.isComplete ||
+          game?.endedAt ||
+          (game?.teamAScore != null && game?.teamBScore != null)
+        );
+        if (completed) {
+          completedGames += 1;
+          matchGameCompleted += 1;
+        }
+      }
+
+      if (matchGameTotal === 0) {
+        if (matchStartedExplicit) startedMatches += 1;
+        if (match?.isComplete || match?.winnerId || match?.winningTeamId || match?.completedAt || match?.endedAt) {
+          completedMatches += 1;
+        }
+      } else {
+        if (matchGameCompleted === matchGameTotal) {
+          completedMatches += 1;
+        } else if (matchGameStarted > 0 || matchStartedExplicit) {
+          startedMatches += 1;
+        }
+      }
+    }
+  }
+
+  if (totalGames === 0) {
+    if (totalMatches > 0) {
+      if (completedMatches === totalMatches) {
+        return { status: 'completed', gamesTotal: totalGames, gamesStarted: startedGames, gamesCompleted: completedGames };
+      }
+      if (startedMatches > 0) {
+        return { status: 'in_progress', gamesTotal: totalGames, gamesStarted: startedGames, gamesCompleted: completedGames };
+      }
+    }
+    return { status: 'pending', gamesTotal: totalGames, gamesStarted: startedGames, gamesCompleted: completedGames };
+  }
+
+  if (completedGames === totalGames) {
+    return {
+      status: 'completed',
+      gamesTotal: totalGames,
+      gamesStarted: startedGames,
+      gamesCompleted: completedGames,
+    };
+  }
+
+  if (startedGames > 0 || startedMatches > 0) {
+    return {
+      status: 'in_progress',
+      gamesTotal: totalGames,
+      gamesStarted: startedGames,
+      gamesCompleted: completedGames,
+    };
+  }
+
+  return {
+    status: 'pending',
+    gamesTotal: totalGames,
+    gamesStarted: startedGames,
+    gamesCompleted: completedGames,
   };
 }
 
@@ -190,7 +303,29 @@ async function ensureTeamsForClubAcrossBrackets(
           id: true,
           name: true,
           maxTeamSize: true,
-          stops: { include: { club: true } },
+          stops: {
+            include: {
+              club: true,
+              rounds: {
+                include: {
+                  matches: {
+                    include: {
+                      games: {
+                        select: {
+                          id: true,
+                          startedAt: true,
+                          endedAt: true,
+                          isComplete: true,
+                          teamAScore: true,
+                          teamBScore: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       playerLinks: { include: { player: true } },
@@ -307,6 +442,7 @@ export async function GET(
         .map((s: any) => {
           const key = `${t.id}:${s.id}`;
           const stopRoster = (stopRosterMap.get(key) ?? []).map(toPlayerLite);
+          const statusInfo = computeStopStatus(s);
           return {
             stopId: s.id as Id,
             stopName: (s.name as string) ?? tournament.name,
@@ -316,6 +452,10 @@ export async function GET(
             tournamentId: tournament.id as Id,
             tournamentName: tournament.name as string,
             stopRoster,
+            status: statusInfo.status,
+            gamesTotal: statusInfo.gamesTotal,
+            gamesStarted: statusInfo.gamesStarted,
+            gamesCompleted: statusInfo.gamesCompleted,
           };
         });
 

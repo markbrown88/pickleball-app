@@ -117,44 +117,6 @@ function between(a?: string|null, b?: string|null) {
   if (!a && !b) return '—'; if (a && b) return `${fmtDate(a)} – ${fmtDate(b)}`; return fmtDate(a || b);
 }
 
-function formatStopDateRange(startAt?: string | null, endAt?: string | null) {
-  const parse = (value?: string | null) => {
-    if (!value) return null;
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
-  };
-
-  const start = parse(startAt);
-  const end = parse(endAt);
-
-  if (!start && !end) return '—';
-
-  const formatMonthDay = (date: Date) =>
-    date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const formatFull = (date: Date) =>
-    date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-  if (start && end) {
-    const sameYear = start.getFullYear() === end.getFullYear();
-    const sameMonth = sameYear && start.getMonth() === end.getMonth();
-    const sameDay = sameMonth && start.getDate() === end.getDate();
-
-    if (sameDay) {
-      return formatFull(start);
-    }
-
-    if (sameMonth) {
-      const month = start.toLocaleDateString('en-US', { month: 'short' });
-      return `${month} ${start.getDate()}-${end.getDate()}, ${start.getFullYear()}`;
-    }
-
-    return `${formatFull(start)} – ${formatFull(end)}`;
-  }
-
-  const single = start || end;
-  return single ? formatFull(single) : '—';
-}
-
 type Club = {
   id: Id; name: string;
   address?: string|null; city?: string|null; region?: string|null; country?: string|null; phone?: string|null;
@@ -234,8 +196,6 @@ type Overview = {
   captainTeams?: TeamItem[];
   eventManagerTournaments?: EventManagerTournament[];
 };
-
-type MatchStatus = 'not_started' | 'in_progress' | 'completed';
 
 // Tournament Tab Component - Combined My Tournaments and Available Tournaments
 function TournamentTab({
@@ -1138,8 +1098,8 @@ export default function MePage() {
   const [teamRosters, setTeamRosters] = useState<Record<string, PlayerLite[]>>({});
   
   // Games and match status state
-  const [matchStatuses, setMatchStatuses] = useState<Record<string, MatchStatus>>({});
-  const [gameStatuses, setGameStatuses] = useState<Record<string, MatchStatus>>({});
+  const [matchStatuses, setMatchStatuses] = useState<Record<string, 'not_started' | 'in_progress' | 'completed'>>({});
+  const [gameStatuses, setGameStatuses] = useState<Record<string, 'not_started' | 'in_progress' | 'completed'>>({});
   const [games, setGames] = useState<Record<string, any[]>>({});
   const [courtNumbers, setCourtNumbers] = useState<Record<string, string>>({});
   const [creatingTiebreakers, setCreatingTiebreakers] = useState<Set<string>>(new Set());
@@ -2607,7 +2567,7 @@ function CaptainRosterEditor({
                 <div className="flex items-center justify-between">
                   <div className="font-medium">
                     {s.stopName}
-                    <span className="text-muted"> • {s.locationName ?? '—'} • {formatStopDateRange(s.startAt, s.endAt)}</span>
+                    <span className="text-muted"> • {s.locationName ?? '—'} • {between(s.startAt, s.endAt)}</span>
                   </div>
 
                   {prev && (
@@ -3080,44 +3040,8 @@ function EventManagerTab({
   const [expandedStops, setExpandedStops] = useState<Set<string>>(new Set());
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
-  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [scheduleData, setScheduleData] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    if (!selectedStopId) {
-      if (selectedRoundId !== null) {
-        setSelectedRoundId(null);
-      }
-      setExpandedRounds(() => new Set());
-      return;
-    }
-
-    const rounds = scheduleData[selectedStopId];
-    if (!rounds || rounds.length === 0) {
-      if (selectedRoundId !== null) {
-        setSelectedRoundId(null);
-      }
-      setExpandedRounds(() => new Set());
-      return;
-    }
-
-    const currentRoundStillExists = selectedRoundId && rounds.some(round => round.id === selectedRoundId);
-    if (!currentRoundStillExists) {
-      const nextRoundId = rounds[0]?.id ?? null;
-      if (nextRoundId) {
-        setSelectedRoundId(nextRoundId);
-        setExpandedRounds(() => new Set([nextRoundId]));
-      }
-    } else {
-      setExpandedRounds(prev => {
-        if (selectedRoundId && prev.has(selectedRoundId) && prev.size === 1) {
-          return prev;
-        }
-        return selectedRoundId ? new Set([selectedRoundId]) : new Set();
-      });
-    }
-  }, [selectedStopId, scheduleData, selectedRoundId]);
 
   /* ----- Inline Round Editor state ----- */
   const [editingRounds, setEditingRounds] = useState<Set<string>>(new Set());
@@ -3173,8 +3097,17 @@ function EventManagerTab({
   };
 
   const toggleRound = (roundId: string) => {
-    setSelectedRoundId(roundId);
-    setExpandedRounds(() => new Set([roundId]));
+    setExpandedRounds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(roundId)) {
+        newSet.delete(roundId);
+      } else {
+        // Close all other rounds first (only one open at a time)
+        newSet.clear();
+        newSet.add(roundId);
+      }
+      return newSet;
+    });
   };
 
   // Convert tournament type enum to display name
@@ -3190,86 +3123,6 @@ function EventManagerTab({
     return typeMap[type] || type;
   };
 
-  const normalizeStatus = (value: any): MatchStatus | null => {
-    if (!value) return null;
-    const str = String(value).toLowerCase();
-    if (str.includes('complete')) return 'completed';
-    if (str.includes('progress') || str.includes('live')) return 'in_progress';
-    if (str.includes('start')) return 'not_started';
-    if (str === 'finished' || str === 'done') return 'completed';
-    return null;
-  };
-
-  const deriveGameStatus = (game: any): MatchStatus => {
-    const direct = normalizeStatus(game?.status || game?.state);
-    if (direct) return direct;
-
-    if (game?.isComplete || game?.completedAt || game?.endedAt) {
-      return 'completed';
-    }
-    if (game?.startedAt) {
-      return 'in_progress';
-    }
-    const hasScore = (val: any) => typeof val === 'number' && !Number.isNaN(val);
-    if (hasScore(game?.teamAScore) || hasScore(game?.teamBScore)) {
-      return game?.isComplete ? 'completed' : 'in_progress';
-    }
-    return 'not_started';
-  };
-
-  const deriveMatchStatus = (match: any, gameStatusMap: Record<string, MatchStatus>): MatchStatus => {
-    const direct = normalizeStatus(match?.status || match?.state);
-    if (direct) return direct;
-
-    if (match?.completedAt || match?.endedAt || match?.isComplete === true) {
-      return 'completed';
-    }
-
-    const gamesList = Array.isArray(match?.games) ? match.games : [];
-    let anyInProgress = false;
-    let teamAWins = 0;
-    let teamBWins = 0;
-
-    gamesList.forEach((game: any) => {
-      if (!game?.id) return;
-      const status = gameStatusMap[game.id] ?? deriveGameStatus(game);
-      if (status === 'in_progress') {
-        anyInProgress = true;
-      }
-      if (status === 'completed') {
-        const a = typeof game?.teamAScore === 'number' ? game.teamAScore : null;
-        const b = typeof game?.teamBScore === 'number' ? game.teamBScore : null;
-        if (a != null && b != null) {
-          if (a > b) teamAWins += 1;
-          else if (b > a) teamBWins += 1;
-        }
-      }
-    });
-
-    if (teamAWins >= 3 || teamBWins >= 3 || match?.winnerId || match?.winningTeamId) {
-      return 'completed';
-    }
-    if (anyInProgress) {
-      return 'in_progress';
-    }
-    if (gamesList.some((game: any) => {
-      if (!game) return false;
-      const status = gameStatusMap[game.id];
-      if (status === 'in_progress' || status === 'completed') return true;
-      if (game?.startedAt || game?.teamAScore != null || game?.teamBScore != null) return true;
-      return false;
-    })) {
-      return 'in_progress';
-    }
-    return 'not_started';
-  };
-
-  const mergeMatchStatus = (derived: MatchStatus, cached?: MatchStatus | null): MatchStatus => {
-    if (cached === 'completed' || derived === 'completed') return 'completed';
-    if (cached === 'in_progress' || derived === 'in_progress') return 'in_progress';
-    return 'not_started';
-  };
-
   const loadSchedule = async (stopId: string, force = false) => {
     if (scheduleData[stopId] && !force) return; // Already loaded
     
@@ -3279,34 +3132,6 @@ function EventManagerTab({
       if (!response.ok) throw new Error('Failed to load schedule');
       const data = await response.json();
       setScheduleData(prev => ({ ...prev, [stopId]: data || [] }));
-
-      const nextGameStatuses: Record<string, MatchStatus> = {};
-      const nextMatchStatuses: Record<string, MatchStatus> = {};
-
-      (data || []).forEach((round: any) => {
-        (round?.matches || []).forEach((match: any) => {
-          (match?.games || []).forEach((game: any) => {
-            if (!game?.id) return;
-            nextGameStatuses[game.id] = deriveGameStatus(game);
-          });
-        });
-      });
-
-      (data || []).forEach((round: any) => {
-        (round?.matches || []).forEach((match: any) => {
-          if (!match?.id) return;
-          const derivedStatus = deriveMatchStatus(match, nextGameStatuses);
-          const cachedStatus = matchStatuses[match.id];
-          nextMatchStatuses[match.id] = mergeMatchStatus(derivedStatus, cachedStatus);
-        });
-      });
-
-      if (Object.keys(nextGameStatuses).length > 0) {
-        setGameStatuses(prev => ({ ...prev, ...nextGameStatuses }));
-      }
-      if (Object.keys(nextMatchStatuses).length > 0) {
-        setMatchStatuses(prev => ({ ...prev, ...nextMatchStatuses }));
-      }
       
       // Load lineups for all matches in this stop
       await loadLineupsForStop(stopId);
@@ -3465,480 +3290,6 @@ function EventManagerTab({
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString();
-  };
-
-  const getStopStats = (stop: EventManagerTournament['stops'][number]) => {
-    const schedule = scheduleData[stop.stopId];
-
-    if (schedule && schedule.length > 0) {
-      const rounds = schedule.length;
-      const matches = schedule.reduce((acc: number, round: any) => acc + (round.matches?.length || 0), 0);
-      const gamesCount = schedule.reduce((acc: number, round: any) => {
-        return (
-          acc +
-          (round.matches?.reduce((matchAcc: number, match: any) => {
-            const matchGames = games[match.id] ?? match.games ?? [];
-            return matchAcc + (Array.isArray(matchGames) ? matchGames.length : 0);
-          }, 0) || 0)
-        );
-      }, 0);
-
-      return { rounds, matches, games: gamesCount };
-    }
-
-    const rounds = stop.rounds.length;
-    const matches = stop.rounds.reduce((acc, round) => acc + (round.matchCount || 0), 0);
-    const gamesCount = stop.rounds.reduce((acc, round) => acc + (round.gameCount || 0), 0);
-
-    return { rounds, matches, games: gamesCount };
-  };
-
-  const activeTournament = selectedStopId
-    ? tournaments.find(tournament => tournament.stops.some(stop => stop.stopId === selectedStopId))
-    : null;
-  const activeStop = activeTournament?.stops.find(stop => stop.stopId === selectedStopId) ?? null;
-  const activeSchedule = activeStop ? scheduleData[activeStop.stopId] ?? [] : [];
-  const stopHasAnyGameStarted = activeSchedule.some((round: any) => hasAnyMatchStarted(round));
-  const isScheduleLoading = activeStop ? !!loading[activeStop.stopId] : false;
-
-  const renderRoundCard = (round: any, roundIdx: number, schedule: any[]) => {
-    const previousRoundAvailable = roundIdx > 0 && !!schedule[roundIdx - 1];
-    const isEditing = editingRounds.has(round.id);
-    const matches = getMatchesForRound(round, isEditing);
-
-    const matchStatusesInRound = matches.map((match: any) => {
-      const derivedStatus = deriveMatchStatus(match, gameStatuses);
-      const cachedStatus = matchStatuses[match.id];
-      return {
-        match,
-        status: mergeMatchStatus(derivedStatus, cachedStatus),
-      };
-    });
-
-    const roundHasCompletedAllMatches = matches.length > 0 && matchStatusesInRound.every(({ status }) => status === 'completed');
-    const roundHasStarted = matchStatusesInRound.some(({ status }) => status === 'in_progress' || status === 'completed');
-
-    const roundStatusLabel = roundHasCompletedAllMatches ? 'Completed' : roundHasStarted ? 'In Progress' : 'Pending';
-
-    // Force re-render when updateKey changes
-    const _ = updateKey;
-
-    return (
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
-          <span>Status: {roundStatusLabel}</span>
-          <div className="flex flex-wrap items-center gap-2">
-            {previousRoundAvailable && !roundHasStarted && (
-              <button
-                className="px-3 py-1 font-medium text-secondary underline-offset-2 hover:underline"
-                onClick={() => {
-                  if (!activeStop) return;
-                  copyLineupsFromPreviousRound(activeStop.stopId, roundIdx);
-                }}
-              >
-                Copy Previous Lineups
-              </button>
-            )}
-            {isEditing ? (
-              <button
-                className="btn btn-secondary btn-xs"
-                onClick={() => {
-                  saveRoundMatchups(round.id);
-                }}
-              >
-                Confirm Matchups
-              </button>
-            ) : !roundHasStarted ? (
-              <button
-                className="btn btn-outline btn-xs"
-                onClick={() => {
-                  toggleRoundEdit(round.id);
-                }}
-              >
-                Edit Matchups
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {isEditing && (
-          <div className="mt-4 rounded-lg border border-info bg-info/10 px-3 py-2 text-xs text-info">
-            <strong className="font-semibold">Drag to reorder.</strong> Move teams within the same bracket to adjust matchups.
-          </div>
-        )}
-
-        <div className="mt-0 space-y-5">
-          {(() => {
-            const matchesByBracket: Record<string, any[]> = {};
-
-            matches.forEach((match: any, matchIdx: number) => {
-              const bracketName = match.bracketName || 'Unknown Bracket';
-
-              if (!matchesByBracket[bracketName]) {
-                matchesByBracket[bracketName] = [];
-              }
-
-              matchesByBracket[bracketName].push({ ...match, originalIndex: matchIdx });
-            });
-
-            // Ensure each bracket has unique local indices
-            Object.keys(matchesByBracket).forEach((bracketName) => {
-              matchesByBracket[bracketName].forEach((match: any, localIdx: number) => {
-                match.localIndex = localIdx;
-              });
-            });
-
-            return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
-              <div key={`${round.id}-${bracketName}`} className="space-y-3">
-                <h6 className="text-sm font-semibold text-muted uppercase tracking-wide">
-                  {bracketName}
-                </h6>
-
-                {isEditing ? (
-                  <DndContext
-                    collisionDetection={closestCenter}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={bracketMatches
-                        .map((match: any) => [
-                          `${round.id}-${bracketName}-${match.localIndex}-A`,
-                          `${round.id}-${bracketName}-${match.localIndex}-B`,
-                        ])
-                        .flat()}
-                      strategy={noReorderStrategy}
-                    >
-                      <div className="space-y-3">
-                        {bracketMatches.map((match: any) => {
-                          const localIndex = match.localIndex;
-
-                          return (
-                            <div
-                              key={`${match.id}-${localIndex}`}
-                              className="rounded-lg border border-dashed border-subtle bg-surface-2 p-3 shadow-sm"
-                            >
-                              <div className="mb-3 flex items-center justify-between text-xs text-muted">
-                                <span>Match {match.originalIndex + 1}</span>
-                                {match.isBye && (
-                                  <span className="rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
-                                    Bye
-                                  </span>
-                                )}
-                              </div>
-
-                              {!match.isBye ? (
-                                <div className="grid gap-3 md:grid-cols-2">
-                                  <DraggableTeam
-                                    team={match.teamA}
-                                    teamPosition="A"
-                                    roundId={round.id}
-                                    matchIndex={localIndex}
-                                    bracketName={bracketName}
-                                    isDragging={
-                                      activeId === `${round.id}-${bracketName}-${localIndex}-A` ||
-                                      (dragPreview && (
-                                        dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||
-                                        dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`
-                                      )) ||
-                                      false
-                                    }
-                                    dragPreview={dragPreview}
-                                  />
-
-                                  <DraggableTeam
-                                    team={match.teamB}
-                                    teamPosition="B"
-                                    roundId={round.id}
-                                    matchIndex={localIndex}
-                                    bracketName={bracketName}
-                                    isDragging={
-                                      activeId === `${round.id}-${bracketName}-${localIndex}-B` ||
-                                      (dragPreview && (
-                                        dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-B` ||
-                                        dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-B`
-                                      )) ||
-                                      false
-                                    }
-                                    dragPreview={dragPreview}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3 text-sm">
-                                  <span className="font-medium">
-                                    {match.teamA?.name || 'TBD'} vs {match.teamB?.name || 'TBD'}
-                                  </span>
-                                </div>
-                              )}
-
-                              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                            {(() => {
-                                  const hasAnyGameStarted =
-                                    games[match.id]?.some(
-                                      (game) =>
-                                        gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed',
-                                    ) || false;
-
-                                  if (
-                                    hasAnyGameStarted ||
-                                    matchStatuses[match.id] === 'in_progress' ||
-                                    matchStatuses[match.id] === 'completed'
-                                  ) {
-                                    return null;
-                                  }
-
-                                  return null;
-                                })()}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                ) : (
-                  <div className="space-y-4">
-                    {bracketMatches.map((match: any) => {
-                      const matchId = match.id;
-                      const matchGames = games[matchId] ?? match.games ?? [];
-                      const derivedStatus = deriveMatchStatus(match, gameStatuses);
-                      const matchStatus = mergeMatchStatus(derivedStatus, matchStatuses[matchId]);
-                      const canEditLineups = matchStatus !== 'completed';
-                      const teamALineup = lineups[matchId]?.[match.teamA?.id || 'teamA'] || [];
-                      const teamBLineup = lineups[matchId]?.[match.teamB?.id || 'teamB'] || [];
-                      const hasAnyGameStarted = matchGames.some(
-                        (game: any) =>
-                          gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed',
-                      );
-
-                      return (
-                        <div key={matchId} className="rounded-xl border border-subtle bg-surface-2 p-4 shadow-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-primary">
-                              {match.teamA?.name || 'Team A'} vs {match.teamB?.name || 'Team B'}
-                              {(() => {
-                                const bracketLabel = match.bracketName || match.teamA?.bracketName || match.teamB?.bracketName;
-                                return bracketLabel ? ` - ${bracketLabel}` : '';
-                              })()}
-                            </p>
-                          </div>
-
-                          <div className="mt-3 space-y-3">
-                            {editingMatch === matchId ? (
-                              <div className="rounded-lg border border-subtle bg-surface-1 p-4">
-                                <InlineLineupEditor
-                                  matchId={matchId}
-                                  stopId={activeStop?.stopId || ''}
-                                  teamA={match.teamA}
-                                  teamB={match.teamB}
-                                  lineups={{
-                                    teamA: teamALineup,
-                                    teamB: teamBLineup,
-                                  }}
-                                  onClose={() => setEditingMatch(null)}
-                                  onLineupChange={(teamId, lineup) => {
-                                    setLineups((prev) => ({
-                                      ...prev,
-                                      [matchId]: {
-                                        ...(prev[matchId] || {}),
-                                        [teamId]: lineup,
-                                      },
-                                    }));
-                                  }}
-                                  fetchTeamRoster={fetchTeamRoster}
-                                  teamRosters={teamRosters}
-                                  matchStatuses={matchStatuses}
-                                  gameStatuses={gameStatuses}
-                                  games={games}
-                                  setGameStatuses={setGameStatuses}
-                                  setGames={setGames}
-                                  setCourtNumbers={setCourtNumbers}
-                                  courtNumbers={courtNumbers}
-                                  onSave={async (lineupPayload) => {
-                                    if (!activeStop) return;
-                                    try {
-                                      if (
-                                        lineupPayload.teamA.length !== 4 ||
-                                        lineupPayload.teamB.length !== 4
-                                      ) {
-                                        throw new Error(
-                                          `Invalid lineup: Team A has ${lineupPayload.teamA.length} players, Team B has ${lineupPayload.teamB.length} players. Need exactly 4 each.`,
-                                        );
-                                      }
-
-                                      const response = await fetch(`/api/admin/stops/${activeStop.stopId}/lineups`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          lineups: {
-                                            [matchId]: {
-                                              [match.teamA?.id || 'teamA']: lineupPayload.teamA,
-                                              [match.teamB?.id || 'teamB']: lineupPayload.teamB,
-                                            },
-                                          },
-                                        }),
-                                      });
-
-                                      if (!response.ok) {
-                                        const errorText = await response.text();
-                                        throw new Error(`Save failed: ${response.status} ${errorText}`);
-                                      }
-
-                                      setLineups((prev) => ({
-                                        ...prev,
-                                        [matchId]: {
-                                          [match.teamA?.id || 'teamA']: lineupPayload.teamA,
-                                          [match.teamB?.id || 'teamB']: lineupPayload.teamB,
-                                        },
-                                      }));
-
-                                      await loadGamesForMatch(matchId, true);
-
-                                      setEditingMatch(null);
-                                      onInfo('Lineups saved successfully!');
-                                    } catch (error) {
-                                      console.error('Error saving lineups:', error);
-                                      onError(
-                                        `Failed to save lineups: ${
-                                          error instanceof Error ? error.message : 'Unknown error'
-                                        }`,
-                                      );
-                                    }
-                                  }}
-                                  onCancel={() => setEditingMatch(null)}
-                                />
-                              </div>
-                            ) : (
-                              !hasAnyGameStarted && (
-                                <div className="flex flex-col gap-3 text-sm">
-                                  <div className="rounded-lg border border-subtle bg-surface-1 p-3">
-                                    <div className="mb-1 font-medium text-primary">
-                                      {match.teamA?.name || 'Team A'}
-                                    </div>
-                                    <div className="space-y-1 text-xs text-muted">
-                                      {teamALineup.length > 0 ? (
-                                        teamALineup.map((player, idx) => (
-                                          <div key={player.id}>
-                                            {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <div>No lineup set</div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="rounded-lg border border-subtle bg-surface-1 p-3">
-                                    <div className="mb-1 font-medium text-primary">
-                                      {match.teamB?.name || 'Team B'}
-                                    </div>
-                                    <div className="space-y-1 text-xs text-muted">
-                                      {teamBLineup.length > 0 ? (
-                                        teamBLineup.map((player, idx) => (
-                                          <div key={player.id}>
-                                            {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <div>No lineup set</div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {canEditLineups && (
-                                    <div>
-                                      <button
-                                        className="btn btn-xs btn-primary"
-                                        onClick={() => setEditingMatch(matchId)}
-                                      >
-                                        Edit Lineups
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            )}
-
-                            {/* Games Display - only show when both teams have confirmed lineups */}
-                            {lineups[match.id] &&
-                              lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 &&
-                              lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
-                                <div className="space-y-4">
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    {games[match.id]
-                                      ?.filter((game) => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES')
-                                      .map((game) => (
-                                        <GameScoreBox
-                                          key={game.id}
-                                          game={game}
-                                          match={match}
-                                          gameStatuses={gameStatuses}
-                                          lineups={lineups}
-                                          startGame={startGame}
-                                          endGame={endGame}
-                                          updateGameScore={updateGameScore}
-                                          updateGameCourtNumber={updateGameCourtNumber}
-                                        />
-                                      ))}
-                                  </div>
-
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    {games[match.id]
-                                      ?.filter((game) => game.slot === 'MIXED_1' || game.slot === 'MIXED_2')
-                                      .map((game) => (
-                                        <GameScoreBox
-                                          key={game.id}
-                                          game={game}
-                                          match={match}
-                                          gameStatuses={gameStatuses}
-                                          lineups={lineups}
-                                          startGame={startGame}
-                                          endGame={endGame}
-                                          updateGameScore={updateGameScore}
-                                          updateGameCourtNumber={updateGameCourtNumber}
-                                        />
-                                      ))}
-                                  </div>
-
-                                  {(() => {
-                                    const completedGames =
-                                      games[match.id]?.filter((g) => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
-                                    const teamAWins = completedGames.filter((g) => g.teamAScore > g.teamBScore).length;
-                                    const teamBWins = completedGames.filter((g) => g.teamBScore > g.teamAScore).length;
-                                    const needsTiebreaker =
-                                      completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
-
-                                    return (
-                                      needsTiebreaker &&
-                                      games[match.id]?.find((g) => g.slot === 'TIEBREAKER') && (
-                                        <GameScoreBox
-                                          game={games[match.id].find((g) => g.slot === 'TIEBREAKER')}
-                                          match={match}
-                                          gameStatuses={gameStatuses}
-                                          lineups={lineups}
-                                          startGame={startGame}
-                                          endGame={endGame}
-                                          updateGameScore={updateGameScore}
-                                          updateGameCourtNumber={updateGameCourtNumber}
-                                        />
-                                      )
-                                    );
-                                  })()}
-                                </div>
-                              )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ));
-          })()}
-        </div>
-      </div>
-    );
   };
 
   const toggleRoundEdit = (roundId: string) => {
@@ -4228,203 +3579,584 @@ function EventManagerTab({
 
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <aside className="rounded-xl border border-subtle bg-surface-1 overflow-hidden">
-          <div className="border-b border-subtle px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Tournaments
-            </p>
-          </div>
-          <div className="space-y-4 p-4">
-            {tournaments.map((tournament) => {
-              const isExpanded = expandedTournaments.has(tournament.tournamentId);
-              return (
-                <div key={tournament.tournamentId} className="space-y-3">
-                  <button
-                    className="flex w-full items-center justify-between rounded-lg border border-transparent bg-surface-2 px-3 py-2 text-left transition hover:border-subtle hover:bg-surface-3"
-                    onClick={() => toggleTournament(tournament.tournamentId)}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-primary">
-                        {tournament.tournamentName} - {getTournamentTypeDisplayName(tournament.type)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted">{tournament.stops.length} stops</p>
-                    </div>
-                    <span className={`text-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
-                      ▶
-                    </span>
-                  </button>
-                  {isExpanded && (
-                    <div className="space-y-2">
-                      {tournament.stops.map((stop) => {
-                        const stats = getStopStats(stop);
-                        const isSelected = selectedStopId === stop.stopId;
-                        return (
-                          <button
-                            key={stop.stopId}
-                            className={`w-full rounded-lg border px-3 py-3 text-left transition ${
-                              isSelected
-                                ? 'border-secondary bg-secondary/10 text-primary shadow-sm'
-                                : 'border-transparent hover:border-subtle hover:bg-surface-2'
-                            }`}
-                            onClick={() => {
-                              setExpandedTournaments((prev) => {
-                                const next = new Set(prev);
-                                next.add(tournament.tournamentId);
-                                return next;
-                              });
-                              setSelectedStopId(stop.stopId);
-                              setSelectedRoundId(null);
-                              loadSchedule(stop.stopId);
-                            }}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold">{stop.stopName}</p>
-                                <p className="mt-1 text-xs text-muted">
-                                  {(stop.locationName ? `${stop.locationName} • ` : '') + formatStopDateRange(stop.startAt ?? null, stop.endAt ?? null)}
-                                </p>
-                              </div>
-                              {isSelected && (
-                                <span className="text-secondary text-lg" aria-hidden="true">▶</span>
-                              )}
-                            </div>
-                            <div className="mt-3 flex gap-3 text-xs text-muted">
-                              <span>{stats.rounds} rounds</span>
-                              <span>{stats.matches} matches</span>
-                              <span>{stats.games} games</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+    <div className="space-y-4">
 
-            {tournaments.length === 0 && (
-              <div className="rounded-lg border border-dashed border-subtle p-6 text-center text-sm text-muted">
-                You are not assigned as an event manager for any tournaments.
+      {/* Tournament Accordions */}
+      <div className="space-y-3">
+        {tournaments.map((tournament) => (
+          <div key={tournament.tournamentId} className="border rounded-lg">
+            {/* Tournament Header */}
+            <div className="flex items-center justify-between p-4 bg-surface-2 border-b">
+              <h3 className="font-medium text-lg">{tournament.tournamentName}</h3>
+              <div className="text-sm text-muted">
+                {getTournamentTypeDisplayName(tournament.type)} • {tournament.stops.length} stops
               </div>
-            )}
-          </div>
-        </aside>
-
-        <section className="space-y-6">
-          {activeStop ? (
-            <>
-              {!stopHasAnyGameStarted && (
-                <div className="mb-4 flex justify-end">
-                  <button
-                    className="btn btn-primary disabled:opacity-60"
-                    onClick={() => generateSchedule(activeStop.stopId, activeStop.stopName)}
-                    disabled={isScheduleLoading}
-                  >
-                    {isScheduleLoading ? 'Regenerating…' : 'Regenerate Matchups'}
-                  </button>
-                </div>
-              )}
-
-              {isScheduleLoading ? (
-                <div className="rounded-xl border border-dashed border-subtle p-12 text-center text-muted">
-                  Loading schedule…
-                </div>
-              ) : activeSchedule.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-subtle p-12 text-center text-muted">
-                  No matchups generated yet. Click "Regenerate Matchups" to create them.
-                </div>
-              ) : (
-                <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-                  <div className="rounded-xl border border-subtle bg-surface-1 overflow-hidden">
-                    <div className="border-b border-subtle px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Rounds</p>
-                    </div>
-                    <div className="p-4">
-                      <div className="space-y-2">
-                        {activeSchedule.map((round) => {
-                          const isActive = expandedRounds.has(round.id);
-                          const roundMatches = round.matches || [];
-                          const matchStatusSummaries = roundMatches.map((match: any) => {
-                            const derivedStatus = deriveMatchStatus(match, gameStatuses);
-                            const cachedStatus = matchStatuses[match.id];
-                            return mergeMatchStatus(derivedStatus, cachedStatus);
-                          });
-                          const roundCompleted = roundMatches.length > 0 && matchStatusSummaries.every(status => status === 'completed');
-                          const roundInProgress = matchStatusSummaries.some(status => status === 'in_progress' || status === 'completed');
-                          const statusLabel = roundCompleted ? 'Completed' : roundInProgress ? 'In Progress' : 'Pending';
-                          const statusTone = roundCompleted ? 'text-success' : roundInProgress ? 'text-info' : 'text-muted';
-
-                          return (
-                            <button
-                              key={round.id}
-                              className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                                isActive
-                                  ? 'border-secondary bg-secondary/10 text-primary shadow-sm'
-                                  : 'border-transparent hover:border-subtle hover:bg-surface-2'
-                              }`}
-                              onClick={() => toggleRound(round.id)}
-                            >
-                              <div className="flex items-center justify-between text-sm font-medium">
-                                <span>Round {round.idx + 1}</span>
-                                <span className={`text-xs ${statusTone}`}>{statusLabel}</span>
-                              </div>
-                              <div className="mt-1 text-xs text-muted">{roundMatches.length} matches</div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-subtle bg-surface-1 overflow-hidden">
-                    <div className="border-b border-subtle px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Matches, Games &amp; Scores</p>
-                    </div>
-                    <div className="p-4">
-                      <div className="space-y-6">
-                        {activeSchedule.map((round, roundIdx) => {
-                          if (!expandedRounds.has(round.id)) return null;
-                          return (
-                            <div key={`${round.id}-${roundIdx}`}>{renderRoundCard(round, roundIdx, activeSchedule)}</div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="rounded-xl border border-dashed border-subtle p-12 text-center text-muted">
-              Select a stop to manage rounds, matchups, and lineups.
             </div>
-          )}
-        </section>
+
+            {/* Stops Tabs */}
+            <div className="p-4">
+              {/* Stop Tabs */}
+              <div className="border-b border-subtle mb-4">
+                <nav className="flex space-x-8" aria-label="Tabs">
+                  {tournament.stops.map((stop) => (
+                    <button
+                      key={stop.stopId}
+                      onClick={() => {
+                        setSelectedStopId(stop.stopId);
+                        loadSchedule(stop.stopId);
+                      }}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                        selectedStopId === stop.stopId
+                          ? 'border-secondary text-secondary'
+                          : 'border-transparent text-muted hover:text-muted hover:border-subtle'
+                      }`}
+                    >
+                      {stop.stopName}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* Selected Stop Content */}
+              {selectedStopId && (() => {
+                const stop = tournament.stops.find(s => s.stopId === selectedStopId);
+                if (!stop) return null;
+
+                const stopSchedule = scheduleData[stop.stopId] ?? [];
+                const stopHasAnyGameStarted = stopSchedule.some((round: any) => hasAnyMatchStarted(round));
+                const totalMatches = stopSchedule.reduce(
+                  (acc: number, r: any) => acc + (r.matches?.length || 0),
+                  0
+                );
+                const totalGames = stopSchedule.reduce(
+                  (acc: number, r: any) =>
+                    acc + (r.matches?.reduce((matchAcc: number, m: any) => {
+                      const matchGames = games[m.id] ?? m.games ?? [];
+                      return matchAcc + (Array.isArray(matchGames) ? matchGames.length : 0);
+                    }, 0) || 0),
+                  0
+                );
+                
+                return (
+                  <div>
+                    {/* Stop Info */}
+                    <div className="flex items-center justify-between mb-4 p-2 bg-surface-2 rounded">
+                      <div>
+                        <p className="text-sm text-muted">
+                          {stop.locationName && `${stop.locationName} • `}
+                          {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {stopSchedule.length} rounds • {totalMatches} matches • {totalGames} games
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!stopHasAnyGameStarted && (
+                        <button
+                          className="btn btn-primary text-xs disabled:opacity-50"
+                          onClick={() => generateSchedule(stop.stopId, stop.stopName)}
+                          disabled={loading[stop.stopId] || stopHasAnyGameStarted}
+                        >
+                          {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
+                        </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Schedule Content */}
+                    <div className="bg-surface-1">
+                        {loading[stop.stopId] ? (
+                          <div className="text-center py-4 text-muted">Loading schedule...</div>
+                        ) : stopSchedule.length === 0 ? (
+                          <div className="text-center py-4 text-muted">
+                            No matchups generated yet. Click "Regenerate Matchups" to create them.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              {stopSchedule.map((round, roundIdx) => {
+                                const previousRoundAvailable = roundIdx > 0 && !!stopSchedule[roundIdx - 1];
+                                const isEditing = editingRounds.has(round.id);
+                                const matches = getMatchesForRound(round, isEditing);
+                                const roundHasStarted = hasAnyMatchStarted(round);
+                                const roundHasCompletedAllMatches = matches.length > 0 && matches.every((match: any) => {
+                                  const matchStatus = matchStatuses[match.id];
+                                  if (matchStatus === 'completed') return true;
+
+                                  const matchGames = games[match.id] ?? match.games ?? [];
+
+                                  if (matchGames.length === 0) {
+                                    return false;
+                                  }
+
+                                  let teamAWins = 0;
+                                  let teamBWins = 0;
+
+                                  for (const game of matchGames) {
+                                    if (!game) continue;
+
+                                    const status = gameStatuses[game.id];
+                                    if (status === 'in_progress') {
+                                      return false;
+                                    }
+
+                                    const a = game.teamAScore;
+                                    const b = game.teamBScore;
+
+                                    if (a != null && b != null) {
+                                      if (a > b) teamAWins += 1;
+                                      else if (b > a) teamBWins += 1;
+                                    }
+                                  }
+
+                                  return (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
+                                });
+                                
+                                // Force re-render when updateKey changes
+                                const _ = updateKey;
+                                
+                                
+                                return (
+                                  <div key={`${round.id}-${renderKey}-${updateKey}`} className="border rounded">
+                                    {/* Round Header */}
+                                    <div 
+                                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-surface-2"
+                                      onClick={() => toggleRound(round.id)}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className={`transform transition-transform ${expandedRounds.has(round.id) ? 'rotate-90' : ''}`}>
+                                          ▶
+                                        </div>
+                                        <h6 className="font-medium text-sm">Round {round.idx + 1}</h6>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {previousRoundAvailable && !roundHasStarted && (
+                                          <button
+                                            className="px-2 py-1 border rounded text-xs bg-secondary/10 hover:bg-secondary/20"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              copyLineupsFromPreviousRound(stop.stopId, roundIdx);
+                                            }}
+                                          >
+                                            Copy Previous Lineups
+                                          </button>
+                                        )}
+                                        {isEditing ? (
+                                            <button
+                                              className="btn btn-secondary text-xs"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                saveRoundMatchups(round.id);
+                                              }}
+                                            >
+                                            Confirm Matchups
+                                            </button>
+                                        ) : !roundHasStarted ? (
+                                          <button
+                                            className="px-2 py-1 border rounded text-xs bg-info/10 hover:bg-info/20"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleRoundEdit(round.id);
+                                            }}
+                                          >
+                                            Edit Matchups
+                                          </button>
+                                        ) : (
+                                          <span className="text-xs text-muted">
+                                            {roundHasCompletedAllMatches ? 'Matches complete' : 'Matches in progress'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Round Content */}
+                                    {expandedRounds.has(round.id) && (
+                                      <div className="p-3 border-t bg-surface-2">
+                                    
+                                    {isEditing && (
+                                      <div className="mb-3 p-2 bg-info/10 border border-info rounded text-xs text-info">
+                                        <strong>Drag teams to swap:</strong> Drag any team over another team to swap their positions.
+                                      </div>
+                                    )}
+                                    
+                                    {(() => {
+                                      // Group matches by bracket for visual separation
+                                      const matchesByBracket: Record<string, any[]> = {};
+                                      
+                                      matches.forEach((match: any, matchIdx: number) => {
+                                        const bracketName = match.bracketName || 'Unknown Bracket';
+                                        
+                                        if (!matchesByBracket[bracketName]) {
+                                          matchesByBracket[bracketName] = [];
+                                        }
+                                        
+                                        matchesByBracket[bracketName].push({ ...match, originalIndex: matchIdx });
+                                      });
+                                      
+                                      // Ensure each bracket has unique local indices
+                                      Object.keys(matchesByBracket).forEach(bracketName => {
+                                        matchesByBracket[bracketName].forEach((match: any, localIdx: number) => {
+                                          match.localIndex = localIdx;
+                                        });
+                                      });
+                                      
+                                      return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
+                                        <div key={bracketName} className="space-y-2 mb-4">
+                                          <h6 className="font-medium text-sm text-muted border-b pb-1">
+                                            {bracketName}
+                                          </h6>
+                                          
+                                          {isEditing ? (
+                                    <DndContext
+                                      collisionDetection={closestCenter}
+                                      onDragStart={handleDragStart}
+                                              onDragOver={handleDragOver}
+                                      onDragEnd={handleDragEnd}
+                                            >
+                                              <SortableContext 
+                                                items={bracketMatches.map((match: any) => [
+                                                  `${round.id}-${bracketName}-${match.localIndex}-A`,
+                                                  `${round.id}-${bracketName}-${match.localIndex}-B`
+                                                ]).flat()}
+                                                strategy={noReorderStrategy}
+                                    >
+                                      <div className="space-y-1">
+                                                  {bracketMatches.map((match: any, localMatchIdx: number) => {
+                                                    const matchIdx = match.originalIndex;
+                                                    const localIndex = match.localIndex;
+                                                    return (
+                                        <div key={match.id} className="flex items-center justify-between p-2 bg-surface-2 rounded text-sm">
+                                                {!match.isBye ? (
+                                            <div className="flex items-center gap-2 flex-1">
+                                              {/* Team A */}
+                                              <DraggableTeam
+                                                team={match.teamA}
+                                                teamPosition="A"
+                                                roundId={round.id}
+                                                  matchIndex={localIndex}
+                                                  bracketName={bracketName}
+                                                  isDragging={
+                                                    activeId === `${round.id}-${bracketName}-${localIndex}-A` ||                                                                                                        
+                                                    (dragPreview && (
+                                                      dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||                                                                                          
+                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`
+                                                    )) || false
+                                                  }
+                                                  dragPreview={dragPreview}
+                                              />
+                                              
+                                              <span className="text-muted">vs</span>
+                                              
+                                              {/* Team B */}
+                                              <DraggableTeam
+                                                team={match.teamB}
+                                                teamPosition="B"
+                                                roundId={round.id}
+                                                  matchIndex={localIndex}
+                                                  bracketName={bracketName}
+                                                  isDragging={
+                                                    activeId === `${round.id}-${bracketName}-${localIndex}-B` ||
+                                                    (dragPreview && (
+                                                      dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-B` ||
+                                                      dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-B`
+                                                    )) || false
+                                                  }
+                                                  dragPreview={dragPreview}
+                                              />
+                                            </div>
+                                          ) : (
+                                            <div className="flex items-center gap-3">
+                                              <span className="font-medium">
+                                                {match.teamA?.name || 'TBD'} vs {match.teamB?.name || 'TBD'}
+                                              </span>
+                                              {match.isBye && (
+                                                <span className="text-xs bg-warning/10 text-warning px-2 py-1 rounded">
+                                                  BYE
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                          
+                                          <div className="flex items-center gap-2">
+                                              {(() => {
+                                                // Hide Edit Lineup button if any game has started
+                                                const hasAnyGameStarted = games[match.id]?.some(game => 
+                                                  gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed'
+                                                ) || false;
+                                                
+                                                if (hasAnyGameStarted || matchStatuses[match.id] === 'in_progress' || matchStatuses[match.id] === 'completed') {
+                                                  return null;
+                                                }
+                                                
+                                                return (
+                                                  <button
+                                                    className="px-2 py-1 text-xs bg-success text-white rounded hover:bg-success-hover"
+                                                    onClick={() => {
+                                                      console.log('Edit Lineups clicked for match:', match.id);
+                                                      setEditingMatch(editingMatch === match.id ? null : match.id);
+                                                    }}
+                                                  >
+                                                    {editingMatch === match.id ? 'Cancel' : 'Edit Lineups'}
+                                                  </button>
+                                                );
+                                              })()}
+                                            </div>
+                                          </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </SortableContext>
+                                          </DndContext>
+                                          
+                                        ) : (
+                                            <div className="space-y-1">
+                                              {bracketMatches.map((match: any, localMatchIdx: number) => {
+                                                const matchIdx = match.originalIndex;
+                                                const hasAnyGameStarted = games[match.id]?.some(game =>
+                                                  gameStatuses[game.id] === 'in_progress' || gameStatuses[game.id] === 'completed'
+                                                ) || false;
+                                                const teamALineup = lineups[match.id]?.[match.teamA?.id || 'teamA'] || [];
+                                                const teamBLineup = lineups[match.id]?.[match.teamB?.id || 'teamB'] || [];
+                                                const canEditLineups = !hasAnyGameStarted && matchStatuses[match.id] !== 'in_progress' && matchStatuses[match.id] !== 'completed';
+                                                const isEditingThisMatch = editingMatch === match.id;
+
+                                                return (
+                                                  <div key={match.id} className="p-2 bg-surface-2 rounded text-sm">
+                                                    {isEditingThisMatch ? (
+                                                      <div className="mb-3">
+                                                        <InlineLineupEditor
+                                                          matchId={match.id}
+                                                          stopId={round.stopId}
+                                                          teamA={match.teamA || { id: 'teamA', name: 'Team A' }}
+                                                          teamB={match.teamB || { id: 'teamB', name: 'Team B' }}
+                                                          teamARoster={teamRosters[match.teamA?.id || ''] || []}
+                                                          teamBRoster={teamRosters[match.teamB?.id || ''] || []}
+                                                          fetchTeamRoster={fetchTeamRoster}
+                                                          lineups={lineups}
+                                                          onSave={async (lineups) => {
+                                                            console.log('Save button clicked (non-draggable), lineups data:', lineups);
+                                                            try {
+                                                              if (lineups.teamA.length !== 4 || lineups.teamB.length !== 4) {
+                                                                throw new Error(`Invalid lineup: Team A has ${lineups.teamA.length} players, Team B has ${lineups.teamB.length} players. Need exactly 4 each.`);
+                                                              }
+
+                                                              console.log('Saving lineups for teams (non-draggable):', {
+                                                                teamA: { id: match.teamA?.id, players: lineups.teamA.map(p => ({ id: p.id, name: p.name })) },
+                                                                teamB: { id: match.teamB?.id, players: lineups.teamB.map(p => ({ id: p.id, name: p.name })) }
+                                                              });
+
+                                                              const response = await fetch(`/api/admin/stops/${stop.stopId}/lineups`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                  lineups: {
+                                                                    [match.id]: {
+                                                                      [match.teamA?.id || 'teamA']: lineups.teamA,
+                                                                      [match.teamB?.id || 'teamB']: lineups.teamB
+                                                                    }
+                                                                  }
+                                                                })
+                                                              });
+
+                                                              if (!response.ok) {
+                                                                const errorText = await response.text();
+                                                                throw new Error(`Save failed: ${response.status} ${errorText}`);
+                                                              }
+
+                                                              setLineups(prev => ({
+                                                                ...prev,
+                                                                [match.id]: {
+                                                                  [match.teamA?.id || 'teamA']: lineups.teamA,
+                                                                  [match.teamB?.id || 'teamB']: lineups.teamB
+                                                                }
+                                                              }));
+
+                                                              await loadGamesForMatch(match.id, true);
+
+                                                              setEditingMatch(null);
+                                                              onInfo('Lineups saved successfully!');
+                                                            } catch (error) {
+                                                              console.error('Error saving lineups:', error);
+                                                              onError(`Failed to save lineups: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                                            }
+                                                          }}
+                                                          onCancel={() => setEditingMatch(null)}
+                                                        />
+                                                      </div>
+                                                    ) : (
+                                                      !hasAnyGameStarted && (
+                                                        <div className="flex items-start gap-3 mb-3">
+                                                          <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
+                                                            <div className="font-medium text-green-800 mb-1">{match.teamA?.name || 'Team A'}</div>
+                                                            <div className="text-green-700">
+                                                              {teamALineup.length > 0 ? (
+                                                                teamALineup.map((player, idx) => (
+                                                                  <div key={player.id} className="text-xs">
+                                                                    {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
+                                                                  </div>
+                                                                ))
+                                                              ) : (
+                                                                <div className="text-xs text-muted">No lineup set</div>
+                                                              )}
+                                                            </div>
+                                                          </div>
+
+                                                          <div className="text-muted font-medium text-sm">vs</div>
+
+                                                          <div className="flex-1 p-2 bg-success/10 border border-success rounded text-sm">
+                                                            <div className="font-medium text-green-800 mb-1">{match.teamB?.name || 'Team B'}</div>
+                                                            <div className="text-green-700">
+                                                              {teamBLineup.length > 0 ? (
+                                                                teamBLineup.map((player, idx) => (
+                                                                  <div key={player.id} className="text-xs">
+                                                                    {idx + 1}. {player.name} ({player.gender === 'MALE' ? 'M' : 'F'})
+                                                                  </div>
+                                                                ))
+                                                              ) : (
+                                                                <div className="text-xs text-muted">No lineup set</div>
+                                                              )}
+                                                            </div>
+                                                          </div>
+
+                                                          {canEditLineups && (
+                                                            <div className="flex flex-col gap-2">
+                                                              <button
+                                                                className="px-2 py-1 text-xs bg-success text-white rounded hover:bg-success-hover"
+                                                                onClick={() => {
+                                                                  console.log('Edit Lineups clicked for match:', match.id);
+                                                                  setEditingMatch(editingMatch === match.id ? null : match.id);
+                                                                }}
+                                                              >
+                                                                Edit Lineups
+                                                              </button>
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      )
+                                                    )}
+
+                                                    {/* Games Display - only show when both teams have confirmed lineups */}
+                                                    {lineups[match.id] && 
+                                                     lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 && 
+                                                     lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
+                                                      <div className="mt-3 p-3 bg-info/10 border border-info rounded">
+                                                        <h4 className="text-sm font-semibold text-info mb-3">
+                                                          Scores - {match.teamA?.name || 'Team A'} vs {match.teamB?.name || 'Team B'}
+                                                        </h4>
+                                                        <div className="space-y-4">
+                                                          {/* Men's and Women's Doubles Row */}
+                                                          <div className="grid grid-cols-2 gap-3">
+                                                            {games[match.id]?.filter(game => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES').map((game) => (
+                                                              <GameScoreBox
+                                                                key={game.id}
+                                                                game={game}
+                                                                match={match}
+                                                                gameStatuses={gameStatuses}
+                                                                lineups={lineups}
+                                                                startGame={startGame}
+                                                                endGame={endGame}
+                                                                updateGameScore={updateGameScore}
+                                                                updateGameCourtNumber={updateGameCourtNumber}
+                                                              />
+                                                            ))}
+                                                          </div>
+
+                                                          {/* Mixed Doubles 1 & 2 Row */}
+                                                          <div className="grid grid-cols-2 gap-3">
+                                                            {games[match.id]?.filter(game => game.slot === 'MIXED_1' || game.slot === 'MIXED_2').map((game) => (
+                                                              <GameScoreBox
+                                                                key={game.id}
+                                                                game={game}
+                                                                match={match}
+                                                                gameStatuses={gameStatuses}
+                                                                lineups={lineups}
+                                                                startGame={startGame}
+                                                                endGame={endGame}
+                                                                updateGameScore={updateGameScore}
+                                                                updateGameCourtNumber={updateGameCourtNumber}
+                                                              />
+                                                            ))}
+                                                          </div>
+                                                          
+                                                          {/* Tiebreaker Game - only show when all 4 games are complete and tied */}
+                                                          {(() => {
+                                                            const completedGames = games[match.id]?.filter(g => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
+                                                            const teamAWins = completedGames.filter(g => g.teamAScore > g.teamBScore).length;
+                                                            const teamBWins = completedGames.filter(g => g.teamBScore > g.teamAScore).length;
+                                                            const needsTiebreaker = completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
+                                                            
+                                                            return needsTiebreaker && games[match.id]?.find(g => g.slot === 'TIEBREAKER') && (
+                                                              <GameScoreBox
+                                                                game={games[match.id].find(g => g.slot === 'TIEBREAKER')}
+                                                                match={match}
+                                                                gameStatuses={gameStatuses}
+                                                                lineups={lineups}
+                                                                startGame={startGame}
+                                                                endGame={endGame}
+                                                                updateGameScore={updateGameScore}
+                                                                updateGameCourtNumber={updateGameCourtNumber}
+                                                              />
+                                                            );
+                                                          })()}
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ));
+                                    })()}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        ))}
       </div>
 
+
+      {/* No tournaments message */}
+      {tournaments.length === 0 && (
+        <div className="text-center py-8 text-muted">
+          You are not assigned as an event manager for any tournaments.
+        </div>
+      )}
+
+      {/* Lineup Editor Modal */}
       {editingLineup && (
         <LineupEditor
           matchId={editingLineup.matchId}
           teamId={editingLineup.teamId}
-          teamName="Team Name"
-          availablePlayers={[]}
+          teamName="Team Name" // TODO: Get actual team name
+          availablePlayers={[]} // TODO: Get team roster
           currentLineup={lineups[editingLineup.matchId]?.[editingLineup.teamId] || []}
           onSave={(lineup) => {
-            setLineups((prev) => {
-              const next = { ...prev };
-              if (!next[editingLineup.matchId]) {
-                next[editingLineup.matchId] = {};
+            setLineups(prev => {
+              const newLineups = { ...prev };
+              if (!newLineups[editingLineup.matchId]) {
+                newLineups[editingLineup.matchId] = {};
               }
-              next[editingLineup.matchId][editingLineup.teamId] = lineup;
-              return next;
+              newLineups[editingLineup.matchId][editingLineup.teamId] = lineup;
+              return newLineups;
             });
             setEditingLineup(null);
           }}
           onCancel={() => setEditingLineup(null)}
         />
       )}
+
     </div>
   );
 }
@@ -4878,7 +4610,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">1:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamALineup[0]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4901,7 +4633,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">2:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamALineup[1]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4924,7 +4656,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">3:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamALineup[2]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4947,7 +4679,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">4:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamALineup[3]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4976,7 +4708,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">1:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamBLineup[0]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -4999,7 +4731,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">2:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamBLineup[1]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -5022,7 +4754,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">3:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamBLineup[2]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
@@ -5045,7 +4777,7 @@ function InlineLineupEditor({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium w-4">4:</label>
               <select
-                className="flex-1 p-1 text-xs border rounded bg-surface-2 text-primary"
+                className="flex-1 p-1 text-xs border rounded"
                 value={teamBLineup[3]?.id || ''}
                 onChange={(e) => {
                   if (e.target.value) {
