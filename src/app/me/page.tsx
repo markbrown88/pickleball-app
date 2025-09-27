@@ -4791,7 +4791,7 @@ function InlineLineupEditor({
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [loadedRosters, setLoadedRosters] = useState<{ teamA: PlayerLite[]; teamB: PlayerLite[] }>({ teamA: [], teamB: [] });
-  const matchLineups = lineups[matchId] || {};
+  const matchLineups = useMemo(() => lineups[matchId] || {}, [lineups, matchId]);
 
   const getLineupForTeam = (teamId: string, fallbackKey: 'teamA' | 'teamB'): PlayerLite[] => {
     return matchLineups[teamId] ?? matchLineups[fallbackKey] ?? [];
