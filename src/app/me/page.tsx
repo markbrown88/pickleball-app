@@ -4875,44 +4875,7 @@ function InlineLineupEditor({
     loadRosters();
   }, [teamA.id, teamB.id, stopId, fetchTeamRoster, matchLineups, matchId]);
 
-  // Initialize lineups when component mounts or when editing starts
-  useEffect(() => {
-    // Check if we have existing lineups for this match
-    const teamALineupData = getLineupForTeam(teamA.id, 'teamA');
-    const teamBLineupData = getLineupForTeam(teamB.id, 'teamB');
-
-    if (teamALineupData.length || teamBLineupData.length) {
-      
-      // Set the lineups with existing data
-      setTeamALineup([
-        teamALineupData[0] || undefined,
-        teamALineupData[1] || undefined,
-        teamALineupData[2] || undefined,
-        teamALineupData[3] || undefined
-      ]);
-      
-      setTeamBLineup([
-        teamBLineupData[0] || undefined,
-        teamBLineupData[1] || undefined,
-        teamBLineupData[2] || undefined,
-        teamBLineupData[3] || undefined
-      ]);
-      
-      // Set selected players
-      const allSelectedPlayers = new Set([
-        ...teamALineupData.map(p => p.id),
-        ...teamBLineupData.map(p => p.id)
-      ]);
-      setSelectedPlayers(allSelectedPlayers);
-    } else {
-      // Reset to empty state
-      setTeamALineup([undefined, undefined, undefined, undefined]);
-      setTeamBLineup([undefined, undefined, undefined, undefined]);
-      setSelectedPlayers(new Set());
-    }
-  }, [matchId, teamA.id, teamB.id, matchLineups]);
-
-  // Separate effect to handle lineup changes for this specific match
+  // Initialize lineups and handle lineup changes for this specific match
   useEffect(() => {
     const teamALineupData = getLineupForTeam(teamA.id, 'teamA');
     const teamBLineupData = getLineupForTeam(teamB.id, 'teamB');
@@ -4947,7 +4910,7 @@ function InlineLineupEditor({
       ]);
       setSelectedPlayers(allSelectedPlayers);
     }
-  }, [matchLineups, teamA.id, teamB.id]);
+  }, [matchId, teamA.id, teamB.id, matchLineups]);
 
   const addPlayerToLineup = (player: PlayerLite, teamId: string, slotIndex: number) => {
     const isTeamA = teamId === teamA.id;
