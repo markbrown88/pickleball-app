@@ -4842,6 +4842,7 @@ function InlineLineupEditor({
           const enhancedRosterA = ensureLineupPlayers(rosterA, getLineupForTeam(teamA.id, 'teamA'));
           const enhancedRosterB = ensureLineupPlayers(rosterB, getLineupForTeam(teamB.id, 'teamB'));
           
+          console.log('Loaded rosters:', { teamA: enhancedRosterA.length, teamB: enhancedRosterB.length });
           setLoadedRosters({ teamA: enhancedRosterA, teamB: enhancedRosterB });
         } catch (error) {
           console.error('Failed to load stop-specific rosters:', error);
@@ -4919,7 +4920,11 @@ function InlineLineupEditor({
     
     // Check gender constraints: slots 0,1 are male, slots 2,3 are female
     const expectedGender = slotIndex < 2 ? 'MALE' : 'FEMALE';
-    if (player.gender !== expectedGender) return;
+    console.log('addPlayerToLineup:', { player: player.name, gender: player.gender, expectedGender, slotIndex });
+    if (player.gender !== expectedGender) {
+      console.log('Gender constraint failed:', { player: player.name, gender: player.gender, expectedGender });
+      return;
+    }
 
     // Update selectedPlayers first to avoid race conditions
     setSelectedPlayers(prev => {
@@ -4928,11 +4933,6 @@ function InlineLineupEditor({
       // Remove current player from selectedPlayers if there is one
       if (currentPlayer) {
         newSet.delete(currentPlayer.id);
-      }
-      
-      // Remove the new player from selectedPlayers if they're already selected elsewhere
-      if (newSet.has(player.id)) {
-        newSet.delete(player.id);
       }
       
       // Add the new player
@@ -5039,9 +5039,11 @@ function InlineLineupEditor({
       : false;
 
     const onSelectChange = (value: string) => {
+      console.log('onSelectChange called:', { value, teamId: team.id, slotIndex, currentPlayer: currentPlayer?.name });
       if (value) {
         const roster = team.id === teamA.id ? loadedRosters.teamA : loadedRosters.teamB;
         const player = roster.find(p => p.id === value) || currentPlayer;
+        console.log('Found player:', { player: player?.name, gender: player?.gender, rosterLength: roster.length });
         if (player) addPlayerToLineup(player, team.id, slotIndex);
       } else if (currentPlayer) {
         removePlayerFromLineup(currentPlayer.id, team.id, slotIndex);
