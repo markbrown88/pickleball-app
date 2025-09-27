@@ -3918,10 +3918,20 @@ function EventManagerTab({
                         <div key={matchId} className="rounded-xl border border-subtle bg-surface-2 p-4 shadow-sm">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-sm font-semibold text-primary">
-                              {match.teamA?.name || 'Team A'} vs {match.teamB?.name || 'Team B'}
                               {(() => {
                                 const bracketLabel = match.bracketName || match.teamA?.bracketName || match.teamB?.bracketName;
-                                return bracketLabel ? ` - ${bracketLabel}` : '';
+                                const teamAName = match.teamA?.name || 'Team A';
+                                const teamBName = match.teamB?.name || 'Team B';
+                                
+                                // Remove bracket name from team names if it exists
+                                const cleanTeamAName = bracketLabel && teamAName.endsWith(` ${bracketLabel}`) 
+                                  ? teamAName.replace(` ${bracketLabel}`, '') 
+                                  : teamAName;
+                                const cleanTeamBName = bracketLabel && teamBName.endsWith(` ${bracketLabel}`) 
+                                  ? teamBName.replace(` ${bracketLabel}`, '') 
+                                  : teamBName;
+                                
+                                return `${cleanTeamAName} vs ${cleanTeamBName}${bracketLabel ? ` - ${bracketLabel}` : ''}`;
                               })()}
                             </p>
                           </div>
@@ -4410,7 +4420,7 @@ function EventManagerTab({
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[270px_1fr]">
         <aside className="rounded-xl border border-subtle bg-surface-1 overflow-hidden">
           <div className="border-b border-subtle px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">
