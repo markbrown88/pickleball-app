@@ -43,8 +43,15 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       orderBy: { idx: 'asc' },
       include: {
         matches: {
-          orderBy: { id: 'asc' },
-          include: {
+          orderBy: [
+            { updatedAt: 'desc' }, // Most recently completed matches first
+            { id: 'asc' } // Fallback to ID for matches with same completion time
+          ],
+          select: {
+            id: true,
+            isBye: true,
+            forfeitTeam: true,
+            updatedAt: true,
             teamA: { 
               select: { 
                 id: true, 
@@ -148,10 +155,18 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
         startAt: ymd(stop.startAt),
         endAt: ymd(stop.endAt),
       },
-      rounds: rounds.map((r: any) => ({
-        roundId: r.id,
-        idx: r.idx,
-        matches: r.matches.map((match: any) => {
+      rounds: rounds.map((r: any) => {
+        // Debug: Log the order of matches for this round
+        console.log(`[SCOREBOARD] Round ${r.idx} matches order:`, r.matches.map((m: any) => ({
+          id: m.id,
+          updatedAt: m.updatedAt?.toISOString(),
+          forfeitTeam: m.forfeitTeam
+        })));
+        
+        return {
+          roundId: r.id,
+          idx: r.idx,
+          matches: r.matches.map((match: any) => {
           const wins = { a: 0, b: 0, ties: 0 };
           for (const game of match.games) {
             const a = game.teamAScore ?? null;
@@ -162,9 +177,15 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             else wins.ties += 1;
           }
 
+          // Debug logging for forfeited matches
+          if (match.forfeitTeam) {
+            console.log(`[SCOREBOARD] Forfeited match ${match.id}: forfeitTeam=${match.forfeitTeam}, updatedAt=${match.updatedAt?.toISOString()}`);
+          }
+
           return {
             matchId: match.id,
             isBye: match.isBye,
+            forfeitTeam: match.forfeitTeam,
             teamA: match.teamA ? { 
               id: match.teamA.id, 
               name: match.teamA.name, 
@@ -250,7 +271,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             summary: wins,
           };
         }),
-      })),
+        };
+      }),
     };
 
     return NextResponse.json(payload);

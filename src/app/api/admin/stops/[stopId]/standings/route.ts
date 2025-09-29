@@ -8,10 +8,10 @@ import { prisma } from '@/lib/prisma';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
-// 3-1-0 points system at the game level (win/tie/loss)
+// 3-1-0 points system at the game level (win/loss/forfeit)
 const GAME_WIN_POINTS = 3;
-const GAME_TIE_POINTS = 1;
-const GAME_LOSS_POINTS = 0;
+const GAME_LOSS_POINTS = 1;
+const GAME_FORFEIT_POINTS = 0;
 
 // Each decided slot is worth 1 point to the winner, 0.5 each on ties
 const SLOT_WIN_POINTS = 1;
@@ -110,6 +110,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
                 slot: true,
                 teamAScore: true,
                 teamBScore: true,
+                match: {
+                  select: {
+                    forfeitTeam: true,
+                  },
+                },
               },
             },
           },
@@ -171,67 +176,90 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         const totalSlots = g.matches.length || 0;
         const needed = totalSlots > 0 ? Math.floor(totalSlots / 2) + 1 : 0;
 
-        for (const m of g.matches) {
-          const a = m.teamAScore;
-          const b = m.teamBScore;
-          if (a == null || b == null) continue;
-
-          scoredSlots++;
-          rowA.scoreFor += a;
-          rowA.scoreAgainst += b;
-          rowB.scoreFor += b;
-          rowB.scoreAgainst += a;
-
-          if (a > b) {
-            aSlotWins++;
-            rowA.slotWins++;
-            rowB.slotLosses++;
-            rowA.slotPoints += SLOT_WIN_POINTS;
-          } else if (b > a) {
-            bSlotWins++;
-            rowB.slotWins++;
-            rowA.slotLosses++;
-            rowB.slotPoints += SLOT_WIN_POINTS;
+        // Check if this game has a forfeit - look for any game with forfeit
+        const forfeitTeam = g.matches.find(m => m.match?.forfeitTeam)?.match?.forfeitTeam;
+        
+        if (forfeitTeam) {
+          console.log(`[STANDINGS] Game ${g.id} has forfeit: Team ${forfeitTeam} forfeited (${g.teamA?.name} vs ${g.teamB?.name})`);
+          
+          // Handle forfeit - team that didn't forfeit gets the win
+          rowA.played++;
+          rowB.played++;
+          decidedGamesCount++;
+          
+          if (forfeitTeam === 'B') {
+            // Team B forfeited, Team A wins
+            rowA.wins++;
+            rowB.losses++;
+            rowA.points += GAME_WIN_POINTS; // 3 points for win
+            rowB.points += GAME_FORFEIT_POINTS; // 0 points for forfeit
+            console.log(`[STANDINGS] Team A (${g.teamA?.name}) gets win, Team B (${g.teamB?.name}) gets loss`);
           } else {
-            slotTies++;
-            rowA.slotTies++;
-            rowB.slotTies++;
-            rowA.slotPoints += SLOT_TIE_POINTS;
-            rowB.slotPoints += SLOT_TIE_POINTS;
+            // Team A forfeited, Team B wins
+            rowB.wins++;
+            rowA.losses++;
+            rowB.points += GAME_WIN_POINTS; // 3 points for win
+            rowA.points += GAME_FORFEIT_POINTS; // 0 points for forfeit
+            console.log(`[STANDINGS] Team B (${g.teamB?.name}) gets win, Team A (${g.teamA?.name}) gets loss`);
           }
         }
 
-        const allScored = totalSlots > 0 && scoredSlots === totalSlots;
-        const aClinched = needed > 0 && aSlotWins >= needed;
-        const bClinched = needed > 0 && bSlotWins >= needed;
+        // Only process normal game logic if there's no forfeit
+        if (!forfeitTeam) {
+          // Normal scoring logic
+          for (const m of g.matches) {
+            const a = m.teamAScore;
+            const b = m.teamBScore;
+            if (a == null || b == null) continue;
 
-        if (aClinched || bClinched || (allScored && aSlotWins !== bSlotWins)) {
-          rowA.played++;
-          rowB.played++;
-          decidedGamesCount++;
+            scoredSlots++;
+            rowA.scoreFor += a;
+            rowA.scoreAgainst += b;
+            rowB.scoreFor += b;
+            rowB.scoreAgainst += a;
 
-          if (aClinched || aSlotWins > bSlotWins) {
-            rowA.wins++;
-            rowB.losses++;
-            rowA.points += GAME_WIN_POINTS;
-            rowB.points += GAME_LOSS_POINTS;
-          } else {
-            rowB.wins++;
-            rowA.losses++;
-            rowB.points += GAME_WIN_POINTS;
-            rowA.points += GAME_LOSS_POINTS;
+            if (a > b) {
+              aSlotWins++;
+              rowA.slotWins++;
+              rowB.slotLosses++;
+              rowA.slotPoints += SLOT_WIN_POINTS;
+            } else if (b > a) {
+              bSlotWins++;
+              rowB.slotWins++;
+              rowA.slotLosses++;
+              rowB.slotPoints += SLOT_WIN_POINTS;
+            } else {
+              slotTies++;
+              rowA.slotTies++;
+              rowB.slotTies++;
+              rowA.slotPoints += SLOT_TIE_POINTS;
+              rowB.slotPoints += SLOT_TIE_POINTS;
+            }
           }
-        } else if (allScored && aSlotWins === bSlotWins) {
-          rowA.played++;
-          rowB.played++;
-          rowA.ties++;
-          rowB.ties++;
-          rowA.points += GAME_TIE_POINTS;
-          rowB.points += GAME_TIE_POINTS;
-          decidedGamesCount++;
-        } else {
-          rowA.undecided++;
-          rowB.undecided++;
+          const allScored = totalSlots > 0 && scoredSlots === totalSlots;
+          const aClinched = needed > 0 && aSlotWins >= needed;
+          const bClinched = needed > 0 && bSlotWins >= needed;
+
+          if (aClinched || bClinched || (allScored && aSlotWins !== bSlotWins)) {
+            rowA.played++;
+            rowB.played++;
+            decidedGamesCount++;
+
+            if (aClinched || aSlotWins > bSlotWins) {
+              rowA.wins++;
+              rowB.losses++;
+              rowA.points += GAME_WIN_POINTS;
+              rowB.points += GAME_LOSS_POINTS;
+            } else {
+              rowB.wins++;
+              rowA.losses++;
+              rowB.points += GAME_WIN_POINTS;
+              rowA.points += GAME_LOSS_POINTS;
+            }
+          } else {
+            rowA.undecided++;
+            rowB.undecided++;
+          }
         }
       }
     }

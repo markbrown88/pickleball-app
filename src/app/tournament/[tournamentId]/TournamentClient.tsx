@@ -135,6 +135,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
             id: match.matchId,
             teamA: match.teamA,
             teamB: match.teamB,
+            forfeitTeam: match.forfeitTeam, // Include forfeitTeam
+            updatedAt: match.updatedAt, // Include updatedAt
             games: match.games.map((game: any) => {
               const rawIsComplete = typeof game.isComplete === 'boolean' ? game.isComplete : null;
               const isComplete = rawIsComplete === true || Boolean(game.endedAt);
@@ -312,7 +314,16 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     
     const completed = allGames
       .filter(({ game }) => isGameComplete(game))
-      .sort((a, b) => resolveEndTimestamp(b.game) - resolveEndTimestamp(a.game));
+      .sort((a, b) => {
+        // Use game endedAt for all matches - this represents when the game was completed
+        // For forfeited matches, this is set to the forfeit time
+        // For regular matches, this is when the game was actually completed
+        const gameACompletionTime = toTimestamp(a.game.endedAt) ?? 0;
+        const gameBCompletionTime = toTimestamp(b.game.endedAt) ?? 0;
+        
+        // Sort by completion time in descending order (most recent first)
+        return gameBCompletionTime - gameACompletionTime;
+      });
     
     return { inProgress, completed };
   };
@@ -358,8 +369,24 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
       stop.rounds?.forEach(round => {
         round.matches?.forEach(match => {
           if (match.teamA && match.teamB) {
-            // Calculate points for completed games only
-            if (match.games && match.games.length > 0) {
+            // Check for forfeit first
+            if (match.forfeitTeam) {
+              // Handle forfeit - forfeiting team gets 0 points, winning team gets 3 points
+              if (match.forfeitTeam === 'A') {
+                // Team A forfeited, Team B wins
+                teamPoints[match.teamB.id].points += 3;
+                teamPoints[match.teamB.id].wins += 1;
+                teamPoints[match.teamA.id].points += 0; // 0 points for forfeit
+                teamPoints[match.teamA.id].losses += 1;
+              } else {
+                // Team B forfeited, Team A wins
+                teamPoints[match.teamA.id].points += 3;
+                teamPoints[match.teamA.id].wins += 1;
+                teamPoints[match.teamB.id].points += 0; // 0 points for forfeit
+                teamPoints[match.teamB.id].losses += 1;
+              }
+            } else if (match.games && match.games.length > 0) {
+              // Normal match - calculate from game scores
               let teamAScore = 0;
               let teamBScore = 0;
               let completedGames = 0;
@@ -378,20 +405,19 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
               // Only calculate points if there are completed games
               if (completedGames > 0) {
                 if (teamAScore > teamBScore) {
+                  // Team A wins
                   teamPoints[match.teamA.id].points += 3;
                   teamPoints[match.teamA.id].wins += 1;
-                  teamPoints[match.teamB.id].points += 1;
+                  teamPoints[match.teamB.id].points += 1; // 1 point for loss
                   teamPoints[match.teamB.id].losses += 1;
                 } else if (teamBScore > teamAScore) {
+                  // Team B wins
                   teamPoints[match.teamB.id].points += 3;
                   teamPoints[match.teamB.id].wins += 1;
-                  teamPoints[match.teamA.id].points += 1;
+                  teamPoints[match.teamA.id].points += 1; // 1 point for loss
                   teamPoints[match.teamA.id].losses += 1;
-                } else {
-                  // Tie - both teams get 1 point
-                  teamPoints[match.teamA.id].points += 1;
-                  teamPoints[match.teamB.id].points += 1;
                 }
+                // No ties - if scores are equal, no points awarded
               }
             }
           }
@@ -669,40 +695,49 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                                 </div>
                               </div>
                               
-                              {/* Games */}
-                              <div className="space-y-1">
-                                {games.map(({ game }) => (
-                                  <div key={game.id} className="border-t border-subtle pt-1 first:border-t-0 first:pt-0">
-                                    {/* Game type */}
-                                    <div className="text-xs font-medium text-secondary mb-1">
-                                      {game.slot.replace('_', ' ')}
-                                    </div>
-                                    
-                                    {/* Player names and scores */}
-                                    <div className="flex items-center justify-between text-sm">
-                                      <div className={`text-xs whitespace-pre-line text-left flex items-center ${(game.teamAScore || 0) > (game.teamBScore || 0) ? 'text-success' : 'text-secondary'}`}>
-                                        {getPlayerNames(game, match, 'A')}
-                                        {(game.teamAScore || 0) > (game.teamBScore || 0) && (
-                                          <span className="ml-1 text-warning">🏆</span>
-                                        )}
-                                      </div>
-                                      <span className="font-medium text-primary">
-                                        {game.teamAScore !== null ? game.teamAScore : '-'}
-                                      </span>
-                                      <span className="text-muted">vs</span>
-                                      <span className="font-medium text-primary">
-                                        {game.teamBScore !== null ? game.teamBScore : '-'}
-                                      </span>
-                                      <div className={`text-xs whitespace-pre-line text-right flex items-center justify-end ${(game.teamBScore || 0) > (game.teamAScore || 0) ? 'text-success' : 'text-secondary'}`}>
-                                        {(game.teamBScore || 0) > (game.teamAScore || 0) && (
-                                          <span className="mr-1 text-warning">🏆</span>
-                                        )}
-                                        {getPlayerNames(game, match, 'B')}
-                                      </div>
-                                    </div>
+                              {/* For forfeited matches, show forfeit message instead of games */}
+                              {match.forfeitTeam ? (
+                                <div className="text-center py-3">
+                                  <div className="text-sm font-medium text-red-600">
+                                    {match.forfeitTeam === 'A' ? match.teamB?.name : match.teamA?.name} wins by forfeit
                                   </div>
-                                ))}
-                              </div>
+                                </div>
+                              ) : (
+                                /* Games - only show for non-forfeited matches */
+                                <div className="space-y-1">
+                                  {games.map(({ game }) => (
+                                    <div key={game.id} className="border-t border-subtle pt-1 first:border-t-0 first:pt-0">
+                                      {/* Game type */}
+                                      <div className="text-xs font-medium text-secondary mb-1">
+                                        {game.slot.replace('_', ' ')}
+                                      </div>
+                                      
+                                      {/* Player names and scores */}
+                                      <div className="flex items-center justify-between text-sm">
+                                        <div className={`text-xs whitespace-pre-line text-left flex items-center ${(game.teamAScore || 0) > (game.teamBScore || 0) ? 'text-success' : 'text-secondary'}`}>
+                                          {getPlayerNames(game, match, 'A')}
+                                          {(game.teamAScore || 0) > (game.teamBScore || 0) && (
+                                            <span className="ml-1 text-warning">🏆</span>
+                                          )}
+                                        </div>
+                                        <span className="font-medium text-primary">
+                                          {game.teamAScore !== null ? game.teamAScore : '-'}
+                                        </span>
+                                        <span className="text-muted">vs</span>
+                                        <span className="font-medium text-primary">
+                                          {game.teamBScore !== null ? game.teamBScore : '-'}
+                                        </span>
+                                        <div className={`text-xs whitespace-pre-line text-right flex items-center justify-end ${(game.teamBScore || 0) > (game.teamAScore || 0) ? 'text-success' : 'text-secondary'}`}>
+                                          {(game.teamBScore || 0) > (game.teamAScore || 0) && (
+                                            <span className="mr-1 text-warning">🏆</span>
+                                          )}
+                                          {getPlayerNames(game, match, 'B')}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           );
                         });

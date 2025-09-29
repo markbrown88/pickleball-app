@@ -75,7 +75,10 @@ export async function GET(req: Request, ctx: Ctx) {
       include: {
         matches: {
           orderBy: { id: 'asc' },
-          include: {
+          select: {
+            id: true,
+            isBye: true,
+            forfeitTeam: true,
             teamA: {
               select: {
                 id: true,
@@ -148,6 +151,7 @@ export async function GET(req: Request, ctx: Ctx) {
               teamA: match.teamA,
               teamB: match.teamB,
               isBye: match.isBye,
+              forfeitTeam: match.forfeitTeam,
               bracketId: inferredBracketId,
               bracketName: inferredBracketName,
               games: match.games?.map((game) => ({

@@ -232,17 +232,18 @@ model Round {
 /// * A matchup between two teams within a round.
 /// * This represents the logical "match" - two teams playing against each other.
 model Match {
-  id        String   @id(map: "Match_new_pkey") @default(cuid())
-  roundId   String
-  teamAId   String?
-  teamBId   String?
-  isBye     Boolean  @default(false)
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-  updatedAt DateTime @default(now()) @db.Timestamptz(6)
-  games     Game[]
-  round     Round    @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
-  teamA     Team?    @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
-  teamB     Team?    @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
+  id           String   @id(map: "Match_new_pkey") @default(cuid())
+  roundId      String
+  teamAId      String?
+  teamBId      String?
+  isBye        Boolean  @default(false)
+  forfeitTeam  String?  // 'A' for teamA forfeit, 'B' for teamB forfeit, null for no forfeit
+  createdAt    DateTime @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime @default(now()) @db.Timestamptz(6)
+  games        Game[]
+  round        Round    @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
+  teamA        Team?    @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
+  teamB        Team?    @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
 
   @@index([roundId])
   @@index([teamAId])

@@ -13,11 +13,21 @@ export default async function Page({ params }: { params: Promise<{ stopId: strin
       rounds: {
         orderBy: { idx: 'asc' },
         include: {
-          games: {
+          matches: {
+            orderBy: [
+              { updatedAt: 'desc' }, // Most recently completed matches first
+              { id: 'asc' } // Fallback to ID for matches with same completion time
+            ],
             include: {
               teamA: { include: { club: true } },
               teamB: { include: { club: true } },
-              matches: true
+              games: {
+                include: {
+                  teamA: { include: { club: true } },
+                  teamB: { include: { club: true } },
+                  matches: true
+                }
+              }
             }
           }
         }

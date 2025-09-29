@@ -2483,7 +2483,7 @@ function RostersTab({
         <h2 className="text-xl font-semibold text-primary">Manage Rosters by Bracket</h2>
         <div />
       </div>
-
+      
       <div className="space-y-5">
         {captainTournamentRows.length === 0 && (
           <div className="rounded-xl border border-dashed border-subtle bg-surface-1/70 px-6 py-10 text-center text-muted">
@@ -2520,7 +2520,7 @@ function RostersTab({
                     <span className="rounded-full bg-surface-1 px-2 py-0.5 text-xs font-medium text-muted">
                       {row.dates}
                     </span>
-                  </div>
+              </div>
 
                   <div className="flex flex-wrap gap-4 text-xs text-muted">
                     <span className="flex items-center gap-1">
@@ -2547,31 +2547,31 @@ function RostersTab({
                   </div>
                 </div>
 
-                <button
+              <button
                   onClick={() => setActiveTournamentId(isActive ? null : row.tournamentId)}
                   className="btn btn-secondary whitespace-nowrap"
-                >
+              >
                   {isActive ? 'Hide Rosters' : 'Manage Rosters'}
-                </button>
-              </div>
-
+              </button>
+            </div>
+            
               {isActive && (
                 <div className="px-6 py-5">
-                  <CaptainRosterEditor
-                    tournamentId={row.tournamentId}
-                    tournamentRow={row}
-                    onClose={() => setActiveTournamentId(null)}
-                    onSaved={onSaved}
-                    onError={onError}
-                    label={label}
-                  />
+              <CaptainRosterEditor
+                tournamentId={row.tournamentId}
+                tournamentRow={row}
+                onClose={() => setActiveTournamentId(null)}
+                onSaved={onSaved}
+                onError={onError}
+                label={label}
+              />
                 </div>
-              )}
-            </div>
+            )}
+          </div>
           );
         })}
       </div>
-
+      
       <p className="text-xs text-muted">
         Limits are enforced <em>per bracket</em>. A player cannot be rostered in multiple brackets within the same tournament.
       </p>
@@ -2639,7 +2639,7 @@ function CaptainRosterEditor({
 
     const currentStopRoster = rosters[stopId]?.[bracketKey] ?? [];
     if (currentStopRoster.some(p => p.id === playerId)) return true;
-
+    
     return currentStopRoster.length + 1 <= limit;
   }
 
@@ -2691,7 +2691,7 @@ function CaptainRosterEditor({
 
   const activeStop = tournamentRow.stops.find(stop => stop.stopId === activeStopId) ?? tournamentRow.stops[0];
   if (!activeStop) {
-    return (
+  return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-subtle pb-4">
           <div />
@@ -2714,7 +2714,7 @@ function CaptainRosterEditor({
   const isEditable = activeStop.status === 'pending';
   const excludeIdsAcrossStop = Object.values(rosters[activeStop.stopId] ?? {}).flat().map(p => p.id);
 
-  return (
+            return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-subtle pb-4">
         <div className="overflow-x-auto">
@@ -2746,7 +2746,7 @@ function CaptainRosterEditor({
           </button>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
         </div>
-      </div>
+                  </div>
 
       <section className={`rounded-2xl border border-subtle/80 ${isEditable ? 'bg-surface-2/40' : 'bg-surface-2/20'}`}>
         <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
@@ -2765,41 +2765,41 @@ function CaptainRosterEditor({
           </div>
 
           {isEditable && previousStop && (
-            <button
+                    <button
               className="btn btn-ghost btn-sm"
               onClick={() => copyFromPreviousStop(previousStop.stopId, activeStop.stopId)}
               title="Copy rosters from previous stop"
             >
               Copy previous stop
-            </button>
-          )}
-        </div>
+                    </button>
+                  )}
+                </div>
 
         <div className={`border-t border-subtle px-5 py-4 ${isEditable ? 'bg-surface-1' : 'bg-surface-1/80'}`}>
           {isEditable ? (
-            <div className="grid md:grid-cols-2 gap-4">
-              {tournamentRow.bracketNames.map((bKey) => {
-                const team = tournamentRow.bracketTeams.get(bKey)!;
+                <div className="grid md:grid-cols-2 gap-4">
+                  {tournamentRow.bracketNames.map((bKey) => {
+                    const team = tournamentRow.bracketTeams.get(bKey)!;
                 const list = rosters[activeStop.stopId]?.[bKey] ?? [];
-                const limit = bracketLimitFor(bKey);
+                    const limit = bracketLimitFor(bKey);
 
-                return (
-                  <BracketRosterEditor
+                    return (
+                      <BracketRosterEditor
                     key={`${activeStop.stopId}:${bKey}`}
                     bracketName={bKey}
                     limit={limit}
                     currentCount={list.length}
-                    teamId={team.id}
-                    tournamentId={tournamentId}
-                    list={list}
+                        teamId={team.id}
+                        tournamentId={tournamentId}
+                        list={list}
                     onChange={(next) => setStopBracketRoster(activeStop.stopId, bKey, next)}
                     canAdd={(playerId) => canAddToBracket(bKey, playerId, activeStop.stopId)}
-                    excludeIdsAcrossStop={excludeIdsAcrossStop}
-                    label={label}
-                  />
-                );
-              })}
-            </div>
+                        excludeIdsAcrossStop={excludeIdsAcrossStop}
+                        label={label}
+                      />
+                    );
+                  })}
+                </div>
           ) : (
             <div className="space-y-3">
               {tournamentRow.bracketNames.map((bKey) => {
@@ -2819,14 +2819,14 @@ function CaptainRosterEditor({
                         <li className="text-xs italic text-muted">No players assigned.</li>
                       )}
                     </ul>
-                  </div>
-                );
-              })}
-            </div>
+              </div>
+            );
+          })}
+        </div>
           )}
         </div>
       </section>
-    </div>
+      </div>
   );
 }
 
@@ -2925,20 +2925,20 @@ function BracketRosterEditor({
           <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-subtle bg-surface-1 shadow-lg">
             {options.length > 0 ? (
               <ul>
-                {options.map((opt) => (
-                  <li
-                    key={opt.id}
+            {options.map((opt) => (
+              <li
+                key={opt.id}
                     className="px-3 py-2 text-sm text-primary hover:bg-surface-2 cursor-pointer"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => { add(opt); setTerm(''); setOptions([]); setOpen(false); }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { add(opt); setTerm(''); setOptions([]); setOpen(false); }}
                   >
                     <div className="font-medium">{label(opt)}</div>
                     <div className="text-xs text-muted">
                       {opt.gender} • {opt.dupr ?? '—'} • {opt.age ?? '—'}
                     </div>
-                  </li>
-                ))}
-              </ul>
+              </li>
+            ))}
+          </ul>
             ) : (
               <div className="px-3 py-2 text-sm text-muted">
                 {loading ? 'Searching…' : 'No results yet'}
@@ -2958,7 +2958,7 @@ function BracketRosterEditor({
               {label(p)}
               <span className="ml-2 text-xs text-muted">
                 • {p.gender} • {p.dupr ?? '—'} • {p.age ?? '—'}
-              </span>
+            </span>
             </div>
             <button
               className="btn btn-ghost btn-xs text-error"
@@ -3423,6 +3423,11 @@ function EventManagerTab({
     const direct = normalizeStatus(match?.status || match?.state);
     if (direct) return direct;
 
+    // Check for forfeit - if a team forfeited, the match is complete
+    if (match?.forfeitTeam) {
+      return 'completed';
+    }
+
     if (match?.completedAt || match?.endedAt || match?.isComplete === true) {
       return 'completed';
     }
@@ -3875,7 +3880,7 @@ function EventManagerTab({
                               )}
 
                               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                            {(() => {
+                                {(() => {
                                   const hasAnyGameStarted =
                                     games[match.id]?.some(
                                       (game) =>
@@ -3917,7 +3922,7 @@ function EventManagerTab({
                       return (
                         <div key={matchId} className="rounded-xl border border-subtle bg-surface-2 p-4 shadow-sm">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-primary">
+                              <p className="text-sm font-semibold text-primary">
                               {(() => {
                                 const bracketLabel = match.bracketName || match.teamA?.bracketName || match.teamB?.bracketName;
                                 const teamAName = match.teamA?.name || 'Team A';
@@ -3934,6 +3939,90 @@ function EventManagerTab({
                                 return `${cleanTeamAName} vs ${cleanTeamBName}${bracketLabel ? ` - ${bracketLabel}` : ''}`;
                               })()}
                             </p>
+                            
+                            {/* Forfeit Button */}
+                            {!match.isBye && (
+                              <div className="flex items-center gap-2">
+                                {match.forfeitTeam ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="text-xs font-bold text-white bg-red-600 px-2 py-1 rounded">
+                                      FF
+                                    </span>
+                                    <span className="text-xs text-muted">
+                                      {match.forfeitTeam === 'A' 
+                                        ? `${match.teamB?.name || 'Team B'} wins` 
+                                        : `${match.teamA?.name || 'Team A'} wins`
+                                      }
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col gap-1">
+                                <button
+                                      onClick={async () => {
+                                        console.log(`[FRONTEND] Forfeit button clicked for Team A, matchId: ${matchId}`);
+                                        try {
+                                          const response = await fetch(`/api/admin/matches/${matchId}`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ forfeitTeam: 'A' })
+                                          });
+                                          
+                                          console.log(`[FRONTEND] Forfeit response status: ${response.status}`);
+                                          
+                                          if (response.ok) {
+                                            const result = await response.json();
+                                            console.log(`[FRONTEND] Forfeit successful:`, result);
+                                            // Refresh the page to show updated forfeit status
+                                            window.location.reload();
+                                          } else {
+                                            const errorData = await response.json();
+                                            console.error(`[FRONTEND] Forfeit failed:`, errorData);
+                                            alert(`Failed to record forfeit: ${errorData.error}`);
+                                          }
+                                        } catch (error) {
+                                          console.error('[FRONTEND] Error recording forfeit:', error);
+                                          alert('Failed to record forfeit. Please try again.');
+                                        }
+                                      }}
+                                      className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
+                                    >
+                                      {match.teamA?.name || 'Team A'} Forfeit
+                                </button>
+                                    <button
+                                      onClick={async () => {
+                                        console.log(`[FRONTEND] Forfeit button clicked for Team B, matchId: ${matchId}`);
+                                        try {
+                                          const response = await fetch(`/api/admin/matches/${matchId}`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ forfeitTeam: 'B' })
+                                          });
+                                          
+                                          console.log(`[FRONTEND] Forfeit response status: ${response.status}`);
+                                          
+                                          if (response.ok) {
+                                            const result = await response.json();
+                                            console.log(`[FRONTEND] Forfeit successful:`, result);
+                                            // Refresh the page to show updated forfeit status
+                                            window.location.reload();
+                                          } else {
+                                            const errorData = await response.json();
+                                            console.error(`[FRONTEND] Forfeit failed:`, errorData);
+                                            alert(`Failed to record forfeit: ${errorData.error}`);
+                                          }
+                                        } catch (error) {
+                                          console.error('[FRONTEND] Error recording forfeit:', error);
+                                          alert('Failed to record forfeit. Please try again.');
+                                        }
+                                      }}
+                                      className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
+                                    >
+                                      {match.teamB?.name || 'Team B'} Forfeit
+                                </button>
+                                  </div>
+                                )}
+                            </div>
+                            )}
                           </div>
 
                           <div className="mt-3 space-y-3">
@@ -4055,67 +4144,67 @@ function EventManagerTab({
                             {lineups[match.id] &&
                               lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 &&
                               lineups[match.id][match.teamB?.id || 'teamB']?.length === 4 && (
-                                <div className="space-y-4">
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    {games[match.id]
-                                      ?.filter((game) => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES')
-                                      .map((game) => (
-                                        <GameScoreBox
-                                          key={game.id}
-                                          game={game}
-                                          match={match}
-                                          gameStatuses={gameStatuses}
-                                          lineups={lineups}
-                                          startGame={startGame}
-                                          endGame={endGame}
-                                          updateGameScore={updateGameScore}
-                                          updateGameCourtNumber={updateGameCourtNumber}
-                                        />
-                                      ))}
-                                  </div>
+                                  <div className="space-y-4">
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      {games[match.id]
+                                        ?.filter((game) => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES')
+                                        .map((game) => (
+                                          <GameScoreBox
+                                            key={game.id}
+                                            game={game}
+                                            match={match}
+                                            gameStatuses={gameStatuses}
+                                            lineups={lineups}
+                                            startGame={startGame}
+                                            endGame={endGame}
+                                            updateGameScore={updateGameScore}
+                                            updateGameCourtNumber={updateGameCourtNumber}
+                                          />
+                                        ))}
+                                    </div>
 
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    {games[match.id]
-                                      ?.filter((game) => game.slot === 'MIXED_1' || game.slot === 'MIXED_2')
-                                      .map((game) => (
-                                        <GameScoreBox
-                                          key={game.id}
-                                          game={game}
-                                          match={match}
-                                          gameStatuses={gameStatuses}
-                                          lineups={lineups}
-                                          startGame={startGame}
-                                          endGame={endGame}
-                                          updateGameScore={updateGameScore}
-                                          updateGameCourtNumber={updateGameCourtNumber}
-                                        />
-                                      ))}
-                                  </div>
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      {games[match.id]
+                                        ?.filter((game) => game.slot === 'MIXED_1' || game.slot === 'MIXED_2')
+                                        .map((game) => (
+                                          <GameScoreBox
+                                            key={game.id}
+                                            game={game}
+                                            match={match}
+                                            gameStatuses={gameStatuses}
+                                            lineups={lineups}
+                                            startGame={startGame}
+                                            endGame={endGame}
+                                            updateGameScore={updateGameScore}
+                                            updateGameCourtNumber={updateGameCourtNumber}
+                                          />
+                                        ))}
+                                    </div>
 
-                                  {(() => {
-                                    const completedGames =
-                                      games[match.id]?.filter((g) => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
-                                    const teamAWins = completedGames.filter((g) => g.teamAScore > g.teamBScore).length;
-                                    const teamBWins = completedGames.filter((g) => g.teamBScore > g.teamAScore).length;
-                                    const needsTiebreaker =
-                                      completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
+                                    {(() => {
+                                      const completedGames =
+                                        games[match.id]?.filter((g) => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
+                                      const teamAWins = completedGames.filter((g) => g.teamAScore > g.teamBScore).length;
+                                      const teamBWins = completedGames.filter((g) => g.teamBScore > g.teamAScore).length;
+                                      const needsTiebreaker =
+                                        completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
 
-                                    return (
-                                      needsTiebreaker &&
-                                      games[match.id]?.find((g) => g.slot === 'TIEBREAKER') && (
-                                        <GameScoreBox
-                                          game={games[match.id].find((g) => g.slot === 'TIEBREAKER')}
-                                          match={match}
-                                          gameStatuses={gameStatuses}
-                                          lineups={lineups}
-                                          startGame={startGame}
-                                          endGame={endGame}
-                                          updateGameScore={updateGameScore}
-                                          updateGameCourtNumber={updateGameCourtNumber}
-                                        />
-                                      )
-                                    );
-                                  })()}
+                                      return (
+                                        needsTiebreaker &&
+                                        games[match.id]?.find((g) => g.slot === 'TIEBREAKER') && (
+                                          <GameScoreBox
+                                            game={games[match.id].find((g) => g.slot === 'TIEBREAKER')}
+                                            match={match}
+                                            gameStatuses={gameStatuses}
+                                            lineups={lineups}
+                                            startGame={startGame}
+                                            endGame={endGame}
+                                            updateGameScore={updateGameScore}
+                                            updateGameCourtNumber={updateGameCourtNumber}
+                                          />
+                                        )
+                                      );
+                                    })()}
                                 </div>
                               )}
                           </div>
@@ -4506,15 +4595,15 @@ function EventManagerTab({
         <section className="space-y-6">
           {activeStop ? (
             <>
-              {!stopHasAnyGameStarted && (
+                  {!stopHasAnyGameStarted && (
                 <div className="mb-4 flex justify-end">
-                  <button
-                    className="btn btn-primary disabled:opacity-60"
-                    onClick={() => generateSchedule(activeStop.stopId, activeStop.stopName)}
-                    disabled={isScheduleLoading}
-                  >
-                    {isScheduleLoading ? 'Regenerating…' : 'Regenerate Matchups'}
-                  </button>
+                    <button
+                      className="btn btn-primary disabled:opacity-60"
+                      onClick={() => generateSchedule(activeStop.stopId, activeStop.stopName)}
+                      disabled={isScheduleLoading}
+                    >
+                      {isScheduleLoading ? 'Regenerating…' : 'Regenerate Matchups'}
+                    </button>
                 </div>
               )}
 
@@ -4530,13 +4619,13 @@ function EventManagerTab({
                 <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
                   <div className="rounded-xl border border-subtle bg-surface-1 overflow-hidden">
                     <div className="border-b border-subtle px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Rounds</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">Rounds</p>
                     </div>
                     <div className="p-4">
                       <div className="space-y-2">
-                        {activeSchedule.map((round) => {
-                          const isActive = expandedRounds.has(round.id);
-                          const roundMatches = round.matches || [];
+                      {activeSchedule.map((round) => {
+                        const isActive = expandedRounds.has(round.id);
+                        const roundMatches = round.matches || [];
                           const matchStatusSummaries = roundMatches.map((match: any) => {
                             const derivedStatus = deriveMatchStatus(match, gameStatuses);
                             const cachedStatus = matchStatuses[match.id];
@@ -4547,24 +4636,24 @@ function EventManagerTab({
                           const statusLabel = roundCompleted ? 'Completed' : roundInProgress ? 'In Progress' : 'Pending';
                           const statusTone = roundCompleted ? 'text-success' : roundInProgress ? 'text-info' : 'text-muted';
 
-                          return (
-                            <button
-                              key={round.id}
-                              className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                                isActive
-                                  ? 'border-secondary bg-secondary/10 text-primary shadow-sm'
-                                  : 'border-transparent hover:border-subtle hover:bg-surface-2'
-                              }`}
-                              onClick={() => toggleRound(round.id)}
-                            >
-                              <div className="flex items-center justify-between text-sm font-medium">
-                                <span>Round {round.idx + 1}</span>
-                                <span className={`text-xs ${statusTone}`}>{statusLabel}</span>
-                              </div>
-                              <div className="mt-1 text-xs text-muted">{roundMatches.length} matches</div>
-                            </button>
-                          );
-                        })}
+                        return (
+                          <button
+                            key={round.id}
+                            className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                              isActive
+                                ? 'border-secondary bg-secondary/10 text-primary shadow-sm'
+                                : 'border-transparent hover:border-subtle hover:bg-surface-2'
+                            }`}
+                            onClick={() => toggleRound(round.id)}
+                          >
+                            <div className="flex items-center justify-between text-sm font-medium">
+                              <span>Round {round.idx + 1}</span>
+                              <span className={`text-xs ${statusTone}`}>{statusLabel}</span>
+                            </div>
+                            <div className="mt-1 text-xs text-muted">{roundMatches.length} matches</div>
+                          </button>
+                        );
+                      })}
                       </div>
                     </div>
                   </div>
@@ -4574,13 +4663,13 @@ function EventManagerTab({
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted">Matches, Games &amp; Scores</p>
                     </div>
                     <div className="p-4">
-                      <div className="space-y-6">
-                        {activeSchedule.map((round, roundIdx) => {
-                          if (!expandedRounds.has(round.id)) return null;
-                          return (
-                            <div key={`${round.id}-${roundIdx}`}>{renderRoundCard(round, roundIdx, activeSchedule)}</div>
-                          );
-                        })}
+                  <div className="space-y-6">
+                    {activeSchedule.map((round, roundIdx) => {
+                      if (!expandedRounds.has(round.id)) return null;
+                      return (
+                        <div key={`${round.id}-${roundIdx}`}>{renderRoundCard(round, roundIdx, activeSchedule)}</div>
+                      );
+                    })}
                       </div>
                     </div>
                   </div>
@@ -4889,37 +4978,37 @@ function InlineLineupEditor({
   useEffect(() => {
     const teamALineupData = getLineupForTeam(teamA.id, 'teamA');
     const teamBLineupData = getLineupForTeam(teamB.id, 'teamB');
-
-    // Only update if the data has actually changed
-    const currentTeamAIds = teamALineup.map(p => p?.id).filter(Boolean);
-    const currentTeamBIds = teamBLineup.map(p => p?.id).filter(Boolean);
-    const newTeamAIds = teamALineupData.map(p => p.id);
-    const newTeamBIds = teamBLineupData.map(p => p.id);
-
+      
+      // Only update if the data has actually changed
+      const currentTeamAIds = teamALineup.map(p => p?.id).filter(Boolean);
+      const currentTeamBIds = teamBLineup.map(p => p?.id).filter(Boolean);
+      const newTeamAIds = teamALineupData.map(p => p.id);
+      const newTeamBIds = teamBLineupData.map(p => p.id);
+      
     const teamAChanged = JSON.stringify([...currentTeamAIds].sort()) !== JSON.stringify([...newTeamAIds].sort());
     const teamBChanged = JSON.stringify([...currentTeamBIds].sort()) !== JSON.stringify([...newTeamBIds].sort());
-
-    if (teamAChanged || teamBChanged) {
-      setTeamALineup([
-        teamALineupData[0] || undefined,
-        teamALineupData[1] || undefined,
-        teamALineupData[2] || undefined,
-        teamALineupData[3] || undefined
-      ]);
-
-      setTeamBLineup([
-        teamBLineupData[0] || undefined,
-        teamBLineupData[1] || undefined,
-        teamBLineupData[2] || undefined,
-        teamBLineupData[3] || undefined
-      ]);
-
-      const allSelectedPlayers = new Set([
-        ...teamALineupData.map(p => p.id),
-        ...teamBLineupData.map(p => p.id)
-      ]);
-      setSelectedPlayers(allSelectedPlayers);
-    }
+      
+      if (teamAChanged || teamBChanged) {
+        setTeamALineup([
+          teamALineupData[0] || undefined,
+          teamALineupData[1] || undefined,
+          teamALineupData[2] || undefined,
+          teamALineupData[3] || undefined
+        ]);
+        
+        setTeamBLineup([
+          teamBLineupData[0] || undefined,
+          teamBLineupData[1] || undefined,
+          teamBLineupData[2] || undefined,
+          teamBLineupData[3] || undefined
+        ]);
+        
+        const allSelectedPlayers = new Set([
+          ...teamALineupData.map(p => p.id),
+          ...teamBLineupData.map(p => p.id)
+        ]);
+        setSelectedPlayers(allSelectedPlayers);
+      }
   }, [matchId, teamA.id, teamB.id, matchLineups]);
 
   const addPlayerToLineup = (player: PlayerLite, teamId: string, slotIndex: number) => {
@@ -5114,8 +5203,8 @@ function InlineLineupEditor({
             {[0, 1, 2, 3].map(index =>
               renderSlotSelect(teamB, teamBLineup, index, 'Select')
             )}
-          </div>
-        </div>
+            </div>
+            </div>
       </div>
     </div>
   );
