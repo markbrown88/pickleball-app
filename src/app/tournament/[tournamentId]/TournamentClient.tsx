@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface Tournament {
   id: string;
@@ -433,7 +433,44 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     });
   };
 
-  const standings = calculateStandings();
+  // Fetch tournament-level standings from API
+  const [standings, setStandings] = useState<any[]>([]);
+  const [standingsLoading, setStandingsLoading] = useState(false);
+
+  const fetchTournamentStandings = useCallback(async (tournamentId: string) => {
+    setStandingsLoading(true);
+    try {
+      console.log('Fetching standings for tournament:', tournamentId);
+      const response = await fetch(`/api/tournaments/${tournamentId}/standings`);
+      console.log('Standings response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Standings data:', data);
+        setStandings(data);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to fetch tournament standings:', response.status, errorText);
+        setStandings([]);
+      }
+    } catch (error) {
+      console.error('Error fetching tournament standings:', error);
+      setStandings([]);
+    } finally {
+      setStandingsLoading(false);
+    }
+  }, []);
+
+  // Load standings when tournament changes
+  useEffect(() => {
+    console.log('Tournament effect running, tournament:', tournament);
+    if (tournament?.id) {
+      console.log('Fetching standings for tournament ID:', tournament.id);
+      fetchTournamentStandings(tournament.id);
+    } else {
+      console.log('No tournament ID available');
+    }
+  }, [tournament?.id, fetchTournamentStandings]);
 
   const deriveClubKey = (teamName?: string | null) =>
     (teamName ?? 'Unknown Team')
@@ -441,8 +478,20 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
       .trim()
       || 'Unknown Team';
 
+  // Transform API data to match expected format
+  const transformedStandings = standings.map(standing => ({
+    team: {
+      id: standing.team_id,
+      name: standing.team_name,
+      clubId: standing.clubId
+    },
+    points: standing.points,
+    wins: standing.wins,
+    losses: standing.losses
+  }));
+
   const combinedStandingsRaw = Array.from(
-    standings.reduce((map, standing) => {
+    transformedStandings.reduce((map, standing) => {
       const teamName = standing.team?.name ?? 'Unknown Team';
       const clubName = deriveClubKey(teamName);
       const key = clubName.toLowerCase();
@@ -470,8 +519,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     return a.name.localeCompare(b.name);
   });
 
-  const advancedStandingsRaw = standings.filter(s => s.team.name.includes('Advanced'));
-  const intermediateStandingsRaw = standings.filter(s => s.team.name.includes('Intermediate'));
+  const advancedStandingsRaw = transformedStandings.filter(s => s.team.name.includes('Advanced'));
+  const intermediateStandingsRaw = transformedStandings.filter(s => s.team.name.includes('Intermediate'));
 
   const attachPlaces = <T extends { points: number }>(entries: T[]) => {
     let previousPoints: number | null = null;
