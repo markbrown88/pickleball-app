@@ -195,20 +195,29 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ tournament
 
     const player = await prisma.player.findUnique({
       where: { clerkUserId: userId },
-      select: { id: true },
+      select: { id: true, isAppAdmin: true },
     });
 
     if (!player) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const adminLink = await prisma.tournamentAdmin.findUnique({
-      where: { tournamentId_playerId: { tournamentId, playerId: player.id } },
-      select: { playerId: true },
-    });
+    if (!player.isAppAdmin) {
+      const adminLink = await prisma.tournamentAdmin.findUnique({
+        where: { tournamentId_playerId: { tournamentId, playerId: player.id } },
+        select: { playerId: true },
+      });
 
-    if (!player.isAppAdmin && !adminLink) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      if (!adminLink) {
+        const captainLink = await prisma.tournamentCaptain.findUnique({
+          where: { tournamentId_playerId: { tournamentId, playerId: player.id } },
+          select: { playerId: true },
+        });
+
+        if (!captainLink) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      }
     }
 
     const tournament = await prisma.tournament.findUnique({

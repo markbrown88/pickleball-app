@@ -31,7 +31,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-semibold">{data.team.tournament?.name} — Captain Console</h1>
       <TeamEditor inviteId={data.id} team={data.team} />
-      <div className="text-sm opacity-70">Problems? <Link href="/me" className="underline">Contact admin</Link></div>
+      <div className="text-sm opacity-70">Problems? <Link href="/dashboard" className="underline">Contact admin</Link></div>
     </div>
   );
 }

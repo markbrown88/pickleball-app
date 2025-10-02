@@ -258,7 +258,7 @@ export default function AppAdminPage() {
               <a href="/" className="text-2xl font-bold text-primary hover:text-primary-hover transition-colors">TournaVerse</a>
             </div>
             <div className="flex items-center space-x-4">
-              <a href="/me" className="nav-link">Player Dashboard</a>
+              <a href="/dashboard" className="nav-link">Player Dashboard</a>
               <a href="/admin" className="nav-link">Tournament Setup</a>
               <a href="/tournaments" className="nav-link">Scoreboard</a>
               <a href="/app-admin" className="nav-link active text-secondary font-semibold">Admin</a>

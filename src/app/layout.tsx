@@ -16,8 +16,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "TournaVerse - Pickleball Tournament Management",
-  description: "The ultimate platform for managing pickleball tournaments. Powered by Klyng.",
+  title: "Klyng Cup - Multi-Stop Pickleball Championship",
+  description: "The ultimate multi-stop pickleball championship experience. Where clubs compete across multiple stops, accumulating points toward the ultimate championship.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

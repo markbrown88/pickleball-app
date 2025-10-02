@@ -1,0 +1,255 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import type { UserProfile } from '@/types';
+
+export const CA_PROVINCES = [
+  'AB',
+  'BC',
+  'MB',
+  'NB',
+  'NL',
+  'NS',
+  'NT',
+  'NU',
+  'ON',
+  'PE',
+  'QC',
+  'SK',
+  'YT',
+] as const;
+
+export const US_STATES = [
+  'AL',
+  'AK',
+  'AZ',
+  'AR',
+  'CA',
+  'CO',
+  'CT',
+  'DE',
+  'FL',
+  'GA',
+  'HI',
+  'ID',
+  'IL',
+  'IN',
+  'IA',
+  'KS',
+  'KY',
+  'LA',
+  'ME',
+  'MD',
+  'MA',
+  'MI',
+  'MN',
+  'MS',
+  'MO',
+  'MT',
+  'NE',
+  'NV',
+  'NH',
+  'NJ',
+  'NM',
+  'NY',
+  'NC',
+  'ND',
+  'OH',
+  'OK',
+  'OR',
+  'PA',
+  'RI',
+  'SC',
+  'SD',
+  'TN',
+  'TX',
+  'UT',
+  'VT',
+  'VA',
+  'WA',
+  'WV',
+  'WI',
+  'WY',
+] as const;
+
+export type CountrySel = 'Canada' | 'USA' | 'Other';
+
+type ProfileBase = {
+  clubRating?: number | null;
+  photo?: string | null;
+};
+
+export type ProfileFormState = {
+  firstName: string;
+  lastName: string;
+  gender: 'MALE' | 'FEMALE';
+  clubId: string;
+  dupr: string;
+  city: string;
+  region: string;
+  phone: string;
+  email: string;
+  clubRating: string;
+  photo: string;
+};
+
+export type ProfileSetupFormState = {
+  firstName: string;
+  lastName: string;
+  gender: 'MALE' | 'FEMALE';
+  clubId: string;
+  email: string;
+  phone: string;
+  city: string;
+  region: string;
+  country: string;
+  dupr: string;
+  birthday: string;
+};
+
+export function fortyYearsAgoISO() {
+  const t = new Date();
+  t.setFullYear(t.getFullYear() - 40);
+  const y = t.getFullYear();
+  const m = String(t.getMonth() + 1).padStart(2, '0');
+  const d = String(t.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function ymdToDateString(y?: number | null, m?: number | null, d?: number | null) {
+  if (!y || !m || !d) return '';
+  const mm = String(m).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
+}
+
+type ProfileSetupUser = {
+  firstName?: string | null;
+  lastName?: string | null;
+  emailAddresses?: Array<{ emailAddress: string }>;
+  phoneNumbers?: Array<{ phoneNumber: string }>;
+};
+
+export function useProfileSetupForm(user: ProfileSetupUser | null) {
+  const [formData, setFormData] = useState<ProfileSetupFormState>({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    gender: 'MALE',
+    clubId: '',
+    email: user?.emailAddresses?.[0]?.emailAddress || '',
+    phone: user?.phoneNumbers?.[0]?.phoneNumber || '',
+    city: '',
+    region: '',
+    country: 'Canada',
+    dupr: '',
+    birthday: '',
+  });
+  const [countrySel, setCountrySel] = useState<CountrySel>('Canada');
+  const [countryOther, setCountryOther] = useState('');
+
+  const setField = useCallback(
+    <K extends keyof ProfileSetupFormState>(key: K, value: ProfileSetupFormState[K]) => {
+      setFormData((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
+
+  const assignCountry = useCallback(
+    (country: CountrySel | string) => {
+      if (country === 'Canada' || country === 'USA') {
+        setCountrySel(country);
+        setCountryOther('');
+        setField('country', country);
+      } else {
+        setCountrySel('Other');
+        setCountryOther(country);
+        setField('country', country);
+      }
+    },
+    [setField],
+  );
+
+  const normalizedCountry = useMemo(() => {
+    if (countrySel === 'Other') return countryOther;
+    return countrySel;
+  }, [countrySel, countryOther]);
+
+  return {
+    formData,
+    setField,
+    countrySel,
+    setCountrySel,
+    countryOther,
+    setCountryOther,
+    assignCountry,
+    normalizedCountry,
+  };
+}
+
+export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) | null) {
+  const [form, setForm] = useState<ProfileFormState>({
+    firstName: '',
+    lastName: '',
+    gender: 'MALE',
+    clubId: '',
+    dupr: '',
+    city: '',
+    region: '',
+    phone: '',
+    email: '',
+    clubRating: '',
+    photo: '',
+  });
+  const [countrySel, setCountrySel] = useState<CountrySel>('Canada');
+  const [countryOther, setCountryOther] = useState('');
+  const [birthday, setBirthday] = useState<string>(fortyYearsAgoISO());
+
+  const hydrateFromProfile = useCallback((profile: UserProfile & ProfileBase) => {
+    const country = (profile.country || 'Canada') as string;
+    const isKnownCountry = country === 'Canada' || country === 'USA';
+    setCountrySel(isKnownCountry ? (country as CountrySel) : 'Other');
+    setCountryOther(isKnownCountry ? '' : country);
+    setBirthday(
+      profile.birthday
+        ? profile.birthday
+        :
+            ymdToDateString(
+              profile.birthdayYear ?? null,
+              profile.birthdayMonth ?? null,
+              profile.birthdayDay ?? null,
+            ) || fortyYearsAgoISO(),
+    );
+    setForm({
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
+      gender: profile.gender || 'MALE',
+      clubId: profile.club?.id || '',
+      dupr: profile.dupr != null ? String(profile.dupr) : '',
+      city: profile.city || '',
+      region: profile.region || '',
+      phone: profile.phone || '',
+      email: profile.email || '',
+      clubRating: profile.clubRating != null ? String(profile.clubRating) : '',
+      photo: profile.photo || '',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (initialProfile) {
+      hydrateFromProfile(initialProfile);
+    }
+  }, [initialProfile, hydrateFromProfile]);
+
+  return {
+    form,
+    setForm,
+    countrySel,
+    setCountrySel,
+    countryOther,
+    setCountryOther,
+    birthday,
+    setBirthday,
+    hydrateFromProfile,
+  };
+}
+
+
