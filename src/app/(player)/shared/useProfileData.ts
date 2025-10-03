@@ -208,15 +208,15 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
     const isKnownCountry = country === 'Canada' || country === 'USA';
     setCountrySel(isKnownCountry ? (country as CountrySel) : 'Other');
     setCountryOther(isKnownCountry ? '' : country);
-    setBirthday(
-      profile.birthday
-        ? (profile.birthday instanceof Date 
-            ? profile.birthday.toISOString().slice(0, 10) 
-            : typeof profile.birthday === 'string' 
-              ? profile.birthday.slice(0, 10)
-              : fortyYearsAgoISO())
-        : fortyYearsAgoISO(),
-    );
+    let birthdayStr = fortyYearsAgoISO();
+    if (profile.birthday) {
+      if (profile.birthday instanceof Date) {
+        birthdayStr = profile.birthday.toISOString().slice(0, 10);
+      } else if (typeof profile.birthday === 'string') {
+        birthdayStr = profile.birthday.slice(0, 10);
+      }
+    }
+    setBirthday(birthdayStr);
     setForm({
       firstName: profile.firstName || '',
       lastName: profile.lastName || '',

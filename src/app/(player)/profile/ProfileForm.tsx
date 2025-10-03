@@ -65,11 +65,12 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         setCountrySel('Other');
       }
       if (profile.birthday) {
-        const birthdayStr = profile.birthday instanceof Date 
-          ? profile.birthday.toISOString().slice(0, 10)
-          : typeof profile.birthday === 'string' 
-            ? profile.birthday.slice(0, 10)
-            : '';
+        let birthdayStr = '';
+        if (profile.birthday instanceof Date) {
+          birthdayStr = profile.birthday.toISOString().slice(0, 10);
+        } else if (typeof profile.birthday === 'string') {
+          birthdayStr = profile.birthday.slice(0, 10);
+        }
         setBirthday(birthdayStr);
       }
     } else {
