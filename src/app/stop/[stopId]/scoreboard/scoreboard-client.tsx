@@ -14,31 +14,41 @@ export default function Scoreboard({ initial }: any) {
   }, [initial.id]);
 
   return (
-    <div className="min-h-screen bg-app p-6 space-y-4">
-      <h1 className="text-2xl font-semibold text-primary">{data.tournament.name} — {data.name}</h1>
-      {data.rounds.map((r:any) => (
-        <div key={r.id} className="card space-y-2">
-          <h2 className="font-medium text-primary">Round {r.idx + 1}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {r.matches.map((match:any) => (
-              <div key={match.id} className="card">
-                <div className="flex justify-between">
-                  <span className="text-primary">{match.teamA?.name ?? '—'} vs {match.teamB?.name ?? '—'}</span>
-                  <span className="text-accent opacity-70">{match.games.reduce((acc:number,game:any)=>acc+(game.teamAScore??0) - (game.teamBScore??0),0) > 0 ? '• Live' : ''}</span>
-                </div>
-                <ul className="mt-2 text-sm">
-                  {match.games.map((game:any)=>(
-                    <li key={game.id} className="flex justify-between">
-                      <span className="text-muted">{game.slot}</span>
-                      <span className="text-secondary tabular">{game.teamAScore ?? 0} – {game.teamBScore ?? 0}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+    <div className="min-h-screen bg-app">
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-primary mb-2">{data.tournament.name} — {data.name}</h1>
+          <p className="text-muted">Live tournament results and standings</p>
         </div>
-      ))}
+        
+        {data.rounds.map((r:any) => (
+          <div key={r.id} className="card">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-primary">Round {r.idx + 1}</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {r.matches.map((match:any) => (
+                <div key={match.id} className="card bg-surface-2">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-primary font-medium">{match.teamA?.name ?? '—'} vs {match.teamB?.name ?? '—'}</span>
+                    {match.games.reduce((acc:number,game:any)=>acc+(game.teamAScore??0) - (game.teamBScore??0),0) > 0 && (
+                      <span className="chip chip-success text-xs">Live</span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {match.games.map((game:any)=>(
+                      <div key={game.id} className="flex justify-between items-center py-1 border-b border-subtle last:border-b-0">
+                        <span className="text-muted text-sm">{game.slot}</span>
+                        <span className="text-secondary font-medium tabular">{game.teamAScore ?? 0} – {game.teamBScore ?? 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

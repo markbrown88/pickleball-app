@@ -10,11 +10,13 @@ export type PlayerAssignment = {
   stopStartAt?: string | null;
   stopEndAt?: string | null;
   isCaptain?: boolean;
+  bracket?: string | null;
 };
 
 export type DashboardOverview = {
   player: UserProfile | null;
   assignments: PlayerAssignment[];
 };
+
 
 

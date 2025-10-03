@@ -21,7 +21,7 @@ export async function GET() {
           data: {
             tournamentId: t.id,
             name: t.name,  // default stop name = tournament name
-            startAt: null,
+            startAt: new Date(),
             endAt: null,
           },
           select: { id: true },

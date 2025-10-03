@@ -179,7 +179,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-primary">My Dashboard</h1>
+        <h1 className="text-3xl font-semibold text-primary">Home</h1>
         <p className="text-muted">View your active teams, upcoming stops, and register for new tournaments.</p>
       </header>
 

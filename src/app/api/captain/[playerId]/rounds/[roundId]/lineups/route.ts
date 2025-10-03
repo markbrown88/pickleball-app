@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { GameSlot } from '@prisma/client';
+import type { GameSlot, Gender } from '@prisma/client';
 
 type Params = { playerId: string; roundId: string };
 
@@ -13,15 +13,57 @@ type PlayerLite = {
   firstName?: string | null;
   lastName?: string | null;
   name?: string | null;
-  gender: 'MALE' | 'FEMALE';
+  gender: Gender;
   dupr?: number | null;
   age?: number | null;
 };
+
+type LineupEntryWithPlayers = {
+  slot: GameSlot;
+  player1: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    name: string | null;
+    gender: Gender;
+    dupr: number | null;
+    age: number | null;
+    birthday: Date | null;
+  } | null;
+  player2: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    name: string | null;
+    gender: Gender;
+    dupr: number | null;
+    age: number | null;
+    birthday: Date | null;
+  } | null;
+};
+
+type PlayerSelectResult = LineupEntryWithPlayers['player1'];
 
 function label(p: PlayerLite) {
   const fn = (p.firstName ?? '').trim();
   const ln = (p.lastName ?? '').trim();
   return [fn, ln].filter(Boolean).join(' ') || (p.name ?? 'Unknown');
+}
+
+function toPlayerLite(player: PlayerSelectResult | null): PlayerLite | null {
+  if (!player) return null;
+  const { id, firstName, lastName, name, gender, dupr, age, birthday } = player;
+  const computedAge =
+    age ?? (birthday ? Math.floor((Date.now() - Number(new Date(birthday))) / (365.25 * 24 * 3600 * 1000)) : null);
+  return {
+    id,
+    firstName,
+    lastName,
+    name: name ?? label({ id, firstName, lastName, name, gender, dupr, age: computedAge }),
+    gender,
+    dupr: dupr ?? null,
+    age: computedAge,
+  };
 }
 
 /* ========================= GET =========================
@@ -76,9 +118,9 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     for (const t of legacyTeams) if (t.clubId) governedClubIds.add(t.clubId);
 
     // Round games with minimal team data
-    const games = await prisma.game.findMany({
+    const matches = await prisma.match.findMany({
       where: { roundId },
-      orderBy: { id: 'asc' },
+      orderBy: { createdAt: 'asc' },
       select: {
         id: true,
         isBye: true,
@@ -98,15 +140,22 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             bracket: { select: { id: true, name: true } },
           },
         },
+        games: {
+          orderBy: { slot: 'asc' },
+          select: {
+            id: true,
+            slot: true,
+          },
+        },
       },
     });
 
     // Collect all teamIds present in this round
     const teamIds = new Set<string>();
-    for (const g of games) {
-      if (g.teamA?.id) teamIds.add(g.teamA.id);
-      if (g.teamB?.id) teamIds.add(g.teamB.id);
-    }
+    matches.forEach((matchRecord) => {
+      if (matchRecord.teamA?.id) teamIds.add(matchRecord.teamA.id);
+      if (matchRecord.teamB?.id) teamIds.add(matchRecord.teamB.id);
+    });
 
     // Load all existing lineups for these teams in this round (if any)
     const lineupsRaw = await prisma.lineup.findMany({
@@ -118,12 +167,26 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             slot: true,
             player1: {
               select: {
-                id: true, firstName: true, lastName: true, name: true, gender: true, dupr: true, age: true, birthday: true,
+                id: true,
+                firstName: true,
+                lastName: true,
+                name: true,
+                gender: true,
+                dupr: true,
+                age: true,
+                birthday: true,
               },
             },
             player2: {
               select: {
-                id: true, firstName: true, lastName: true, name: true, gender: true, dupr: true, age: true, birthday: true,
+                id: true,
+                firstName: true,
+                lastName: true,
+                name: true,
+                gender: true,
+                dupr: true,
+                age: true,
+                birthday: true,
               },
             },
           },
@@ -148,63 +211,43 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     for (const lu of lineupsRaw) {
       lineups[lu.teamId] = {
         canEdit: false, // fill later per game
-        entries: lu.entries.map((e) => ({
-          slot: e.slot,
-          p1: e.player1
-            ? {
-                id: e.player1.id,
-                firstName: e.player1.firstName,
-                lastName: e.player1.lastName,
-                name: e.player1.name ?? label(e.player1 as any),
-                gender: e.player1.gender,
-                dupr: e.player1.dupr ?? null,
-                age:
-                  e.player1.age ??
-                  (e.player1.birthday
-                    ? Math.floor((Date.now() - +new Date(e.player1.birthday)) / (365.25 * 24 * 3600 * 1000))
-                    : null),
-              }
-            : null,
-          p2: e.player2
-            ? {
-                id: e.player2.id,
-                firstName: e.player2.firstName,
-                lastName: e.player2.lastName,
-                name: e.player2.name ?? label(e.player2 as any),
-                gender: e.player2.gender,
-                dupr: e.player2.dupr ?? null,
-                age:
-                  e.player2.age ??
-                  (e.player2.birthday
-                    ? Math.floor((Date.now() - +new Date(e.player2.birthday)) / (365.25 * 24 * 3600 * 1000))
-                    : null),
-              }
-            : null,
+        entries: lu.entries.map((entry) => ({
+          slot: entry.slot,
+          p1: toPlayerLite(entry.player1),
+          p2: toPlayerLite(entry.player2),
         })),
       };
     }
 
     // Shape games and mark editability; also ensure lineup entries exist in the map (possibly empty)
-    const shapedGames = games.map((g) => {
-      const tA = g.teamA
+    const shapedGames = matches.map((matchRecord) => {
+      const tA = matchRecord.teamA
         ? {
-            id: g.teamA.id,
-            name: g.teamA.name,
-            club: g.teamA.club ? { id: g.teamA.club.id, name: g.teamA.club.name } : undefined,
-            bracket: g.teamA.bracket ? { id: g.teamA.bracket.id, name: g.teamA.bracket.name } : undefined,
+            id: matchRecord.teamA.id,
+            name: matchRecord.teamA.name,
+            club: matchRecord.teamA.club
+              ? { id: matchRecord.teamA.club.id, name: matchRecord.teamA.club.name }
+              : undefined,
+            bracket: matchRecord.teamA.bracket
+              ? { id: matchRecord.teamA.bracket.id, name: matchRecord.teamA.bracket.name }
+              : undefined,
           }
         : undefined;
-      const tB = g.teamB
+      const tB = matchRecord.teamB
         ? {
-            id: g.teamB.id,
-            name: g.teamB.name,
-            club: g.teamB.club ? { id: g.teamB.club.id, name: g.teamB.club.name } : undefined,
-            bracket: g.teamB.bracket ? { id: g.teamB.bracket.id, name: g.teamB.bracket.name } : undefined,
+            id: matchRecord.teamB.id,
+            name: matchRecord.teamB.name,
+            club: matchRecord.teamB.club
+              ? { id: matchRecord.teamB.club.id, name: matchRecord.teamB.club.name }
+              : undefined,
+            bracket: matchRecord.teamB.bracket
+              ? { id: matchRecord.teamB.bracket.id, name: matchRecord.teamB.bracket.name }
+              : undefined,
           }
         : undefined;
 
-      const canEditA = canEditByTeam(g.teamA ?? undefined);
-      const canEditB = canEditByTeam(g.teamB ?? undefined);
+      const canEditA = canEditByTeam(matchRecord.teamA ?? undefined);
+      const canEditB = canEditByTeam(matchRecord.teamB ?? undefined);
 
       if (tA && !lineups[tA.id]) lineups[tA.id] = { canEdit: canEditA, entries: [] };
       if (tB && !lineups[tB.id]) lineups[tB.id] = { canEdit: canEditB, entries: [] };
@@ -212,10 +255,11 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       if (tB) lineups[tB.id].canEdit = canEditB;
 
       return {
-        gameId: g.id,
-        isBye: g.isBye,
+        matchId: matchRecord.id,
+        isBye: matchRecord.isBye,
         teamA: tA ? { ...tA, canEdit: canEditA } : undefined,
         teamB: tB ? { ...tB, canEdit: canEditB } : undefined,
+        slots: matchRecord.games.map((g) => g.slot).filter((slot): slot is GameSlot => slot != null),
       };
     });
 
@@ -223,11 +267,12 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       roundId,
       stopId: round.stopId,
       tournamentId,
-      games: shapedGames,
+      matches: shapedGames,
       lineups,
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to load lineups', detail: e?.message ?? '' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to load lineups', detail: message }, { status: 500 });
   }
 }
 
@@ -387,45 +432,18 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
       return fresh;
     });
 
-    const shaped = {
+    const shapedLineup = {
       teamId: result?.teamId ?? teamId,
-      entries: (result?.entries ?? []).map((e) => ({
-        slot: e.slot,
-        p1: e.player1
-          ? {
-              id: e.player1.id,
-              firstName: e.player1.firstName,
-              lastName: e.player1.lastName,
-              name: e.player1.name ?? label(e.player1 as any),
-              gender: e.player1.gender,
-              dupr: e.player1.dupr ?? null,
-              age:
-                e.player1.age ??
-                (e.player1.birthday
-                  ? Math.floor((Date.now() - +new Date(e.player1.birthday)) / (365.25 * 24 * 3600 * 1000))
-                  : null),
-            }
-          : null,
-        p2: e.player2
-          ? {
-              id: e.player2.id,
-              firstName: e.player2.firstName,
-              lastName: e.player2.lastName,
-              name: e.player2.name ?? label(e.player2 as any),
-              gender: e.player2.gender,
-              dupr: e.player2.dupr ?? null,
-              age:
-                e.player2.age ??
-                (e.player2.birthday
-                  ? Math.floor((Date.now() - +new Date(e.player2.birthday)) / (365.25 * 24 * 3600 * 1000))
-                  : null),
-            }
-          : null,
+      entries: (result?.entries ?? []).map((entry) => ({
+        slot: entry.slot,
+        p1: toPlayerLite(entry.player1),
+        p2: toPlayerLite(entry.player2),
       })),
     };
 
-    return NextResponse.json({ ok: true, roundId, stopId, tournamentId, lineup: shaped });
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to save lineup', detail: e?.message ?? '' }, { status: 500 });
+    return NextResponse.json({ ok: true, roundId, stopId, tournamentId, lineup: shapedLineup });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to save lineup', detail: message }, { status: 500 });
   }
 }

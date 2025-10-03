@@ -93,7 +93,13 @@ export async function POST(req: Request) {
 
     // Dedupe by the composite tuple (including possible nulls)
     const existing = await prisma.stop.findFirst({
-      where: { tournamentId, name, clubId, startAt: startAt ?? null, endAt: endAt ?? null },
+      where: { 
+        tournamentId, 
+        name, 
+        clubId, 
+        startAt: startAt ?? undefined, 
+        endAt: endAt ?? undefined 
+      },
       select: { id: true },
     });
 
@@ -114,7 +120,7 @@ export async function POST(req: Request) {
     }
 
     const created = await prisma.stop.create({
-      data: { name, tournamentId, clubId, startAt, endAt },
+      data: { name, tournamentId, clubId, startAt: startAt || new Date(), endAt: endAt || new Date() },
       select: { id: true, name: true, tournamentId: true, clubId: true, startAt: true, endAt: true },
     });
 

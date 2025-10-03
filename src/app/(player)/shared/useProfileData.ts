@@ -210,13 +210,8 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
     setCountryOther(isKnownCountry ? '' : country);
     setBirthday(
       profile.birthday
-        ? profile.birthday
-        :
-            ymdToDateString(
-              profile.birthdayYear ?? null,
-              profile.birthdayMonth ?? null,
-              profile.birthdayDay ?? null,
-            ) || fortyYearsAgoISO(),
+        ? (profile.birthday instanceof Date ? profile.birthday.toISOString().slice(0, 10) : profile.birthday)
+        : fortyYearsAgoISO(),
     );
     setForm({
       firstName: profile.firstName || '',

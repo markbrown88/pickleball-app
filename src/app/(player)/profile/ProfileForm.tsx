@@ -65,7 +65,10 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         setCountrySel('Other');
       }
       if (profile.birthday) {
-        setBirthday(profile.birthday.slice(0, 10));
+        const birthdayStr = profile.birthday instanceof Date 
+          ? profile.birthday.toISOString().slice(0, 10)
+          : profile.birthday.slice(0, 10);
+        setBirthday(birthdayStr);
       }
     } else {
       setBirthday(fortyYearsAgoISO());
@@ -181,7 +184,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
 
                       const reader = new FileReader();
                       reader.onload = (ev) => {
-                        const img = new Image();
+                        const img = document.createElement('img');
                         img.onload = () => {
                           const canvas = document.createElement('canvas');
                           const ctx = canvas.getContext('2d');

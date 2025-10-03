@@ -15,11 +15,9 @@ function personLabel(p: { firstName?: string | null; lastName?: string | null; n
   return full || (p.name ?? 'Unknown');
 }
 
-export async function GET(_req: Request, ctx: { params: Params } | { params: Promise<Params> }) {
+export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   try {
-    // Next 15 compatibility: params may be a Promise
-    const raw: any = (ctx as any).params;
-    const { tournamentId } = typeof raw?.then === 'function' ? await raw : raw;
+    const { tournamentId } = await ctx.params;
 
     // Use singleton prisma instance
 

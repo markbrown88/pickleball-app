@@ -30,29 +30,29 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
-      select: {
-        id: true,
-        isBye: true,
-        round: { select: { id: true, stopId: true } },
-        teamAId: true,
-        teamBId: true,
-        matches: {
-          orderBy: { slot: 'asc' },
-          select: { id: true, slot: true, teamAScore: true, teamBScore: true },
-        },
-      },
+      include: {
+        match: {
+          select: {
+            id: true,
+            isBye: true,
+            round: { select: { id: true, stopId: true } },
+            teamAId: true,
+            teamBId: true,
+          }
+        }
+      }
     });
 
     if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
 
     return NextResponse.json({
       gameId: game.id,
-      isBye: game.isBye,
-      roundId: game.round.id,
-      stopId: game.round.stopId,
-      teamAId: game.teamAId,
-      teamBId: game.teamBId,
-      matches: game.matches,
+      isBye: game.match.isBye,
+      roundId: game.match.round.id,
+      stopId: game.match.round.stopId,
+      teamAId: game.match.teamAId,
+      teamBId: game.match.teamBId,
+      matches: [game], // This is a single game, not multiple games
     });
   } catch (e: any) {
     return NextResponse.json({ error: 'Failed to load game matches', detail: e?.message ?? '' }, { status: 500 });
@@ -72,10 +72,14 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
-      select: { id: true, isBye: true },
+      include: {
+        match: {
+          select: { id: true, isBye: true }
+        }
+      }
     });
     if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
-    if (game.isBye) {
+    if (game.match.isBye) {
       return NextResponse.json({ error: 'Cannot score a BYE game' }, { status: 400 });
     }
 
@@ -92,14 +96,14 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
     // Apply upserts for each slot; null/undefined clears scores
     await prisma.$transaction(async (tx) => {
       for (const s of body.scores) {
-        await tx.match.upsert({
-          where: { gameId_slot: { gameId, slot: s.slot } },
+        await tx.game.upsert({
+          where: { matchId_slot: { matchId: game.match.id, slot: s.slot } },
           update: {
             teamAScore: s.teamAScore ?? null,
             teamBScore: s.teamBScore ?? null,
           },
           create: {
-            gameId,
+            matchId: game.match.id,
             slot: s.slot,
             teamAScore: s.teamAScore ?? null,
             teamBScore: s.teamBScore ?? null,
@@ -109,8 +113,8 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
     });
 
     // Return fresh list
-    const matches = await prisma.match.findMany({
-      where: { gameId },
+    const matches = await prisma.game.findMany({
+      where: { matchId: game.match.id },
       orderBy: { slot: 'asc' },
       select: { id: true, slot: true, teamAScore: true, teamBScore: true },
     });

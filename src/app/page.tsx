@@ -116,7 +116,7 @@ export default function Home() {
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <Link href="/about" className="nav-link">About</Link>
-              <Link href="/tournaments" className="nav-link">Current Tournaments</Link>
+              <a href="#tournaments" className="nav-link">Current Tournaments</a>
               <Link href="/rules" className="nav-link">Rules & Format</Link>
             </nav>
             {/* Mobile Navigation */}
@@ -130,20 +130,12 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               <SignedIn>
                 <div className="flex items-center space-x-4">
-              <Link 
-                href="/dashboard" 
-                className="nav-link"
-              >
-                Dashboard
-              </Link>
-                  {userProfile?.isAppAdmin && (
-                    <Link 
-                      href="/app-admin"
-                      className="btn btn-primary"
-                    >
-                      Admin
-                    </Link>
-                  )}
+                  <Link 
+                    href="/dashboard" 
+                    className="btn btn-primary"
+                  >
+                    Dashboard
+                  </Link>
                   <UserButton afterSignOutUrl="/" />
                 </div>
               </SignedIn>
@@ -210,12 +202,12 @@ export default function Home() {
                   >
                     Go to Dashboard
                   </Link>
-                  <Link 
-                    href="/tournaments"
+                  <a 
+                    href="#tournaments"
                     className="btn btn-ghost text-lg py-4 px-8 border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
                   >
                     Current Tournaments
-                  </Link>
+                  </a>
                 </SignedIn>
               </div>
             </div>
@@ -440,7 +432,7 @@ export default function Home() {
       </section>
 
         {/* Upcoming Tournaments Section */}
-      <section className="py-20 bg-app">
+      <section id="tournaments" className="py-20 bg-app">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-primary mb-6">
@@ -776,12 +768,12 @@ export default function Home() {
               >
                 Go to Dashboard
               </Link>
-              <Link 
-                href="/tournaments"
+              <a 
+                href="#tournaments"
                 className="btn btn-ghost text-lg py-4 px-8 border-white text-white hover:bg-white hover:text-brand-primary shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
               >
                 Current Tournaments
-              </Link>
+              </a>
             </SignedIn>
           </div>
         </div>
@@ -800,7 +792,7 @@ export default function Home() {
             <div>
               <h4 className="font-semibold text-primary mb-4">Tournament</h4>
               <ul className="space-y-2">
-                <li><Link href="/tournaments" className="text-muted hover:text-primary">Current Tournaments</Link></li>
+                <li><a href="#tournaments" className="text-muted hover:text-primary">Current Tournaments</a></li>
                 <li><Link href="/rules" className="text-muted hover:text-primary">Rules & Format</Link></li>
               </ul>
             </div>

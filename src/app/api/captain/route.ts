@@ -7,16 +7,18 @@ import { prisma } from '@/lib/prisma';
 export async function POST(req: Request) {
   try {
     // Use singleton prisma instance
-    const body = (await req.json()) as { name?: string; captainPlayerId?: string; tournamentId?: string };
+    const body = (await req.json()) as { name?: string; captainPlayerId?: string; tournamentId?: string; clubId?: string };
     const name = body?.name?.trim();
     const captainPlayerId = body?.captainPlayerId;
     const tournamentId = body?.tournamentId;
+    const clubId = body?.clubId;
     if (!name || !captainPlayerId) return NextResponse.json({ error: 'name and captainPlayerId required' }, { status: 400 });
     if (!tournamentId) return NextResponse.json({ error: 'tournamentId is required' }, { status: 400 });
+    if (!clubId) return NextResponse.json({ error: 'clubId is required' }, { status: 400 });
 
     const team = await prisma.$transaction(async (tx) => {
       const t = await tx.team.create({
-        data: { name, captainId: captainPlayerId, tournamentId }
+        data: { name, captainId: captainPlayerId, tournamentId, clubId }
       });
       // make sure captain is also a member
       await tx.teamPlayer.upsert({

@@ -61,12 +61,18 @@ export async function PUT(req: Request, ctx: Ctx) {
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
-      include: { matches: true },
+      include: {
+        match: {
+          include: {
+            games: true
+          }
+        }
+      }
     });
     if (!game) {
       return NextResponse.json({ error: `Game not found: ${gameId}` }, { status: 404 });
     }
-    if (game.isBye) {
+    if (game.match.isBye) {
       return NextResponse.json({ error: 'Cannot enter scores for a BYE game' }, { status: 400 });
     }
 
@@ -90,13 +96,15 @@ export async function PUT(req: Request, ctx: Ctx) {
     const updated: { slot: GameSlot; teamAScore: number | null; teamBScore: number | null }[] = [];
     await prisma.$transaction(async (tx) => {
       for (const row of body.scores) {
-        const m = await tx.match.upsert({
-          where: { gameId_slot: { gameId, slot: row.slot } },
+        const m = await tx.game.upsert({
+          where: { matchId_slot: { matchId: game.match.id, slot: row.slot } },
           update: { teamAScore: row.teamAScore, teamBScore: row.teamBScore },
-          create: { gameId, slot: row.slot, teamAScore: row.teamAScore, teamBScore: row.teamBScore },
+          create: { matchId: game.match.id, slot: row.slot, teamAScore: row.teamAScore, teamBScore: row.teamBScore },
           select: { slot: true, teamAScore: true, teamBScore: true },
         });
-        updated.push(m);
+        if (m.slot) {
+          updated.push(m as { slot: GameSlot; teamAScore: number | null; teamBScore: number | null });
+        }
       }
     });
 
@@ -104,27 +112,33 @@ export async function PUT(req: Request, ctx: Ctx) {
     const fresh = await prisma.game.findUnique({
       where: { id: gameId },
       include: {
-        round: { select: { id: true, idx: true, stopId: true } },
-        teamA: { select: { id: true, name: true } },
-        teamB: { select: { id: true, name: true } },
-        matches: { orderBy: { slot: 'asc' } },
-      },
+        match: {
+          include: {
+            round: { select: { id: true, idx: true, stopId: true } },
+            teamA: { select: { id: true, name: true } },
+            teamB: { select: { id: true, name: true } },
+            games: { orderBy: { slot: 'asc' } }
+          }
+        }
+      }
     });
 
-    const matches = (fresh?.matches ?? []).map((m) => ({
-      id: m.id,
-      slot: m.slot,
-      teamAScore: m.teamAScore,
-      teamBScore: m.teamBScore,
-    }));
-    const summary = summarize(matches, fresh?.isBye ?? false);
+    const matches = (fresh?.match?.games ?? [])
+      .filter(m => m.slot !== null)
+      .map((m) => ({
+        id: m.id,
+        slot: m.slot!,
+        teamAScore: m.teamAScore,
+        teamBScore: m.teamBScore,
+      }));
+    const summary = summarize(matches, fresh?.match?.isBye ?? false);
 
     return NextResponse.json({
       ok: true,
       id: fresh?.id ?? gameId,
-      roundId: fresh?.round?.id ?? null,
-      teamA: fresh?.teamA ? { id: fresh.teamA.id, name: fresh.teamA.name } : null,
-      teamB: fresh?.teamB ? { id: fresh.teamB.id, name: fresh.teamB.name } : null,
+      roundId: fresh?.match?.round?.id ?? null,
+      teamA: fresh?.match?.teamA ? { id: fresh.match.teamA.id, name: fresh.match.teamA.name } : null,
+      teamB: fresh?.match?.teamB ? { id: fresh.match.teamB.id, name: fresh.match.teamB.name } : null,
       matches,
       summary,
     });

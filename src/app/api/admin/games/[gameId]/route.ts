@@ -42,15 +42,19 @@ export async function PATCH(
     return NextResponse.json(updatedGame);
   } catch (error) {
     console.error('Error updating game:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = (error as any)?.code;
+    const errorMeta = (error as any)?.meta;
+    
     console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta
+      message: errorMessage,
+      code: errorCode,
+      meta: errorMeta
     });
     return NextResponse.json({ 
       error: 'Failed to update game',
-      details: error.message,
-      code: error.code
+      details: errorMessage,
+      code: errorCode
     }, { status: 500 });
   }
 }

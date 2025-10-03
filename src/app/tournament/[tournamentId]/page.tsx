@@ -70,8 +70,8 @@ interface Player {
   gender?: string | null;
 }
 
-function resolveBaseUrl() {
-  const headerList = headers();
+async function resolveBaseUrl() {
+  const headerList = await headers();
   const host = headerList.get('x-forwarded-host') ?? headerList.get('host');
   const protocol = headerList.get('x-forwarded-proto') ?? 'http';
 
@@ -195,9 +195,10 @@ async function getStopData(baseUrl: string, stopId: string, stopName: string): P
   }
 }
 
-export default async function TournamentPage({ params }: { params: { tournamentId: string } }) {
-  const baseUrl = resolveBaseUrl();
-  const tournament = await getTournament(baseUrl, params.tournamentId);
+export default async function TournamentPage({ params }: { params: Promise<{ tournamentId: string }> }) {
+  const baseUrl = await resolveBaseUrl();
+  const { tournamentId } = await params;
+  const tournament = await getTournament(baseUrl, tournamentId);
 
   if (!tournament) {
     notFound();

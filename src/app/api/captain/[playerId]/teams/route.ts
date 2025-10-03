@@ -347,7 +347,7 @@ async function ensureTeamsForClubAcrossBrackets(
 
 export async function GET(
   req: Request,
-  ctx: { params: { playerId: string } } | { params: Promise<{ playerId: string }> }
+  ctx: { params: Promise<{ playerId: string }> }
 ) {
   const url = new URL(req.url);
   const wantDebug = url.searchParams.get('debug') === '1';
@@ -373,9 +373,7 @@ export async function GET(
   }
 
   try {
-    // Next 13/14 vs 15 param shapes
-    const raw: any = (ctx as any).params;
-    const { playerId } = typeof raw?.then === 'function' ? await raw : raw;
+    const { playerId } = await ctx.params;
     
     // Canonical governance: (tournament, club) via TournamentCaptain
     const assignments =

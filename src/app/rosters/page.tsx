@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { useAdminUser } from '../AdminContext';
+import { useAdminUser } from '../admin/AdminContext';
 
 type RosterTournament = {
   id: string;

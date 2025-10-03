@@ -5,13 +5,8 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/server/db';
 
 import { AdminProvider, type AdminUser } from './AdminContext';
-import { AdminShell } from './AdminShell';
-
-type NavItem = {
-  href: string;
-  label: string;
-  exact?: boolean;
-};
+import { AppShell } from '../shared/AppShell';
+import { getAvailableUsers } from '../shared/getAvailableUsers';
 
 async function loadAdminUser(): Promise<AdminUser | null> {
   const { userId } = await auth();
@@ -52,19 +47,10 @@ async function loadAdminUser(): Promise<AdminUser | null> {
   };
 }
 
-function buildNavItems(user: AdminUser): NavItem[] {
-  return [
-    { href: '/admin', label: 'Tournaments', exact: true },
-    { href: '/dashboard', label: 'Dashboard' },
-    ...(user.isAppAdmin || user.isTournamentAdmin || user.isCaptain
-      ? [{ href: '/admin/rosters', label: 'Rosters' } satisfies NavItem]
-      : []),
-    { href: '/tournaments', label: 'Scoreboards' },
-    ...(user.isAppAdmin ? [{ href: '/admin/clubs', label: 'Clubs' } satisfies NavItem] : []),
-    ...(user.isAppAdmin || user.isTournamentAdmin
-      ? [{ href: '/admin/players', label: 'Players' } satisfies NavItem]
-      : []),
-  ];
+function getUserRole(adminUser: AdminUser): 'app-admin' | 'tournament-admin' | 'captain' {
+  if (adminUser.isAppAdmin) return 'app-admin';
+  if (adminUser.isTournamentAdmin) return 'tournament-admin';
+  return 'captain';
 }
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -78,13 +64,23 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect('/dashboard');
   }
 
-  const navItems = buildNavItems(adminUser);
+  const userRole = getUserRole(adminUser);
+  const availableUsers = await getAvailableUsers(userRole);
 
   return (
     <AdminProvider value={adminUser}>
-      <AdminShell adminUser={adminUser} navItems={navItems}>
+      <AppShell
+        userRole={userRole}
+        userInfo={{
+          firstName: adminUser.firstName,
+          lastName: adminUser.lastName,
+          email: adminUser.email ?? undefined,
+        }}
+        showActAs={adminUser.isAppAdmin}
+        availableUsers={availableUsers}
+      >
         {children}
-      </AdminShell>
+      </AppShell>
     </AdminProvider>
   );
 }

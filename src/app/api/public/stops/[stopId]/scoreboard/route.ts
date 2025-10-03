@@ -220,24 +220,24 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               let teamBLineup = [];
               
               if (game.slot === 'MENS_DOUBLES') {
-                teamALineup = teamAPlayers.filter(p => p.gender === 'MALE').slice(0, 2);
-                teamBLineup = teamBPlayers.filter(p => p.gender === 'MALE').slice(0, 2);
+                teamALineup = teamAPlayers.filter((p: any) => p.gender === 'MALE').slice(0, 2);
+                teamBLineup = teamBPlayers.filter((p: any) => p.gender === 'MALE').slice(0, 2);
               } else if (game.slot === 'WOMENS_DOUBLES') {
-                teamALineup = teamAPlayers.filter(p => p.gender === 'FEMALE').slice(0, 2);
-                teamBLineup = teamBPlayers.filter(p => p.gender === 'FEMALE').slice(0, 2);
+                teamALineup = teamAPlayers.filter((p: any) => p.gender === 'FEMALE').slice(0, 2);
+                teamBLineup = teamBPlayers.filter((p: any) => p.gender === 'FEMALE').slice(0, 2);
               } else if (game.slot === 'MIXED_1' || game.slot === 'MIXED_2') {
                 // Mixed doubles: 1 male + 1 female
-                const teamAMale = teamAPlayers.filter(p => p.gender === 'MALE')[0];
-                const teamAFemale = teamAPlayers.filter(p => p.gender === 'FEMALE')[0];
-                const teamBMale = teamBPlayers.filter(p => p.gender === 'MALE')[0];
-                const teamBFemale = teamBPlayers.filter(p => p.gender === 'FEMALE')[0];
+                const teamAMale = teamAPlayers.filter((p: any) => p.gender === 'MALE')[0];
+                const teamAFemale = teamAPlayers.filter((p: any) => p.gender === 'FEMALE')[0];
+                const teamBMale = teamBPlayers.filter((p: any) => p.gender === 'MALE')[0];
+                const teamBFemale = teamBPlayers.filter((p: any) => p.gender === 'FEMALE')[0];
                 
                 teamALineup = [teamAMale, teamAFemale].filter(Boolean);
                 teamBLineup = [teamBMale, teamBFemale].filter(Boolean);
               } else if (game.slot === 'TIEBREAKER') {
-                // Tiebreaker: any 2 players
-                teamALineup = teamAPlayers.slice(0, 2);
-                teamBLineup = teamBPlayers.slice(0, 2);
+                // Tiebreaker: show team names, not specific players
+                teamALineup = [];
+                teamBLineup = [];
               }
 
               return {
@@ -252,14 +252,14 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                 updatedAt: game.updatedAt ? game.updatedAt.toISOString() : null,
                 createdAt: game.createdAt ? game.createdAt.toISOString() : null,
                 lineupConfirmed: game.lineupConfirmed ?? false,
-                teamALineup: teamALineup.map(player => ({
+                teamALineup: teamALineup.map((player: any) => ({
                   id: player.id,
                   firstName: player.firstName,
                   lastName: player.lastName,
                   name: player.name,
                   gender: player.gender
                 })),
-                teamBLineup: teamBLineup.map(player => ({
+                teamBLineup: teamBLineup.map((player: any) => ({
                   id: player.id,
                   firstName: player.firstName,
                   lastName: player.lastName,

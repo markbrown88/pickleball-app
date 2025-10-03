@@ -3,9 +3,9 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   // turn off the auto-generated typed route validator
   typedRoutes: false,
-  // Temporarily ignore TypeScript errors to get the page working
+  // Enable TypeScript checking
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
     ignoreDuringBuilds: true,

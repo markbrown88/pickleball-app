@@ -25,6 +25,7 @@ interface Round {
   name: string;
   stopId: string;
   matches: Match[];
+  idx?: number;
 }
 
 interface Match {
@@ -33,6 +34,7 @@ interface Match {
   teamB: Team;
   games: Game[];
   status: string;
+  forfeitTeam?: string | null;
 }
 
 interface Team {

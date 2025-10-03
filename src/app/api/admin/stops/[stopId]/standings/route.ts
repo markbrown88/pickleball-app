@@ -84,11 +84,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         idx: true,
-        games: {
+        matches: {
           orderBy: { id: 'asc' },
           select: {
             id: true,
-            isBye: true, // scalar must be under select
+            isBye: true,
+            forfeitTeam: true,
             teamA: {
               select: {
                 id: true,
@@ -103,18 +104,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
                 bracket: { select: { id: true, name: true } },
               },
             },
-            matches: {
+            games: {
               orderBy: { slot: 'asc' },
               select: {
-                id: true,
                 slot: true,
                 teamAScore: true,
                 teamBScore: true,
-                match: {
-                  select: {
-                    forfeitTeam: true,
-                  },
-                },
               },
             },
           },
@@ -156,31 +151,31 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
     // First pass: create rows and tally
     for (const r of rounds) {
-      for (const g of r.games) {
-        const inferredBracketId = g.teamA?.bracket?.id ?? g.teamB?.bracket?.id ?? null;
+      for (const match of r.matches) {
+        const inferredBracketId = match.teamA?.bracket?.id ?? match.teamB?.bracket?.id ?? null;
         if (bracketFilter !== undefined && inferredBracketId !== bracketFilter) continue;
 
-        if (g.isBye || !g.teamA || !g.teamB) continue;
+        if (match.isBye || !match.teamA || !match.teamB) continue;
 
-        ensureRow(g.teamA);
-        ensureRow(g.teamB);
+        ensureRow(match.teamA);
+        ensureRow(match.teamB);
 
-        const rowA = table.get(g.teamA.id)!;
-        const rowB = table.get(g.teamB.id)!;
+        const rowA = table.get(match.teamA.id)!;
+        const rowB = table.get(match.teamB.id)!;
 
         let aSlotWins = 0;
         let bSlotWins = 0;
         let slotTies = 0;
         let scoredSlots = 0;
 
-        const totalSlots = g.matches.length || 0;
+        const totalSlots = match.games.length;
         const needed = totalSlots > 0 ? Math.floor(totalSlots / 2) + 1 : 0;
 
-        // Check if this game has a forfeit - look for any game with forfeit
-        const forfeitTeam = g.matches.find(m => m.match?.forfeitTeam)?.match?.forfeitTeam;
+        // Check if this match has a forfeit
+        const forfeitTeam = match.forfeitTeam;
         
         if (forfeitTeam) {
-          console.log(`[STANDINGS] Game ${g.id} has forfeit: Team ${forfeitTeam} forfeited (${g.teamA?.name} vs ${g.teamB?.name})`);
+          console.log(`[STANDINGS] Match ${match.id} has forfeit: Team ${forfeitTeam} forfeited (${match.teamA?.name} vs ${match.teamB?.name})`);
           
           // Handle forfeit - team that didn't forfeit gets the win
           rowA.played++;
@@ -193,49 +188,50 @@ export async function GET(req: NextRequest, ctx: Ctx) {
             rowB.losses++;
             rowA.points += GAME_WIN_POINTS; // 3 points for win
             rowB.points += GAME_FORFEIT_POINTS; // 0 points for forfeit
-            console.log(`[STANDINGS] Team A (${g.teamA?.name}) gets win, Team B (${g.teamB?.name}) gets loss`);
+            console.log(`[STANDINGS] Team A (${match.teamA?.name}) gets win, Team B (${match.teamB?.name}) gets loss`);
           } else {
             // Team A forfeited, Team B wins
             rowB.wins++;
             rowA.losses++;
             rowB.points += GAME_WIN_POINTS; // 3 points for win
             rowA.points += GAME_FORFEIT_POINTS; // 0 points for forfeit
-            console.log(`[STANDINGS] Team B (${g.teamB?.name}) gets win, Team A (${g.teamA?.name}) gets loss`);
+            console.log(`[STANDINGS] Team B (${match.teamB?.name}) gets win, Team A (${match.teamA?.name}) gets loss`);
           }
         }
 
         // Only process normal game logic if there's no forfeit
         if (!forfeitTeam) {
-          // Normal scoring logic
-          for (const m of g.matches) {
-            const a = m.teamAScore;
-            const b = m.teamBScore;
-            if (a == null || b == null) continue;
+          // Normal scoring logic - iterate through games within the match
+          for (const game of match.games) {
+            const a = game.teamAScore;
+            const b = game.teamBScore;
+            if (a != null && b != null) {
+              scoredSlots++;
+              rowA.scoreFor += a;
+              rowA.scoreAgainst += b;
+              rowB.scoreFor += b;
+              rowB.scoreAgainst += a;
 
-            scoredSlots++;
-            rowA.scoreFor += a;
-            rowA.scoreAgainst += b;
-            rowB.scoreFor += b;
-            rowB.scoreAgainst += a;
-
-            if (a > b) {
-              aSlotWins++;
-              rowA.slotWins++;
-              rowB.slotLosses++;
-              rowA.slotPoints += SLOT_WIN_POINTS;
-            } else if (b > a) {
-              bSlotWins++;
-              rowB.slotWins++;
-              rowA.slotLosses++;
-              rowB.slotPoints += SLOT_WIN_POINTS;
-            } else {
-              slotTies++;
-              rowA.slotTies++;
-              rowB.slotTies++;
-              rowA.slotPoints += SLOT_TIE_POINTS;
-              rowB.slotPoints += SLOT_TIE_POINTS;
+              if (a > b) {
+                aSlotWins++;
+                rowA.slotWins++;
+                rowB.slotLosses++;
+                rowA.slotPoints += SLOT_WIN_POINTS;
+              } else if (b > a) {
+                bSlotWins++;
+                rowB.slotWins++;
+                rowA.slotLosses++;
+                rowB.slotPoints += SLOT_WIN_POINTS;
+              } else {
+                slotTies++;
+                rowA.slotTies++;
+                rowB.slotTies++;
+                rowA.slotPoints += SLOT_TIE_POINTS;
+                rowB.slotPoints += SLOT_TIE_POINTS;
+              }
             }
           }
+          
           const allScored = totalSlots > 0 && scoredSlots === totalSlots;
           const aClinched = needed > 0 && aSlotWins >= needed;
           const bClinched = needed > 0 && bSlotWins >= needed;

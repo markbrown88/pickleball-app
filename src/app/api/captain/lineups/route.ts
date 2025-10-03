@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { GameSlot } from '@prisma/client';
+import type { GameSlot, Gender } from '@prisma/client';
 
 type Pair = { slot: GameSlot; player1Id: string; player2Id: string };
 type PutBody = { roundId: string; teamId: string; pairs: Pair[] };
@@ -85,12 +85,30 @@ export async function GET(req: Request) {
           id: null,
           roundId,
           teamId,
-          entries: [] as any[],
+          entries: [] as Array<{
+            id: string;
+            slot: GameSlot;
+            player1: {
+              id: string;
+              firstName: string | null;
+              lastName: string | null;
+              name: string;
+              gender: Gender;
+            };
+            player2: {
+              id: string;
+              firstName: string | null;
+              lastName: string | null;
+              name: string;
+              gender: Gender;
+            };
+          }>,
         };
 
     return NextResponse.json(resp);
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to load lineup', detail: e?.message ?? '' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to load lineup', detail: message }, { status: 500 });
   }
 }
 
@@ -156,7 +174,7 @@ export async function PUT(req: Request) {
         select: { playerId: true },
       });
       const rosterSet = new Set(roster.map((r) => r.playerId));
-      const notOnRoster = [...new Set(allIds.filter((id) => !rosterSet.has(id)))];
+      const notOnRoster = Array.from(new Set(allIds.filter((id) => !rosterSet.has(id))));
       if (notOnRoster.length) {
         return NextResponse.json(
           { error: `Player(s) not on this stop’s roster for this team: ${notOnRoster.join(', ')}` },
@@ -236,7 +254,8 @@ export async function PUT(req: Request) {
       : null;
 
     return NextResponse.json({ ok: true, lineup: resp });
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to save lineup', detail: e?.message ?? '' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to save lineup', detail: message }, { status: 500 });
   }
 }

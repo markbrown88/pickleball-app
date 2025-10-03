@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { Gender, GameSlot } from '@prisma/client';
 
 type Params = { roundId: string };
 
@@ -44,24 +45,18 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
-    // All teams that appear in this round (from games)
-    const games = await prisma.game.findMany({
+    // All teams that appear in this round (from matches)
+    const matches = await prisma.match.findMany({
       where: { roundId },
-      select: {
-        teamAId: true,
-        teamBId: true,
+      include: {
         teamA: {
-          select: {
-            id: true,
-            name: true,
+          include: {
             club: { select: { id: true, name: true } },
             bracket: { select: { id: true, name: true } },
           },
         },
         teamB: {
-          select: {
-            id: true,
-            name: true,
+          include: {
             club: { select: { id: true, name: true } },
             bracket: { select: { id: true, name: true } },
           },
@@ -74,25 +69,25 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
       { id: string; name: string; club: { id: string; name: string } | null; bracket: { id: string; name: string } | null }
     >();
 
-    for (const g of games) {
-      if (g.teamAId && g.teamA) {
-        teamMeta.set(g.teamAId, {
-          id: g.teamA.id,
-          name: g.teamA.name,
-          club: g.teamA.club ? { id: g.teamA.club.id, name: g.teamA.club.name } : null,
-          bracket: g.teamA.bracket ? { id: g.teamA.bracket.id, name: g.teamA.bracket.name } : null,
+    for (const matchRecord of matches) {
+      const { teamAId, teamBId, teamA, teamB } = matchRecord;
+      if (teamAId && teamA) {
+        teamMeta.set(teamAId, {
+          id: teamA.id,
+          name: teamA.name,
+          club: teamA.club ? { id: teamA.club.id, name: teamA.club.name } : null,
+          bracket: teamA.bracket ? { id: teamA.bracket.id, name: teamA.bracket.name } : null,
         });
       }
-      if (g.teamBId && g.teamB) {
-        teamMeta.set(g.teamBId, {
-          id: g.teamB.id,
-          name: g.teamB.name,
-          club: g.teamB.club ? { id: g.teamB.club.id, name: g.teamB.club.name } : null,
-          bracket: g.teamB.bracket ? { id: g.teamB.bracket.id, name: g.teamB.bracket.name } : null,
+      if (teamBId && teamB) {
+        teamMeta.set(teamBId, {
+          id: teamB.id,
+          name: teamB.name,
+          club: teamB.club ? { id: teamB.club.id, name: teamB.club.name } : null,
+          bracket: teamB.bracket ? { id: teamB.bracket.id, name: teamB.bracket.name } : null,
         });
       }
     }
-
     const teamIds = Array.from(teamMeta.keys());
     if (teamIds.length === 0) {
       // No games (yet) → nothing to lineup; still return a shape for the UI.
@@ -161,7 +156,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
       firstName?: string | null;
       lastName?: string | null;
       name?: string | null;
-      gender: any;
+      gender: Gender;
       dupr: number | null;
       age: number | null;
     }>>();
@@ -218,8 +213,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
       stopId: round.stopId,
       lineups: shaped,
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to load round lineups', detail: e?.message ?? '' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to load round lineups', detail: message }, { status: 500 });
   }
 }
 
@@ -235,14 +231,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to process request', detail: e?.message ?? '' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to process request', detail: message }, { status: 500 });
   }
 }
 
-async function generateLineupsForRound(roundId: string, prisma: any) {
-  // Get round and stop information
-  const round = await prisma.round.findUnique({
+async function generateLineupsForRound(roundId: string, prismaClient: typeof prisma) {
+  const round = await prismaClient.round.findUnique({
     where: { id: roundId },
     include: {
       stop: {
@@ -255,221 +251,151 @@ async function generateLineupsForRound(roundId: string, prisma: any) {
     return NextResponse.json({ error: 'Round not found' }, { status: 404 });
   }
 
-  // Get all matches in this round
-  const matches = await prisma.match.findMany({
+  const matches = await prismaClient.match.findMany({
     where: { roundId },
     include: {
       teamA: { select: { id: true, name: true } },
-      teamB: { select: { id: true, name: true } }
+      teamB: { select: { id: true, name: true } },
+    },
+  });
+
+  const teamNameById = new Map<string, string>();
+  matches.forEach((matchRecord) => {
+    if (matchRecord.teamAId) {
+      teamNameById.set(matchRecord.teamAId, matchRecord.teamA?.name ?? 'Unknown Team');
+    }
+    if (matchRecord.teamBId) {
+      teamNameById.set(matchRecord.teamBId, matchRecord.teamB?.name ?? 'Unknown Team');
     }
   });
 
-  // Collect all team IDs
-  const teamIds = new Set<string>();
-  matches.forEach(match => {
-    if (match.teamAId) teamIds.add(match.teamAId);
-    if (match.teamBId) teamIds.add(match.teamBId);
-  });
-
-  if (teamIds.size === 0) {
+  const teamIds = Array.from(teamNameById.keys());
+  if (teamIds.length === 0) {
     return NextResponse.json({ error: 'No teams found in this round' }, { status: 400 });
   }
 
-  // Get rosters for all teams at this stop
-  const rosters = await prisma.stopTeamPlayer.findMany({
-    where: { 
-      stopId: round.stopId, 
-      teamId: { in: Array.from(teamIds) }
+  const rosters = await prismaClient.stopTeamPlayer.findMany({
+    where: {
+      stopId: round.stopId,
+      teamId: { in: teamIds },
     },
     include: {
       player: {
         select: {
           id: true,
-          firstName: true,
-          lastName: true,
-          name: true,
           gender: true,
-          dupr: true
-        }
-      }
+          dupr: true,
+        },
+      },
     },
-    orderBy: [{ teamId: 'asc' }, { createdAt: 'asc' }]
+    orderBy: [{ teamId: 'asc' }, { createdAt: 'asc' }],
   });
 
-  // Group rosters by team
-  const rosterByTeam = new Map<string, any[]>();
-  rosters.forEach(roster => {
-    if (!rosterByTeam.has(roster.teamId)) {
-      rosterByTeam.set(roster.teamId, []);
-    }
-    rosterByTeam.get(roster.teamId)!.push(roster.player);
+  const rosterByTeam = new Map<string, Array<{ id: string; gender: Gender; dupr: number | null }>>();
+  rosters.forEach((row) => {
+    const bucket = rosterByTeam.get(row.teamId) ?? [];
+    bucket.push({ id: row.player.id, gender: row.player.gender, dupr: row.player.dupr ?? null });
+    rosterByTeam.set(row.teamId, bucket);
   });
 
-  // Generate lineups for each team
   const generatedLineups: Array<{
     teamId: string;
     teamName: string;
-    entries: Array<{
-      slot: string;
-      player1Id: string;
-      player2Id: string;
-    }>;
+    entries: Array<{ slot: GameSlot; player1Id: string; player2Id: string }>;
   }> = [];
 
-  for (const [teamId, teamRoster] of rosterByTeam) {
-    const team = matches.find(m => m.teamAId === teamId || m.teamBId === teamId);
-    const teamName = team?.teamAId === teamId ? team.teamA?.name : team?.teamB?.name || 'Unknown Team';
-    
+  rosterByTeam.forEach((teamRoster, teamId) => {
+    const teamName = teamNameById.get(teamId) ?? 'Unknown Team';
+
     const lineup = generateOptimalLineup(teamRoster);
-    generatedLineups.push({
-      teamId,
-      teamName,
-      entries: lineup
-    });
-  }
+    generatedLineups.push({ teamId, teamName, entries: lineup });
+  });
 
-  // Save lineups to database
-  const savedLineups = [];
+  const savedLineups = [] as typeof generatedLineups;
   for (const lineup of generatedLineups) {
-    // Find the match for this team
-    const match = matches.find(m => m.teamAId === lineup.teamId || m.teamBId === lineup.teamId);
-    if (!match) continue;
-
-    // Create or update lineup
-    const lineupRecord = await prisma.lineup.upsert({
+    const lineupRecord = await prismaClient.lineup.upsert({
       where: {
         roundId_teamId: {
           roundId,
-          teamId: lineup.teamId
-        }
+          teamId: lineup.teamId,
+        },
       },
       update: {},
       create: {
         roundId,
         teamId: lineup.teamId,
-        stopId: round.stopId
+        stopId: round.stopId,
       },
-      select: { id: true }
+      select: { id: true, teamId: true },
     });
 
-    // Clear existing entries
-    await prisma.lineupEntry.deleteMany({
-      where: { lineupId: lineupRecord.id }
-    });
+    await prismaClient.lineupEntry.deleteMany({ where: { lineupId: lineupRecord.id } });
 
-    // Create new entries
     if (lineup.entries.length > 0) {
-      await prisma.lineupEntry.createMany({
-        data: lineup.entries.map(entry => ({
+      await prismaClient.lineupEntry.createMany({
+        data: lineup.entries.map((entry) => ({
           lineupId: lineupRecord.id,
           slot: entry.slot,
           player1Id: entry.player1Id,
-          player2Id: entry.player2Id
-        }))
+          player2Id: entry.player2Id,
+        })),
       });
     }
 
-    savedLineups.push({
-      teamId: lineup.teamId,
-      teamName: lineup.teamName,
-      entries: lineup.entries
-    });
+    savedLineups.push(lineup);
   }
 
   return NextResponse.json({
     success: true,
     message: `Generated lineups for ${savedLineups.length} teams`,
-    lineups: savedLineups
+    lineups: savedLineups,
   });
 }
 
-function generateOptimalLineup(roster: any[]): Array<{
-  slot: string;
+function generateOptimalLineup(roster: Array<{ id: string; gender: Gender; dupr: number | null }>): Array<{
+  slot: GameSlot;
   player1Id: string;
   player2Id: string;
 }> {
   if (roster.length < 4) {
-    return []; // Need exactly 4 players (2 men, 2 women)
+    return [];
   }
 
-  // Separate players by gender
-  const malePlayers = roster.filter(p => p.gender === 'MALE');
-  const femalePlayers = roster.filter(p => p.gender === 'FEMALE');
+  const malePlayers = roster.filter((p) => p.gender === 'MALE');
+  const femalePlayers = roster.filter((p) => p.gender === 'FEMALE');
 
   if (malePlayers.length < 2 || femalePlayers.length < 2) {
-    return []; // Need at least 2 men and 2 women
+    return [];
   }
 
-  // Sort players by DUPR (higher is better) or by name if no DUPR
-  const sortPlayers = (players: any[]) => {
+  const sortPlayers = (players: Array<{ id: string; dupr: number | null }>) => {
     return [...players].sort((a, b) => {
-      if (a.dupr && b.dupr) {
-        return b.dupr - a.dupr; // Higher DUPR first
+      if (a.dupr != null && b.dupr != null) {
+        return b.dupr - a.dupr;
       }
-      if (a.dupr && !b.dupr) return -1;
-      if (!a.dupr && b.dupr) return 1;
-      // If no DUPR, sort by name
-      const nameA = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.name || '';
-      const nameB = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.name || '';
-      return nameA.localeCompare(nameB);
+      if (a.dupr != null) return -1;
+      if (b.dupr != null) return 1;
+      return a.id.localeCompare(b.id);
     });
   };
 
   const sortedMales = sortPlayers(malePlayers);
   const sortedFemales = sortPlayers(femalePlayers);
 
-  // Select the top 2 men and top 2 women
-  const man1 = sortedMales[0];
-  const man2 = sortedMales[1];
-  const woman1 = sortedFemales[0];
-  const woman2 = sortedFemales[1];
+  const [man1, man2] = sortedMales;
+  const [woman1, woman2] = sortedFemales;
 
-  const entries: Array<{
-    slot: string;
-    player1Id: string;
-    player2Id: string;
-  }> = [];
+  const entries: Array<{ slot: GameSlot; player1Id: string; player2Id: string }> = [
+    { slot: 'MENS_DOUBLES', player1Id: man1.id, player2Id: man2.id },
+    { slot: 'WOMENS_DOUBLES', player1Id: woman1.id, player2Id: woman2.id },
+    { slot: 'MIXED_1', player1Id: man1.id, player2Id: woman1.id },
+    { slot: 'MIXED_2', player1Id: man2.id, player2Id: woman2.id },
+  ];
 
-  // Men's Doubles: Man 1 vs Man 1, Man 2 vs Man 2 (opposing teams)
-  entries.push({
-    slot: 'MENS_DOUBLES',
-    player1Id: man1.id,
-    player2Id: man2.id
-  });
-
-  // Women's Doubles: Woman 1 vs Woman 1, Woman 2 vs Woman 2 (opposing teams)
-  entries.push({
-    slot: 'WOMENS_DOUBLES',
-    player1Id: woman1.id,
-    player2Id: woman2.id
-  });
-
-  // Mixed Doubles 1: Man 1 + Woman 1 vs Man 1 + Woman 1 (opposing teams)
-  entries.push({
-    slot: 'MIXED_1',
-    player1Id: man1.id,
-    player2Id: woman1.id
-  });
-
-  // Mixed Doubles 2: Man 2 + Woman 2 vs Man 2 + Woman 2 (opposing teams)
-  entries.push({
-    slot: 'MIXED_2',
-    player1Id: man2.id,
-    player2Id: woman2.id
-  });
-
-  // Tiebreaker - use the best remaining players
   const usedPlayers = new Set([man1.id, man2.id, woman1.id, woman2.id]);
-  const availablePlayers = roster.filter(p => !usedPlayers.has(p.id));
-  
-  if (availablePlayers.length >= 2) {
-    const sortedAvailable = sortPlayers(availablePlayers);
-    entries.push({
-      slot: 'TIEBREAKER',
-      player1Id: sortedAvailable[0].id,
-      player2Id: sortedAvailable[1].id
-    });
-  }
+  const availablePlayers = roster.filter((p) => !usedPlayers.has(p.id));
+
+  // Skip tiebreaker - it doesn't have specific players assigned
 
   return entries;
 }

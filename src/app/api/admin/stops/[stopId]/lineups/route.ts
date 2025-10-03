@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { GameSlot } from '@prisma/client';
 
 // Retry function for database operations
 async function retryDatabaseOperation<T>(
@@ -35,7 +36,7 @@ export async function GET(
       })
     );
 
-    const roundIds = rounds.map(round => round.id);
+    const roundIds = (rounds as Array<{id: string}>).map(round => round.id);
 
     // Get all lineups for all rounds in this stop with retry logic
     const lineups = await retryDatabaseOperation(() => 
@@ -75,7 +76,7 @@ export async function GET(
     // Group lineups by match and team
     const groupedLineups: Record<string, Record<string, any[]>> = {};
 
-    for (const lineup of lineups) {
+    for (const lineup of (lineups as any[])) {
       // Find the match for this lineup
       const match = await prisma.match.findFirst({
         where: {
@@ -186,7 +187,8 @@ export async function POST(
                 entries.push({
                   lineupId: lineup.id,
                   player1Id: players[i].id,
-                  player2Id: players[i + 1].id
+                  player2Id: players[i + 1].id,
+                  slot: (['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'] as GameSlot[])[Math.floor(i / 2)]
                 });
               }
             }

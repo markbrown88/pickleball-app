@@ -45,13 +45,8 @@ export async function GET(_req: Request, ctx: Ctx) {
         teamALineup: true,
         teamBLineup: true,
         lineupConfirmed: true,
-        game: {
-          select: {
-            id: true,
-            teamA: { select: { id: true, name: true } },
-            teamB: { select: { id: true, name: true } },
-          },
-        },
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
       },
     });
 
@@ -66,9 +61,9 @@ export async function GET(_req: Request, ctx: Ctx) {
       teamBLineup: match.teamBLineup,
       lineupConfirmed: match.lineupConfirmed,
       game: {
-        id: match.game?.id ?? null,
-        teamA: match.game?.teamA ? { id: match.game.teamA.id, name: match.game.teamA.name } : null,
-        teamB: match.game?.teamB ? { id: match.game.teamB.id, name: match.game.teamB.name } : null,
+        id: match.id,
+        teamA: match.teamA ? { id: match.teamA.id, name: match.teamA.name } : null,
+        teamB: match.teamB ? { id: match.teamB.id, name: match.teamB.name } : null,
       },
     });
   } catch (e: any) {
@@ -153,13 +148,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
         teamALineup: true,
         teamBLineup: true,
         lineupConfirmed: true,
-        game: {
-          select: {
-            id: true,
-            teamA: { select: { id: true, name: true } },
-            teamB: { select: { id: true, name: true } },
-          },
-        },
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
       },
     });
 
@@ -172,9 +162,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
         teamBLineup: updated.teamBLineup,
         lineupConfirmed: updated.lineupConfirmed,
         game: {
-          id: updated.game?.id ?? null,
-          teamA: updated.game?.teamA ? { id: updated.game.teamA.id, name: updated.game.teamA.name } : null,
-          teamB: updated.game?.teamB ? { id: updated.game.teamB.id, name: updated.game.teamB.name } : null,
+          id: updated.id,
+          teamA: updated.teamA ? { id: updated.teamA.id, name: updated.teamA.name } : null,
+          teamB: updated.teamB ? { id: updated.teamB.id, name: updated.teamB.name } : null,
         },
       },
     });

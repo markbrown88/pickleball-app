@@ -45,13 +45,8 @@ async function updateMatchScores(matchId: string, body: PutBody) {
         slot: true,
         teamAScore: true,
         teamBScore: true,
-        game: {
-          select: {
-            id: true,
-            teamA: { select: { id: true, name: true } },
-            teamB: { select: { id: true, name: true } },
-          },
-        },
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
       },
     });
     if (!current) return bad('Match not found', 404);
@@ -62,9 +57,9 @@ async function updateMatchScores(matchId: string, body: PutBody) {
         slot: current.slot,
         teamAScore: current.teamAScore,
         teamBScore: current.teamBScore,
-        gameId: current.game?.id ?? null,
-        teamA: current.game?.teamA ? { id: current.game.teamA.id, name: current.game.teamA.name } : null,
-        teamB: current.game?.teamB ? { id: current.game.teamB.id, name: current.game.teamB.name } : null,
+        gameId: current.id,
+        teamA: current.teamA ? { id: current.teamA.id, name: current.teamA.name } : null,
+        teamB: current.teamB ? { id: current.teamB.id, name: current.teamB.name } : null,
       },
     });
   }
@@ -83,13 +78,8 @@ async function updateMatchScores(matchId: string, body: PutBody) {
         slot: true,
         teamAScore: true,
         teamBScore: true,
-        game: {
-          select: {
-            id: true,
-            teamA: { select: { id: true, name: true } },
-            teamB: { select: { id: true, name: true } },
-          },
-        },
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
       },
     });
 
@@ -100,10 +90,9 @@ async function updateMatchScores(matchId: string, body: PutBody) {
         slot: updated.slot,
         teamAScore: updated.teamAScore,
         teamBScore: updated.teamBScore,
-        gameId: updated.game?.id ?? null,
-        teamA: updated.game?.teamA ? { id: updated.game.teamA.id, name: updated.game.teamA.name } : null,
-        // ✅ fixed (was updated.game.gameB?.name)
-        teamB: updated.game?.teamB ? { id: updated.game.teamB.id, name: updated.game.teamB.name } : null,
+        gameId: updated.id,
+        teamA: updated.teamA ? { id: updated.teamA.id, name: updated.teamA.name } : null,
+        teamB: updated.teamB ? { id: updated.teamB.id, name: updated.teamB.name } : null,
       },
     });
   } catch (e: any) {
@@ -122,20 +111,16 @@ export async function GET(_req: Request, ctx: Ctx) {
   try {
     const match = await prisma.match.findUnique({
       where: { id: matchId },
-      include: {
-        game: {
+      select: {
+        id: true,
+        isBye: true,
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
+        round: {
           select: {
             id: true,
-            isBye: true,
-            teamA: { select: { id: true, name: true } },
-            teamB: { select: { id: true, name: true } },
-            round: {
-              select: {
-                id: true,
-                idx: true,
-                stop: { select: { id: true, name: true, tournamentId: true } },
-              },
-            },
+            idx: true,
+            stop: { select: { id: true, name: true, tournamentId: true } },
           },
         },
       },
@@ -148,17 +133,17 @@ export async function GET(_req: Request, ctx: Ctx) {
       teamAScore: match.teamAScore,
       teamBScore: match.teamBScore,
       game: {
-        id: match.game?.id ?? null,
-        isBye: match.game?.isBye ?? false,
-        teamA: match.game?.teamA ? { id: match.game.teamA.id, name: match.game.teamA.name } : null,
-        teamB: match.game?.teamB ? { id: match.game.teamB.id, name: match.game.teamB.name } : null,
-        round: match.game?.round
+        id: match.id,
+        isBye: match.isBye,
+        teamA: match.teamA ? { id: match.teamA.id, name: match.teamA.name } : null,
+        teamB: match.teamB ? { id: match.teamB.id, name: match.teamB.name } : null,
+        round: match.round
           ? {
-              id: match.game.round.id,
-              idx: match.game.round.idx,
-              stopId: match.game.round.stop.id,
-              stopName: match.game.round.stop.name,
-              tournamentId: match.game.round.stop.tournamentId,
+              id: match.round.id,
+              idx: match.round.idx,
+              stopId: match.round.stop.id,
+              stopName: match.round.stop.name,
+              tournamentId: match.round.stop.tournamentId,
             }
           : null,
       },

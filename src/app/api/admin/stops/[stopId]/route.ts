@@ -38,20 +38,15 @@ export async function DELETE(
 
       if (roundIds.length) {
         // 1a) Games under those rounds
-        const games = await tx.game.findMany({
+        const games = await tx.match.findMany({
           where: { roundId: { in: roundIds } },
           select: { id: true },
         });
         const gameIds = games.map((g) => g.id);
 
         if (gameIds.length) {
-          // 1a-i) Matches under those games
+          // 1a-i) Delete matches
           await tx.match.deleteMany({
-            where: { gameId: { in: gameIds } },
-          });
-
-          // 1a-ii) Delete games
-          await tx.game.deleteMany({
             where: { id: { in: gameIds } },
           });
         }

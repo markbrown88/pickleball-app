@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 
-type Params = { playerId: string; gameId: string };
+type Params = { playerId: string; gameId: string }; // Note: gameId is actually matchId in the UI
 
 type AuthOk = {
   ok: true;
@@ -21,10 +21,10 @@ type AuthOk = {
 };
 type AuthErr = { ok: false; status: number; msg: string };
 
-// helper: auth to edit scores for this game
-async function canEditScores(prisma: ReturnType<typeof getPrisma>, playerId: string, gameId: string): Promise<AuthOk | AuthErr> {
-  // Load game scope (teams & tournament)
-  const game = await prisma.game.findUnique({
+// helper: auth to edit scores for this match (gameId is actually matchId)
+async function canEditScores(prismaClient: typeof prisma, playerId: string, gameId: string): Promise<AuthOk | AuthErr> {
+  // Load match scope (teams & tournament) - gameId is actually matchId
+  const match = await prismaClient.match.findUnique({
     where: { id: gameId },
     select: {
       id: true,
@@ -34,15 +34,15 @@ async function canEditScores(prisma: ReturnType<typeof getPrisma>, playerId: str
       round: { select: { stop: { select: { tournamentId: true } } } },
     },
   });
-  if (!game) return { ok: false, status: 404, msg: 'Game not found' };
+  if (!match) return { ok: false, status: 404, msg: 'Match not found' };
 
-  const tournamentId = game.round.stop.tournamentId;
-  const clubIds = [game.teamA?.clubId, game.teamB?.clubId].filter(Boolean) as string[];
-  const teamIds = [game.teamA?.id, game.teamB?.id].filter(Boolean) as string[];
+  const tournamentId = match.round.stop.tournamentId;
+  const clubIds = [match.teamA?.clubId, match.teamB?.clubId].filter(Boolean) as string[];
+  const teamIds = [match.teamA?.id, match.teamB?.id].filter(Boolean) as string[];
 
   // Event Managers for stop
   const isEventMgr =
-    (await prisma.stop.findFirst({
+    (await prismaClient.stop.findFirst({
       where: { 
         tournamentId, 
         eventManagerId: playerId 
@@ -52,15 +52,15 @@ async function canEditScores(prisma: ReturnType<typeof getPrisma>, playerId: str
 
   // Tournament Admins (optional)
   const isAdmin =
-    (await prisma.tournamentAdmin.findFirst({
+    (await prismaClient.tournamentAdmin.findFirst({
       where: { tournamentId, playerId },
       select: { playerId: true },
     })) != null;
 
-  // Captains of either team’s club in this tournament
+  // Captains of either team's club in this tournament
   const isCaptainForClub =
     clubIds.length > 0 &&
-    (await prisma.tournamentCaptain.findFirst({
+    (await prismaClient.tournamentCaptain.findFirst({
       where: { tournamentId, playerId, clubId: { in: clubIds } },
       select: { playerId: true },
     })) != null;
@@ -68,7 +68,7 @@ async function canEditScores(prisma: ReturnType<typeof getPrisma>, playerId: str
   // Legacy team captains (either teamA/teamB)
   const isLegacyTeamCaptain =
     teamIds.length > 0 &&
-    (await prisma.team.findFirst({
+    (await prismaClient.team.findFirst({
       where: { id: { in: teamIds }, captainId: playerId },
       select: { id: true },
     })) != null;
@@ -76,7 +76,7 @@ async function canEditScores(prisma: ReturnType<typeof getPrisma>, playerId: str
   const allowed = isEventMgr || isAdmin || isCaptainForClub || isLegacyTeamCaptain;
 
   if (!allowed) return { ok: false, status: 403, msg: 'Not authorized' };
-  return { ok: true, game, tournamentId };
+  return { ok: true, game: match, tournamentId };
 }
 
 // --------------- GET ---------------
@@ -89,11 +89,11 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     // We allow viewing for anyone who can edit; tighten/loosen as needed.
     const auth = await canEditScores(prisma, playerId, gameId);
     if (!auth.ok) {
-      return NextResponse.json({ error: auth.msg }, { status: auth.status });
+      return NextResponse.json({ error: (auth as AuthErr).msg }, { status: (auth as AuthErr).status });
     }
 
-    const matches = await prisma.match.findMany({
-      where: { gameId },
+    const games = await prisma.game.findMany({
+      where: { matchId: gameId },
       select: { slot: true, teamAScore: true, teamBScore: true },
       orderBy: { slot: 'asc' },
     });
@@ -101,18 +101,19 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     return NextResponse.json({
       gameId,
       isBye: auth.game.isBye ?? false,
-      slots: matches.map((m) => ({
-        slot: m.slot,
-        teamAScore: m.teamAScore,
-        teamBScore: m.teamBScore,
+      slots: games.map((g) => ({
+        slot: g.slot,
+        teamAScore: g.teamAScore,
+        teamBScore: g.teamBScore,
       })),
       teams: {
         teamA: auth.game.teamA ? { id: auth.game.teamA.id, clubId: auth.game.teamA.clubId } : null,
         teamB: auth.game.teamB ? { id: auth.game.teamB.id, clubId: auth.game.teamB.clubId } : null,
       },
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to load scores', detail: e?.message ?? '' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to load scores', detail: message }, { status: 500 });
   }
 }
 
@@ -131,7 +132,7 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
       : [];
 
     const auth = await canEditScores(prisma, playerId, gameId);
-    if (!auth.ok) return NextResponse.json({ error: auth.msg }, { status: auth.status });
+    if (!auth.ok) return NextResponse.json({ error: (auth as AuthErr).msg }, { status: (auth as AuthErr).status });
     if (auth.game.isBye) {
       return NextResponse.json({ error: 'Cannot set scores for a BYE game' }, { status: 400 });
     }
@@ -152,17 +153,17 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
     // Upsert per-slot scores
     await prisma.$transaction(async (tx) => {
       for (const s of scores) {
-        await tx.match.upsert({
-          where: { gameId_slot: { gameId, slot: s.slot } },
+        await tx.game.upsert({
+          where: { matchId_slot: { matchId: gameId, slot: s.slot } },
           update: { teamAScore: s.teamAScore, teamBScore: s.teamBScore },
-          create: { gameId, slot: s.slot, teamAScore: s.teamAScore, teamBScore: s.teamBScore },
+          create: { matchId: gameId, slot: s.slot, teamAScore: s.teamAScore, teamBScore: s.teamBScore },
         });
       }
     });
 
     // Return fresh state
-    const matches = await prisma.match.findMany({
-      where: { gameId },
+    const games = await prisma.game.findMany({
+      where: { matchId: gameId },
       select: { slot: true, teamAScore: true, teamBScore: true },
       orderBy: { slot: 'asc' },
     });
@@ -170,13 +171,14 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
     return NextResponse.json({
       ok: true,
       gameId,
-      slots: matches.map((m) => ({
-        slot: m.slot,
-        teamAScore: m.teamAScore,
-        teamBScore: m.teamBScore,
+      slots: games.map((g) => ({
+        slot: g.slot,
+        teamAScore: g.teamAScore,
+        teamBScore: g.teamBScore,
       })),
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Failed to save scores', detail: e?.message ?? '' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Failed to save scores', detail: message }, { status: 500 });
   }
 }

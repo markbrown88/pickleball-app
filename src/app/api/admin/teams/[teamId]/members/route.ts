@@ -26,10 +26,9 @@ function toPlayerLite(p: any) {
  */
 export async function GET(
   _req: Request,
-  ctx: { params: { teamId: string } } | { params: Promise<{ teamId: string }> }
+  ctx: { params: Promise<{ teamId: string }> }
 ) {
-  const raw: any = (ctx as any).params;
-  const { teamId } = typeof raw?.then === 'function' ? await raw : raw;
+  const { teamId } = await ctx.params;
 
   try {
     const team = await prisma.team.findUnique({

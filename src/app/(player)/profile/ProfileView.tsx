@@ -3,10 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useUser, useAuth, SignInButton } from '@clerk/nextjs';
 
-import { ProfileHeader } from './ProfileHeader';
 import { ProfileForm } from './ProfileForm';
 import { ProfileSetup } from './ProfileSetupForm';
-import { ProfileSummary } from './ProfileSummary';
 
 import type { UserProfile } from '@/types';
 
@@ -168,7 +166,10 @@ export function ProfilePageView() {
 
   return (
     <div className="space-y-6">
-      <ProfileHeader userProfile={userProfile} onMessage={notify} />
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-primary mb-2">Profile</h1>
+        <p className="text-muted">Manage your player profile and account details</p>
+      </div>
 
       {err && (
         <div className="alert alert-error" role="status" aria-live="assertive">
@@ -181,8 +182,6 @@ export function ProfilePageView() {
           {info}
         </div>
       )}
-
-      <ProfileSummary profile={userProfile} />
 
       <ProfileForm
         profile={userProfile}

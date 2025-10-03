@@ -18,24 +18,44 @@ export async function PATCH(
     }
 
     console.log('Attempting to update game status in database...');
+    
+    // Map status to appropriate Game fields
+    const updateData: any = {};
+    if (status === 'not_started') {
+      updateData.isComplete = false;
+      updateData.startedAt = null;
+      updateData.endedAt = null;
+    } else if (status === 'in_progress') {
+      updateData.isComplete = false;
+      updateData.startedAt = new Date();
+      updateData.endedAt = null;
+    } else if (status === 'completed') {
+      updateData.isComplete = true;
+      updateData.endedAt = new Date();
+    }
+    
     const updatedGame = await prisma.game.update({
       where: { id: gameId },
-      data: { status }
+      data: updateData
     });
 
     console.log('Game status updated successfully:', updatedGame);
     return NextResponse.json(updatedGame);
   } catch (error) {
     console.error('Error updating game status:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = (error as any)?.code;
+    const errorMeta = (error as any)?.meta;
+    
     console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta
+      message: errorMessage,
+      code: errorCode,
+      meta: errorMeta
     });
     return NextResponse.json({ 
       error: 'Failed to update game status',
-      details: error.message,
-      code: error.code
+      details: errorMessage,
+      code: errorCode
     }, { status: 500 });
   }
 }

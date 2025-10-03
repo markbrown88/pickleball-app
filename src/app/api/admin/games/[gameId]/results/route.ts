@@ -93,15 +93,19 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     const game = await prisma.game.findUnique({
       where: { id: gameId },
       include: {
-        round: { select: { id: true, stopId: true, stop: { select: { tournamentId: true } } } },
-        teamA: { select: { id: true, name: true } },
-        teamB: { select: { id: true, name: true } },
-        matches: { orderBy: { slot: 'asc' } },
-      },
+        match: {
+          include: {
+            round: { select: { id: true, stopId: true, stop: { select: { tournamentId: true } } } },
+            teamA: { select: { id: true, name: true } },
+            teamB: { select: { id: true, name: true } },
+            games: { orderBy: { slot: 'asc' } },
+          }
+        }
+      }
     });
     if (!game) return bad('Game not found', 404);
 
-    const matches = game.matches.map((m) => ({
+    const matches = game.match.games.map((m) => ({
       id: m.id,
       slot: m.slot,
       teamAScore: m.teamAScore ?? null,
@@ -110,12 +114,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
     return NextResponse.json({
       gameId: game.id,
-      roundId: game.roundId,
-      stopId: game.round?.stopId ?? null,
-      tournamentId: game.round?.stop?.tournamentId ?? null,
-      isBye: !!game.isBye,
-      teamA: game.teamA ? { id: game.teamA.id, name: game.teamA.name } : null,
-      teamB: game.teamB ? { id: game.teamB.id, name: game.teamB.name } : null,
+      roundId: game.match.round.id,
+      stopId: game.match.round.stopId,
+      tournamentId: game.match.round.stop.tournamentId,
+      isBye: !!game.match.isBye,
+      teamA: game.match.teamA ? { id: game.match.teamA.id, name: game.match.teamA.name } : null,
+      teamB: game.match.teamB ? { id: game.match.teamB.id, name: game.match.teamB.name } : null,
       matches,
       summary: summarize(matches),
     });
@@ -132,30 +136,40 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
-      select: { id: true, isBye: true },
+      include: {
+        match: {
+          select: { id: true, isBye: true }
+        }
+      }
     });
     if (!game) return bad('Game not found', 404);
-    if (game.isBye) return bad('Cannot submit results for a BYE game');
+    if (game.match.isBye) return bad('Cannot submit results for a BYE game');
 
     const updates = extractScores(await req.json().catch(() => ({})));
     if (!updates.length) return bad('No scores provided');
 
     await prisma.$transaction(async (tx) => {
       for (const u of updates) {
-        await tx.match.upsert({
-          where: { gameId_slot: { gameId, slot: u.slot } },
+        await tx.game.upsert({
+          where: { matchId_slot: { matchId: game.match.id, slot: u.slot } },
           update: { teamAScore: u.teamAScore, teamBScore: u.teamBScore },
-          create: { gameId, slot: u.slot, teamAScore: u.teamAScore, teamBScore: u.teamBScore },
+          create: { matchId: game.match.id, slot: u.slot, teamAScore: u.teamAScore, teamBScore: u.teamBScore },
         });
       }
     });
 
     const after = await prisma.game.findUnique({
       where: { id: gameId },
-      include: { matches: { orderBy: { slot: 'asc' } } },
+      include: {
+        match: {
+          include: {
+            games: { orderBy: { slot: 'asc' } }
+          }
+        }
+      }
     });
 
-    const matches = (after?.matches ?? []).map((m) => ({
+    const matches = (after?.match?.games ?? []).map((m) => ({
       id: m.id,
       slot: m.slot,
       teamAScore: m.teamAScore ?? null,

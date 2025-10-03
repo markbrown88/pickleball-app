@@ -201,17 +201,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
       // Create new entries for the 4 players
       // We'll store them as pairs: [man1, man2], [woman1, woman2], [man1, woman1], [man2, woman2]
       const entries = [
-        { player1Id: players[0], player2Id: players[1] }, // Men's doubles
-        { player1Id: players[2], player2Id: players[3] }, // Women's doubles  
-        { player1Id: players[0], player2Id: players[2] }, // Mixed 1
-        { player1Id: players[1], player2Id: players[3] }  // Mixed 2
+        { player1Id: players[0], player2Id: players[1], slot: 'MENS_DOUBLES' as const },
+        { player1Id: players[2], player2Id: players[3], slot: 'WOMENS_DOUBLES' as const },
+        { player1Id: players[0], player2Id: players[2], slot: 'MIXED_1' as const },
+        { player1Id: players[1], player2Id: players[3], slot: 'MIXED_2' as const }
       ];
       
       await tx.lineupEntry.createMany({
         data: entries.map(entry => ({
           lineupId: lineup.id,
           player1Id: entry.player1Id,
-          player2Id: entry.player2Id
+          player2Id: entry.player2Id,
+          slot: entry.slot
         }))
       });
       

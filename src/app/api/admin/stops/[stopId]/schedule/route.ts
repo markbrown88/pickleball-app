@@ -284,7 +284,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 /** Simple round-robin pairing generator (circle method). */
-export function makeRoundRobin<T>(teams: T[]): Array<Array<[T, T]>> {
+function makeRoundRobin<T>(teams: T[]): Array<Array<[T, T]>> {
   const arr = [...teams];
   const hasBye = arr.length % 2 === 1;
   if (hasBye) arr.push(null as unknown as T);

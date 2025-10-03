@@ -251,14 +251,7 @@ function generateOptimalLineup(roster: RosterPlayer[]): LineupEntry[] {
   const usedPlayers = new Set([man1.id, man2.id, woman1.id, woman2.id]);
   const availablePlayers = roster.filter(p => !usedPlayers.has(p.id));
   
-  if (availablePlayers.length >= 2) {
-    const sortedAvailable = sortPlayers(availablePlayers);
-    entries.push({
-      slot: 'TIEBREAKER',
-      player1Id: sortedAvailable[0].id,
-      player2Id: sortedAvailable[1].id
-    });
-  }
+  // Skip tiebreaker - it doesn't have specific players assigned
 
   return entries;
 }
