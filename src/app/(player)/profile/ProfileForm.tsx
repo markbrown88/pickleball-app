@@ -67,7 +67,9 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
       if (profile.birthday) {
         const birthdayStr = profile.birthday instanceof Date 
           ? profile.birthday.toISOString().slice(0, 10)
-          : profile.birthday.slice(0, 10);
+          : typeof profile.birthday === 'string' 
+            ? profile.birthday.slice(0, 10)
+            : '';
         setBirthday(birthdayStr);
       }
     } else {
