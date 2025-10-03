@@ -37,7 +37,7 @@ export async function getAvailableUsers(userRole: 'app-admin' | 'tournament-admi
       id: player.id,
       name: `${player.firstName} ${player.lastName}`.trim(),
       role,
-      email: player.email,
+      email: player.email ?? undefined,
     };
   });
 }
