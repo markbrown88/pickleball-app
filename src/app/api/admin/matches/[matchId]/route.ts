@@ -113,7 +113,10 @@ export async function GET(_req: Request, ctx: Ctx) {
       where: { id: matchId },
       select: {
         id: true,
+        slot: true,
         isBye: true,
+        teamAScore: true,
+        teamBScore: true,
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
         round: {
