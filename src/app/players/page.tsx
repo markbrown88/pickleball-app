@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
-import { useAdminUser } from '../AdminContext';
+import { useAdminUser } from '../admin/AdminContext';
 import { fortyYearsAgoISO } from '../../(player)/shared/useProfileData';
 
 const CA_PROVINCES = ['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'] as const;
