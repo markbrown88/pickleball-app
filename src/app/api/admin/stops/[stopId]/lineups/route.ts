@@ -96,7 +96,7 @@ export async function GET(
 
         // Convert entries to player array (each entry has 2 players)
         const players: any[] = [];
-        lineup.entries.forEach(entry => {
+        lineup.entries.forEach((entry: any) => {
           players.push({
             id: entry.player1.id,
             name: entry.player1.name,

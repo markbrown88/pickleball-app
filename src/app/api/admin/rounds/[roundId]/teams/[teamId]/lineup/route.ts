@@ -106,7 +106,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
 
     // Build lineup data (4 players in order: Man1, Man2, Woman1, Woman2)
     const lineupPlayers = [];
-    const entries = full.entries || [];
+    const entries = full?.entries || [];
     
     // Extract players from entries - we need to reconstruct the 4-player lineup
     // from the stored pairs: [man1, man2], [woman1, woman2], [man1, woman1], [man2, woman2]

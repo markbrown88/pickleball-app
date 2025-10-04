@@ -37,7 +37,7 @@ function addCaptain(acc: Map<string, CaptainOut>, p: any, t?: any) {
 // Use singleton prisma instance
 
 export async function GET(req: Request) {
-  const prisma = prisma;
+  const prismaInstance = prisma;
 
   const url = new URL(req.url);
   const debug = url.searchParams.get('debug') === '1';
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
 
   // A) Canonical: TournamentCaptain
   try {
-    const conf = await prisma.tournamentCaptain.findMany({
+    const conf = await prismaInstance.tournamentCaptain.findMany({
       include: {
         player: { select: { id: true, firstName: true, lastName: true, name: true, gender: true } },
         tournament: { select: { id: true, name: true } },
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
 
   // B) Legacy assist: Teams with captainId set
   try {
-    const teams = await prisma.team.findMany({
+    const teams = await prismaInstance.team.findMany({
       where: { captainId: { not: null } },
       select: {
         captain: { select: { id: true, firstName: true, lastName: true, name: true, gender: true } },
