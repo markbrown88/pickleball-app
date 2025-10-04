@@ -53,7 +53,7 @@ async function ensureBrackets(prisma: PrismaClient, tournamentId: string) {
 async function ensureStops(prisma: PrismaClient, tournamentId: string) {
   const t = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, name: true, createdAt: true, stops: { select: { id: true, isAppAdmin: true } } },
+    select: { id: true, name: true, createdAt: true, stops: { select: { id: true } } },
   });
   if (!t) throw new Error('Tournament not found');
   if (!t.stops || t.stops.length === 0) {

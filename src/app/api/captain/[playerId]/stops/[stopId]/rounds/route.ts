@@ -44,7 +44,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     }
 
     // Pull rounds + games + minimal team info
-    const rounds = await prisma.round.findMany({
+    const rounds = await (prisma.round.findMany as any)({
       where: { stopId },
       orderBy: { idx: 'asc' },
       select: {
