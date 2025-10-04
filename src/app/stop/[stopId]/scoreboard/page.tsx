@@ -21,13 +21,7 @@ export default async function Page({ params }: { params: Promise<{ stopId: strin
             include: {
               teamA: { include: { club: true } },
               teamB: { include: { club: true } },
-              games: {
-                include: {
-                  teamA: { include: { club: true } },
-                  teamB: { include: { club: true } },
-                  matches: true
-                }
-              }
+              games: true
             }
           }
         }

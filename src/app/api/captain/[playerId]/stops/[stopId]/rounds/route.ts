@@ -77,7 +77,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     });
 
     // Shape + annotate which sides this captain can edit
-    const shaped = rounds.map((r) => ({
+    const shaped = rounds.map((r: any) => ({
       roundId: r.id,
       idx: r.idx,
       games: (r as any).games.map((g: any) => {

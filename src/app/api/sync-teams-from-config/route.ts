@@ -20,7 +20,6 @@ export async function GET() {
     const tournaments = await prisma.tournament.findMany({
       include: {
         clubs: { include: { club: true } },   // TournamentClub[]
-        levels: { orderBy: { idx: 'asc' } },  // TournamentLevel[]
         stops: true,                           // Stop[]
       },
     });
@@ -28,14 +27,11 @@ export async function GET() {
     const touched: any[] = [];
 
     for (const t of tournaments) {
-      // Ensure we have at least a DEFAULT level
-      const levels = (t.levels?.length ?? 0) > 0
-        ? t.levels
-        : [await prisma.tournamentLevel.upsert({
-            where: { tournamentId_name: { tournamentId: t.id, name: 'DEFAULT' } },
-            update: {},
-            create: { tournamentId: t.id, name: 'DEFAULT', idx: 0 },
-          })];
+      // Use brackets instead of levels (levels model doesn't exist)
+      const levels = await prisma.tournamentBracket.findMany({
+        where: { tournamentId: t.id },
+        orderBy: { idx: 'asc' }
+      });
 
       for (const tc of t.clubs) {
         // Load all existing teams for this tournament+club once
