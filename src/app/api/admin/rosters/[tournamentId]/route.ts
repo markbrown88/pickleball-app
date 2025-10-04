@@ -83,7 +83,7 @@ export async function GET(
         id: true,
         isAppAdmin: true,
         tournamentAdminLinks: { where: { tournamentId }, select: { tournamentId: true } },
-        TournamentCaptain: { where: { tournamentId }, select: { tournamentId: true } },
+        TournamentCaptain: { where: { tournamentId }, select: { tournamentId: true, clubId: true } },
       },
     });
 
@@ -91,12 +91,13 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (!player.isAppAdmin) {
-      const hasAdminLink = player.tournamentAdminLinks.length > 0;
-      const hasCaptainLink = player.TournamentCaptain.length > 0;
-      if (!hasAdminLink && !hasCaptainLink) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
+    const isAppAdmin = player.isAppAdmin;
+    const isTournamentAdmin = player.tournamentAdminLinks.length > 0;
+    const isCaptain = player.TournamentCaptain.length > 0;
+    const captainClubIds = new Set(player.TournamentCaptain.map((c) => c.clubId));
+
+    if (!isAppAdmin && !isTournamentAdmin && !isCaptain) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const tournament = await prisma.tournament.findUnique({
@@ -179,7 +180,15 @@ export async function GET(
       stopRosterMap.set(key, current);
     }
 
-    const clubs: ClubRoster[] = tournament.clubs.map((link) => {
+    // Filter clubs based on user role
+    const allowedClubs = tournament.clubs.filter((link) => {
+      // App admins and tournament admins see all clubs
+      if (isAppAdmin || isTournamentAdmin) return true;
+      // Captains only see their clubs
+      return captainClubIds.has(link.clubId);
+    });
+
+    const clubs: ClubRoster[] = allowedClubs.map((link) => {
       const clubTeams = teams.filter((team) => team.clubId === link.clubId);
 
       const brackets: BracketRoster[] = clubTeams.map((team) => ({

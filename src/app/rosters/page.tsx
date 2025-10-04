@@ -157,20 +157,20 @@ export default function AdminRostersPage() {
   );
 
   return (
-    <section className="space-y-6">
+    <section className="min-h-screen bg-app p-6 space-y-6">
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-primary">Rosters</h1>
-          <p className="text-muted">{headline}</p>
+          <h1 className="text-3xl font-bold text-primary">Tournament Rosters</h1>
+          <p className="text-muted mt-1">{headline}</p>
         </div>
         {tournaments.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label htmlFor="roster-tournament" className="text-sm text-muted">
-              Tournament
+          <div className="flex items-center gap-3">
+            <label htmlFor="roster-tournament" className="text-sm font-medium text-secondary">
+              Tournament:
             </label>
             <select
               id="roster-tournament"
-              className="input"
+              className="input min-w-[240px]"
               value={selectedId}
               onChange={(event) => setSelectedId(event.target.value)}
             >
@@ -185,30 +185,47 @@ export default function AdminRostersPage() {
       </header>
 
       {err && (
-        <div className="error-message" role="status" aria-live="assertive">
-          {err}
+        <div className="card bg-error/10 border-error/30 p-4" role="status" aria-live="assertive">
+          <div className="flex items-center gap-2">
+            <span className="text-error font-semibold">Error:</span>
+            <span className="text-error">{err}</span>
+          </div>
         </div>
       )}
 
       {info && (
-        <div className="success-message" role="status" aria-live="polite">
-          {info}
+        <div className="card bg-success/10 border-success/30 p-4" role="status" aria-live="polite">
+          <div className="flex items-center gap-2">
+            <span className="text-success font-semibold">✓</span>
+            <span className="text-success">{info}</span>
+          </div>
         </div>
       )}
 
       {listLoading && (
-        <div className="card p-6 text-center text-muted">Loading tournaments…</div>
+        <div className="card p-8 flex items-center justify-center gap-3">
+          <div className="loading-spinner" />
+          <span className="text-muted">Loading tournaments…</span>
+        </div>
       )}
 
       {!listLoading && tournaments.length === 0 && (
-        <div className="card p-6 text-muted">
-          No tournaments available. You will see roster controls here when you are assigned as an App
-          Admin, Tournament Admin, or Captain.
+        <div className="card p-8 text-center">
+          <div className="max-w-md mx-auto space-y-3">
+            <div className="text-5xl">📋</div>
+            <h3 className="text-lg font-semibold text-secondary">No Tournaments Available</h3>
+            <p className="text-muted">
+              You will see roster controls here when you are assigned as an App Admin, Tournament Admin, or Captain.
+            </p>
+          </div>
         </div>
       )}
 
       {selected && rosterLoading && (
-        <div className="card p-6 text-muted">Loading roster for {selected.name}…</div>
+        <div className="card p-8 flex items-center justify-center gap-3">
+          <div className="loading-spinner" />
+          <span className="text-muted">Loading roster for {selected.name}…</span>
+        </div>
       )}
 
       {selected && !rosterLoading && roster && (
@@ -262,42 +279,55 @@ function RosterDetails({
 
   if (!roster.clubs.length) {
     return (
-      <div className="card p-6 text-muted">
-        No clubs are linked to this tournament yet. Add clubs from the Tournaments page before managing
-        rosters.
+      <div className="card p-8 text-center">
+        <div className="max-w-md mx-auto space-y-3">
+          <div className="text-5xl">🏢</div>
+          <h3 className="text-lg font-semibold text-secondary">No Clubs Linked</h3>
+          <p className="text-muted">
+            No clubs are linked to this tournament yet. Add clubs from the Tournaments page before managing rosters.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="card p-4">
-        <div className="flex flex-col gap-2">
-          <div className="text-lg font-semibold text-secondary">{roster.tournamentName}</div>
-          <div className="text-sm text-muted">
-            <span className="inline-block mr-4">
-              Stops: {roster.stops.length || '0'}
-            </span>
-            <span className="inline-block">
-              Roster cap per bracket:{' '}
-              <strong>{roster.maxTeamSize ?? '— (no cap set)'}</strong>
-            </span>
+      <div className="card p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-primary">{roster.tournamentName}</h2>
+            <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted">
+              <span className="flex items-center gap-1">
+                <span className="font-semibold">📍 Stops:</span> {roster.stops.length || '0'}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="font-semibold">👥 Roster Cap:</span>{' '}
+                {roster.maxTeamSize ?? 'No limit set'}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="font-semibold">🏢 Clubs:</span> {roster.clubs.length}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="card divide-y border border-subtle">
+      <div className="space-y-4">
         {roster.clubs.map((club) => (
-          <div key={club.clubId}>
+          <div key={club.clubId} className="card overflow-hidden">
             <button
-              className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-surface-2"
+              className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-surface-2 transition-colors"
               onClick={() => toggleClub(club.clubId)}
             >
-              <span className="font-medium text-secondary">{club.clubName}</span>
-              <span className="text-sm text-muted">{openClubIds.has(club.clubId) ? '▾' : '▸'}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{openClubIds.has(club.clubId) ? '📂' : '📁'}</span>
+                <span className="text-lg font-semibold text-primary">{club.clubName}</span>
+              </div>
+              <span className="text-muted text-xl">{openClubIds.has(club.clubId) ? '▾' : '▸'}</span>
             </button>
             {openClubIds.has(club.clubId) && (
-              <div className="bg-surface-1 border-t border-subtle px-4 py-4">
+              <div className="bg-surface-2/50 border-t border-subtle px-6 py-6">
                 <ClubRosterEditor
                   tournamentId={roster.tournamentId}
                   stops={roster.stops}
@@ -405,32 +435,31 @@ function ClubRosterEditor({
         };
 
         return (
-          <div key={stop.stopId} className="space-y-3">
+          <div key={stop.stopId} className="space-y-4 pb-6 border-b border-subtle last:border-0 last:pb-0">
             <div className="flex items-center justify-between">
-              <div className="font-medium text-secondary">
-                {stop.stopName && hasMultipleStops ? (
-                  <>
-                    {stop.stopName}
-                    <span className="text-muted"> • {stop.locationName ?? '—'} • {between(stop.startAt, stop.endAt)}</span>
-                  </>
-                ) : (
-                  <span className="text-muted">
-                    {stop.locationName ?? '—'} • {between(stop.startAt, stop.endAt)}
-                  </span>
-                )}
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📍</span>
+                <div>
+                  {stop.stopName && hasMultipleStops ? (
+                    <div className="font-semibold text-primary">{stop.stopName}</div>
+                  ) : null}
+                  <div className="text-sm text-muted">
+                    {stop.locationName ?? 'Location TBD'} • {between(stop.startAt, stop.endAt)}
+                  </div>
+                </div>
               </div>
               {previousStop && (
                 <button
-                  className="btn btn-ghost btn-sm"
+                  className="btn btn-ghost text-sm"
                   type="button"
                   onClick={copyFromPrevious}
                 >
-                  Copy from previous stop
+                  📋 Copy from previous
                 </button>
               )}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {club.brackets.map((bracket) => {
                 const list = rosters[stop.stopId]?.[bracket.teamId] ?? [];
                 const excludeAcrossStop = Object.values(rosters[stop.stopId] ?? {})
@@ -441,7 +470,7 @@ function ClubRosterEditor({
                   <BracketRosterEditor
                     key={`${stop.stopId}:${bracket.teamId}`}
                     title={`${bracket.bracketName ?? 'Roster'} (${list.length}${
-                      maxTeamSize ? ` / ≤${maxTeamSize}` : ''
+                      maxTeamSize ? ` / ${maxTeamSize}` : ''
                     })`}
                     tournamentId={tournamentId}
                     teamId={bracket.teamId}
@@ -456,15 +485,26 @@ function ClubRosterEditor({
         );
       })}
 
-      <div className="pt-2">
+      <div className="pt-4 flex items-center gap-3 border-t border-subtle">
         <button
-          className="btn btn-primary"
+          className="btn btn-primary flex items-center gap-2"
           type="button"
           onClick={handleSave}
           disabled={saving}
         >
-          {saving ? 'Saving…' : 'Save All'}
+          {saving ? (
+            <>
+              <div className="loading-spinner w-4 h-4" />
+              Saving…
+            </>
+          ) : (
+            <>
+              <span>💾</span>
+              Save All Rosters
+            </>
+          )}
         </button>
+        {saving && <span className="text-sm text-muted">Updating all stop rosters…</span>}
       </div>
     </div>
   );
@@ -539,8 +579,10 @@ function BracketRosterEditor({
   }, [term, tournamentId, teamId, excludeIdsAcrossStop]);
 
   return (
-    <div className="border rounded-lg bg-white p-4 space-y-3 shadow-sm">
-      <div className="font-medium text-secondary">{title}</div>
+    <div className="card space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-base font-semibold text-primary">{title}</h4>
+      </div>
 
       <div className="relative">
         <input
@@ -552,11 +594,11 @@ function BracketRosterEditor({
           onBlur={() => setTimeout(() => setOpen(false), 120)}
         />
         {open && options.length > 0 && (
-          <ul className="absolute z-10 mt-1 w-full bg-surface-1 border border-subtle rounded shadow">
+          <ul className="absolute z-10 mt-1 w-full bg-surface-2 border border-subtle rounded-lg shadow-lg overflow-hidden">
             {options.map((player) => (
               <li
                 key={player.id}
-                className="px-3 py-2 text-sm hover:bg-surface-2 cursor-pointer"
+                className="px-4 py-2.5 text-sm text-secondary hover:bg-surface-1 cursor-pointer transition-colors border-b border-subtle last:border-0"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   addPlayer(player);
@@ -565,39 +607,49 @@ function BracketRosterEditor({
                   setOpen(false);
                 }}
               >
-                {labelPL(player)}{' '}
-                <span className="text-muted">
-                  • {player.gender} • {player.dupr ?? '—'} • {player.age ?? '—'}
+                <span className="font-medium">{labelPL(player)}</span>
+                <span className="text-muted ml-2">
+                  • {player.gender} • DUPR: {player.dupr ?? 'N/A'} • Age: {player.age ?? 'N/A'}
                 </span>
               </li>
             ))}
             {loading && (
-              <li className="px-3 py-2 text-sm text-muted">Searching…</li>
+              <li className="px-4 py-2.5 text-sm text-muted flex items-center gap-2">
+                <div className="loading-spinner" />
+                Searching…
+              </li>
             )}
           </ul>
         )}
       </div>
 
-      <ul className="space-y-1">
-        {list.map((player) => (
-          <li key={player.id} className="flex items-center justify-between text-sm">
-            <span>
-              {labelPL(player)}{' '}
-              <span className="text-muted">
-                • {player.gender} • {player.dupr ?? '—'} • {player.age ?? '—'}
+      <div className="space-y-2">
+        <div className="text-xs font-semibold text-muted uppercase tracking-wide">Current Roster</div>
+        <ul className="space-y-2">
+          {list.map((player) => (
+            <li key={player.id} className="flex items-center justify-between p-2 rounded-lg bg-surface-2 hover:bg-surface-1 transition-colors">
+              <span className="text-sm">
+                <span className="font-medium text-secondary">{labelPL(player)}</span>
+                <span className="text-muted ml-2">
+                  • {player.gender} • DUPR: {player.dupr ?? 'N/A'} • Age: {player.age ?? 'N/A'}
+                </span>
               </span>
-            </span>
-            <button
-              type="button"
-              className="text-muted hover:text-error"
-              onClick={() => removePlayer(player.id)}
-            >
-              Remove
-            </button>
-          </li>
-        ))}
-        {list.length === 0 && <li className="text-sm text-muted">No players assigned yet.</li>}
-      </ul>
+              <button
+                type="button"
+                className="text-xs font-medium text-muted hover:text-error transition-colors px-2 py-1"
+                onClick={() => removePlayer(player.id)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+          {list.length === 0 && (
+            <li className="text-sm text-muted p-3 text-center bg-surface-2 rounded-lg">
+              No players assigned yet. Search above to add players.
+            </li>
+          )}
+        </ul>
+      </div>
     </div>
   );
 }
