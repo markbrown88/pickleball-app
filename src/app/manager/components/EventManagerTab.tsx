@@ -131,12 +131,34 @@ export function EventManagerTab({
     setLoading((prev) => ({ ...prev, [roundId]: true }));
     try {
       const res = await fetchWithActAs(`/api/admin/rounds/${roundId}/matchups`);
-      if (!res.ok) throw new Error('Failed to load matches');
-      const data = await res.json();
-      setScheduleData((prev) => ({ ...prev, [roundId]: data.matchups || [] }));
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to load matches');
+      }
+      const matches = await res.json();
+
+      // Transform the matches to the expected format
+      const transformedMatches = Array.isArray(matches) ? matches.map((match: any, index: number) => ({
+        id: match.id,
+        roundId: match.roundId,
+        idx: index,
+        teamA: match.teamA ? {
+          id: match.teamA.id,
+          name: match.teamA.name,
+          clubName: match.teamA.club?.name,
+        } : null,
+        teamB: match.teamB ? {
+          id: match.teamB.id,
+          name: match.teamB.name,
+          clubName: match.teamB.club?.name,
+        } : null,
+        isBye: match.isBye || false,
+      })) : [];
+
+      setScheduleData((prev) => ({ ...prev, [roundId]: transformedMatches }));
     } catch (error) {
       console.error('Error loading matches:', error);
-      onError('Failed to load matches');
+      onError(error instanceof Error ? error.message : 'Failed to load matches');
     } finally {
       setLoading((prev) => ({ ...prev, [roundId]: false }));
     }
@@ -145,12 +167,16 @@ export function EventManagerTab({
   const loadGamesForMatch = async (matchId: string) => {
     try {
       const res = await fetchWithActAs(`/api/admin/matches/${matchId}/games`);
-      if (!res.ok) throw new Error('Failed to load games');
-      const data = await res.json();
-      setGamesData((prev) => ({ ...prev, [matchId]: data.games || [] }));
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to load games');
+      }
+      const games = await res.json();
+      // API returns games array directly, not wrapped in an object
+      setGamesData((prev) => ({ ...prev, [matchId]: Array.isArray(games) ? games : [] }));
     } catch (error) {
       console.error('Error loading games:', error);
-      onError('Failed to load games');
+      onError(error instanceof Error ? error.message : 'Failed to load games');
     }
   };
 
