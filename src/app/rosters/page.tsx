@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAdminUser } from '../admin/AdminContext';
+import { fetchWithActAs } from '@/lib/fetchWithActAs';
 
 type RosterTournament = {
   id: string;
@@ -61,7 +62,7 @@ function extractError(body: unknown, status: number): string {
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await fetchWithActAs(url, init);
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const body = isJson ? await res.json() : await res.text();
   if (!res.ok) {

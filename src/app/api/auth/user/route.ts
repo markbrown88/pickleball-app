@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 
 /**
  * GET /api/auth/user
- * Get current authenticated user's player profile
+ * Get current authenticated user's player profile (supports Act As)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -14,15 +15,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Authentication service not configured' }, { status: 500 });
     }
 
-    const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
 
-    // Find player record linked to this Clerk user
+    // Find player record for the effective player (real user or target if acting as)
     const player = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
+      where: { id: effectivePlayer.targetPlayerId },
       include: {
         club: {
           select: {

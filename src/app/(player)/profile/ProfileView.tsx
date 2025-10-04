@@ -5,6 +5,7 @@ import { useUser, useAuth, SignInButton } from '@clerk/nextjs';
 
 import { ProfileForm } from './ProfileForm';
 import { ProfileSetup } from './ProfileSetupForm';
+import { fetchWithActAs } from '@/lib/fetchWithActAs';
 
 import type { UserProfile } from '@/types';
 
@@ -40,7 +41,7 @@ export function ProfilePageView() {
 
     setProfileLoading(true);
     try {
-      const response = await fetch(PROFILE_ENDPOINT);
+      const response = await fetchWithActAs(PROFILE_ENDPOINT);
       if (response.ok) {
         const profile: UserProfile = await response.json();
         setUserProfile(profile);

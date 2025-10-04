@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
 import { prisma } from '@/lib/prisma';
+import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 
 type PlayerLite = {
   id: string;
@@ -70,15 +71,14 @@ export async function GET(
   ctx: { params: Promise<{ tournamentId: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
     const { tournamentId } = await ctx.params;
 
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(request);
+    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+
     const player = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
+      where: { id: effectivePlayer.targetPlayerId },
       select: {
         id: true,
         isAppAdmin: true,

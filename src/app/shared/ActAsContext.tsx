@@ -39,6 +39,11 @@ export function ActAsProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem('act-as-user');
     }
+
+    // Force page reload to refetch data with new user context
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   };
 
   const isActingAs = actingAs !== null;
