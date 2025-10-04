@@ -104,8 +104,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     for (const [teamId, teamRoster] of rosterByTeam) {
       const team = matches.find(m => m.teamAId === teamId || m.teamBId === teamId);
-      const teamName = (team?.teamAId === teamId ? team.teamA?.name : team?.teamB?.name) || 'Unknown Team';
-      
+      const teamName: string = (team?.teamAId === teamId ? team.teamA?.name : team?.teamB?.name) || 'Unknown Team';
+
       const lineup = generateOptimalLineup(teamRoster);
       generatedLineups.push({
         teamId,
