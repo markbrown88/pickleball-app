@@ -1,6 +1,6 @@
 import { prisma } from '@/server/db';
 
-export async function getAvailableUsers(userRole: 'app-admin' | 'tournament-admin' | 'captain' | 'player') {
+export async function getAvailableUsers(userRole: 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player') {
   if (userRole !== 'app-admin') {
     return [];
   }
@@ -23,13 +23,14 @@ export async function getAvailableUsers(userRole: 'app-admin' | 'tournament-admi
   });
 
   return players.map(player => {
-    const hasTournamentAdminRole =
-      player.tournamentAdminLinks.length > 0 || player.TournamentEventManager.length > 0;
+    const hasTournamentAdminRole = player.tournamentAdminLinks.length > 0 || player.TournamentEventManager.length > 0;
     const hasCaptainRole = player.TournamentCaptain.length > 0;
+    const hasEventManagerRole = player.TournamentEventManager.length > 0;
 
-    let role: 'app-admin' | 'tournament-admin' | 'captain' | 'player';
+    let role: 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
     if (player.isAppAdmin) role = 'app-admin';
-    else if (hasTournamentAdminRole) role = 'tournament-admin';
+    else if (hasTournamentAdminRole && !hasEventManagerRole) role = 'tournament-admin';
+    else if (hasEventManagerRole) role = 'event-manager';
     else if (hasCaptainRole) role = 'captain';
     else role = 'player';
 
