@@ -80,7 +80,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     const shaped = rounds.map((r) => ({
       roundId: r.id,
       idx: r.idx,
-      games: r.games.map((g) => {
+      games: (r as any).games.map((g: any) => {
         const aClubId = g.teamA?.club?.id ?? null;
         const bClubId = g.teamB?.club?.id ?? null;
         const canEditA = !!(aClubId && governedClubIds.has(aClubId));

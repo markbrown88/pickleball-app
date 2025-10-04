@@ -24,7 +24,7 @@ async function safeJson<T>(req: NextRequest): Promise<{ ok: true; value: T } | {
 
 /** Ensure the player isn’t rostered on another team in the same tournament. */
 async function assertEligible(
-  prisma: ReturnType<typeof getPrisma>,
+  prisma: any,
   playerId: string,
   tournamentId: string,
   currentTeamId: string

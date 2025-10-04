@@ -31,7 +31,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     console.log('API: Standings query result:', standings);
     
     // Convert BigInt values to regular numbers for JSON serialization
-    const serializedStandings = standings.map((standing: any) => ({
+    const serializedStandings = (standings as any[]).map((standing: any) => ({
       team_id: standing.team_id,
       team_name: standing.team_name,
       clubId: standing.clubId,

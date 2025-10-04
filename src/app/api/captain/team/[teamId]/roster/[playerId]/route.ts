@@ -23,7 +23,7 @@ async function safeJson<T>(req: NextRequest): Promise<{ ok: true; value: T } | {
 }
 
 async function assertEligibleForTournament(
-  prisma: ReturnType<typeof getPrisma>,
+  prisma: any,
   playerId: string,
   tournamentId: string,
   currentTeamId: string
