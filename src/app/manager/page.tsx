@@ -3,18 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
+import { EventManagerTab } from './components/EventManagerTab';
 
 type Id = string;
-
-type PlayerLite = {
-  id: Id;
-  firstName?: string | null;
-  lastName?: string | null;
-  name?: string | null;
-  gender: 'MALE' | 'FEMALE';
-  dupr?: number | null;
-  age?: number | null;
-};
 
 type EventManagerTournament = {
   tournamentId: Id;
@@ -79,19 +70,6 @@ export default function ManagerPage() {
     loadData();
   }, [isLoaded, user]);
 
-  const formatDate = (dateStr?: string | null): string => {
-    if (!dateStr) return '—';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const formatDateRange = (start?: string | null, end?: string | null): string => {
-    if (!start) return '—';
-    if (!end || start === end) return formatDate(start);
-    return `${formatDate(start)} - ${formatDate(end)}`;
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-app p-6">
@@ -140,83 +118,12 @@ export default function ManagerPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          {tournaments.map((tournament) => (
-            <div key={tournament.tournamentId} className="card overflow-hidden">
-              <div className="px-6 py-4 bg-surface-2/50 border-b border-subtle">
-                <h2 className="text-xl font-bold text-primary">{tournament.tournamentName}</h2>
-                <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted">
-                  <span className="flex items-center gap-1">
-                    <span className="font-semibold">📍 Stops:</span> {tournament.stops.length}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="font-semibold">🏢 Clubs:</span> {tournament.clubs.length}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="font-semibold">🎯 Type:</span> {tournament.type}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-6 space-y-4">
-                {tournament.stops.map((stop) => (
-                  <div key={stop.stopId} className="border border-subtle rounded-lg overflow-hidden">
-                    <div className="px-4 py-3 bg-surface-2/30 border-b border-subtle">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-semibold text-primary">{stop.stopName || 'Stop'}</h3>
-                          <div className="text-sm text-muted mt-1">
-                            {stop.locationName || 'Location TBD'} • {formatDateRange(stop.startAt, stop.endAt)}
-                          </div>
-                        </div>
-                        <div className="text-sm text-muted">
-                          {stop.rounds.length} rounds • {stop.rounds.reduce((sum, r) => sum + r.matchCount, 0)} matches
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      <div className="text-center text-muted py-8">
-                        <div className="text-4xl mb-2">🚧</div>
-                        <p className="font-semibold">Lineup & Score Management Coming Soon</p>
-                        <p className="text-sm mt-1">
-                          The full lineup editor and score entry interface will be available shortly.
-                        </p>
-                      </div>
-
-                      {/* Rounds list */}
-                      {stop.rounds.length > 0 && (
-                        <div className="mt-4">
-                          <h4 className="text-sm font-semibold text-secondary mb-2">Rounds:</h4>
-                          <div className="space-y-2">
-                            {stop.rounds.map((round) => (
-                              <div
-                                key={round.roundId}
-                                className="flex items-center justify-between p-3 bg-surface-1 rounded border border-subtle"
-                              >
-                                <span className="text-sm font-medium">Round {round.idx + 1}</span>
-                                <span className="text-sm text-muted">{round.matchCount} matches</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <EventManagerTab
+          tournaments={tournaments}
+          onError={(msg) => setErr(msg)}
+          onInfo={(msg) => setInfo(msg)}
+        />
       )}
-
-      <div className="card p-4 text-sm text-muted">
-        <p>
-          <strong>Note:</strong> As an Event Manager, you are responsible for creating lineups and entering scores
-          for your assigned tournament stops. The complete lineup and scoring interface is being restored and will
-          be available soon.
-        </p>
-      </div>
     </div>
   );
 }
