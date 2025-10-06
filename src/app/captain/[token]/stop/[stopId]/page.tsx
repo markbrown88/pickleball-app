@@ -189,16 +189,16 @@ export default function StopDetailPage({
       <div className="sticky top-0 bg-primary text-white py-3 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">
           {/* Tournament Name - Always shown */}
-          <h1 className="text-lg md:text-xl font-bold mb-1 truncate">{tournamentName || 'Tournament'}</h1>
+          <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-1 truncate">{tournamentName || 'Tournament'}</h1>
 
           {/* Team Name - Always shown */}
-          <p className="text-sm md:text-base opacity-90 mb-2 truncate">
+          <p className="text-xs sm:text-sm md:text-base opacity-90 mb-2 truncate">
             {myTeamName || currentBracket?.teamName || 'Your Team'}
           </p>
 
           {/* Progressive Breadcrumbs based on view */}
           {view !== 'brackets' && (
-            <div className="text-xs md:text-sm opacity-80 space-y-1">
+            <div className="text-xs sm:text-sm opacity-80 space-y-1">
               <div className="truncate">
                 Stop: {stopName}
                 {stopDate && (

@@ -84,8 +84,8 @@ export default function CaptainPortalPage({
       {/* Sticky Header */}
       <div className="sticky top-0 bg-primary text-white py-4 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">
-          <h1 className="text-xl md:text-2xl font-bold mb-1 truncate">{data.tournament.name}</h1>
-          <p className="text-sm md:text-base opacity-90 truncate">{data.club.name}</p>
+          <h1 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold mb-1 truncate">{data.tournament.name}</h1>
+          <p className="text-xs sm:text-sm md:text-base opacity-90 truncate">{data.club.name}</p>
         </div>
       </div>
 
