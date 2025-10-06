@@ -529,9 +529,9 @@ function ClubRosterEditor({
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {club.brackets.map((bracket) => {
             const list = rosters[stop.stopId]?.[bracket.teamId] ?? [];
-            // Exclude players from ALL stops and ALL brackets (except current team)
-            const excludeAllTeams = Object.values(rosters)
-              .flatMap(stopRoster => Object.entries(stopRoster))
+            // Exclude players from other teams within THIS stop only
+            // (players can play for different teams at different stops)
+            const excludeWithinStop = Object.entries(rosters[stop.stopId] ?? {})
               .filter(([teamId]) => teamId !== bracket.teamId)
               .flatMap(([, players]) => players)
               .map((p) => p.id);
@@ -546,7 +546,7 @@ function ClubRosterEditor({
                 teamId={bracket.teamId}
                 list={list}
                 onChange={(next) => setStopTeamRoster(stop.stopId, bracket.teamId, next)}
-                excludeIdsAcrossStop={excludeAllTeams}
+                excludeIdsAcrossStop={excludeWithinStop}
               />
             );
           })}
