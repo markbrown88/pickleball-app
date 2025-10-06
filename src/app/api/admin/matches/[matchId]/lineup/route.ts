@@ -143,9 +143,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
       return bad('Match not found', 404);
     }
 
-    // Update the match
-    const updated = await prisma.match.update({
-      where: { id: matchId },
+    // Update the first game in the match (assuming single game per match for now)
+    const games = await prisma.game.findMany({
+      where: { matchId },
+      select: { id: true }
+    });
+
+    if (games.length === 0) {
+      return bad('No games found for this match');
+    }
+
+    const gameId = games[0].id;
+    const updated = await prisma.game.update({
+      where: { id: gameId },
       data: {
         teamALineup: body.teamALineup !== undefined ? body.teamALineup as any : undefined,
         teamBLineup: body.teamBLineup !== undefined ? body.teamBLineup as any : undefined,
@@ -157,23 +167,28 @@ export async function PATCH(req: Request, ctx: Ctx) {
         teamALineup: true,
         teamBLineup: true,
         lineupConfirmed: true,
-        teamA: { select: { id: true, name: true } },
-        teamB: { select: { id: true, name: true } },
+        match: {
+          select: {
+            id: true,
+            teamA: { select: { id: true, name: true } },
+            teamB: { select: { id: true, name: true } },
+          }
+        }
       },
     });
 
     return NextResponse.json({
       ok: true,
       match: {
-        id: updated.id,
+        id: updated.match.id,
         slot: updated.slot,
         teamALineup: updated.teamALineup,
         teamBLineup: updated.teamBLineup,
         lineupConfirmed: updated.lineupConfirmed,
         game: {
           id: updated.id,
-          teamA: updated.teamA ? { id: updated.teamA.id, name: updated.teamA.name } : null,
-          teamB: updated.teamB ? { id: updated.teamB.id, name: updated.teamB.name } : null,
+          teamA: updated.match.teamA ? { id: updated.match.teamA.id, name: updated.match.teamA.name } : null,
+          teamB: updated.match.teamB ? { id: updated.match.teamB.id, name: updated.match.teamB.name } : null,
         },
       },
     });

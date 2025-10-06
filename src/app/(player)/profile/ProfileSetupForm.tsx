@@ -29,7 +29,10 @@ type ProfileSetupFormProps = {
     city: string;
     region: string;
     country: string;
-    dupr: string;
+    duprSingles: string;
+    duprDoubles: string;
+    clubRatingSingles: string;
+    clubRatingDoubles: string;
     birthday: string;
   }) => Promise<boolean>;
   loading: boolean;
@@ -46,7 +49,10 @@ export function ProfileSetup({ user, clubs, onSave, loading }: ProfileSetupFormP
     city: '',
     region: '',
     country: 'Canada',
-    dupr: '',
+    duprSingles: '',
+    duprDoubles: '',
+    clubRatingSingles: '',
+    clubRatingDoubles: '',
     birthday: '',
   });
   const [countrySel, setCountrySel] = useState<CountrySel>('Canada');
@@ -193,20 +199,71 @@ export function ProfileSetup({ user, clubs, onSave, loading }: ProfileSetupFormP
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-muted mb-1">DUPR Rating (optional)</label>
-          <input
-            type="number"
-            step="0.1"
-            min="1.0"
-            max="6.0"
-            className="input"
-            value={formData.dupr}
-            onChange={(event) => setFormData((prev) => ({ ...prev, dupr: event.target.value }))}
-            placeholder="e.g., 4.5"
-          />
+          <h3 className="text-lg font-medium text-primary mb-3">DUPR Ratings (optional)</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Singles</label>
+              <input
+                type="number"
+                step="0.1"
+                min="1.0"
+                max="6.0"
+                className="input"
+                value={formData.duprSingles}
+                onChange={(event) => setFormData((prev) => ({ ...prev, duprSingles: event.target.value }))}
+                placeholder="e.g., 4.5"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Doubles</label>
+              <input
+                type="number"
+                step="0.1"
+                min="1.0"
+                max="6.0"
+                className="input"
+                value={formData.duprDoubles}
+                onChange={(event) => setFormData((prev) => ({ ...prev, duprDoubles: event.target.value }))}
+                placeholder="e.g., 4.5"
+              />
+            </div>
+          </div>
         </div>
+
+        <div>
+          <h3 className="text-lg font-medium text-primary mb-3">Club Ratings (optional)</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Singles</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="10"
+                className="input"
+                value={formData.clubRatingSingles}
+                onChange={(event) => setFormData((prev) => ({ ...prev, clubRatingSingles: event.target.value }))}
+                placeholder="e.g., 7.5"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Doubles</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="10"
+                className="input"
+                value={formData.clubRatingDoubles}
+                onChange={(event) => setFormData((prev) => ({ ...prev, clubRatingDoubles: event.target.value }))}
+                placeholder="e.g., 7.5"
+              />
+            </div>
+          </div>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-muted mb-1">Birthday (optional)</label>
           <input

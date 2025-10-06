@@ -95,8 +95,8 @@ export function ProfilePageView() {
       clubRatingSingles: string;
       clubRatingDoubles: string;
       birthday: string;
-      displayAge: boolean;
-      displayLocation: boolean;
+      displayAge?: boolean;
+      displayLocation?: boolean;
       photo?: string | null;
     }): Promise<boolean> => {
       if (!isSignedIn) return false;
@@ -104,10 +104,24 @@ export function ProfilePageView() {
       setProfileLoading(true);
       try {
         const method = userProfile ? 'PUT' : 'POST';
+        
+        // Transform data to match API expectations
+        const apiData = {
+          ...profileData,
+          // Use the provided rating fields directly
+          duprSingles: profileData.duprSingles || '',
+          duprDoubles: profileData.duprDoubles || '',
+          clubRatingSingles: profileData.clubRatingSingles || '',
+          clubRatingDoubles: profileData.clubRatingDoubles || '',
+          // Set defaults for missing fields
+          displayAge: profileData.displayAge ?? true,
+          displayLocation: profileData.displayLocation ?? true,
+        };
+        
         const response = await fetch(PROFILE_ENDPOINT, {
           method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(profileData),
+          body: JSON.stringify(apiData),
         });
 
         if (response.ok) {

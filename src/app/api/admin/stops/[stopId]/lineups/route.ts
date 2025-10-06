@@ -196,13 +196,13 @@ export async function GET(
           groupedLineups[match.id] = {};
         }
 
-        if (teamAPlayers.size === 4) {
+        if (teamAPlayers.size === 4 && match.teamA) {
           groupedLineups[match.id][match.teamA.id] = Array.from(teamAPlayers)
             .map(id => playerMap.get(id))
             .filter(Boolean);
         }
 
-        if (teamBPlayers.size === 4) {
+        if (teamBPlayers.size === 4 && match.teamB) {
           groupedLineups[match.id][match.teamB.id] = Array.from(teamBPlayers)
             .map(id => playerMap.get(id))
             .filter(Boolean);

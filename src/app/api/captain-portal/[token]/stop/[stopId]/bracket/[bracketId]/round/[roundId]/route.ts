@@ -171,7 +171,7 @@ export async function GET(request: Request, { params }: Params) {
       },
       round: {
         id: round.id,
-        name: round.name,
+        name: `Round ${round.idx}`,
         idx: round.idx
       },
       myTeam: {

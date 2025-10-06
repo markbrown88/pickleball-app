@@ -85,9 +85,16 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
                     currentUser={{
                       id: 'current',
                       name: displayName,
-                      role: userRole,
+                      role: userRole === 'event-manager' ? 'player' : userRole,
                     }}
-                    availableUsers={availableUsers}
+                    availableUsers={availableUsers.filter(user => 
+                      user.role !== 'event-manager'
+                    ) as Array<{
+                      id: string;
+                      name: string;
+                      role: 'app-admin' | 'tournament-admin' | 'captain' | 'player';
+                      email?: string;
+                    }>}
                   />
                 )}
                 <UserButton afterSignOutUrl="/" />

@@ -37,12 +37,13 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
 
   useEffect(() => {
     if (player) {
-      // Convert birthday parts to YYYY/MM/DD format
+      // Convert birthday to YYYY/MM/DD format
       let birthday = '';
-      if (player.birthdayYear && player.birthdayMonth && player.birthdayDay) {
-        const year = player.birthdayYear.toString();
-        const month = player.birthdayMonth.toString().padStart(2, '0');
-        const day = player.birthdayDay.toString().padStart(2, '0');
+      if (player.birthday) {
+        const date = new Date(player.birthday);
+        const year = date.getFullYear().toString();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
         birthday = `${year}/${month}/${day}`;
       }
       
@@ -156,12 +157,10 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
     setIsLoading(true);
     try {
       // Parse birthday from YYYY/MM/DD format
-      let birthdayYear = null, birthdayMonth = null, birthdayDay = null;
+      let birthday = null;
       if (form.birthday.trim()) {
         const [year, month, day] = form.birthday.split('/').map(Number);
-        birthdayYear = year;
-        birthdayMonth = month;
-        birthdayDay = day;
+        birthday = new Date(year, month - 1, day); // month is 0-indexed in Date constructor
       }
 
       // Format phone number
@@ -180,9 +179,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
         clubRatingSingles: form.clubRatingSingles ? Number(form.clubRatingSingles) : null,
         clubRatingDoubles: form.clubRatingDoubles ? Number(form.clubRatingDoubles) : null,
         phone: formattedPhone,
-        birthdayYear,
-        birthdayMonth,
-        birthdayDay,
+        birthday,
       };
 
       await onSave(playerData);

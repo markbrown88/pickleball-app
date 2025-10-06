@@ -57,14 +57,16 @@ async function updateMatchScores(matchId: string, body: PutBody) {
       },
     });
     if (!current) return bad('Match not found', 404);
+    // Return the first game's data (assuming single game per match for now)
+    const firstGame = current.games[0];
     return NextResponse.json({
       ok: true,
       match: {
         id: current.id,
-        slot: current.slot,
-        teamAScore: current.teamAScore,
-        teamBScore: current.teamBScore,
-        gameId: current.id,
+        slot: firstGame?.slot || null,
+        teamAScore: firstGame?.teamAScore || null,
+        teamBScore: firstGame?.teamBScore || null,
+        gameId: firstGame?.id || current.id,
         teamA: current.teamA ? { id: current.teamA.id, name: current.teamA.name } : null,
         teamB: current.teamB ? { id: current.teamB.id, name: current.teamB.name } : null,
       },
@@ -72,34 +74,49 @@ async function updateMatchScores(matchId: string, body: PutBody) {
   }
 
   try {
-    // Build only provided fields; Prisma ignores missing keys
+    // Update the first game in the match (assuming single game per match for now)
+    const games = await prisma.game.findMany({
+      where: { matchId },
+      select: { id: true }
+    });
+
+    if (games.length === 0) {
+      return bad('No games found for this match');
+    }
+
+    const gameId = games[0].id;
     const data: { teamAScore?: number | null; teamBScore?: number | null } = {};
     if (hasA) data.teamAScore = body.teamAScore ?? null;
     if (hasB) data.teamBScore = body.teamBScore ?? null;
 
-    const updated = await prisma.match.update({
-      where: { id: matchId },
+    const updated = await prisma.game.update({
+      where: { id: gameId },
       data,
       select: {
         id: true,
         slot: true,
         teamAScore: true,
         teamBScore: true,
-        teamA: { select: { id: true, name: true } },
-        teamB: { select: { id: true, name: true } },
+        match: {
+          select: {
+            id: true,
+            teamA: { select: { id: true, name: true } },
+            teamB: { select: { id: true, name: true } },
+          }
+        }
       },
     });
 
     return NextResponse.json({
       ok: true,
       match: {
-        id: updated.id,
+        id: updated.match.id,
         slot: updated.slot,
         teamAScore: updated.teamAScore,
         teamBScore: updated.teamBScore,
         gameId: updated.id,
-        teamA: updated.teamA ? { id: updated.teamA.id, name: updated.teamA.name } : null,
-        teamB: updated.teamB ? { id: updated.teamB.id, name: updated.teamB.name } : null,
+        teamA: updated.match.teamA ? { id: updated.match.teamA.id, name: updated.match.teamA.name } : null,
+        teamB: updated.match.teamB ? { id: updated.match.teamB.id, name: updated.match.teamB.name } : null,
       },
     });
   } catch (e: any) {
@@ -121,8 +138,6 @@ export async function GET(_req: Request, ctx: Ctx) {
       select: {
         id: true,
         isBye: true,
-        teamAScore: true,
-        teamBScore: true,
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
         round: {
@@ -132,16 +147,27 @@ export async function GET(_req: Request, ctx: Ctx) {
             stop: { select: { id: true, name: true, tournamentId: true } },
           },
         },
+        games: {
+          select: {
+            id: true,
+            slot: true,
+            teamAScore: true,
+            teamBScore: true,
+          }
+        }
       },
     });
     if (!match) return bad('Match not found', 404);
 
+    // Get the first game's scores (assuming single game per match for now)
+    const firstGame = match.games[0];
+
     return NextResponse.json({
       id: match.id,
-      teamAScore: match.teamAScore,
-      teamBScore: match.teamBScore,
+      teamAScore: firstGame?.teamAScore || null,
+      teamBScore: firstGame?.teamBScore || null,
       game: {
-        id: match.id,
+        id: firstGame?.id || match.id,
         isBye: match.isBye,
         teamA: match.teamA ? { id: match.teamA.id, name: match.teamA.name } : null,
         teamB: match.teamB ? { id: match.teamB.id, name: match.teamB.name } : null,
