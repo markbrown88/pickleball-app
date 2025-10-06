@@ -45,7 +45,7 @@ async function main() {
 
   console.log('\nRounds and Lineups:');
   for (const round of rounds) {
-    console.log(`  ${round.stop.name} - Round ${round.roundNumber}: ${round._count.lineups} lineups`);
+    console.log(`  ${round.stop.name} - Round ${round.idx + 1}: ${round._count.lineups} lineups`);
   }
 
   // Get lineup sample
