@@ -52,6 +52,8 @@ export default function StopDetailPage({
 
   const [stopName, setStopName] = useState('');
   const [lineupDeadline, setLineupDeadline] = useState<string | null>(null);
+  const [stopDate, setStopDate] = useState<string | null>(null);
+  const [stopLocation, setStopLocation] = useState<string | null>(null);
   const [brackets, setBrackets] = useState<Bracket[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [games, setGames] = useState<Game[]>([]);
@@ -80,6 +82,17 @@ export default function StopDetailPage({
       setLineupDeadline(data.stop.lineupDeadline);
       setBrackets(data.brackets);
       setTournamentName(data.tournament?.name || '');
+      
+      // Set stop date and location
+      if (data.stop.startAt) {
+        setStopDate(new Date(data.stop.startAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }));
+      }
+      setStopLocation(data.stop.club?.name || null);
+      
       // Set team name from first bracket if available
       if (data.brackets.length > 0) {
         setMyTeamName(data.club?.name || data.brackets[0].teamName || '');
@@ -173,7 +186,7 @@ export default function StopDetailPage({
   return (
     <div className="min-h-screen bg-surface-1">
       {/* Sticky Header with Progressive Breadcrumbs */}
-      <div className="sticky top-0 bg-primary text-white py-4 px-4 z-50 shadow-lg">
+      <div className="sticky top-0 bg-primary text-white py-3 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">
           {/* Tournament Name - Always shown */}
           <h1 className="text-lg md:text-xl font-bold mb-1 truncate">{tournamentName || 'Tournament'}</h1>
@@ -186,7 +199,15 @@ export default function StopDetailPage({
           {/* Progressive Breadcrumbs based on view */}
           {view !== 'brackets' && (
             <div className="text-xs md:text-sm opacity-80 space-y-1">
-              <div className="truncate">Stop: {stopName}</div>
+              <div className="truncate">
+                Stop: {stopName}
+                {stopDate && (
+                  <span className="ml-2 opacity-75">• {stopDate}</span>
+                )}
+              </div>
+              {stopLocation && (
+                <div className="truncate text-xs opacity-70">📍 {stopLocation}</div>
+              )}
 
               {view !== 'rounds' && currentBracket && (
                 <div className="truncate">Bracket: {bracketName || currentBracket.name}</div>
@@ -203,7 +224,7 @@ export default function StopDetailPage({
       </div>
 
       {/* Back Button */}
-      <div className="px-4 py-4">
+      <div className="px-4 py-3">
         <div className="container mx-auto max-w-4xl">
           <button
             onClick={handleBack}
@@ -218,7 +239,7 @@ export default function StopDetailPage({
       </div>
 
       {/* Content */}
-      <div className="px-4 pb-8">
+      <div className="px-4 pb-6">
         <div className="container mx-auto max-w-4xl">
           {view === 'brackets' && (
             <BracketsView brackets={brackets} onSelectBracket={loadRounds} />
@@ -286,16 +307,15 @@ function BracketsView({
 }) {
   return (
     <div>
-      <h2 className="text-lg md:text-xl font-semibold text-primary mb-4">Select Bracket</h2>
-      <div className="grid gap-3 md:gap-4">
+      <h2 className="text-lg md:text-xl font-semibold text-primary mb-3">Select Bracket</h2>
+      <div className="grid gap-2 md:gap-3">
         {brackets.map((bracket) => (
           <button
             key={bracket.id}
             onClick={() => onSelectBracket(bracket.id)}
-            className="card p-4 md:p-6 text-left active:scale-95 hover:border-primary hover:shadow-lg transition-all w-full"
+            className="card p-3 md:p-4 text-left active:scale-95 hover:border-primary hover:shadow-lg transition-all w-full"
           >
-            <h3 className="text-base md:text-lg font-semibold text-primary mb-1">{bracket.name}</h3>
-            <p className="text-sm text-muted">Team: {bracket.teamName}</p>
+            <h3 className="text-base md:text-lg font-semibold text-primary">{bracket.name}</h3>
           </button>
         ))}
       </div>
@@ -318,13 +338,13 @@ function RoundsView({
 
   return (
     <div>
-      <h2 className="text-lg md:text-xl font-semibold text-primary mb-4">Select Round</h2>
-      <div className="grid gap-3 md:gap-4">
+      <h2 className="text-lg md:text-xl font-semibold text-primary mb-3">Select Round</h2>
+      <div className="grid gap-2 md:gap-3">
         {rounds.map((round) => (
           <button
             key={round.id}
             onClick={() => onSelectRound(round.id)}
-            className="card p-4 md:p-6 text-left active:scale-95 hover:border-primary hover:shadow-lg transition-all w-full"
+            className="card p-3 md:p-4 text-left active:scale-95 hover:border-primary hover:shadow-lg transition-all w-full"
           >
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
@@ -472,7 +492,7 @@ function GamesView({
                 <select
                   value={man1?.id || ''}
                   onChange={(e) => setMan1(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
                 >
                   <option value="">Select first male player...</option>
                   {getAvailablePlayers('man1').map(player => (
@@ -482,7 +502,7 @@ function GamesView({
                 <select
                   value={man2?.id || ''}
                   onChange={(e) => setMan2(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
                 >
                   <option value="">Select second male player...</option>
                   {getAvailablePlayers('man2').map(player => (
@@ -499,7 +519,7 @@ function GamesView({
                 <select
                   value={woman1?.id || ''}
                   onChange={(e) => setWoman1(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
                 >
                   <option value="">Select first female player...</option>
                   {getAvailablePlayers('woman1').map(player => (
@@ -509,7 +529,7 @@ function GamesView({
                 <select
                   value={woman2?.id || ''}
                   onChange={(e) => setWoman2(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
                 >
                   <option value="">Select second female player...</option>
                   {getAvailablePlayers('woman2').map(player => (

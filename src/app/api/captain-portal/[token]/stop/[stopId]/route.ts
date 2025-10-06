@@ -29,8 +29,15 @@ export async function GET(request: Request, { params }: Params) {
         id: true,
         name: true,
         lineupDeadline: true,
+        startAt: true,
+        endAt: true,
         tournamentId: true,
         tournament: {
+          select: {
+            name: true
+          }
+        },
+        club: {
           select: {
             name: true
           }
