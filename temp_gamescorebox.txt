@@ -1,0 +1,230 @@
+function GameScoreBox({
+  game,
+  match,
+  gameStatuses,
+  lineups,
+  startGame,
+  endGame,
+  updateGameScore,
+  updateGameCourtNumber,
+}: {
+  game: any;
+  match: any;
+  gameStatuses: Record<string, 'not_started' | 'in_progress' | 'completed'>;
+  lineups: Record<string, Record<string, any[]>>;
+  startGame: (gameId: string) => Promise<void>;
+  endGame: (gameId: string) => Promise<void>;
+  updateGameScore: (gameId: string, teamAScore: number | null, teamBScore: number | null) => Promise<void>;
+  updateGameCourtNumber: (gameId: string, courtNumber: string) => Promise<void>;
+}) {
+  const gameStatus = gameStatuses[game.id] || 'not_started';
+  const isCompleted = gameStatus === 'completed';
+  const isInProgress = gameStatus === 'in_progress';
+  
+  const getGameTitle = () => {
+    switch (game.slot) {
+      case 'MENS_DOUBLES': return "Men's Doubles";
+      case 'WOMENS_DOUBLES': return "Women's Doubles";
+      case 'MIXED_1': return "Mixed Doubles 1";
+      case 'MIXED_2': return "Mixed Doubles 2";
+      case 'TIEBREAKER': return "Tiebreaker";
+      default: return game.slot;
+    }
+  };
+
+  const getTeamALineup = () => {
+    if (game.teamALineup && Array.isArray(game.teamALineup)) {
+      return game.teamALineup.map((player: any) => player.name).join(' & ');
+    }
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamA?.name || 'Team A';
+    }
+    // Generate lineup from team roster based on game slot and lineup positions
+    if (match && match.teamA && lineups[match.id]) {
+      const teamALineup = lineups[match.id][match.teamA.id] || [];
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = teamALineup[0];
+      const man2 = teamALineup[1];
+      const woman1 = teamALineup[2];
+      const woman2 = teamALineup[3];
+      
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+        default:
+          return 'Team A';
+      }
+    }
+    return 'Team A';
+  };
+
+  const getTeamBLineup = () => {
+    if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
+      return game.teamBLineup.map((player: any) => player.name).join(' & ');
+    }
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamB?.name || 'Team B';
+    }
+    // Generate lineup from team roster based on game slot and lineup positions
+    if (match && match.teamB && lineups[match.id]) {
+      const teamBLineup = lineups[match.id][match.teamB.id] || [];
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = teamBLineup[0];
+      const man2 = teamBLineup[1];
+      const woman1 = teamBLineup[2];
+      const woman2 = teamBLineup[3];
+      
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team B';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team B';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
+        default:
+          return 'Team B';
+      }
+    }
+    return 'Team B';
+  };
+
+  const teamAScore = game.teamAScore || 0;
+  const teamBScore = game.teamBScore || 0;
+  const teamAWon = teamAScore > teamBScore;
+  const teamBWon = teamBScore > teamAScore;
+
+  return (
+    <div className="p-1.5 bg-surface-1 border rounded space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-bold text-muted">
+          {getGameTitle()}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {!isCompleted && (
+            <>
+              <label className="text-xs font-medium text-muted">Court #:</label>
+              <input
+                type="text"
+                className="w-10 px-1 py-0.5 text-xs border rounded text-center"
+                value={game.courtNumber || ''}
+                onChange={(e) => updateGameCourtNumber(game.id, e.target.value)}
+                placeholder="1"
+                disabled={isCompleted}
+              />
+            </>
+          )}
+          {gameStatus !== 'completed' && (
+            <button
+              className={`btn btn-primary text-xs ${
+                gameStatus === 'not_started' 
+                  ? 'bg-success hover:bg-success-hover' 
+                  : 'bg-error hover:bg-error-hover'
+              } disabled:opacity-50`}
+              onClick={() => {
+                if (gameStatus === 'not_started') {
+                  startGame(game.id);
+                } else if (gameStatus === 'in_progress') {
+                  endGame(game.id);
+                }
+              }}
+            >
+              {gameStatus === 'not_started' ? 'Start Game' : 'End Game'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isInProgress && (
+        <div className="text-xs text-yellow-600 font-medium text-center">
+          Game in Progress
+        </div>
+      )}
+
+      <div className="flex items-center justify-between text-xs">
+        {/* Team A */}
+        <div className={`font-medium text-muted whitespace-pre-line ${
+          isCompleted && teamAWon ? 'font-bold text-green-800' : ''
+        }`}>
+          {getTeamALineup()}
+        </div>
+        
+        {/* Score A */}
+        {isCompleted ? (
+          <div className={`w-8 text-center ${
+            teamAWon ? 'text-green-800 font-bold' : 'text-muted'
+          }`}>
+            {teamAScore}
+          </div>
+        ) : isInProgress ? (
+          <input
+            type="number"
+            min="0"
+            max="99"
+            className="w-8 px-1 py-0.5 text-xs border rounded text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            value={teamAScore || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                updateGameScore(game.id, value ? parseInt(value) : null, teamBScore);
+              }
+            }}
+            placeholder="0"
+            disabled={isCompleted}
+          />
+        ) : (
+          <div className="w-8 text-center text-muted">-</div>
+        )}
+        
+        {/* VS */}
+        <div className="text-muted font-medium">vs</div>
+        
+        {/* Score B */}
+        {isCompleted ? (
+          <div className={`w-8 text-center ${
+            teamBWon ? 'text-green-800 font-bold' : 'text-muted'
+          }`}>
+            {teamBScore}
+          </div>
+        ) : isInProgress ? (
+          <input
+            type="number"
+            min="0"
+            max="99"
+            className="w-8 px-1 py-0.5 text-xs border rounded text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            value={teamBScore || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                updateGameScore(game.id, teamAScore, value ? parseInt(value) : null);
+              }
+            }}
+            placeholder="0"
+            disabled={isCompleted}
+          />
+        ) : (
+          <div className="w-8 text-center text-muted">-</div>
+        )}
+        
+        {/* Team B */}
+        <div className={`font-medium text-muted whitespace-pre-line ${
+          isCompleted && teamBWon ? 'font-bold text-green-800' : ''
+        }`}>
+          {getTeamBLineup()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= Event Manager Tab Component ================= */
+

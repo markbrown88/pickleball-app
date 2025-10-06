@@ -440,13 +440,12 @@ function ClubRosterEditor({
         for (const bracket of club.brackets) {
           const list = rosters[stop.stopId]?.[bracket.teamId] ?? [];
           const response = await fetch(
-            `/api/captain/team/${bracket.teamId}/stops/${stop.stopId}/roster`,
+            `/api/admin/teams/${bracket.teamId}/stops/${stop.stopId}/roster`,
             {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 playerIds: list.map((p) => p.id),
-                limit: maxTeamSize ?? undefined,
               }),
             }
           );

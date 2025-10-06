@@ -1,0 +1,914 @@
+﻿[
+    {
+        "PlayerId":  "cmfosyye10001rdkf7f6sr0di",
+        "PlayerName":  "Josh Groot",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyfk0003rdkf16xmvibe",
+        "PlayerName":  "Gene Liang",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyg30005rdkfiow1yulu",
+        "PlayerName":  "Kyle Toth",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyygn0007rdkf2ju7xzhd",
+        "PlayerName":  "Matt Chute",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyh60009rdkfpltwon9h",
+        "PlayerName":  "Ron McIntrye",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyhp000brdkfpyb9tt5i",
+        "PlayerName":  "Louis Pais",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyif000drdkf2g8a4shj",
+        "PlayerName":  "Josh Molina",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyiy000frdkfbe35klsa",
+        "PlayerName":  "Mark Hall",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyk0000jrdkfqnaxzz6h",
+        "PlayerName":  "Monica Lin",
+        "PrimaryClubId":  "cmfosxo7q0002rdbai3k1vv7o",
+        "PrimaryClubName":  "Greenhills"
+    },
+    {
+        "PlayerId":  "cmfosyykm000lrdkffd9vye3b",
+        "PlayerName":  "Marianne Vergeer",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyylq000prdkfpij3yqfe",
+        "PlayerName":  "Lisa Goudie",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyyma000rrdkf83e3j4at",
+        "PlayerName":  "Nga Nguyen",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyymu000trdkfukw4mewk",
+        "PlayerName":  "Trina Ngu",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfosyynd000vrdkfxjhnv9hz",
+        "PlayerName":  "Diana Hatch",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp6su0001rdn03u347jas",
+        "PlayerName":  "Adam Ewer",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp6ul0003rdn0yahhuun5",
+        "PlayerName":  "Adrian Blake",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp6vn0005rdn0rypjww16",
+        "PlayerName":  "Adriana Dias",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp6wp0007rdn0kvdb3kn2",
+        "PlayerName":  "Adrienne D\u0027Alewyn",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp6xw0009rdn00gn6po5u",
+        "PlayerName":  "Ali Underhill",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp6yz000brdn0aluo5n3e",
+        "PlayerName":  "Amen Langar",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp701000drdn0v8qd44wb",
+        "PlayerName":  "Anand ?",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp714000frdn0vzptthnv",
+        "PlayerName":  "Ben Cates",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp725000hrdn0bpqvj9c5",
+        "PlayerName":  "Brian Moynes",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp733000jrdn0sx1ruba7",
+        "PlayerName":  "Carolina Hack",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp745000lrdn0l2n7lglb",
+        "PlayerName":  "Carter Mcknight",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp755000nrdn04z952p5v",
+        "PlayerName":  "Chris Holden",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp764000prdn0x2hmxp20",
+        "PlayerName":  "Chris Kostrzewa",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp773000rrdn0gu503m4k",
+        "PlayerName":  "Christie Han",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp787000trdn0adhnpyep",
+        "PlayerName":  "Christy King",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp797000vrdn0rq0aqpu5",
+        "PlayerName":  "Corey Bayford",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7a8000xrdn08n4g4on1",
+        "PlayerName":  "Courtney C",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7b8000zrdn0t1agc1o7",
+        "PlayerName":  "Angel Cruz",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7c80011rdn0s8z6jt3k",
+        "PlayerName":  "Deepak ?",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7ez0013rdn0lurlnqbe",
+        "PlayerName":  "Drew Carrick",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7fy0015rdn01bc8xbkb",
+        "PlayerName":  "Ella Bhardwaj",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7gy0017rdn0tr3ze25r",
+        "PlayerName":  "Eva Long",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7hw0019rdn04kpdbunc",
+        "PlayerName":  "Ferdinand Krauss",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7jv001brdn0nnww8nif",
+        "PlayerName":  "Gio ?",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7ku001drdn04ynpo1yj",
+        "PlayerName":  "Hannah Stegen",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7ls001frdn02tr6fe3a",
+        "PlayerName":  "Harry Oh",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7ms001hrdn0p538zfbe",
+        "PlayerName":  "Heather Barret",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7p5001jrdn0mq43k2uz",
+        "PlayerName":  "Hunter Knowles",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7q9001lrdn0eso5evio",
+        "PlayerName":  "Jacob F",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7r9001nrdn04t6bvkv7",
+        "PlayerName":  "Jacob Garcia",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7s8001prdn0n56n9hzw",
+        "PlayerName":  "Jamie Carmichael",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7t7001rrdn0iwg0ga6b",
+        "PlayerName":  "Jane Benson-Chan",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7u7001trdn0hz2lndo9",
+        "PlayerName":  "Jen Cheah",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7vc001vrdn07ofnltlt",
+        "PlayerName":  "Jess H",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7xk001xrdn09j488pth",
+        "PlayerName":  "Jojo Phang",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7yj001zrdn0f3oxtqq3",
+        "PlayerName":  "Joseph Sua",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp7zj0021rdn0rccmp09l",
+        "PlayerName":  "Josh Hazenbuhler",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp81i0023rdn00fxs9k7e",
+        "PlayerName":  "Karen C",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp82i0025rdn0knzpldhf",
+        "PlayerName":  "Kennedy Hanczyk",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp83g0027rdn0eq02nptw",
+        "PlayerName":  "Kevin Kim",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp84m0029rdn0bby7831w",
+        "PlayerName":  "Kirsten Dado",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp85n002brdn0o494986c",
+        "PlayerName":  "Kyle Hermetz",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp87k002drdn0yln7mvny",
+        "PlayerName":  "Leanna Macdonnell",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp88k002frdn0armwmyag",
+        "PlayerName":  "Lisa Merkley",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp89i002hrdn0itc2cmd1",
+        "PlayerName":  "Lokman Law",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8ak002jrdn07zyce2fh",
+        "PlayerName":  "Luca D\u0027Amico",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8bj002lrdn04j59j4g8",
+        "PlayerName":  "Lucas W",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8cs002nrdn0vzqedewj",
+        "PlayerName":  "Lucia Changkuon",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8er002prdn043ix9irb",
+        "PlayerName":  "Marilyn J",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8ft002rrdn0hebu8y36",
+        "PlayerName":  "Mary Louise",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8gv002trdn0dvle7xtr",
+        "PlayerName":  "Maryann Kewin",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8hw002vrdn0h12uw1gf",
+        "PlayerName":  "Matt D",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8iu002xrdn0bt0vx780",
+        "PlayerName":  "Matthew Kiss",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8js002zrdn03hmexbzc",
+        "PlayerName":  "Melissa Noronha",
+        "PrimaryClubId":  "cmfosxo930004rdbay7ha4qm1",
+        "PrimaryClubName":  "One Health"
+    },
+    {
+        "PlayerId":  "cmfpbp8ks0031rdn0ppm6woug",
+        "PlayerName":  "Michael Chao",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8lv0033rdn0ge1t7oed",
+        "PlayerName":  "Miguel Aristizabal",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8mv0035rdn02p2408o2",
+        "PlayerName":  "Miguel C",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8ot0037rdn0zef81ju5",
+        "PlayerName":  "Mychaela T",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8ps0039rdn011fq7r3e",
+        "PlayerName":  "Nancy F",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8qs003brdn0u3n94ov6",
+        "PlayerName":  "Paul Richardson",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8rr003drdn0ps4jyt4i",
+        "PlayerName":  "Peter Hull",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8sr003frdn069aaoqpm",
+        "PlayerName":  "Reese George",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8tr003hrdn0nwqj4dny",
+        "PlayerName":  "Reg Burns",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8us003jrdn0asp6vg6f",
+        "PlayerName":  "Rena Law",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8vs003lrdn0rropfejp",
+        "PlayerName":  "Ricky Liorti",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8ws003nrdn0l9k1zaxl",
+        "PlayerName":  "Robert Deus",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8xs003prdn03fe4qs86",
+        "PlayerName":  "Ryan Bilodeau",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8yr003rrdn0hkkpthhn",
+        "PlayerName":  "Serena S",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp8zs003trdn0sj5ice1d",
+        "PlayerName":  "Shannon McCrae",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp90s003vrdn0qxjii66u",
+        "PlayerName":  "Shaun Hills",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp91q003xrdn0qzybu60d",
+        "PlayerName":  "Sohail Tyabji",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp934003zrdn0qd4gf5bu",
+        "PlayerName":  "Spencer Carrick",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9520041rdn0u33sqoyq",
+        "PlayerName":  "Stefanie Schaefler",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp96e0043rdn0n4xj4b74",
+        "PlayerName":  "Steffi Ringleberg",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp97o0045rdn0vhpc97as",
+        "PlayerName":  "Sue B",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp98q0047rdn0bj4dte2r",
+        "PlayerName":  "Susie Hatch",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp99o0049rdn0t7715lf9",
+        "PlayerName":  "Syl Painchaud",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9as004brdn00g1yos4v",
+        "PlayerName":  "Tariq Ayubi",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9bs004drdn0ggmmf9xw",
+        "PlayerName":  "Tiffany Au",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9cr004frdn0e12zgrzy",
+        "PlayerName":  "Tiffany Lin",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9ep004hrdn0e4s7sigt",
+        "PlayerName":  "Twee Brown",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9fo004jrdn01g1buwue",
+        "PlayerName":  "Tyler Goldsack",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9gm004lrdn0yyonoxcx",
+        "PlayerName":  "Una Pandurevic",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9hm004nrdn0mp5vbed0",
+        "PlayerName":  "Valerie Saunders",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9ik004prdn0qbwds2rx",
+        "PlayerName":  "Vesper Castillo",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9k3004rrdn0l94x7exx",
+        "PlayerName":  "Victoria Bomben",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpbp9l4004trdn072rwq5xd",
+        "PlayerName":  "Winnie Tam",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpcz6r40001rdb4m9sj2mim",
+        "PlayerName":  "Mark C",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpd071i0003rdb4nhoiiwqk",
+        "PlayerName":  "Kim Shpeer",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpd1j050005rdb407odr0n3",
+        "PlayerName":  "Josh A",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpd25060007rdb4yqe1gsgs",
+        "PlayerName":  "Laura T",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpd2oj90009rdb40mkhfxxt",
+        "PlayerName":  "Natalie E",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpd31e5000brdb4aeekidvc",
+        "PlayerName":  "Esra Y",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmfpfa3of000hrdb4329dwz43",
+        "PlayerName":  "Jess Kawamoto",
+        "PrimaryClubId":  "cmfosxo780001rdbazhb4lwpo",
+        "PrimaryClubName":  "Blue Zone"
+    },
+    {
+        "PlayerId":  "cmfpfcmlv000jrdb4n8tee0hw",
+        "PlayerName":  "Dimitry Philipchenko",
+        "PrimaryClubId":  "cmfosxo780001rdbazhb4lwpo",
+        "PrimaryClubName":  "Blue Zone"
+    },
+    {
+        "PlayerId":  "cmfpfe8qo000lrdb4u8xkqiwj",
+        "PlayerName":  "Troy Noseworthy",
+        "PrimaryClubId":  "cmfosxo780001rdbazhb4lwpo",
+        "PrimaryClubName":  "Blue Zone"
+    },
+    {
+        "PlayerId":  "cmfpfejy0000nrdb4tbua2xkv",
+        "PlayerName":  "Krista J",
+        "PrimaryClubId":  "cmfosxo780001rdbazhb4lwpo",
+        "PrimaryClubName":  "Blue Zone"
+    },
+    {
+        "PlayerId":  "cmfpffa0z000prdb4tgl86b9l",
+        "PlayerName":  "Vanessa V",
+        "PrimaryClubId":  "cmfosxo780001rdbazhb4lwpo",
+        "PrimaryClubName":  "Blue Zone"
+    },
+    {
+        "PlayerId":  "cmfpfjfmx000vrdb4hrljqf0q",
+        "PlayerName":  "Joan Hatch",
+        "PrimaryClubId":  "cmfosxo7q0002rdbai3k1vv7o",
+        "PrimaryClubName":  "Greenhills"
+    },
+    {
+        "PlayerId":  "cmg04zl240007jl04a9d79bl6",
+        "PlayerName":  "Lily Fair",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg066pj30003rddcjq0x6eye",
+        "PlayerName":  "Neil Blair",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg06728c0005rddcdjg37kks",
+        "PlayerName":  "Charlie Young",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg067ghh0007rddcqfyaahel",
+        "PlayerName":  "Mike Mcanich",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg067sat0009rddcid5r3u7a",
+        "PlayerName":  "Kara Blair",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg0683gm000brddchkrs3x9x",
+        "PlayerName":  "Zainab ?",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg068iik000drddciylf5dme",
+        "PlayerName":  "Brian Rim",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg068s8i000frddc26q3fnup",
+        "PlayerName":  "Cole Lester",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg069n1b000hrddcfqgyxwrm",
+        "PlayerName":  "Heather Cannom",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg06a4cr000jrddcvn5l8079",
+        "PlayerName":  "Justine Burton",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg06amop000lrddccucccnf0",
+        "PlayerName":  "Sandra Difelice",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg073j95000nrddccovelc4z",
+        "PlayerName":  "Tom Svoboda",
+        "PrimaryClubId":  "cmfosxo780001rdbazhb4lwpo",
+        "PrimaryClubName":  "Blue Zone"
+    },
+    {
+        "PlayerId":  "cmg076l4s000vrddc2xaumywq",
+        "PlayerName":  "Michael Hampson",
+        "PrimaryClubId":  "cmfosxo9n0005rdba8awothbw",
+        "PrimaryClubName":  "Pickleplex Barrie"
+    },
+    {
+        "PlayerId":  "cmg077bju000xrddc2rhk8fic",
+        "PlayerName":  "Mahnaz Sharif",
+        "PrimaryClubId":  "cmfosxo9n0005rdba8awothbw",
+        "PrimaryClubName":  "Pickleplex Barrie"
+    },
+    {
+        "PlayerId":  "cmg078cpn000zrddcciw1s69a",
+        "PlayerName":  "Eden Jiang",
+        "PrimaryClubId":  "cmfosxo930004rdbay7ha4qm1",
+        "PrimaryClubName":  "One Health"
+    },
+    {
+        "PlayerId":  "cmg0794um0011rddcdqrpk8vu",
+        "PlayerName":  "Jonas D",
+        "PrimaryClubId":  "cmfosxo930004rdbay7ha4qm1",
+        "PrimaryClubName":  "One Health"
+    },
+    {
+        "PlayerId":  "cmg079k1n0013rddclc7k9z9c",
+        "PlayerName":  "Ryan McNamara",
+        "PrimaryClubId":  "cmfosxo930004rdbay7ha4qm1",
+        "PrimaryClubName":  "One Health"
+    },
+    {
+        "PlayerId":  "cmg079vxy0015rddcu42qbt3g",
+        "PlayerName":  "Adrien Mizal",
+        "PrimaryClubId":  "cmfosxo930004rdbay7ha4qm1",
+        "PrimaryClubName":  "One Health"
+    },
+    {
+        "PlayerId":  "cmg07a9x00017rddcuw7svm1u",
+        "PlayerName":  "Amna Jamal",
+        "PrimaryClubId":  "cmfosxo930004rdbay7ha4qm1",
+        "PrimaryClubName":  "One Health"
+    },
+    {
+        "PlayerId":  "cmg07azlu0019rddchxzu2e9w",
+        "PlayerName":  "John Mergulhao",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg07benc001brddclj8ji4a4",
+        "PlayerName":  "Justin Li",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg07c262001drddc12y5sss9",
+        "PlayerName":  "Cam ?",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg07cgyz001frddc2oklkd53",
+        "PlayerName":  "Ally Williams",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg07cw8e001hrddcq4ltelpx",
+        "PlayerName":  "Sneha Iyer",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg07da5x001jrddcz4lhzgso",
+        "PlayerName":  "Thea Rifol",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg07dqaa001lrddcejsw4ixx",
+        "PlayerName":  "Tara D",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmg0uz0ym0001rdnooseqqv3q",
+        "PlayerName":  "Sanjay Satch",
+        "PrimaryClubId":  "cmfosxo7q0002rdbai3k1vv7o",
+        "PrimaryClubName":  "Greenhills"
+    },
+    {
+        "PlayerId":  "cmg1cxym000a0rdlbidyzm9ds",
+        "PlayerName":  "Ashley Stewart",
+        "PrimaryClubId":  "cmfosxoaq0007rdballmk9g0p",
+        "PrimaryClubName":  "Real Pickleball"
+    },
+    {
+        "PlayerId":  "cmg1cygil00a2rdlbk4gvih43",
+        "PlayerName":  "Chery Macdonald",
+        "PrimaryClubId":  "cmfosxoaq0007rdballmk9g0p",
+        "PrimaryClubName":  "Real Pickleball"
+    },
+    {
+        "PlayerId":  "cmg1d2t5v00a4rdlbh4mg6s4b",
+        "PlayerName":  "Matt Coad",
+        "PrimaryClubId":  "cmfosxo9n0005rdba8awothbw",
+        "PrimaryClubName":  "Pickleplex Barrie"
+    },
+    {
+        "PlayerId":  "cmg1d3yih00a6rdlb8dg44icb",
+        "PlayerName":  "Lourdes ?",
+        "PrimaryClubId":  "cmfosxo9n0005rdba8awothbw",
+        "PrimaryClubName":  "Pickleplex Barrie"
+    },
+    {
+        "PlayerId":  "cmg1d6oz200a8rdlb2inrqff7",
+        "PlayerName":  "Anita Van Royen",
+        "PrimaryClubId":  "cmfosxo7q0002rdbai3k1vv7o",
+        "PrimaryClubName":  "Greenhills"
+    },
+    {
+        "PlayerId":  "cmg1da1aw00aardlb6zavh42p",
+        "PlayerName":  "Jaleel paje",
+        "PrimaryClubId":  "cmfosxo930004rdbay7ha4qm1",
+        "PrimaryClubName":  "One Health"
+    },
+    {
+        "PlayerId":  "cmg1dc57j00acrdlb3jmfror5",
+        "PlayerName":  "Lury Santos",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg1dcim500aerdlbn7cju0xf",
+        "PlayerName":  "Lakh Bhullar",
+        "PrimaryClubId":  "cmfosxoa60006rdbarearjicm",
+        "PrimaryClubName":  "Rally/OPA"
+    },
+    {
+        "PlayerId":  "cmg1df3kr00agrdlbccpw7nzq",
+        "PlayerName":  "Yida ?",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmg1dg58n00airdlbwffs14xc",
+        "PlayerName":  "Brad M",
+        "PrimaryClubId":  "cmfosxo5x0000rdbasl6ltd8h",
+        "PrimaryClubName":  "4 Fathers"
+    },
+    {
+        "PlayerId":  "cmg2o8iwi0001l104dt5cydo1",
+        "PlayerName":  "Sam ?",
+        "PrimaryClubId":  "cmfosxo890003rdba0hng5hri",
+        "PrimaryClubName":  "Wildcard"
+    },
+    {
+        "PlayerId":  "cmg2pzitz0001rdjo7dylay4d",
+        "PlayerName":  "Troy Rieck",
+        "PrimaryClubId":  "cmfosxoaq0007rdballmk9g0p",
+        "PrimaryClubName":  "Real Pickleball"
+    }
+]
