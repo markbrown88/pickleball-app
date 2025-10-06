@@ -105,11 +105,6 @@ async function main() {
             teamB: { include: { club: true } },
           },
         },
-        lineups: {
-          include: {
-            player: true,
-          },
-        },
       },
     });
 
@@ -120,14 +115,10 @@ async function main() {
       console.log(
         `  Match: ${sampleGame.match.teamA?.club?.name || 'BYE'} vs ${sampleGame.match.teamB?.club?.name || 'BYE'}`
       );
-      console.log(`  Game Type: ${sampleGame.gameType}`);
+      console.log(`  Game Slot: ${sampleGame.slot}`);
       console.log(`  Score: ${sampleGame.teamAScore}-${sampleGame.teamBScore}`);
-      console.log(`  Players in game: ${sampleGame.lineups.length}`);
-      for (const lineup of sampleGame.lineups) {
-        console.log(
-          `    - ${lineup.player.firstName} ${lineup.player.lastName} (${lineup.side}, position ${lineup.position})`
-        );
-      }
+      console.log(`  Team A Lineup: ${JSON.stringify(sampleGame.teamALineup)}`);
+      console.log(`  Team B Lineup: ${JSON.stringify(sampleGame.teamBLineup)}`);
     }
   }
 }

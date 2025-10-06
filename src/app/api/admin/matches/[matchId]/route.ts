@@ -42,11 +42,18 @@ async function updateMatchScores(matchId: string, body: PutBody) {
       where: { id: matchId },
       select: {
         id: true,
-        slot: true,
-        teamAScore: true,
-        teamBScore: true,
+        teamAId: true,
+        teamBId: true,
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
+        games: {
+          select: {
+            id: true,
+            slot: true,
+            teamAScore: true,
+            teamBScore: true,
+          }
+        }
       },
     });
     if (!current) return bad('Match not found', 404);

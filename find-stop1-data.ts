@@ -63,48 +63,48 @@ async function main() {
     const teamAName = game.match.teamA?.club?.name || 'BYE';
     const teamBName = game.match.teamB?.club?.name || 'BYE';
     console.log(
-      `  ${teamAName} vs ${teamBName} - ${game.gameType} - Score: ${game.teamAScore}-${game.teamBScore}`
+      `  ${teamAName} vs ${teamBName} - ${game.slot} - Score: ${game.teamAScore}-${game.teamBScore}`
     );
   }
 
-  // Check game lineup entries
-  const gameLineups = await prisma.gameLineup.findMany({
-    where: {
-      game: {
-        match: {
-          roundId: { in: rounds.map((r) => r.id) },
-        },
-      },
-    },
-    include: {
-      player: true,
-      game: {
-        include: {
-          match: {
-            include: {
-              teamA: { include: { club: true } },
-              teamB: { include: { club: true } },
-            },
-          },
-        },
-      },
-    },
-    take: 10,
-  });
+  // Check game lineup entries (commented out as gameLineup model may not exist)
+  // const gameLineups = await prisma.gameLineup.findMany({
+  //   where: {
+  //     game: {
+  //       match: {
+  //         roundId: { in: rounds.map((r) => r.id) },
+  //       },
+  //     },
+  //   },
+  //   include: {
+  //     player: true,
+  //     game: {
+  //       include: {
+  //         match: {
+  //           include: {
+  //             teamA: { include: { club: true } },
+  //             teamB: { include: { club: true } },
+  //           },
+  //         },
+  //       },
+  //     },
+  //   },
+  //   take: 10,
+  // });
 
-  console.log(`\nStop 1 Game Lineups (player assignments): ${gameLineups.length}`);
-  if (gameLineups.length > 0) {
-    console.log('\nSample game lineups:');
-    for (const gl of gameLineups.slice(0, 10)) {
-      const teamName =
-        gl.side === 'A'
-          ? gl.game.match.teamA?.club?.name
-          : gl.game.match.teamB?.club?.name;
-      console.log(
-        `  ${teamName} - ${gl.player.firstName} ${gl.player.lastName} (${gl.side} - Position ${gl.position})`
-      );
-    }
-  }
+  // console.log(`\nStop 1 Game Lineups (player assignments): ${gameLineups.length}`);
+  // if (gameLineups.length > 0) {
+  //   console.log('\nSample game lineups:');
+  //   for (const gl of gameLineups.slice(0, 10)) {
+  //     const teamName =
+  //       gl.side === 'A'
+  //         ? gl.game.match.teamA?.club?.name
+  //         : gl.game.match.teamB?.club?.name;
+  //     console.log(
+  //       `  ${teamName} - ${gl.player.firstName} ${gl.player.lastName} (${gl.side} - Position ${gl.position})`
+  //     );
+  //   }
+  // }
 }
 
 main()
