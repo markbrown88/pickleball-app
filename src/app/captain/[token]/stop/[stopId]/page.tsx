@@ -79,6 +79,11 @@ export default function StopDetailPage({
       setStopName(data.stop.name);
       setLineupDeadline(data.stop.lineupDeadline);
       setBrackets(data.brackets);
+      setTournamentName(data.tournament?.name || '');
+      // Set team name from first bracket if available
+      if (data.brackets.length > 0) {
+        setMyTeamName(data.club?.name || data.brackets[0].teamName || '');
+      }
     } catch (error) {
       console.error('Failed to load brackets:', error);
     } finally {
@@ -161,41 +166,53 @@ export default function StopDetailPage({
     );
   }
 
+  // Get current stop info from brackets data
+  const currentBracket = brackets.find(b => b.id === selectedBracketId);
+  const currentRound = rounds.find(r => r.id === selectedRoundId);
+
   return (
     <div className="min-h-screen bg-surface-1">
-      {/* Header */}
+      {/* Header with Progressive Breadcrumbs */}
       <div className="bg-primary text-white py-6 px-4">
         <div className="container mx-auto max-w-4xl">
-          <button
-            onClick={handleBack}
-            className="text-white hover:underline mb-3 flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
+          {/* Tournament Name - Always shown */}
+          <h1 className="text-2xl font-bold mb-1">{tournamentName || 'Tournament'}</h1>
 
-          {/* Breadcrumbs */}
-          {view === 'games' && tournamentName && (
-            <div className="text-sm opacity-90 mb-2 flex flex-wrap items-center gap-2">
-              <span>{tournamentName}</span>
-              <span>›</span>
-              <span>{stopName}</span>
-              <span>›</span>
-              <span>{bracketName}</span>
-              <span>›</span>
-              <span className="font-semibold bg-white/20 px-2 py-0.5 rounded">{myTeamName}</span>
-              <span>›</span>
-              <span>{roundName}</span>
+          {/* Team Name - Always shown */}
+          <p className="text-lg opacity-90 mb-3">
+            Team: {myTeamName || currentBracket?.teamName || 'Your Team'}
+          </p>
+
+          {/* Progressive Breadcrumbs based on view */}
+          {view !== 'brackets' && (
+            <div className="text-sm opacity-80 space-y-1">
+              <div>Stop: {stopName}</div>
+
+              {view !== 'rounds' && currentBracket && (
+                <div>Bracket: {bracketName || currentBracket.name}</div>
+              )}
+
+              {view === 'games' && currentRound && (
+                <div>
+                  {roundName} vs. {opponentTeamName}
+                </div>
+              )}
             </div>
           )}
-
-          <h1 className="text-2xl font-bold">{stopName}</h1>
-          {lineupDeadline && (
-            <DeadlineDisplay deadline={lineupDeadline} />
-          )}
         </div>
+      </div>
+
+      {/* Back Button - Below header */}
+      <div className="container mx-auto max-w-4xl px-4 pt-4">
+        <button
+          onClick={handleBack}
+          className="text-primary hover:underline flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
       </div>
 
       {/* Content */}
@@ -435,13 +452,6 @@ function GamesView({
 
   return (
     <div>
-      {/* Header with team names */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-primary mb-2">
-          Games - <span className="bg-primary/10 px-3 py-1 rounded">{myTeamName}</span> vs. {opponentTeamName}
-        </h2>
-      </div>
-
       {!canEdit && (
         <div className="bg-warning/10 border border-warning text-warning px-4 py-3 rounded mb-6">
           Lineup deadline has passed. Lineups are now read-only.
@@ -451,9 +461,9 @@ function GamesView({
       {/* Lineup Selection */}
       {canEdit && (
         <div className="card p-6 mb-6 bg-surface-2">
-          <h3 className="text-lg font-semibold text-primary mb-3">Select Your Lineup</h3>
+          <h3 className="text-lg font-semibold text-primary mb-3">Players</h3>
           <p className="text-sm text-muted mb-4">
-            Select players for any game. Your selections will automatically populate the games.
+            Select your lineup and the games will be automatically populated.
           </p>
 
           <div className="grid md:grid-cols-2 gap-6 mb-6">

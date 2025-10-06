@@ -22,20 +22,31 @@ export async function GET(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 404 });
     }
 
-    // Get stop details
+    // Get stop details with tournament info
     const stop = await prisma.stop.findUnique({
       where: { id: stopId },
       select: {
         id: true,
         name: true,
         lineupDeadline: true,
-        tournamentId: true
+        tournamentId: true,
+        tournament: {
+          select: {
+            name: true
+          }
+        }
       }
     });
 
     if (!stop || stop.tournamentId !== tournamentClub.tournamentId) {
       return NextResponse.json({ error: 'Stop not found' }, { status: 404 });
     }
+
+    // Get club info
+    const club = await prisma.club.findUnique({
+      where: { id: tournamentClub.clubId },
+      select: { name: true }
+    });
 
     // Get all brackets (tournament levels) and this club's teams
     const brackets = await prisma.tournamentBracket.findMany({
@@ -74,6 +85,12 @@ export async function GET(request: Request, { params }: Params) {
     }).filter(b => b.teamId); // Only show brackets where club has a team
 
     return NextResponse.json({
+      tournament: {
+        name: stop.tournament.name
+      },
+      club: {
+        name: club?.name || 'Your Club'
+      },
       stop: {
         id: stop.id,
         name: stop.name,
