@@ -504,30 +504,43 @@ export async function PUT(req: Request, ctx: CtxPromise) {
         select: { id: true, bracketId: true, captainId: true, name: true },
       });
 
-      let primary = existingTeams[0];
-
-      if (!primary) {
-        let label = clubName;
-        if (firstBracketName && firstBracketName !== 'DEFAULT') {
-          label = `${clubName} ${firstBracketName}`;
+      // Create teams for all brackets if they don't exist
+      const existingTeamBrackets = new Set(existingTeams.map(t => t.bracketId));
+      const teamsByBracket = new Map<string, any>();
+      
+      for (const bracket of bracketsAfter) {
+        if (!existingTeamBrackets.has(bracket.id)) {
+          // Create a new team for this bracket
+          let teamName = clubName;
+          if (bracket.name && bracket.name !== 'DEFAULT') {
+            teamName = `${clubName} ${bracket.name}`;
+          }
+          
+          const newTeam = await tx.team.create({
+            data: {
+              name: teamName,
+              tournamentId,
+              clubId,
+              bracketId: bracket.id,
+            },
+            select: { id: true, bracketId: true, captainId: true, name: true },
+          });
+          
+          teamsByBracket.set(bracket.id, newTeam);
+        } else {
+          // Use existing team
+          const existingTeam = existingTeams.find(t => t.bracketId === bracket.id);
+          if (existingTeam) {
+            teamsByBracket.set(bracket.id, existingTeam);
+          }
         }
-        primary = await tx.team.create({
-          data: {
-            name: label,
-            tournamentId,
-            clubId,
-            bracketId: firstBracketId,
-          },
-          select: { id: true, bracketId: true, captainId: true, name: true },
-        });
-      } else if (firstBracketId && primary.bracketId !== firstBracketId) {
-        await tx.team.update({
-          where: { id: primary.id },
-          data: { bracketId: firstBracketId },
-        });
       }
 
-      primaryTeamByClub.set(clubId, primary.id);
+      // Set primary team (first bracket team)
+      const primary = teamsByBracket.get(firstBracketId!) || existingTeams[0];
+      if (primary) {
+        primaryTeamByClub.set(clubId, primary.id);
+      }
 
       if (hasCaptainsFlag) {
         const captainId = captainByClub.get(clubId) ?? null;
@@ -536,43 +549,71 @@ export async function PUT(req: Request, ctx: CtxPromise) {
             data: { tournamentId, clubId, playerId: captainId },
           });
 
-          if (primary.captainId !== captainId) {
+          // Assign captain to all teams for this club
+          if (primary && primary.captainId !== captainId) {
             await tx.team.updateMany({
               where: {
                 tournamentId,
+                clubId,
                 captainId,
-                NOT: { id: primary.id },
               },
               data: { captainId: null },
             });
-            await tx.team.update({ where: { id: primary.id }, data: { captainId } });
+            await tx.team.updateMany({
+              where: {
+                tournamentId,
+                clubId,
+              },
+              data: { captainId },
+            });
           }
-        } else if (primary.captainId) {
-          await tx.team.update({ where: { id: primary.id }, data: { captainId: null } });
+        } else {
+          // Remove captain from all teams for this club
+          await tx.team.updateMany({
+            where: {
+              tournamentId,
+              clubId,
+            },
+            data: { captainId: null },
+          });
         }
-      } else if (primary.captainId) {
-        await tx.team.update({ where: { id: primary.id }, data: { captainId: null } });
+      } else {
+        // Remove captain from all teams for this club
+        await tx.team.updateMany({
+          where: {
+            tournamentId,
+            clubId,
+          },
+          data: { captainId: null },
+        });
       }
     }
 
-    // Ensure StopTeam links for all primary teams across stops (handy; safe)
+    // Ensure StopTeam links for all teams across stops (handy; safe)
     const stopsAfter = await tx.stop.findMany({
       where: { tournamentId },
       select: { id: true },
     });
 
-    if (stopsAfter.length && primaryTeamByClub.size) {
-      const pairs: Array<{ stopId: string; teamId: string }> = [];
-      const primaryTeamIds = Array.from(primaryTeamByClub.values());
-      for (const st of stopsAfter) {
-        for (const teamId of primaryTeamIds) {
-          pairs.push({ stopId: st.id, teamId });
-        }
-      }
-      await tx.stopTeam.createMany({
-        data: pairs,
-        skipDuplicates: true,
+    if (stopsAfter.length) {
+      // Get all teams for this tournament
+      const allTeams = await tx.team.findMany({
+        where: { tournamentId },
+        select: { id: true },
       });
+
+      if (allTeams.length) {
+        const pairs: Array<{ stopId: string; teamId: string }> = [];
+        for (const st of stopsAfter) {
+          for (const team of allTeams) {
+            pairs.push({ stopId: st.id, teamId: team.id });
+          }
+        }
+        await tx.stopTeam.createMany({
+          data: pairs,
+          skipDuplicates: true,
+        });
+      }
     }
     });
   } catch (error) {
