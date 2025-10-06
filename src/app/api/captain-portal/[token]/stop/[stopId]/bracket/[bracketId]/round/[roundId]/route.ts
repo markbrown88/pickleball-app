@@ -32,6 +32,11 @@ export async function GET(request: Request, { params }: Params) {
         tournamentId: tournamentClub.tournamentId,
         clubId: tournamentClub.clubId,
         bracketId: bracketId
+      },
+      include: {
+        tournament: { select: { name: true } },
+        club: { select: { name: true } },
+        bracket: { select: { name: true } }
       }
     });
 
@@ -155,9 +160,23 @@ export async function GET(request: Request, { params }: Params) {
     }));
 
     return NextResponse.json({
+      tournament: {
+        name: team.tournament.name
+      },
+      bracket: {
+        name: team.bracket?.name || 'Main'
+      },
+      stop: {
+        name: round.stop.name
+      },
       round: {
         id: round.id,
-        name: round.name
+        name: round.name,
+        idx: round.idx
+      },
+      myTeam: {
+        id: team.id,
+        name: team.name || team.club?.name || 'Your Team'
       },
       match: {
         id: match.id,

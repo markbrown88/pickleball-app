@@ -60,6 +60,13 @@ export default function StopDetailPage({
   const [canEdit, setCanEdit] = useState(true);
   const [loading, setLoading] = useState(true);
 
+  // Breadcrumb data
+  const [tournamentName, setTournamentName] = useState('');
+  const [bracketName, setBracketName] = useState('');
+  const [myTeamName, setMyTeamName] = useState('');
+  const [opponentTeamName, setOpponentTeamName] = useState('');
+  const [roundName, setRoundName] = useState('');
+
   useEffect(() => {
     loadBrackets();
   }, [stopId]);
@@ -116,6 +123,14 @@ export default function StopDetailPage({
       setIsTeamA(data.isTeamA || false);
       setCanEdit(!data.deadlinePassed);
       setSelectedRoundId(roundId);
+
+      // Set breadcrumb data
+      setTournamentName(data.tournament?.name || '');
+      setBracketName(data.bracket?.name || '');
+      setMyTeamName(data.myTeam?.name || '');
+      setOpponentTeamName(data.match?.opponentTeam?.name || '');
+      setRoundName(data.round?.name || `Round ${(data.round?.idx || 0) + 1}`);
+
       setView('games');
     } catch (error) {
       console.error('Failed to load games:', error);
@@ -153,13 +168,29 @@ export default function StopDetailPage({
         <div className="container mx-auto max-w-4xl">
           <button
             onClick={handleBack}
-            className="text-white hover:underline mb-2 flex items-center gap-2"
+            className="text-white hover:underline mb-3 flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Back
           </button>
+
+          {/* Breadcrumbs */}
+          {view === 'games' && tournamentName && (
+            <div className="text-sm opacity-90 mb-2 flex flex-wrap items-center gap-2">
+              <span>{tournamentName}</span>
+              <span>›</span>
+              <span>{stopName}</span>
+              <span>›</span>
+              <span>{bracketName}</span>
+              <span>›</span>
+              <span className="font-semibold bg-white/20 px-2 py-0.5 rounded">{myTeamName}</span>
+              <span>›</span>
+              <span>{roundName}</span>
+            </div>
+          )}
+
           <h1 className="text-2xl font-bold">{stopName}</h1>
           {lineupDeadline && (
             <DeadlineDisplay deadline={lineupDeadline} />
@@ -186,6 +217,8 @@ export default function StopDetailPage({
             bracketId={selectedBracketId!}
             roundId={selectedRoundId!}
             onUpdate={loadGames}
+            myTeamName={myTeamName}
+            opponentTeamName={opponentTeamName}
           />
         )}
       </div>
@@ -303,6 +336,8 @@ function GamesView({
   bracketId,
   roundId,
   onUpdate,
+  myTeamName,
+  opponentTeamName,
 }: {
   games: Game[];
   roster: Player[];
@@ -313,6 +348,8 @@ function GamesView({
   bracketId: string;
   roundId: string;
   onUpdate: (roundId: string) => void;
+  myTeamName: string;
+  opponentTeamName: string;
 }) {
   // State for the 4 lineup positions
   const [man1, setMan1] = useState<Player | null>(null);
@@ -398,7 +435,12 @@ function GamesView({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-primary mb-6">Games & Lineups</h2>
+      {/* Header with team names */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold text-primary mb-2">
+          Games - <span className="bg-primary/10 px-3 py-1 rounded">{myTeamName}</span> vs. {opponentTeamName}
+        </h2>
+      </div>
 
       {!canEdit && (
         <div className="bg-warning/10 border border-warning text-warning px-4 py-3 rounded mb-6">
@@ -409,15 +451,15 @@ function GamesView({
       {/* Lineup Selection */}
       {canEdit && (
         <div className="card p-6 mb-6 bg-surface-2">
-          <h3 className="text-lg font-semibold text-primary mb-4">Select Your Lineup (4 Players)</h3>
+          <h3 className="text-lg font-semibold text-primary mb-3">Select Your Lineup</h3>
           <p className="text-sm text-muted mb-4">
-            Select players for any game. Your selections will automatically populate the other games.
+            Select players for any game. Your selections will automatically populate the games.
           </p>
 
           <div className="grid md:grid-cols-2 gap-6 mb-6">
             {/* Men */}
             <div>
-              <h4 className="text-sm font-medium text-secondary mb-3">Men (2 players)</h4>
+              <h4 className="text-sm font-medium text-secondary mb-3">Men</h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs text-muted mb-1">Man 1</label>
@@ -450,7 +492,7 @@ function GamesView({
 
             {/* Women */}
             <div>
-              <h4 className="text-sm font-medium text-secondary mb-3">Women (2 players)</h4>
+              <h4 className="text-sm font-medium text-secondary mb-3">Women</h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs text-muted mb-1">Woman 1</label>
@@ -487,7 +529,7 @@ function GamesView({
             disabled={!isLineupsComplete || saving}
             className="btn btn-primary disabled:opacity-50"
           >
-            {saving ? 'Saving...' : 'Save Lineups'}
+            {saving ? 'Saving...' : 'Save Lineup'}
           </button>
         </div>
       )}
@@ -662,21 +704,41 @@ function GamePreview({
     <div className={`card p-4 ${game.isComplete ? 'bg-success/5 border-success' : ''}`}>
       <div className="space-y-3">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <h4 className="text-sm font-semibold text-secondary mb-1">{title}</h4>
-            <div className="text-sm">
-              {hasLineup ? (
-                <span className="text-primary">{player1.name} & {player2.name}</span>
-              ) : (
-                <span className="text-muted italic">Not selected</span>
-              )}
-            </div>
-          </div>
-
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold text-secondary">{title}</h4>
           {game.isComplete && (
             <span className="chip chip-success text-xs">Complete</span>
           )}
+        </div>
+
+        {/* Lineups Display */}
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center text-sm mb-3">
+          {/* My Team */}
+          <div className="text-left">
+            {hasLineup ? (
+              <div className="space-y-1">
+                <div className="text-primary font-medium">{player1.name}</div>
+                <div className="text-primary font-medium">{player2.name}</div>
+              </div>
+            ) : (
+              <span className="text-muted italic">Not selected</span>
+            )}
+          </div>
+
+          {/* VS */}
+          <div className="text-muted font-semibold px-2">VS</div>
+
+          {/* Opponent Team */}
+          <div className="text-right">
+            {game.opponentLineup && game.opponentLineup.length === 2 ? (
+              <div className="space-y-1">
+                <div className="text-secondary">{game.opponentLineup[0].name}</div>
+                <div className="text-secondary">{game.opponentLineup[1].name}</div>
+              </div>
+            ) : (
+              <span className="text-muted italic">Not set</span>
+            )}
+          </div>
         </div>
 
         {/* Score Entry/Display */}
