@@ -1,7 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { DndContext, DragEndEvent, DragStartEvent, closestCenter } from '@dnd-kit/core';
+import { useSortable, SortableContext } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
+
+// Conditional logging helper
+const isDev = process.env.NODE_ENV === 'development';
+const log = (...args: any[]) => { if (isDev) console.log(...args); };
+
+// Custom strategy that disables automatic reordering
+const noReorderStrategy = () => null;
 
 type Id = string;
 
@@ -32,31 +42,670 @@ type EventManagerTournament = {
     locationName?: string | null;
     startAt?: string | null;
     endAt?: string | null;
+    lineupDeadline?: string | null;
     rounds: Array<{ roundId: Id; idx: number; gameCount: number; matchCount: number }>;
   }>;
 };
 
-type Match = {
-  id: string;
+// Draggable Team Component using @dnd-kit - Memoized for performance
+const DraggableTeam = memo(function DraggableTeam({
+  team,
+  teamPosition,
+  roundId,
+  matchIndex,
+  bracketName,
+  isDragging = false,
+  dragPreview = null
+}: {
+  team: any;
+  teamPosition: 'A' | 'B';
   roundId: string;
-  idx: number;
-  teamA?: { id: string; name: string; clubName?: string } | null;
-  teamB?: { id: string; name: string; clubName?: string } | null;
-  isBye: boolean;
-};
+  matchIndex: number;
+  bracketName: string;
+  isDragging?: boolean;
+  dragPreview?: any;
+}) {
+  const teamId = `${roundId}-${bracketName}-${matchIndex}-${teamPosition}`;
 
-type Game = {
-  id: string;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: teamId,
+    data: {
+      roundId,
+      matchIndex,
+      teamPosition,
+      bracketName,
+      team
+    }
+  });
+
+  // Determine visual state
+  const isSourceTeam = dragPreview && dragPreview.sourceId === teamId;
+  const isTargetTeam = dragPreview && dragPreview.targetId === teamId;
+  const isBeingDragged = isDragging && isSourceTeam;
+  const isPreviewTarget = isDragging && isTargetTeam;
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isBeingDragged ? 0.6 : isPreviewTarget ? 0.8 : 1,
+    zIndex: isBeingDragged ? 1000 : isPreviewTarget ? 999 : 'auto',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`rounded-lg border px-3 py-2 cursor-move transition-all duration-200 ${
+        isBeingDragged
+          ? 'opacity-60 scale-105 shadow-lg border-info bg-info/10'
+          : isPreviewTarget
+            ? 'opacity-80 scale-102 shadow-md border-success bg-success/10'
+            : ''
+      } ${
+        !team ? 'border-dashed border-subtle bg-surface-2 cursor-not-allowed' : 'border-subtle bg-surface-1 hover:shadow-md'
+      }`}
+    >
+      {team ? (
+        <div className="text-center">
+          <div className="font-medium">{team.name}</div>
+        </div>
+      ) : (
+        <div className="text-muted italic">Drop team here</div>
+      )}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if team data or drag state changed
+  return (
+    prevProps.team?.id === nextProps.team?.id &&
+    prevProps.team?.name === nextProps.team?.name &&
+    prevProps.isDragging === nextProps.isDragging &&
+    prevProps.dragPreview?.sourceId === nextProps.dragPreview?.sourceId &&
+    prevProps.dragPreview?.targetId === nextProps.dragPreview?.targetId
+  );
+});
+
+// GameScoreBox Component - Memoized for performance
+const GameScoreBox = memo(function GameScoreBox({
+  game,
+  match,
+  lineups,
+  startGame,
+  endGame,
+  updateGameScore,
+  updateGameCourtNumber,
+}: {
+  game: any;
+  match: any;
+  lineups: Record<string, Record<string, any[]>>;
+  startGame: (gameId: string) => Promise<void>;
+  endGame: (gameId: string) => Promise<void>;
+  updateGameScore: (gameId: string, teamAScore: number | null, teamBScore: number | null) => Promise<void>;
+  updateGameCourtNumber: (gameId: string, courtNumber: string) => Promise<void>;
+}) {
+  // Derive game status from isComplete and startedAt fields
+  const getGameStatus = (game: any): 'not_started' | 'in_progress' | 'completed' => {
+    if (game.isComplete) return 'completed';
+    if (game.startedAt) return 'in_progress';
+    return 'not_started';
+  };
+
+  const gameStatus = getGameStatus(game);
+  const isCompleted = gameStatus === 'completed';
+  const isInProgress = gameStatus === 'in_progress';
+
+  const getGameTitle = () => {
+    switch (game.slot) {
+      case 'MENS_DOUBLES': return "Men's Doubles";
+      case 'WOMENS_DOUBLES': return "Women's Doubles";
+      case 'MIXED_1': return "Mixed Doubles 1";
+      case 'MIXED_2': return "Mixed Doubles 2";
+      case 'TIEBREAKER': return "Tiebreaker";
+      default: return game.slot;
+    }
+  };
+
+  const getTeamALineup = () => {
+    if (game.teamALineup && Array.isArray(game.teamALineup)) {
+      return game.teamALineup.map((player: any) => player.name).join(' & ');
+    }
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamA?.name || 'Team A';
+    }
+    // Generate lineup from team roster based on game slot and lineup positions
+    if (match && match.teamA && lineups[match.id]) {
+      const teamALineup = lineups[match.id][match.teamA.id] || [];
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = teamALineup[0];
+      const man2 = teamALineup[1];
+      const woman1 = teamALineup[2];
+      const woman2 = teamALineup[3];
+
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+        default:
+          return 'Team A';
+      }
+    }
+    return 'Team A';
+  };
+
+  const getTeamBLineup = () => {
+    if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
+      return game.teamBLineup.map((player: any) => player.name).join(' & ');
+    }
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamB?.name || 'Team B';
+    }
+    // Generate lineup from team roster based on game slot and lineup positions
+    if (match && match.teamB && lineups[match.id]) {
+      const teamBLineup = lineups[match.id][match.teamB.id] || [];
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = teamBLineup[0];
+      const man2 = teamBLineup[1];
+      const woman1 = teamBLineup[2];
+      const woman2 = teamBLineup[3];
+
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team B';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team B';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
+        default:
+          return 'Team B';
+      }
+    }
+    return 'Team B';
+  };
+
+  const teamAScore = game.teamAScore || 0;
+  const teamBScore = game.teamBScore || 0;
+  const teamAWon = teamAScore > teamBScore;
+  const teamBWon = teamBScore > teamAScore;
+
+  return (
+    <div className={`rounded-lg border-2 overflow-hidden ${
+      isCompleted ? 'border-border-subtle bg-surface-1' :
+      isInProgress ? 'border-warning bg-warning/5' :
+      'border-border-medium bg-surface-2'
+    }`}>
+      {/* Game Header */}
+      <div className={`px-4 py-2 flex items-center justify-between ${
+        isCompleted ? 'bg-surface-2' :
+        isInProgress ? 'bg-warning/10' :
+        'bg-surface-1'
+      }`}>
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-semibold text-primary">{getGameTitle()}</h4>
+          {isCompleted && (
+            <span className="chip chip-success text-[10px] px-2 py-0.5">Complete</span>
+          )}
+          {isInProgress && (
+            <span className="chip chip-warning text-[10px] px-2 py-0.5">In Progress</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!isCompleted && (
+            <>
+              <label className="text-xs font-medium text-muted">Court:</label>
+              <input
+                type="text"
+                className="w-12 px-2 py-1 text-sm border border-border-medium rounded bg-surface-2 text-center focus:border-secondary focus:outline-none"
+                value={game.courtNumber || ''}
+                onChange={(e) => updateGameCourtNumber(game.id, e.target.value)}
+                placeholder="#"
+              />
+            </>
+          )}
+          {isCompleted && game.courtNumber && (
+            <span className="text-xs text-muted">Court {game.courtNumber}</span>
+          )}
+          {gameStatus !== 'completed' && (
+            <button
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                gameStatus === 'not_started'
+                  ? 'bg-success hover:bg-success-hover text-white'
+                  : 'bg-error hover:bg-error-hover text-white'
+              }`}
+              onClick={() => {
+                if (gameStatus === 'not_started') {
+                  startGame(game.id);
+                } else if (gameStatus === 'in_progress') {
+                  endGame(game.id);
+                }
+              }}
+            >
+              {gameStatus === 'not_started' ? 'Start' : 'Finish'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Game Body - Players and Scores */}
+      <div className="p-4">
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+          {/* Team A Side */}
+          <div className={`text-sm ${
+            isCompleted && teamAWon ? 'text-success font-semibold' : 'text-secondary'
+          }`}>
+            <div className="whitespace-pre-line leading-relaxed">{getTeamALineup()}</div>
+          </div>
+
+          {/* Scores */}
+          <div className="flex items-center gap-3">
+            {isCompleted ? (
+              <>
+                <div className={`text-2xl font-bold tabular ${
+                  teamAWon ? 'text-success' : 'text-muted'
+                }`}>
+                  {teamAScore}
+                </div>
+                <div className="text-muted font-medium">-</div>
+                <div className={`text-2xl font-bold tabular ${
+                  teamBWon ? 'text-success' : 'text-muted'
+                }`}>
+                  {teamBScore}
+                </div>
+              </>
+            ) : isInProgress ? (
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  className="w-16 px-2 py-2 text-xl font-bold border-2 border-border-medium rounded-lg text-center bg-surface-1 focus:border-secondary focus:outline-none tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={teamAScore || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                      updateGameScore(game.id, value ? parseInt(value) : null, teamBScore);
+                    }
+                  }}
+                  placeholder="0"
+                />
+                <div className="text-muted font-medium">-</div>
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  className="w-16 px-2 py-2 text-xl font-bold border-2 border-border-medium rounded-lg text-center bg-surface-1 focus:border-secondary focus:outline-none tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={teamBScore || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                      updateGameScore(game.id, teamAScore, value ? parseInt(value) : null);
+                    }
+                  }}
+                  placeholder="0"
+                />
+              </>
+            ) : (
+              <>
+                <div className="w-16 text-2xl text-center text-muted font-bold tabular">-</div>
+                <div className="text-muted font-medium">-</div>
+                <div className="w-16 text-2xl text-center text-muted font-bold tabular">-</div>
+              </>
+            )}
+          </div>
+
+          {/* Team B Side */}
+          <div className={`text-sm text-right ${
+            isCompleted && teamBWon ? 'text-success font-semibold' : 'text-secondary'
+          }`}>
+            <div className="whitespace-pre-line leading-relaxed">{getTeamBLineup()}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if relevant game data changed
+  return (
+    prevProps.game.id === nextProps.game.id &&
+    prevProps.game.teamAScore === nextProps.game.teamAScore &&
+    prevProps.game.teamBScore === nextProps.game.teamBScore &&
+    prevProps.game.isComplete === nextProps.game.isComplete &&
+    prevProps.game.startedAt === nextProps.game.startedAt &&
+    prevProps.game.courtNumber === nextProps.game.courtNumber &&
+    prevProps.match.id === nextProps.match.id
+  );
+});
+
+// InlineLineupEditor Component
+function InlineLineupEditor({
+  matchId,
+  stopId,
+  teamA,
+  teamB,
+  teamARoster,
+  teamBRoster,
+  fetchTeamRoster,
+  lineups,
+  onSave,
+  onCancel,
+}: {
   matchId: string;
-  slot: string;
-  teamAScore: number | null;
-  teamBScore: number | null;
-  courtNumber: string | null;
-  isComplete: boolean;
-  startedAt: Date | null;
-  endedAt: Date | null;
-};
+  stopId: string;
+  teamA: { id: string; name: string };
+  teamB: { id: string; name: string };
+  teamARoster: PlayerLite[];
+  teamBRoster: PlayerLite[];
+  fetchTeamRoster: (teamId: string) => Promise<PlayerLite[]>;
+  lineups: Record<string, Record<string, PlayerLite[]>>;
+  onSave: (lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
+  onCancel: () => void;
+}) {
+  const [teamALineup, setTeamALineup] = useState<(PlayerLite | undefined)[]>([undefined, undefined, undefined, undefined]);
+  const [teamBLineup, setTeamBLineup] = useState<(PlayerLite | undefined)[]>([undefined, undefined, undefined, undefined]);
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadedRosters, setLoadedRosters] = useState<{ teamA: PlayerLite[]; teamB: PlayerLite[] }>({ teamA: [], teamB: [] });
 
+  // Fetch team rosters for this specific stop when component mounts
+  useEffect(() => {
+    const loadRosters = async () => {
+      if (teamA.id && teamB.id && stopId) {
+        try {
+          const [responseA, responseB] = await Promise.all([
+            fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamA.id}/roster`),
+            fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamB.id}/roster`)
+          ]);
+
+          const [dataA, dataB] = await Promise.all([
+            responseA.json(),
+            responseB.json()
+          ]);
+
+          const rosterA = dataA.items || [];
+          const rosterB = dataB.items || [];
+
+          setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+        } catch (error) {
+          console.error('Failed to load stop-specific rosters:', error);
+          // Fallback to tournament-wide rosters
+          const [rosterA, rosterB] = await Promise.all([
+            fetchTeamRoster(teamA.id),
+            fetchTeamRoster(teamB.id)
+          ]);
+          setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+        }
+      }
+    };
+    loadRosters();
+  }, [teamA.id, teamB.id, stopId, fetchTeamRoster]);
+
+  // Initialize lineups when component mounts or when editing starts
+  useEffect(() => {
+    // Check if we have existing lineups for this match
+    const existingLineups = lineups[matchId];
+    if (existingLineups) {
+      const teamALineupData = existingLineups[teamA.id] || [];
+      const teamBLineupData = existingLineups[teamB.id] || [];
+
+      // Set the lineups with existing data
+      setTeamALineup([
+        teamALineupData[0] || undefined,
+        teamALineupData[1] || undefined,
+        teamALineupData[2] || undefined,
+        teamALineupData[3] || undefined
+      ]);
+
+      setTeamBLineup([
+        teamBLineupData[0] || undefined,
+        teamBLineupData[1] || undefined,
+        teamBLineupData[2] || undefined,
+        teamBLineupData[3] || undefined
+      ]);
+
+      // Set selected players
+      const allSelectedPlayers = new Set([
+        ...teamALineupData.map((p: any) => p.id),
+        ...teamBLineupData.map((p: any) => p.id)
+      ]);
+      setSelectedPlayers(allSelectedPlayers);
+    } else {
+      // Reset to empty state
+      setTeamALineup([undefined, undefined, undefined, undefined]);
+      setTeamBLineup([undefined, undefined, undefined, undefined]);
+      setSelectedPlayers(new Set());
+    }
+  }, [matchId, teamA.id, teamB.id, lineups]);
+
+  const addPlayerToLineup = (player: PlayerLite, teamId: string, slotIndex: number) => {
+    const isTeamA = teamId === teamA.id;
+    const currentLineup = isTeamA ? teamALineup : teamBLineup;
+    const currentPlayer = currentLineup[slotIndex];
+
+    // Check gender constraints: slots 0,1 are male, slots 2,3 are female
+    const expectedGender = slotIndex < 2 ? 'MALE' : 'FEMALE';
+    if (player.gender !== expectedGender) return;
+
+    // Update selectedPlayers first to avoid race conditions
+    setSelectedPlayers(prev => {
+      const newSet = new Set(prev);
+
+      // Remove current player from selectedPlayers if there is one
+      if (currentPlayer) {
+        newSet.delete(currentPlayer.id);
+      }
+
+      // Remove the new player from selectedPlayers if they're already selected elsewhere
+      if (newSet.has(player.id)) {
+        newSet.delete(player.id);
+      }
+
+      // Add the new player
+      newSet.add(player.id);
+
+      return newSet;
+    });
+
+    // Update lineup state
+    if (isTeamA) {
+      setTeamALineup(prev => {
+        const newLineup = [...prev];
+
+        // Remove the new player from other slots if they exist
+        for (let i = 0; i < newLineup.length; i++) {
+          if (newLineup[i]?.id === player.id) {
+            newLineup[i] = undefined;
+          }
+        }
+
+        // Add player to the new slot
+        newLineup[slotIndex] = player;
+        return newLineup;
+      });
+    } else {
+      setTeamBLineup(prev => {
+        const newLineup = [...prev];
+
+        // Remove the new player from other slots if they exist
+        for (let i = 0; i < newLineup.length; i++) {
+          if (newLineup[i]?.id === player.id) {
+            newLineup[i] = undefined;
+          }
+        }
+
+        // Add player to the new slot
+        newLineup[slotIndex] = player;
+        return newLineup;
+      });
+    }
+  };
+
+  const removePlayerFromLineup = (playerId: string, teamId: string, slotIndex: number) => {
+    const isTeamA = teamId === teamA.id;
+
+    // Update selectedPlayers first
+    setSelectedPlayers(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(playerId);
+      return newSet;
+    });
+
+    // Update lineup state
+    if (isTeamA) {
+      setTeamALineup(prev => {
+        const newLineup = [...prev];
+        newLineup[slotIndex] = undefined as any;
+        return newLineup;
+      });
+    } else {
+      setTeamBLineup(prev => {
+        const newLineup = [...prev];
+        newLineup[slotIndex] = undefined as any;
+        return newLineup;
+      });
+    }
+  };
+
+  const getAvailablePlayers = (teamId: string, slotIndex: number) => {
+    const isTeamA = teamId === teamA.id;
+    const roster = isTeamA ? loadedRosters.teamA : loadedRosters.teamB;
+    const expectedGender = slotIndex < 2 ? 'MALE' : 'FEMALE';
+    const currentLineup = isTeamA ? teamALineup : teamBLineup;
+    const currentPlayer = currentLineup[slotIndex];
+
+    // Filter by gender and exclude players selected in OTHER slots
+    return roster.filter(p => {
+      if (p.gender !== expectedGender) return false;
+
+      // If this is the currently selected player in this slot, include them
+      if (currentPlayer && p.id === currentPlayer.id) return true;
+
+      // Otherwise, exclude if they're selected in any other slot
+      return !selectedPlayers.has(p.id);
+    });
+  };
+
+  const isLineupComplete = teamALineup.filter(p => p !== undefined).length === 4 && teamBLineup.filter(p => p !== undefined).length === 4;
+
+  const handleSave = async () => {
+    if (isSaving) return; // Prevent double-clicks
+
+    setIsSaving(true);
+    try {
+      await onSave({
+        teamA: teamALineup.filter(p => p !== undefined) as PlayerLite[],
+        teamB: teamBLineup.filter(p => p !== undefined) as PlayerLite[]
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-subtle bg-surface-1 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold">Edit Lineups</h3>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-xs btn-primary disabled:opacity-50"
+            onClick={handleSave}
+            disabled={!isLineupComplete || isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Confirm Lineup'}
+          </button>
+          <button
+            className="btn btn-ghost btn-xs"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Team A */}
+        <div>
+          <h4 className="text-xs font-medium mb-2 text-muted">{teamA.name}</h4>
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((slotIndex) => (
+              <div key={slotIndex} className="flex items-center gap-2">
+                <label className="text-xs font-medium w-4">{slotIndex + 1}:</label>
+                <select
+                  className="flex-1 p-1 text-xs border rounded"
+                  value={teamALineup[slotIndex]?.id || ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const player = loadedRosters.teamA.find(p => p.id === e.target.value);
+                      if (player) addPlayerToLineup(player, teamA.id, slotIndex);
+                    } else if (teamALineup[slotIndex]) {
+                      removePlayerFromLineup(teamALineup[slotIndex]!.id, teamA.id, slotIndex);
+                    }
+                  }}
+                >
+                  <option value="">Select Player {slotIndex + 1}</option>
+                  {getAvailablePlayers(teamA.id, slotIndex).map(player => (
+                    <option key={player.id} value={player.id}>
+                      {player.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Team B */}
+        <div>
+          <h4 className="text-xs font-medium mb-2 text-muted">{teamB.name}</h4>
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((slotIndex) => (
+              <div key={slotIndex} className="flex items-center gap-2">
+                <label className="text-xs font-medium w-4">{slotIndex + 1}:</label>
+                <select
+                  className="flex-1 p-1 text-xs border rounded"
+                  value={teamBLineup[slotIndex]?.id || ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const player = loadedRosters.teamB.find(p => p.id === e.target.value);
+                      if (player) addPlayerToLineup(player, teamB.id, slotIndex);
+                    } else if (teamBLineup[slotIndex]) {
+                      removePlayerFromLineup(teamBLineup[slotIndex]!.id, teamB.id, slotIndex);
+                    }
+                  }}
+                >
+                  <option value="">Select Player {slotIndex + 1}</option>
+                  {getAvailablePlayers(teamB.id, slotIndex).map(player => (
+                    <option key={player.id} value={player.id}>
+                      {player.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main EventManagerTab Component
 export function EventManagerTab({
   tournaments,
   onError,
@@ -66,286 +715,1543 @@ export function EventManagerTab({
   onError: (m: string) => void;
   onInfo: (m: string) => void;
 }) {
-  const [expandedTournaments, setExpandedTournaments] = useState<Set<string>>(new Set());
-  const [expandedStops, setExpandedStops] = useState<Set<string>>(new Set());
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
-  const [scheduleData, setScheduleData] = useState<Record<string, Match[]>>({});
-  const [gamesData, setGamesData] = useState<Record<string, Game[]>>({});
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [scheduleData, setScheduleData] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [lineupDeadlines, setLineupDeadlines] = useState<Record<string, string>>({});
 
-  const formatDate = (dateStr?: string | null): string => {
+  // Lineup and game state
+  const [editingMatch, setEditingMatch] = useState<string | null>(null);
+  const [lineups, setLineups] = useState<Record<string, Record<string, PlayerLite[]>>>({});
+  const [teamRosters, setTeamRosters] = useState<Record<string, PlayerLite[]>>({});
+  const [games, setGames] = useState<Record<string, any[]>>({});
+
+  // Derive game status from isComplete and startedAt fields
+  const getGameStatus = (game: any): 'not_started' | 'in_progress' | 'completed' => {
+    if (game.isComplete) return 'completed';
+    if (game.startedAt) return 'in_progress';
+    return 'not_started';
+  };
+
+  const [matchStatuses, setMatchStatuses] = useState<Record<string, 'not_started' | 'in_progress' | 'completed'>>({});
+
+  // Check if a match is completed (one team has >= 3 wins and they're not tied)
+  const isMatchComplete = (match: any): boolean => {
+    const matchStatus = matchStatuses[match.id];
+    if (matchStatus === 'completed') return true;
+
+    const matchGames = games[match.id] ?? match.games ?? [];
+
+    if (matchGames.length === 0) {
+      return false;
+    }
+
+    let teamAWins = 0;
+    let teamBWins = 0;
+
+    for (const game of matchGames) {
+      if (!game) continue;
+
+      const status = getGameStatus(game);
+      if (status === 'in_progress') {
+        return false;
+      }
+
+      const a = game.teamAScore;
+      const b = game.teamBScore;
+
+      if (a != null && b != null) {
+        if (a > b) teamAWins += 1;
+        else if (b > a) teamBWins += 1;
+      }
+    }
+
+    return (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
+  };
+  const [creatingTiebreakers, setCreatingTiebreakers] = useState<Set<string>>(new Set());
+
+  // Matchup editing state
+  const [editingRounds, setEditingRounds] = useState<Set<string>>(new Set());
+  const [roundMatchups, setRoundMatchups] = useState<Record<string, Array<{
+    id: Id;
+    isBye: boolean;
+    bracketName?: string;
+    teamA?: { id: Id; name: string; clubName?: string; bracketName?: string };
+    teamB?: { id: Id; name: string; clubName?: string; bracketName?: string };
+  }>>>({});
+  const [updateKey, setUpdateKey] = useState(0);
+  const [renderKey, setRenderKey] = useState(0);
+
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<{
+    sourceId: string;
+    targetId: string;
+    sourceTeam: any;
+    targetTeam: any;
+  } | null>(null);
+
+  // Debounce refs
+  const debouncedScoreUpdate = useRef<Record<string, NodeJS.Timeout>>({});
+  const debouncedCourtUpdate = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Auto-select first stop when tournaments load
+  useEffect(() => {
+    if (tournaments.length > 0 && !selectedStopId) {
+      const firstTournament = tournaments[0];
+      log('First tournament:', firstTournament);
+      if (firstTournament.stops.length > 0) {
+        const firstStopId = firstTournament.stops[0].stopId;
+        log('Auto-selecting stop:', firstStopId);
+        setSelectedStopId(firstStopId);
+        loadSchedule(firstStopId);
+      }
+    }
+  }, [tournaments, selectedStopId]);
+
+  // Initialize lineup deadlines from tournament data
+  useEffect(() => {
+    const deadlines: Record<string, string> = {};
+    tournaments.forEach(tournament => {
+      tournament.stops.forEach(stop => {
+        if (stop.lineupDeadline) {
+          // Convert ISO string to datetime-local format (YYYY-MM-DDTHH:mm)
+          const date = new Date(stop.lineupDeadline);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          deadlines[stop.stopId] = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+      });
+    });
+    setLineupDeadlines(deadlines);
+  }, [tournaments]);
+
+  const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(dateStr).toLocaleDateString();
   };
 
-  const formatDateRange = (start?: string | null, end?: string | null): string => {
-    if (!start) return '—';
-    if (!end || start === end) return formatDate(start);
-    return `${formatDate(start)} - ${formatDate(end)}`;
-  };
-
-  const toggleTournament = (tournamentId: string) => {
-    setExpandedTournaments((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(tournamentId)) {
-        newSet.delete(tournamentId);
-      } else {
-        newSet.add(tournamentId);
-      }
-      return newSet;
+  const formatDeadline = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    return date.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
     });
   };
 
-  const toggleStop = (stopId: string) => {
-    setExpandedStops((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(stopId)) {
-        newSet.delete(stopId);
-      } else {
-        newSet.add(stopId);
-      }
-      return newSet;
-    });
+  const getTournamentTypeDisplayName = (type: string) => {
+    const typeMap: Record<string, string> = {
+      'TEAM_FORMAT': 'Team Format',
+      'SINGLE_ELIMINATION': 'Single Elimination',
+      'DOUBLE_ELIMINATION': 'Double Elimination',
+      'ROUND_ROBIN': 'Round Robin',
+      'POOL_PLAY': 'Pool Play',
+      'LADDER_TOURNAMENT': 'Ladder Tournament',
+    };
+    return typeMap[type] || type;
   };
 
-  const toggleRound = async (roundId: string) => {
-    setExpandedRounds((prev) => {
+  const toggleRound = (roundId: string) => {
+    setExpandedRounds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(roundId)) {
         newSet.delete(roundId);
       } else {
+        // Close all other rounds first (only one open at a time)
+        newSet.clear();
         newSet.add(roundId);
       }
       return newSet;
     });
+  };
 
-    // Load matches if not already loaded
-    if (!scheduleData[roundId] && !loading[roundId]) {
-      await loadMatches(roundId);
+  const toggleRoundEdit = (roundId: string) => {
+    setEditingRounds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(roundId)) {
+        newSet.delete(roundId);
+        // Remove from roundMatchups when closing edit mode
+        setRoundMatchups(prev => {
+          const newMatchups = { ...prev };
+          delete newMatchups[roundId];
+          return newMatchups;
+        });
+      } else {
+        newSet.add(roundId);
+        // Load round data when opening edit mode, but only if we don't already have it
+        if (!roundMatchups[roundId]) {
+          loadRoundMatchups(roundId);
+        }
+      }
+      return newSet;
+    });
+  };
+
+  const loadSchedule = async (stopId: string, force = false) => {
+    if (scheduleData[stopId] && !force) return; // Already loaded
+
+    log('Loading schedule for stop:', stopId);
+    setLoading(prev => ({ ...prev, [stopId]: true }));
+    try {
+      const response = await fetchWithActAs(`/api/admin/stops/${stopId}/schedule`);
+      log('Schedule response status:', response.status);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Schedule error:', errorData);
+        throw new Error(errorData.error || 'Failed to load schedule');
+      }
+      const data = await response.json();
+      log('Schedule data:', data);
+      setScheduleData(prev => ({ ...prev, [stopId]: data || [] }));
+
+      // Extract games from schedule data and populate games state
+      const gamesMap: Record<string, any[]> = {};
+      const lineupsFromGames: Record<string, Record<string, any[]>> = {};
+
+      data.forEach((round: any) => {
+        round.matches?.forEach((match: any) => {
+          if (match.games && match.games.length > 0) {
+            gamesMap[match.id] = match.games;
+
+            // Extract lineups from game data (teamALineup/teamBLineup JSON fields)
+            const firstGame = match.games[0];
+            if (firstGame && firstGame.teamALineup && firstGame.teamBLineup) {
+              // Convert lineup data from JSON format to player array
+              const teamAPlayers: any[] = [];
+              const teamBPlayers: any[] = [];
+
+              // teamALineup/teamBLineup contains player IDs, we need to fetch player data
+              // For now, just mark that lineups exist
+              lineupsFromGames[match.id] = {
+                [match.teamA?.id || 'teamA']: firstGame.teamALineup,
+                [match.teamB?.id || 'teamB']: firstGame.teamBLineup
+              };
+            }
+          }
+        });
+      });
+
+      log('🎮 EXTRACTED GAMES FOR STOP:', stopId);
+      log('🎮 Total matches with games:', Object.keys(gamesMap).length);
+      log('🎮 Lineups from games:', Object.keys(lineupsFromGames).length);
+      setGames(prev => {
+        const updated = { ...prev, ...gamesMap };
+        log('🎮 GAMES STATE UPDATED:', Object.keys(updated).length, 'matches');
+        return updated;
+      });
+
+      // Populate lineups from game data
+      if (Object.keys(lineupsFromGames).length > 0) {
+        setLineups(prev => {
+          const updated = { ...prev, ...lineupsFromGames };
+          log('🎮 LINEUPS POPULATED FROM GAMES:', Object.keys(updated).length, 'matches');
+          return updated;
+        });
+      }
+    } catch (e) {
+      console.error('Load schedule error:', e);
+      onError(`Failed to load schedule: ${(e as Error).message}`);
+      setScheduleData(prev => ({ ...prev, [stopId]: [] }));
+    } finally {
+      setLoading(prev => ({ ...prev, [stopId]: false }));
     }
   };
 
-  const loadMatches = async (roundId: string) => {
-    setLoading((prev) => ({ ...prev, [roundId]: true }));
+  const loadLineupsForStop = async (stopId: string) => {
     try {
-      const res = await fetchWithActAs(`/api/admin/rounds/${roundId}/matchups`);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to load matches');
-      }
-      const matches = await res.json();
+      const response = await fetchWithActAs(`/api/admin/stops/${stopId}/lineups`);
+      log('=== Lineups response status:', response.status);
+      if (response.ok) {
+        const lineupsData = await response.json();
+        log('=== Lineups data received:', lineupsData);
+        log('=== Number of matches with lineups:', Object.keys(lineupsData).length);
+        setLineups(prev => {
+          const updated = { ...prev, ...lineupsData };
+          log('=== Updated lineups state:', updated);
+          return updated;
+        });
 
-      // Transform the matches to the expected format
-      const transformedMatches = Array.isArray(matches) ? matches.map((match: any, index: number) => ({
+        // Load games for matches that have confirmed lineups
+        Object.keys(lineupsData).forEach(matchId => {
+          const matchLineups = lineupsData[matchId];
+          const teamAId = Object.keys(matchLineups)[0];
+          const teamBId = Object.keys(matchLineups)[1];
+
+          if (matchLineups[teamAId]?.length === 4 && matchLineups[teamBId]?.length === 4) {
+            log('=== Loading games for match with confirmed lineups:', matchId);
+            loadGamesForMatch(matchId, true);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error loading lineups for stop:', error);
+    }
+  };
+
+  const loadRoundMatchups = async (roundId: string) => {
+    try {
+      const response = await fetchWithActAs(`/api/admin/rounds/${roundId}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const roundData = await response.json();
+
+      if (!roundData.matches) {
+        return;
+      }
+
+      const matches = roundData.matches.map((match: any) => ({
         id: match.id,
-        roundId: match.roundId,
-        idx: index,
+        isBye: match.isBye,
+        bracketName: match.bracketName,
         teamA: match.teamA ? {
           id: match.teamA.id,
           name: match.teamA.name,
-          clubName: match.teamA.club?.name,
-        } : null,
+          clubName: match.teamA.clubName || undefined,
+          bracketName: match.teamA.bracketName || undefined,
+        } : undefined,
         teamB: match.teamB ? {
           id: match.teamB.id,
           name: match.teamB.name,
-          clubName: match.teamB.club?.name,
-        } : null,
-        isBye: match.isBye || false,
-      })) : [];
+          clubName: match.teamB.clubName || undefined,
+          bracketName: match.teamB.bracketName || undefined,
+        } : undefined,
+        games: match.games || [],
+      }));
 
-      setScheduleData((prev) => ({ ...prev, [roundId]: transformedMatches }));
-    } catch (error) {
-      console.error('Error loading matches:', error);
-      onError(error instanceof Error ? error.message : 'Failed to load matches');
-    } finally {
-      setLoading((prev) => ({ ...prev, [roundId]: false }));
+      setRoundMatchups(prev => ({
+        ...prev,
+        [roundId]: matches
+      }));
+    } catch (e) {
+      onError((e as Error).message);
     }
   };
 
-  const loadGamesForMatch = async (matchId: string) => {
+  const generateSchedule = async (stopId: string, stopName: string) => {
+    setLoading(prev => ({ ...prev, [stopId]: true }));
     try {
-      const res = await fetchWithActAs(`/api/admin/matches/${matchId}/games`);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to load games');
+      const response = await fetchWithActAs(`/api/admin/stops/${stopId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          overwrite: true,
+          slots: ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2', 'TIEBREAKER']
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate schedule');
       }
-      const games = await res.json();
-      // API returns games array directly, not wrapped in an object
-      setGamesData((prev) => ({ ...prev, [matchId]: Array.isArray(games) ? games : [] }));
+
+      const result = await response.json();
+      onInfo(`Matchups regenerated: ${result.roundsCreated} rounds, ${result.matchesCreated} matches, ${result.gamesCreated} games`);
+
+      // Reload schedule data
+      await loadSchedule(stopId, true);
+    } catch (e) {
+      onError(`Failed to generate schedule: ${(e as Error).message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [stopId]: false }));
+    }
+  };
+
+  const saveLineupDeadline = async (stopId: string) => {
+    const deadlineValue = lineupDeadlines[stopId];
+    if (!deadlineValue) {
+      onError('Please select a deadline date and time');
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, [stopId]: true }));
+    try {
+      const response = await fetchWithActAs(`/api/admin/stops/${stopId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineupDeadline: deadlineValue,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save lineup deadline');
+      }
+
+      onInfo('Lineup deadline saved successfully');
+    } catch (e) {
+      onError(`Failed to save lineup deadline: ${(e as Error).message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [stopId]: false }));
+    }
+  };
+
+  const copyLineupsFromPreviousRound = useCallback(async (stopId: string, roundIdx: number) => {
+    const rounds = scheduleData[stopId];
+    if (!rounds || roundIdx <= 0) {
+      onInfo('No previous round available to copy lineups from.');
+      return;
+    }
+
+    const currentRound = rounds[roundIdx];
+    const previousRound = rounds[roundIdx - 1];
+
+    if (!currentRound?.matches || !previousRound?.matches) {
+      onInfo('No previous round matches found to copy lineups.');
+      return;
+    }
+
+    const teamLineupMap = new Map<string, PlayerLite[]>();
+
+    previousRound.matches.forEach((prevMatch: any) => {
+      const prevMatchLineups = lineups[prevMatch.id];
+      if (!prevMatchLineups) return;
+
+      const teamAId = prevMatch.teamA?.id;
+      const teamBId = prevMatch.teamB?.id;
+
+      if (teamAId && prevMatchLineups[teamAId]?.length) {
+        teamLineupMap.set(teamAId, prevMatchLineups[teamAId].map((p: PlayerLite) => ({ ...p })));
+      }
+      if (teamBId && prevMatchLineups[teamBId]?.length) {
+        teamLineupMap.set(teamBId, prevMatchLineups[teamBId].map((p: PlayerLite) => ({ ...p })));
+      }
+    });
+
+    const updates: Record<string, Record<string, PlayerLite[]>> = {};
+    let copiedTeams = 0;
+
+    currentRound.matches.forEach((match: any) => {
+      const matchUpdates: Record<string, PlayerLite[]> = {};
+
+      const applyTeam = (team: any) => {
+        if (!team?.id) return;
+        const previousLineup = teamLineupMap.get(team.id);
+        if (!previousLineup || previousLineup.length === 0) return;
+        matchUpdates[team.id] = previousLineup.map((p) => ({ ...p }));
+        copiedTeams += 1;
+      };
+
+      applyTeam(match.teamA);
+      applyTeam(match.teamB);
+
+      if (Object.keys(matchUpdates).length > 0) {
+        updates[match.id] = matchUpdates;
+      }
+    });
+
+    if (Object.keys(updates).length === 0) {
+      onInfo('No previous lineups found to copy.');
+      return;
+    }
+
+    try {
+      const response = await fetchWithActAs(`/api/admin/stops/${stopId}/lineups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineups: updates }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to copy lineups');
+      }
+
+      setLineups((prev) => {
+        const next = { ...prev };
+        for (const [matchId, teamMap] of Object.entries(updates)) {
+          const existing = { ...(next[matchId] ?? {}) };
+          for (const [teamId, players] of Object.entries(teamMap)) {
+            existing[teamId] = players.map((p) => ({ ...p }));
+          }
+          next[matchId] = existing;
+        }
+        return next;
+      });
+
+      await Promise.all(Object.keys(updates).map((matchId) => loadGamesForMatch(matchId, true)));
+
+      onInfo(`Copied previous lineups for ${copiedTeams} team${copiedTeams === 1 ? '' : 's'}.`);
+    } catch (error) {
+      console.error('Error copying previous lineups:', error);
+      onError(error instanceof Error ? error.message : 'Failed to copy lineups');
+    }
+  }, [scheduleData, lineups, onError, onInfo]);
+
+  const autoSaveRoundMatchups = async (roundId: string) => {
+    const matches = roundMatchups[roundId];
+    if (!matches) return;
+
+    try {
+      const updates = matches.map(match => ({
+        gameId: match.id,
+        teamAId: match.teamA?.id || null,
+        teamBId: match.teamB?.id || null,
+      }));
+
+      await fetchWithActAs(`/api/admin/rounds/${roundId}/matchups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  };
+
+  const saveRoundMatchups = async (roundId: string) => {
+    const matches = roundMatchups[roundId];
+    if (!matches) return;
+
+    try {
+      const updates = matches.map(match => ({
+        gameId: match.id,
+        teamAId: match.teamA?.id || null,
+        teamBId: match.teamB?.id || null,
+      }));
+
+      await fetchWithActAs(`/api/admin/rounds/${roundId}/matchups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+
+      setEditingRounds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(roundId);
+        return newSet;
+      });
+
+      const stopId = Object.keys(scheduleData).find(stopId =>
+        scheduleData[stopId].some((round: any) => round.id === roundId)
+      );
+      if (stopId) {
+        await loadSchedule(stopId, true);
+        await loadRoundMatchups(roundId);
+      }
+
+      onInfo('Matchups confirmed and saved!');
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  };
+
+  const fetchTeamRoster = async (teamId: string): Promise<PlayerLite[]> => {
+    if (teamRosters[teamId]) {
+      return teamRosters[teamId];
+    }
+
+    try {
+      const response = await fetchWithActAs(`/api/admin/teams/${teamId}/members`);
+      if (!response.ok) {
+        console.error('Failed to fetch team roster:', response.statusText);
+        return [];
+      }
+
+      const data = await response.json();
+      const roster = data.members || [];
+
+      setTeamRosters(prev => ({
+        ...prev,
+        [teamId]: roster
+      }));
+
+      return roster;
+    } catch (error) {
+      console.error('Error fetching team roster:', error);
+      return [];
+    }
+  };
+
+  const loadGamesForMatch = async (matchId: string, force = false) => {
+    if (!force && games[matchId]) return;
+
+    try {
+      const response = await fetchWithActAs(`/api/admin/matches/${matchId}/games`, { cache: 'no-store' });
+      if (response.ok) {
+        const gamesData = await response.json();
+        setGames(prev => ({ ...prev, [matchId]: gamesData }));
+      }
     } catch (error) {
       console.error('Error loading games:', error);
-      onError(error instanceof Error ? error.message : 'Failed to load games');
+    }
+  };
+
+  const startGame = async (gameId: string) => {
+    try {
+      const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isComplete: false,
+          startedAt: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start game');
+      }
+
+      // Update local state
+      setGames(prev => {
+        const updated = { ...prev };
+        for (const matchId in updated) {
+          updated[matchId] = updated[matchId]?.map(g =>
+            g.id === gameId ? { ...g, startedAt: new Date().toISOString(), isComplete: false } : g
+          );
+        }
+        return updated;
+      });
+    } catch (error) {
+      onError(`Failed to start game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const endGame = async (gameId: string) => {
+    try {
+      let gameToCheck: any = null;
+      let parentMatchId: string | null = null;
+      for (const [matchId, matchGames] of Object.entries(games)) {
+        const foundGame = matchGames?.find(game => game.id === gameId);
+        if (foundGame) {
+          gameToCheck = foundGame;
+          parentMatchId = matchId;
+          break;
+        }
+      }
+
+      if (!gameToCheck || !parentMatchId) {
+        throw new Error('Game not found');
+      }
+
+      const teamAScore = gameToCheck.teamAScore || 0;
+      const teamBScore = gameToCheck.teamBScore || 0;
+
+      if (teamAScore === teamBScore) {
+        onError('Cannot end game with tied scores. One team must win.');
+        return;
+      }
+
+      const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isComplete: true,
+          endedAt: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to end game');
+      }
+
+      // Update local state
+      setGames(prev => {
+        const updated = { ...prev };
+        for (const matchId in updated) {
+          updated[matchId] = updated[matchId]?.map(g =>
+            g.id === gameId ? { ...g, isComplete: true, endedAt: new Date().toISOString() } : g
+          );
+        }
+        return updated;
+      });
+
+      await loadGamesForMatch(parentMatchId, true);
+    } catch (error) {
+      onError(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   const updateGameScore = async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
-    try {
-      const res = await fetchWithActAs(`/api/admin/games/${gameId}/score`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamAScore, teamBScore }),
-      });
-      if (!res.ok) throw new Error('Failed to update score');
-      onInfo('Score updated');
-    } catch (error) {
-      console.error('Error updating score:', error);
-      onError('Failed to update score');
+    if (debouncedScoreUpdate.current[gameId]) {
+      clearTimeout(debouncedScoreUpdate.current[gameId]);
     }
+
+    setGames(prev => {
+      const newGames = { ...prev };
+      Object.keys(newGames).forEach(matchId => {
+        newGames[matchId] = newGames[matchId].map(game =>
+          game.id === gameId ? { ...game, teamAScore, teamBScore } : game
+        );
+      });
+      return newGames;
+    });
+
+    debouncedScoreUpdate.current[gameId] = setTimeout(async () => {
+      try {
+        const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamAScore, teamBScore })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update score');
+        }
+      } catch (error) {
+        console.error('Error updating game score:', error);
+      }
+    }, 500);
   };
 
+  const updateGameCourtNumber = async (gameId: string, courtNumber: string) => {
+    if (debouncedCourtUpdate.current[gameId]) {
+      clearTimeout(debouncedCourtUpdate.current[gameId]);
+    }
+
+    setGames(prev => {
+      const newGames = { ...prev };
+      Object.keys(newGames).forEach(matchId => {
+        newGames[matchId] = newGames[matchId].map(game =>
+          game.id === gameId ? { ...game, courtNumber } : game
+        );
+      });
+      return newGames;
+    });
+
+    debouncedCourtUpdate.current[gameId] = setTimeout(async () => {
+      try {
+        const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courtNumber })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update court number');
+        }
+      } catch (error) {
+        console.error('Error updating court number:', error);
+      }
+    }, 500);
+  };
+
+  const hasAnyMatchStarted = (round: any) => {
+    if (!round || !round.matches) return false;
+    return round.matches.some((match: any) => {
+      const matchGames = games[match.id] ?? match.games ?? [];
+      return matchGames.some((game: any) =>
+        getGameStatus(game) === 'in_progress' || getGameStatus(game) === 'completed'
+      );
+    });
+  };
+
+  const getMatchesForRound = useCallback((round: any, isEditing: boolean) => {
+    const matches = isEditing ? (roundMatchups[round.id] || round.matches) : round.matches;
+    return matches;
+  }, [roundMatchups]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const activeId = event.active.id as string;
+    setActiveId(activeId);
+    setIsDragging(true);
+    setDragPreview(null);
+  }, []);
+
+  const handleDragOver = useCallback((event: any) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      setDragPreview(null);
+      return;
+    }
+
+    const activeData = active.data.current;
+    const overData = over.data.current;
+
+    if (!activeData || !overData || activeData.bracketName !== overData.bracketName) {
+      setDragPreview(null);
+      return;
+    }
+
+    setDragPreview({
+      sourceId: active.id,
+      targetId: over.id,
+      sourceTeam: activeData.team,
+      targetTeam: overData.team
+    });
+  }, []);
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    setActiveId(null);
+    setIsDragging(false);
+    setDragPreview(null);
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const activeData = active.data.current;
+    const overData = over.data.current;
+
+    if (!activeData || !overData) {
+      return;
+    }
+
+    if (activeData.bracketName !== overData.bracketName) {
+      return;
+    }
+
+    const sourceLocalMatchIndex = activeData.matchIndex;
+    const targetLocalMatchIndex = overData.matchIndex;
+    const sourceTeamPosition = activeData.teamPosition;
+    const targetTeamPosition = overData.teamPosition;
+    const roundId = activeData.roundId;
+    const bracketName = activeData.bracketName;
+
+    const currentMatches = [...(roundMatchups[roundId] || [])];
+    const bracketMatches = currentMatches.filter(match =>
+      (match.teamA?.bracketName || match.teamB?.bracketName) === bracketName
+    );
+
+    const sourceGlobalIndex = currentMatches.findIndex(match =>
+      (match.teamA?.bracketName || match.teamB?.bracketName) === bracketName &&
+      bracketMatches.indexOf(match) === sourceLocalMatchIndex
+    );
+    const targetGlobalIndex = currentMatches.findIndex(match =>
+      (match.teamA?.bracketName || match.teamB?.bracketName) === bracketName &&
+      bracketMatches.indexOf(match) === targetLocalMatchIndex
+    );
+
+    if (sourceGlobalIndex === -1 || targetGlobalIndex === -1) {
+      return;
+    }
+
+    const sourceMatch = { ...currentMatches[sourceGlobalIndex] };
+    const targetMatch = { ...currentMatches[targetGlobalIndex] };
+
+    const sourceTeam = activeData.team;
+    const targetTeam = overData.team;
+
+    if (sourceTeamPosition === 'A' && targetTeamPosition === 'A') {
+      sourceMatch.teamA = targetTeam;
+      targetMatch.teamA = sourceTeam;
+    } else if (sourceTeamPosition === 'B' && targetTeamPosition === 'B') {
+      sourceMatch.teamB = targetTeam;
+      targetMatch.teamB = sourceTeam;
+    } else if (sourceTeamPosition === 'A' && targetTeamPosition === 'B') {
+      sourceMatch.teamA = targetTeam;
+      targetMatch.teamB = sourceTeam;
+    } else if (sourceTeamPosition === 'B' && targetTeamPosition === 'A') {
+      sourceMatch.teamB = targetTeam;
+      targetMatch.teamA = sourceTeam;
+    }
+
+    const newMatches = [...currentMatches];
+    newMatches[sourceGlobalIndex] = sourceMatch;
+    newMatches[targetGlobalIndex] = targetMatch;
+
+    setRoundMatchups(prev => ({
+      ...prev,
+      [roundId]: newMatches
+    }));
+
+    try {
+      await autoSaveRoundMatchups(roundId);
+    } catch (error) {
+      // Handle error silently
+    }
+
+  }, [roundMatchups, autoSaveRoundMatchups]);
+
   return (
-    <div className="space-y-4">
-      {tournaments.map((tournament) => (
-        <div key={tournament.tournamentId} className="card overflow-hidden">
-          <button
-            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-surface-2 transition-colors"
-            onClick={() => toggleTournament(tournament.tournamentId)}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{expandedTournaments.has(tournament.tournamentId) ? '📂' : '📁'}</span>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="space-y-6">
+        {tournaments.map((tournament) => (
+          <div key={tournament.tournamentId} className="card">
+            <div className="flex items-center justify-between pb-4 border-b border-border-subtle">
               <div>
-                <h2 className="text-lg font-semibold text-primary">{tournament.tournamentName}</h2>
-                <div className="text-sm text-muted mt-1">
-                  {tournament.stops.length} stops • {tournament.type}
-                </div>
+                <h2 className="text-xl font-semibold text-primary">{tournament.tournamentName}</h2>
+                <p className="text-sm text-muted mt-1">
+                  {getTournamentTypeDisplayName(tournament.type)} • {tournament.stops.length} stop{tournament.stops.length !== 1 ? 's' : ''}
+                </p>
               </div>
             </div>
-            <span className="text-muted text-xl">{expandedTournaments.has(tournament.tournamentId) ? '▾' : '▸'}</span>
-          </button>
 
-          {expandedTournaments.has(tournament.tournamentId) && (
-            <div className="border-t border-subtle p-6 space-y-4">
-              {tournament.stops.map((stop) => (
-                <div key={stop.stopId} className="border border-subtle rounded-lg overflow-hidden">
-                  <button
-                    className="w-full px-4 py-3 flex items-center justify-between text-left bg-surface-2/30 hover:bg-surface-2 transition-colors"
-                    onClick={() => toggleStop(stop.stopId)}
-                  >
-                    <div>
-                      <h3 className="font-semibold text-primary">{stop.stopName || 'Stop'}</h3>
-                      <div className="text-sm text-muted mt-1">
-                        {stop.locationName || 'Location TBD'} • {formatDateRange(stop.startAt, stop.endAt)} • {stop.rounds.length} rounds
+            <div className="pt-4">
+              <div className="border-b border-border-subtle mb-6">
+                <nav className="flex gap-1 -mb-px" aria-label="Tabs">
+                  {tournament.stops.map((stop) => (
+                    <button
+                      key={stop.stopId}
+                      onClick={() => {
+                        setSelectedStopId(stop.stopId);
+                        loadSchedule(stop.stopId);
+                      }}
+                      className={`tab-button ${
+                        selectedStopId === stop.stopId ? 'active' : ''
+                      }`}
+                    >
+                      {stop.stopName}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {selectedStopId && (() => {
+                const stop = tournament.stops.find(s => s.stopId === selectedStopId);
+                if (!stop) return null;
+
+                const stopSchedule = scheduleData[stop.stopId] ?? [];
+                log(`=== Stop ${stop.stopName} schedule:`, stopSchedule);
+                log(`=== Number of rounds:`, stopSchedule.length);
+                if (stopSchedule.length > 0) {
+                  log(`=== First round:`, stopSchedule[0]);
+                  log(`=== First round matches:`, stopSchedule[0].matches);
+                }
+                const stopHasAnyGameStarted = stopSchedule.some((round: any) => hasAnyMatchStarted(round));
+                const totalMatches = stopSchedule.reduce(
+                  (acc: number, r: any) => acc + (r.matches?.length || 0),
+                  0
+                );
+                const totalGames = stopSchedule.reduce(
+                  (acc: number, r: any) =>
+                    acc + (r.matches?.reduce((matchAcc: number, m: any) => {
+                      const matchGames = games[m.id] ?? m.games ?? [];
+                      return matchAcc + (Array.isArray(matchGames) ? matchGames.length : 0);
+                    }, 0) || 0),
+                  0
+                );
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-6 p-4 bg-surface-2 rounded-lg border border-border-subtle">
+                      <div>
+                        <div className="flex items-center gap-3 mb-1">
+                          <h3 className="text-sm font-semibold text-primary">
+                            {stop.locationName || 'Location TBD'}
+                          </h3>
+                          <span className="text-xs text-muted">
+                            {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted">
+                          <span className="chip chip-info text-[10px] px-2 py-0.5">{stopSchedule.length} Rounds</span>
+                          <span>{totalMatches} Matches</span>
+                          <span>{totalGames} Games</span>
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-muted">{expandedStops.has(stop.stopId) ? '▾' : '▸'}</span>
-                  </button>
-
-                  {expandedStops.has(stop.stopId) && (
-                    <div className="p-4 space-y-2">
-                      {stop.rounds.map((round) => (
-                        <div key={round.roundId} className="border border-subtle rounded">
-                          <button
-                            className="w-full px-4 py-2 flex items-center justify-between text-left hover:bg-surface-1 transition-colors"
-                            onClick={() => toggleRound(round.roundId)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-secondary">Round {round.idx + 1}</span>
-                              <span className="text-sm text-muted">• {round.matchCount} matches</span>
-                            </div>
-                            <span className="text-muted text-sm">{expandedRounds.has(round.roundId) ? '▾' : '▸'}</span>
-                          </button>
-
-                          {expandedRounds.has(round.roundId) && (
-                            <div className="border-t border-subtle p-4">
-                              {loading[round.roundId] ? (
-                                <div className="flex items-center justify-center gap-2 py-4">
-                                  <div className="loading-spinner" />
-                                  <span className="text-muted text-sm">Loading matches...</span>
-                                </div>
-                              ) : scheduleData[round.roundId]?.length ? (
-                                <div className="space-y-3">
-                                  {scheduleData[round.roundId].map((match) => (
-                                    <div key={match.id} className="bg-surface-1 rounded-lg p-4 border border-subtle">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="text-sm font-medium text-secondary">
-                                          Match {match.idx + 1}
-                                          {match.isBye && <span className="ml-2 text-xs text-muted">(BYE)</span>}
-                                        </div>
-                                        <button
-                                          className="btn btn-ghost text-xs"
-                                          onClick={() => loadGamesForMatch(match.id)}
-                                        >
-                                          {gamesData[match.id] ? 'Refresh' : 'Load'} Games
-                                        </button>
-                                      </div>
-                                      <div className="grid grid-cols-2 gap-2 text-sm">
-                                        <div className="text-secondary">
-                                          {match.teamA?.name || 'TBD'}
-                                          {match.teamA?.clubName && (
-                                            <span className="text-muted ml-1">({match.teamA.clubName})</span>
-                                          )}
-                                        </div>
-                                        <div className="text-secondary">
-                                          {match.teamB?.name || 'TBD'}
-                                          {match.teamB?.clubName && (
-                                            <span className="text-muted ml-1">({match.teamB.clubName})</span>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      {gamesData[match.id] && (
-                                        <div className="mt-3 space-y-2">
-                                          {gamesData[match.id].map((game) => (
-                                            <div key={game.id} className="bg-surface-2 p-2 rounded text-xs">
-                                              <div className="font-medium text-primary mb-1">{game.slot}</div>
-                                              <div className="flex gap-2">
-                                                <input
-                                                  type="number"
-                                                  className="input text-xs w-16 h-8"
-                                                  placeholder="A"
-                                                  value={game.teamAScore ?? ''}
-                                                  onChange={(e) => {
-                                                    const val = e.target.value ? parseInt(e.target.value) : null;
-                                                    updateGameScore(game.id, val, game.teamBScore);
-                                                  }}
-                                                />
-                                                <input
-                                                  type="number"
-                                                  className="input text-xs w-16 h-8"
-                                                  placeholder="B"
-                                                  value={game.teamBScore ?? ''}
-                                                  onChange={(e) => {
-                                                    const val = e.target.value ? parseInt(e.target.value) : null;
-                                                    updateGameScore(game.id, game.teamAScore, val);
-                                                  }}
-                                                />
-                                                <input
-                                                  type="text"
-                                                  className="input text-xs w-20 h-8"
-                                                  placeholder="Court"
-                                                  value={game.courtNumber ?? ''}
-                                                  readOnly
-                                                />
-                                                {game.isComplete && (
-                                                  <span className="chip chip-success text-xs">Complete</span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="text-center text-muted py-4 text-sm">
-                                  No matches scheduled for this round
-                                </div>
-                              )}
-                            </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-muted">Lineup Deadline</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="datetime-local"
+                              value={lineupDeadlines[stop.stopId] || ''}
+                              onChange={(e) => setLineupDeadlines(prev => ({ ...prev, [stop.stopId]: e.target.value }))}
+                              className="input input-sm text-xs"
+                              style={{ minWidth: '200px' }}
+                            />
+                            <button
+                              className="btn btn-sm btn-secondary disabled:opacity-50"
+                              onClick={() => saveLineupDeadline(stop.stopId)}
+                              disabled={loading[stop.stopId] || !lineupDeadlines[stop.stopId]}
+                            >
+                              Save Deadline
+                            </button>
+                          </div>
+                          {stop.lineupDeadline && (
+                            <span className="text-xs text-muted">
+                              Current: {formatDeadline(stop.lineupDeadline)}
+                            </span>
                           )}
                         </div>
-                      ))}
+                        {!stopHasAnyGameStarted && (
+                        <button
+                          className="btn btn-primary disabled:opacity-50"
+                          onClick={() => generateSchedule(stop.stopId, stop.stopName)}
+                          disabled={loading[stop.stopId] || stopHasAnyGameStarted}
+                        >
+                          {loading[stop.stopId] ? 'Regenerating...' : 'Regenerate Matchups'}
+                        </button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    <div className="bg-surface-1">
+                      {loading[stop.stopId] ? (
+                        <div className="text-center py-4 text-muted">Loading schedule...</div>
+                      ) : stopSchedule.length === 0 ? (
+                        <div className="text-center py-4 text-muted">
+                          No matchups generated yet. Click "Regenerate Matchups" to create them.
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {stopSchedule.map((round: any, roundIdx: number) => {
+                            const previousRoundAvailable = roundIdx > 0 && !!stopSchedule[roundIdx - 1];
+                            const isEditing = editingRounds.has(round.id);
+                            const matches = getMatchesForRound(round, isEditing);
+                            const roundHasStarted = hasAnyMatchStarted(round);
+                            const roundHasCompletedAllMatches = matches.length > 0 && matches.every((match: any) => {
+                              const matchStatus = matchStatuses[match.id];
+                              if (matchStatus === 'completed') return true;
+
+                              const matchGames = games[match.id] ?? match.games ?? [];
+
+                              if (matchGames.length === 0) {
+                                return false;
+                              }
+
+                              let teamAWins = 0;
+                              let teamBWins = 0;
+
+                              for (const game of matchGames) {
+                                if (!game) continue;
+
+                                const status = getGameStatus(game);
+                                if (status === 'in_progress') {
+                                  return false;
+                                }
+
+                                const a = game.teamAScore;
+                                const b = game.teamBScore;
+
+                                if (a != null && b != null) {
+                                  if (a > b) teamAWins += 1;
+                                  else if (b > a) teamBWins += 1;
+                                }
+                              }
+
+                              return (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
+                            });
+
+                            const _ = updateKey;
+
+                            return (
+                              <div key={`${round.id}-${renderKey}-${updateKey}`} className="border-2 border-border-medium rounded-lg overflow-hidden bg-surface-1">
+                                <div
+                                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-surface-2 transition-colors bg-surface-2"
+                                  onClick={() => toggleRound(round.id)}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`transform transition-transform text-secondary ${expandedRounds.has(round.id) ? 'rotate-90' : ''}`}>
+                                      ▶
+                                    </div>
+                                    <div>
+                                      <h4 className="font-semibold text-base text-primary">Round {round.idx + 1}</h4>
+                                      <p className="text-xs text-muted mt-0.5">{matches.length} matches</p>
+                                    </div>
+                                    {roundHasCompletedAllMatches && (
+                                      <span className="chip chip-success text-[10px] px-2 py-0.5">Complete</span>
+                                    )}
+                                    {roundHasStarted && !roundHasCompletedAllMatches && (
+                                      <span className="chip chip-warning text-[10px] px-2 py-0.5">In Progress</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {previousRoundAvailable && !roundHasStarted && (
+                                      <button
+                                        className="btn btn-ghost text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          copyLineupsFromPreviousRound(stop.stopId, roundIdx);
+                                        }}
+                                      >
+                                        Copy Previous Lineups
+                                      </button>
+                                    )}
+                                    {isEditing ? (
+                                      <button
+                                        className="btn btn-secondary text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          saveRoundMatchups(round.id);
+                                        }}
+                                      >
+                                        Confirm Matchups
+                                      </button>
+                                    ) : !roundHasStarted ? (
+                                      <button
+                                        className="btn btn-ghost text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleRoundEdit(round.id);
+                                        }}
+                                      >
+                                        Edit Matchups
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                {expandedRounds.has(round.id) && (
+                                  <div className="p-6 border-t border-border-subtle bg-app">
+                                    {isEditing && (
+                                      <div className="mb-4 p-3 bg-info/10 border-l-4 border-info rounded text-sm text-info">
+                                        <strong className="font-semibold">Drag teams to swap:</strong> Drag any team over another team to swap their positions.
+                                      </div>
+                                    )}
+
+                                    {(() => {
+                                      const matchesByBracket: Record<string, any[]> = {};
+
+                                      matches.forEach((match: any, matchIdx: number) => {
+                                        const bracketName = match.bracketName || 'Unknown Bracket';
+
+                                        if (!matchesByBracket[bracketName]) {
+                                          matchesByBracket[bracketName] = [];
+                                        }
+
+                                        matchesByBracket[bracketName].push({ ...match, originalIndex: matchIdx });
+                                      });
+
+                                      Object.keys(matchesByBracket).forEach(bracketName => {
+                                        matchesByBracket[bracketName].forEach((match: any, localIdx: number) => {
+                                          match.localIndex = localIdx;
+                                        });
+                                      });
+
+                                      return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
+                                        <div key={bracketName} className="space-y-4 mb-6 last:mb-0">
+                                          <div className="flex items-center gap-2 pb-2 border-b-2 border-border-medium">
+                                            <h5 className="font-semibold text-sm text-primary label-caps">
+                                              {bracketName}
+                                            </h5>
+                                            <span className="text-xs text-muted">({bracketMatches.length} matches)</span>
+                                          </div>
+
+                                          {isEditing ? (
+                                              <DndContext
+                                                collisionDetection={closestCenter}
+                                                onDragStart={handleDragStart}
+                                                onDragOver={handleDragOver}
+                                                onDragEnd={handleDragEnd}
+                                              >
+                                                <SortableContext
+                                                  items={bracketMatches.map((match: any) => [
+                                                    `${round.id}-${bracketName}-${match.localIndex}-A`,
+                                                    `${round.id}-${bracketName}-${match.localIndex}-B`
+                                                  ]).flat()}
+                                                  strategy={noReorderStrategy}
+                                                >
+                                                  <div className="space-y-3">
+                                                    {bracketMatches.map((match: any, localMatchIdx: number) => {
+                                                      const localIndex = match.localIndex;
+                                                      return (
+                                                        <div key={`${match.id}-${localIndex}`} className="rounded-lg border border-dashed border-subtle bg-surface-2 p-3 shadow-sm">
+                                                          <div className="mb-3 flex items-center justify-between text-xs text-muted">
+                                                            <span>Match {match.originalIndex + 1}</span>
+                                                            {match.isBye && (
+                                                              <span className="rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
+                                                                Bye
+                                                              </span>
+                                                            )}
+                                                          </div>
+
+                                                          {!match.isBye ? (
+                                                            <div className="grid gap-3 md:grid-cols-2">
+                                                              <DraggableTeam
+                                                                team={match.teamA}
+                                                                teamPosition="A"
+                                                                roundId={round.id}
+                                                                matchIndex={localIndex}
+                                                                bracketName={bracketName}
+                                                                isDragging={
+                                                                  activeId === `${round.id}-${bracketName}-${localIndex}-A` ||
+                                                                  (dragPreview && (
+                                                                    dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-A` ||
+                                                                    dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-A`
+                                                                  )) || false
+                                                                }
+                                                                dragPreview={dragPreview}
+                                                              />
+
+                                                              <DraggableTeam
+                                                                team={match.teamB}
+                                                                teamPosition="B"
+                                                                roundId={round.id}
+                                                                matchIndex={localIndex}
+                                                                bracketName={bracketName}
+                                                                isDragging={
+                                                                  activeId === `${round.id}-${bracketName}-${localIndex}-B` ||
+                                                                  (dragPreview && (
+                                                                    dragPreview.sourceId === `${round.id}-${bracketName}-${localIndex}-B` ||
+                                                                    dragPreview.targetId === `${round.id}-${bracketName}-${localIndex}-B`
+                                                                  )) || false
+                                                                }
+                                                                dragPreview={dragPreview}
+                                                              />
+                                                            </div>
+                                                          ) : (
+                                                            <div className="flex items-center gap-3 text-sm">
+                                                              <span className="font-medium">
+                                                                {match.teamA?.name || 'TBD'} vs {match.teamB?.name || 'TBD'}
+                                                              </span>
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                </SortableContext>
+                                              </DndContext>
+                                            ) : (
+                                              <div className="space-y-5">
+                                                {bracketMatches.map((match: any) => {
+                                                  const matchId = match.id;
+                                                  const matchGames = games[matchId] ?? match.games ?? [];
+                                                  const matchStatus = matchStatuses[matchId];
+                                                  const canEditLineups = matchStatus !== 'completed';
+                                                  const teamALineup = lineups[matchId]?.[match.teamA?.id || 'teamA'] || [];
+                                                  const teamBLineup = lineups[matchId]?.[match.teamB?.id || 'teamB'] || [];
+                                                  const hasAnyGameStarted = matchGames.some((game: any) =>
+                                                    getGameStatus(game) === 'in_progress' || getGameStatus(game) === 'completed'
+                                                  );
+                                                  const isEditingThisMatch = editingMatch === match.id;
+
+                                                  return (
+                                                    <div key={matchId} className="card">
+                                                      {/* Match Header */}
+                                                      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-border-subtle">
+                                                        <div>
+                                                          <h3 className="text-base font-semibold text-primary">
+                                                            {(() => {
+                                                              const bracketLabel = match.bracketName || match.teamA?.bracketName || match.teamB?.bracketName;
+                                                              const teamAName = match.teamA?.name || 'Team A';
+                                                              const teamBName = match.teamB?.name || 'Team B';
+
+                                                              // Remove bracket name from team names if it exists
+                                                              const cleanTeamAName = bracketLabel && teamAName.endsWith(` ${bracketLabel}`)
+                                                                ? teamAName.replace(` ${bracketLabel}`, '')
+                                                                : teamAName;
+                                                              const cleanTeamBName = bracketLabel && teamBName.endsWith(` ${bracketLabel}`)
+                                                                ? teamBName.replace(` ${bracketLabel}`, '')
+                                                                : teamBName;
+
+                                                              return `${cleanTeamAName} vs ${cleanTeamBName}`;
+                                                            })()}
+                                                          </h3>
+                                                          {(() => {
+                                                            const bracketLabel = match.bracketName || match.teamA?.bracketName || match.teamB?.bracketName;
+                                                            return bracketLabel && (
+                                                              <p className="text-xs text-muted mt-0.5">{bracketLabel}</p>
+                                                            );
+                                                          })()}
+                                                        </div>
+
+                                                        {/* Forfeit Buttons */}
+                                                        {!match.isBye && !isMatchComplete(match) && (
+                                                          <div className="flex items-center gap-2">
+                                                            {match.forfeitTeam ? (
+                                                              <div className="flex flex-col items-center gap-1">
+                                                                <span className="text-xs font-bold text-white bg-red-600 px-2 py-1 rounded">
+                                                                  FF
+                                                                </span>
+                                                                <span className="text-xs text-muted">
+                                                                  {match.forfeitTeam === 'A'
+                                                                    ? `${match.teamB?.name || 'Team B'} wins`
+                                                                    : `${match.teamA?.name || 'Team A'} wins`
+                                                                  }
+                                                                </span>
+                                                              </div>
+                                                            ) : (
+                                                              <div className="flex flex-col gap-1">
+                                                                <button
+                                                                  onClick={async () => {
+                                                                    try {
+                                                                      const response = await fetchWithActAs(`/api/admin/matches/${matchId}`, {
+                                                                        method: 'PATCH',
+                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                        body: JSON.stringify({ forfeitTeam: 'A' })
+                                                                      });
+
+                                                                      if (response.ok) {
+                                                                        onInfo('Forfeit recorded successfully');
+                                                                        // Reload schedule to show updated status
+                                                                        await loadSchedule(stop.stopId, true);
+                                                                      } else {
+                                                                        const errorData = await response.json();
+                                                                        onError(`Failed to record forfeit: ${errorData.error}`);
+                                                                      }
+                                                                    } catch (error) {
+                                                                      onError('Failed to record forfeit. Please try again.');
+                                                                    }
+                                                                  }}
+                                                                  className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
+                                                                >
+                                                                  {match.teamA?.name || 'Team A'} Forfeit
+                                                                </button>
+                                                                <button
+                                                                  onClick={async () => {
+                                                                    try {
+                                                                      const response = await fetchWithActAs(`/api/admin/matches/${matchId}`, {
+                                                                        method: 'PATCH',
+                                                                        headers: { 'Content-Type': 'application/json' },
+                                                                        body: JSON.stringify({ forfeitTeam: 'B' })
+                                                                      });
+
+                                                                      if (response.ok) {
+                                                                        onInfo('Forfeit recorded successfully');
+                                                                        // Reload schedule to show updated status
+                                                                        await loadSchedule(stop.stopId, true);
+                                                                      } else {
+                                                                        const errorData = await response.json();
+                                                                        onError(`Failed to record forfeit: ${errorData.error}`);
+                                                                      }
+                                                                    } catch (error) {
+                                                                      onError('Failed to record forfeit. Please try again.');
+                                                                    }
+                                                                  }}
+                                                                  className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
+                                                                >
+                                                                  {match.teamB?.name || 'Team B'} Forfeit
+                                                                </button>
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        )}
+                                                      </div>
+
+                                                      <div className="mt-3 space-y-3">
+                                                        {isEditingThisMatch ? (
+                                                          <InlineLineupEditor
+                                                            matchId={match.id}
+                                                            stopId={round.stopId}
+                                                            teamA={match.teamA || { id: 'teamA', name: 'Team A' }}
+                                                            teamB={match.teamB || { id: 'teamB', name: 'Team B' }}
+                                                            teamARoster={teamRosters[match.teamA?.id || ''] || []}
+                                                            teamBRoster={teamRosters[match.teamB?.id || ''] || []}
+                                                            fetchTeamRoster={fetchTeamRoster}
+                                                            lineups={lineups}
+                                                            onSave={async (lineupData) => {
+                                                              try {
+                                                                if (lineupData.teamA.length !== 4 || lineupData.teamB.length !== 4) {
+                                                                  throw new Error(`Invalid lineup: Team A has ${lineupData.teamA.length} players, Team B has ${lineupData.teamB.length} players. Need exactly 4 each.`);
+                                                                }
+
+                                                                const response = await fetchWithActAs(`/api/admin/stops/${stop.stopId}/lineups`, {
+                                                                  method: 'POST',
+                                                                  headers: { 'Content-Type': 'application/json' },
+                                                                  body: JSON.stringify({
+                                                                    lineups: {
+                                                                      [match.id]: {
+                                                                        [match.teamA?.id || 'teamA']: lineupData.teamA,
+                                                                        [match.teamB?.id || 'teamB']: lineupData.teamB
+                                                                      }
+                                                                    }
+                                                                  })
+                                                                });
+
+                                                                if (!response.ok) {
+                                                                  const errorText = await response.text();
+                                                                  throw new Error(`Save failed: ${response.status} ${errorText}`);
+                                                                }
+
+                                                                setLineups(prev => ({
+                                                                  ...prev,
+                                                                  [match.id]: {
+                                                                    [match.teamA?.id || 'teamA']: lineupData.teamA,
+                                                                    [match.teamB?.id || 'teamB']: lineupData.teamB
+                                                                  }
+                                                                }));
+
+                                                                await loadGamesForMatch(match.id, true);
+
+                                                                setEditingMatch(null);
+                                                                onInfo('Lineups saved successfully!');
+                                                              } catch (error) {
+                                                                console.error('Error saving lineups:', error);
+                                                                onError(`Failed to save lineups: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                                              }
+                                                            }}
+                                                            onCancel={() => setEditingMatch(null)}
+                                                          />
+                                                        ) : (
+                                                          !hasAnyGameStarted && (
+                                                            <div className="space-y-4">
+                                                              <div className="grid md:grid-cols-2 gap-4">
+                                                                {/* Team A Lineup */}
+                                                                <div className="rounded-lg border-2 border-border-medium bg-surface-2 p-4">
+                                                                  <div className="flex items-center justify-between mb-3">
+                                                                    <h4 className="text-sm font-semibold text-primary">
+                                                                      {match.teamA?.name || 'Team A'}
+                                                                    </h4>
+                                                                    {teamALineup.length === 4 && (
+                                                                      <span className="chip chip-success text-[10px] px-2 py-0.5">Ready</span>
+                                                                    )}
+                                                                  </div>
+                                                                  <div className="space-y-2">
+                                                                    {teamALineup.length > 0 ? (
+                                                                      teamALineup.map((player: any, idx: number) => (
+                                                                        <div key={player.id} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
+                                                                          <span className="text-muted font-semibold w-5">{idx + 1}.</span>
+                                                                          <span className="text-secondary flex-1">{player.name}</span>
+                                                                          <span className={`chip text-[10px] px-2 py-0.5 ${
+                                                                            player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
+                                                                          }`}>
+                                                                            {player.gender === 'MALE' ? 'M' : 'F'}
+                                                                          </span>
+                                                                        </div>
+                                                                      ))
+                                                                    ) : (
+                                                                      <div className="text-muted text-sm italic text-center py-4">No lineup set</div>
+                                                                    )}
+                                                                  </div>
+                                                                </div>
+
+                                                                {/* Team B Lineup */}
+                                                                <div className="rounded-lg border-2 border-border-medium bg-surface-2 p-4">
+                                                                  <div className="flex items-center justify-between mb-3">
+                                                                    <h4 className="text-sm font-semibold text-primary">
+                                                                      {match.teamB?.name || 'Team B'}
+                                                                    </h4>
+                                                                    {teamBLineup.length === 4 && (
+                                                                      <span className="chip chip-success text-[10px] px-2 py-0.5">Ready</span>
+                                                                    )}
+                                                                  </div>
+                                                                  <div className="space-y-2">
+                                                                    {teamBLineup.length > 0 ? (
+                                                                      teamBLineup.map((player: any, idx: number) => (
+                                                                        <div key={player.id} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
+                                                                          <span className="text-muted font-semibold w-5">{idx + 1}.</span>
+                                                                          <span className="text-secondary flex-1">{player.name}</span>
+                                                                          <span className={`chip text-[10px] px-2 py-0.5 ${
+                                                                            player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
+                                                                          }`}>
+                                                                            {player.gender === 'MALE' ? 'M' : 'F'}
+                                                                          </span>
+                                                                        </div>
+                                                                      ))
+                                                                    ) : (
+                                                                      <div className="text-muted text-sm italic text-center py-4">No lineup set</div>
+                                                                    )}
+                                                                  </div>
+                                                                </div>
+                                                              </div>
+
+                                                              {canEditLineups && (
+                                                                <div className="flex justify-center">
+                                                                  <button
+                                                                    className="btn btn-secondary"
+                                                                    onClick={() => setEditingMatch(matchId)}
+                                                                  >
+                                                                    {teamALineup.length > 0 || teamBLineup.length > 0 ? 'Edit Lineups' : 'Set Lineups'}
+                                                                  </button>
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                          )
+                                                        )}
+
+                                                        {/* Games Display - show when lineups exist in lineups state OR in game data */}
+                                                        {((lineups[match.id] &&
+                                                          lineups[match.id][match.teamA?.id || 'teamA']?.length === 4 &&
+                                                          lineups[match.id][match.teamB?.id || 'teamB']?.length === 4) ||
+                                                          (games[match.id]?.some((g: any) => g.teamALineup && g.teamBLineup))) && (
+                                                            <div className="space-y-5">
+                                                              <div className="border-t border-border-subtle pt-4">
+                                                                <h4 className="text-sm font-semibold text-primary mb-3 label-caps">Games</h4>
+                                                                <div className="grid gap-4 lg:grid-cols-2">
+                                                                  {games[match.id]
+                                                                    ?.filter((game) => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES')
+                                                                    .map((game) => (
+                                                                      <GameScoreBox
+                                                                        key={game.id}
+                                                                        game={game}
+                                                                        match={match}
+                                                                        lineups={lineups}
+                                                                        startGame={startGame}
+                                                                        endGame={endGame}
+                                                                        updateGameScore={updateGameScore}
+                                                                        updateGameCourtNumber={updateGameCourtNumber}
+                                                                      />
+                                                                    ))}
+                                                                </div>
+                                                              </div>
+
+                                                              <div className="grid gap-4 lg:grid-cols-2">
+                                                                {games[match.id]
+                                                                  ?.filter((game) => game.slot === 'MIXED_1' || game.slot === 'MIXED_2')
+                                                                  .map((game) => (
+                                                                    <GameScoreBox
+                                                                      key={game.id}
+                                                                      game={game}
+                                                                      match={match}
+                                                                      lineups={lineups}
+                                                                      startGame={startGame}
+                                                                      endGame={endGame}
+                                                                      updateGameScore={updateGameScore}
+                                                                      updateGameCourtNumber={updateGameCourtNumber}
+                                                                    />
+                                                                  ))}
+                                                              </div>
+
+                                                              {(() => {
+                                                                const completedGames =
+                                                                  games[match.id]?.filter((g) => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
+                                                                const teamAWins = completedGames.filter((g) => g.teamAScore > g.teamBScore).length;
+                                                                const teamBWins = completedGames.filter((g) => g.teamBScore > g.teamAScore).length;
+                                                                const needsTiebreaker =
+                                                                  completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
+
+                                                                return (
+                                                                  needsTiebreaker &&
+                                                                  games[match.id]?.find((g) => g.slot === 'TIEBREAKER') && (
+                                                                    <div className="border-t border-warning pt-4">
+                                                                      <div className="flex items-center gap-2 mb-3">
+                                                                        <h4 className="text-sm font-semibold text-warning label-caps">Tiebreaker Required</h4>
+                                                                        <span className="chip chip-warning text-[10px] px-2 py-0.5">2-2 Tie</span>
+                                                                      </div>
+                                                                      <GameScoreBox
+                                                                        game={games[match.id].find((g) => g.slot === 'TIEBREAKER')}
+                                                                        match={match}
+                                                                        lineups={lineups}
+                                                                        startGame={startGame}
+                                                                        endGame={endGame}
+                                                                        updateGameScore={updateGameScore}
+                                                                        updateGameCourtNumber={updateGameCourtNumber}
+                                                                      />
+                                                                    </div>
+                                                                  )
+                                                                );
+                                                              })()}
+                                                            </div>
+                                                          )}
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ));
+                                      })()}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
-          )}
+          </div>
+        ))}
+      </div>
+
+      {tournaments.length === 0 && (
+        <div className="text-center py-8 text-muted">
+          You are not assigned as an event manager for any tournaments.
         </div>
-      ))}
+      )}
     </div>
   );
 }

@@ -113,7 +113,6 @@ export async function GET(_req: Request, ctx: Ctx) {
       where: { id: matchId },
       select: {
         id: true,
-        slot: true,
         isBye: true,
         teamAScore: true,
         teamBScore: true,
@@ -132,7 +131,6 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     return NextResponse.json({
       id: match.id,
-      slot: match.slot,
       teamAScore: match.teamAScore,
       teamBScore: match.teamBScore,
       game: {

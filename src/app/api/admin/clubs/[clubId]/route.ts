@@ -23,26 +23,60 @@ export async function PUT(
   const { clubId } = await ctx.params;
 
   const body = await req.json().catch(() => ({}));
+  console.log('Club update request:', { clubId, body });
+  
+  const fullName = String(body.fullName ?? '').trim();
+  if (!fullName) return NextResponse.json({ error: 'Full name is required' }, { status: 400 });
+
   const name = String(body.name ?? '').trim();
-  if (!name) return NextResponse.json({ error: 'Club name required' }, { status: 400 });
+  if (!name) return NextResponse.json({ error: 'Nickname is required' }, { status: 400 });
 
   const phoneRaw: string | null = body.phone ? String(body.phone).trim() : null;
   const phoneCheck = normalizePhone(phoneRaw);
   if (!phoneCheck.ok) return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
 
-  const updated = await prisma.club.update({
-    where: { id: clubId },
-    data: {
+  // Validate email if provided
+  const email = body.email ? String(body.email).trim() : null;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+  }
+
+  try {
+    const updateData: any = {
       name,
       address: body.address ? String(body.address).trim() : null,
       city:    body.city ? String(body.city).trim() : null,
       region:  body.region ? String(body.region).trim() : null,
       country: body.country ? String(body.country).trim() : 'Canada',
       phone:   phoneCheck.formatted ?? null,
-    },
-  });
+      email: body.email ? String(body.email).trim() : null,
+      description: body.description ? String(body.description).trim() : null,
+      directorId: body.directorId ? String(body.directorId).trim() : null,
+      logo: body.logo ? String(body.logo).trim() : null,
+    };
 
-  return NextResponse.json(updated);
+    updateData.fullName = fullName;
+
+    const updated = await prisma.club.update({
+      where: { id: clubId },
+      data: updateData,
+    });
+
+    console.log('Club updated successfully:', updated);
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Error updating club:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      code: (error as any)?.code,
+      meta: (error as any)?.meta
+    });
+    return NextResponse.json({ 
+      error: 'Failed to update club', 
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
 }
 
 /** DELETE /api/admin/clubs/:clubId */

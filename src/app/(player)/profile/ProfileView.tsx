@@ -90,9 +90,13 @@ export function ProfilePageView() {
       city: string;
       region: string;
       country: string;
-      dupr: string;
+      duprSingles: string;
+      duprDoubles: string;
+      clubRatingSingles: string;
+      clubRatingDoubles: string;
       birthday: string;
-      clubRating?: number | null;
+      displayAge: boolean;
+      displayLocation: boolean;
       photo?: string | null;
     }): Promise<boolean> => {
       if (!isSignedIn) return false;

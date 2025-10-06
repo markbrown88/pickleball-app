@@ -94,9 +94,21 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: `Stop not found: ${stopId}` }, { status: 404 });
     }
 
-    // Find participating teams at this stop (via StopTeam)
+    // Get clubs participating in this tournament
+    const tournamentClubs = await prisma.tournamentClub.findMany({
+      where: { tournamentId: stop.tournamentId },
+      select: { clubId: true }
+    });
+    const participatingClubIds = new Set(tournamentClubs.map(tc => tc.clubId));
+
+    // Find participating teams at this stop (via StopTeam), filtered by tournament clubs
     const stopTeams = await prisma.stopTeam.findMany({
-      where: { stopId },
+      where: {
+        stopId,
+        team: {
+          clubId: { in: Array.from(participatingClubIds) }
+        }
+      },
       include: {
         team: {
           select: { id: true, name: true, bracketId: true, clubId: true, division: true },

@@ -6,6 +6,49 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+/** PUT /api/admin/stops/:stopId */
+export async function PUT(
+  req: NextRequest,
+  ctx: { params: Promise<{ stopId: string }> }
+) {
+  const { stopId } = await ctx.params;
+
+  if (!stopId) return NextResponse.json({ error: 'stopId required' }, { status: 400 });
+
+  try {
+    const body = await req.json();
+    const { lineupDeadline } = body;
+
+    // Validate and parse the deadline
+    let deadlineDate: Date | null = null;
+    if (lineupDeadline) {
+      deadlineDate = new Date(lineupDeadline);
+      if (isNaN(deadlineDate.getTime())) {
+        return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+      }
+    }
+
+    const updated = await prisma.stop.update({
+      where: { id: stopId },
+      data: { lineupDeadline: deadlineDate },
+      select: {
+        id: true,
+        name: true,
+        lineupDeadline: true,
+      }
+    });
+
+    return NextResponse.json({
+      id: updated.id,
+      name: updated.name,
+      lineupDeadline: updated.lineupDeadline ? updated.lineupDeadline.toISOString() : null,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'error';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
 /** DELETE /api/admin/stops/:stopId */
 export async function DELETE(
   _req: NextRequest,

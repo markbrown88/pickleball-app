@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 
 import { useAdminUser } from '../admin/AdminContext';
+import { useModal } from '../shared/ModalContext';
+import GlobalModalManager from '../shared/GlobalModalManager';
 
 const CA_PROVINCES = ['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'] as const;
 const US_STATES = [
@@ -15,12 +17,29 @@ type Id = string;
 
 type Club = {
   id: Id;
+  fullName: string;
   name: string;
   address?: string | null;
   city?: string | null;
   region?: string | null;
   country: string;
   phone?: string | null;
+  email?: string | null;
+  description?: string | null;
+  directorId?: string | null;
+  logo?: string | null;
+  director?: {
+    id: string;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+};
+
+type Player = {
+  id: Id;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
 };
 
 type ClubsResponse = Club[];
@@ -38,6 +57,12 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const body = isJson ? await res.json() : await res.text();
   if (!res.ok) {
+    console.error('API Error:', {
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      body
+    });
     throw new Error(extractErrorMessage(body, res.status));
   }
   return body as T;
@@ -45,21 +70,18 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function AdminClubsPage() {
   const admin = useAdminUser();
+  const { openModal } = useModal();
   const [clubs, setClubs] = useState<Club[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [sort, setSort] = useState<{ col: 'name' | 'city' | 'region' | 'country' | 'phone'; dir: 'asc' | 'desc' }>({ col: 'name', dir: 'asc' });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const [editId, setEditId] = useState<Id | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [countrySel, setCountrySel] = useState<'Canada' | 'USA' | 'Other'>('Canada');
-  const [countryOther, setCountryOther] = useState('');
-  const [form, setForm] = useState({ name: '', address: '', city: '', region: '', phone: '', country: 'Canada' });
-
   useEffect(() => {
     if (!admin.isAppAdmin) return;
     void loadClubs(sort);
+    void loadPlayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin.isAppAdmin]);
 
@@ -81,74 +103,54 @@ export default function AdminClubsPage() {
     }
   }
 
-  function openCreate() {
-    setIsCreating(true);
-    setEditId(null);
-    setCountrySel('Canada');
-    setCountryOther('');
-    setForm({ name: '', address: '', city: '', region: '', phone: '', country: 'Canada' });
-  }
-
-  function openEdit(club: Club) {
-    setIsCreating(false);
-    setEditId(club.id);
-    const detected = (club.country || 'Canada').trim();
-    if (detected === 'Canada' || detected === 'USA') {
-      setCountrySel(detected as 'Canada' | 'USA');
-      setCountryOther('');
-    } else {
-      setCountrySel('Other');
-      setCountryOther(detected);
+  async function loadPlayers() {
+    try {
+      const data = await api<{ items: Player[] }>('/api/admin/players');
+      const players = Array.isArray(data?.items) ? data.items : [];
+      setPlayers(players);
+    } catch (e) {
+      console.error('Error loading players:', e);
     }
-    setForm({
-      name: club.name || '',
-      address: club.address || '',
-      city: club.city || '',
-      region: club.region || '',
-      phone: club.phone || '',
-      country: detected,
-    });
   }
 
-  function closeEditor() {
-    setIsCreating(false);
-    setEditId(null);
-  }
-
-  async function saveClub() {
+  const handleModalSave = useCallback(async (club: Partial<Club>) => {
     try {
       setErr(null);
-      const country = countrySel === 'Other' ? (countryOther || '') : countrySel;
-      const payload = {
-        name: form.name.trim(),
-        address: form.address.trim(),
-        city: form.city.trim(),
-        region: form.region.trim(),
-        phone: form.phone.trim(),
-        country,
-      };
-
-      if (!payload.name) {
-        throw new Error('Club name is required');
+      if (club.id) {
+        await api(`/api/admin/clubs/${club.id}`, { 
+          method: 'PUT', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(club) 
+        });
+      } else {
+        await api('/api/admin/clubs', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(club) 
+        });
       }
-
-      const endpoint = isCreating
-        ? '/api/admin/clubs'
-        : `/api/admin/clubs/${editId}`;
-
-      await api(endpoint, {
-        method: isCreating ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      setInfo(isCreating ? 'Club created' : 'Club updated');
-      closeEditor();
       await loadClubs(sort);
-    } catch (e) {
-      setErr((e as Error).message);
+      setInfo(club.id ? 'Club updated' : 'Club created');
+    } catch (e: any) {
+      console.error('Error saving club:', e);
+      setErr(e?.message || 'Failed to save club');
+      throw new Error(e?.message || 'Failed to save club');
     }
-  }
+  }, [sort]);
+
+  const handleAddClub = useCallback(() => {
+    openModal('club');
+  }, [openModal]);
+
+  const handleEditClub = useCallback((club: Club) => {
+    openModal('club', club);
+  }, [openModal]);
+
+  const clickSortClubs = useCallback((col: 'name' | 'city' | 'region' | 'country' | 'phone') => {
+    const nextDir = sort.col === col && sort.dir === 'asc' ? 'desc' : 'asc';
+    void loadClubs({ col, dir: nextDir });
+  }, [sort]);
+
 
   async function removeClub(id: Id) {
     if (!confirm('Delete this club?')) return;
@@ -180,7 +182,7 @@ export default function AdminClubsPage() {
           <h1 className="text-2xl font-semibold text-primary">Clubs</h1>
           <p className="text-muted">Manage club profiles used across tournaments.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>Add Club</button>
+        <button className="btn btn-primary" onClick={handleAddClub}>Add Club</button>
       </header>
 
       {err && (
@@ -199,83 +201,64 @@ export default function AdminClubsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>City</th>
-                <th>Region</th>
-                <th>Country</th>
-                <th>Phone</th>
+                <th className="py-2 pr-2 w-16">Logo</th>
+                <SortableTh label="Full Name" onClick={() => clickSortClubs('name')} active={sort.col === 'name'} dir={sort.dir} />
+                <SortableTh label="City" onClick={() => clickSortClubs('city')} active={sort.col === 'city'} dir={sort.dir} />
+                <SortableTh label="Region" onClick={() => clickSortClubs('region')} active={sort.col === 'region'} dir={sort.dir} />
+                <SortableTh label="Country" onClick={() => clickSortClubs('country')} active={sort.col === 'country'} dir={sort.dir} />
+                <SortableTh label="Phone" onClick={() => clickSortClubs('phone')} active={sort.col === 'phone'} dir={sort.dir} />
                 <th className="py-2 pr-2 w-10"></th>
               </tr>
             </thead>
             <tbody>
               {loading && clubs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-muted">Loading…</td>
+                  <td colSpan={7} className="py-8 text-center text-muted">Loading…</td>
                 </tr>
               )}
 
               {!loading && sortedClubs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-muted">No clubs yet.</td>
+                  <td colSpan={7} className="py-8 text-center text-muted">No clubs yet.</td>
                 </tr>
               )}
 
               {sortedClubs.map((club) => (
                 <tr key={club.id}>
-                  <td className="py-2 pr-4">
-                    {editId === club.id ? (
-                      <input
-                        className="input text-sm"
-                        value={form.name}
-                        onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                        autoFocus
+                  <td className="py-2 pr-2">
+                    {club.logo ? (
+                      <img 
+                        src={club.logo} 
+                        alt={`${club.fullName} logo`}
+                        className="w-12 h-8 object-contain"
                       />
                     ) : (
-                      <button
-                        className="text-secondary hover:text-secondary-hover hover:underline"
-                        onClick={() => openEdit(club)}
-                      >
-                        {club.name}
-                      </button>
-                    )}
-                  </td>
-                  <td className="py-2 pr-4 text-muted">
-                    {editId === club.id ? (
-                      <input
-                        className="input text-sm"
-                        placeholder="City"
-                        value={form.city}
-                        onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
-                      />
-                    ) : (
-                      club.city ?? '—'
-                    )}
-                  </td>
-                  <td className="py-2 pr-4 text-muted">
-                    {editId === club.id ? renderRegionInput() : (club.region ?? '—')}
-                  </td>
-                  <td className="py-2 pr-4 text-muted">
-                    {editId === club.id ? renderCountryInput() : (club.country ?? '—')}
-                  </td>
-                  <td className="py-2 pr-4 text-muted">
-                    {editId === club.id ? (
-                      <input
-                        className="input text-sm"
-                        placeholder="Phone"
-                        value={form.phone}
-                        onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
-                      />
-                    ) : (
-                      club.phone ?? '—'
-                    )}
-                  </td>
-                  <td className="py-2 pr-2 text-right align-middle">
-                    {editId === club.id ? (
-                      <div className="flex gap-1">
-                        <button className="btn btn-sm btn-primary" onClick={saveClub} title="Save">✓</button>
-                        <button className="btn btn-sm btn-ghost" onClick={closeEditor} title="Cancel">✕</button>
+                      <div className="w-12 h-8 bg-gray-100 rounded flex items-center justify-center">
+                        <span className="text-gray-400 text-xs">—</span>
                       </div>
-                    ) : (
+                    )}
+                  </td>
+                  <td className="py-2 pr-4">
+                    <button
+                      className="text-secondary hover:text-secondary-hover hover:underline"
+                      onClick={() => handleEditClub(club)}
+                    >
+                      {club.fullName}
+                    </button>
+                  </td>
+                  <td className="py-2 pr-4 text-muted">{club.city ?? '—'}</td>
+                  <td className="py-2 pr-4 text-muted">{club.region ?? '—'}</td>
+                  <td className="py-2 pr-4 text-muted">{club.country ?? '—'}</td>
+                  <td className="py-2 pr-4 text-muted">{club.phone ?? '—'}</td>
+                  <td className="py-2 pr-2 text-right align-middle">
+                    <div className="flex gap-1">
+                      <button 
+                        className="btn btn-sm btn-ghost" 
+                        onClick={() => handleEditClub(club)} 
+                        title="Edit"
+                      >
+                        ✎
+                      </button>
                       <button
                         aria-label="Delete club"
                         onClick={() => removeClub(club.id)}
@@ -284,115 +267,38 @@ export default function AdminClubsPage() {
                       >
                         <TrashIcon />
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
-
-              {isCreating && renderCreateRow()}
             </tbody>
           </table>
         </div>
       </div>
+
+      <GlobalModalManager
+        clubs={[]}
+        players={players}
+        onSavePlayer={async () => {}} // Not used on clubs page
+        onSaveClub={handleModalSave}
+      />
     </section>
   );
 
-  function renderCountryInput() {
-    return (
-      <div className="space-y-2">
-        <select
-          className="input text-sm"
-          value={countrySel}
-          onChange={(e) => {
-            const value = e.target.value as typeof countrySel;
-            setCountrySel(value);
-            setCountryOther(value === 'Other' ? countryOther : '');
-            setForm((prev) => ({ ...prev, country: value === 'Other' ? prev.country : value }));
-          }}
-        >
-          <option value="Canada">Canada</option>
-          <option value="USA">USA</option>
-          <option value="Other">Other</option>
-        </select>
-        {countrySel === 'Other' && (
-          <input
-            className="input text-sm"
-            placeholder="Country"
-            value={countryOther}
-            onChange={(e) => {
-              setCountryOther(e.target.value);
-              setForm((prev) => ({ ...prev, country: e.target.value }));
-            }}
-          />
-        )}
-      </div>
-    );
-  }
+}
 
-  function renderRegionInput() {
-    const { region } = form;
-    if (countrySel === 'Canada') {
-      return (
-        <select className="input text-sm" value={region} onChange={(e) => setForm((prev) => ({ ...prev, region: e.target.value }))}>
-          <option value="">Province…</option>
-          {CA_PROVINCES.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-      );
-    }
-    return (
-      <select className="input text-sm" value={region} onChange={(e) => setForm((prev) => ({ ...prev, region: e.target.value }))}>
-        <option value="">State…</option>
-        {US_STATES.map((s) => (
-          <option key={s} value={s}>{s}</option>
-        ))}
-      </select>
-    );
-  }
-
-  function renderCreateRow() {
-    return (
-      <tr>
-        <td className="py-2 pr-4">
-          <input
-            className="input text-sm"
-            value={form.name}
-            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-            placeholder="Club Name"
-          />
-        </td>
-        <td className="py-2 pr-4">
-          <input
-            className="input text-sm"
-            value={form.city}
-            onChange={(e) => setForm((prev) => ({ ...prev, city: e.target.value }))}
-            placeholder="City"
-          />
-        </td>
-        <td className="py-2 pr-4">
-          {renderRegionInput()}
-        </td>
-        <td className="py-2 pr-4">
-          {renderCountryInput()}
-        </td>
-        <td className="py-2 pr-4">
-          <input
-            className="input text-sm"
-            value={form.phone}
-            onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
-            placeholder="Phone"
-          />
-        </td>
-        <td className="py-2 pr-2 text-right align-middle">
-          <div className="flex gap-1">
-            <button className="btn btn-sm btn-primary" onClick={saveClub} title="Save">✓</button>
-            <button className="btn btn-sm btn-ghost" onClick={closeEditor} title="Cancel">✕</button>
-          </div>
-        </td>
-      </tr>
-    );
-  }
+function SortableTh({ label, onClick, active, dir }: { label: string; onClick: () => void; active: boolean; dir: 'asc' | 'desc' }) {
+  return (
+    <th className="py-2 pr-4">
+      <button
+        className="flex items-center gap-1 text-left font-medium text-gray-700 hover:text-gray-900"
+        onClick={onClick}
+      >
+        {label}
+        <span className="text-xs">{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+      </button>
+    </th>
+  );
 }
 
 function TrashIcon() {

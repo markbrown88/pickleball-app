@@ -11,6 +11,7 @@ datasource db {
 /// * ---------- Clubs ----------
 model Club {
   id                 String              @id @default(cuid())
+  fullName           String
   name               String
   address1           String?
   city               String?
@@ -18,6 +19,10 @@ model Club {
   country            String              @default("Canada")
   postalCode         String?
   phone              String?
+  email              String?
+  description        String?
+  directorId         String?
+  logo               String?
   createdAt          DateTime            @default(now())
   address            String?
   updatedAt          DateTime            @default(now()) @db.Timestamptz(6)
@@ -26,6 +31,7 @@ model Club {
   Team               Team[]
   tournamentCaptains TournamentCaptain[]
   tournamentClubs    TournamentClub[]
+  director           Player?             @relation("ClubDirector", fields: [directorId], references: [id], onDelete: SetNull)
 }
 
 /// *
@@ -46,6 +52,12 @@ model Player {
   country                String?                  @default("Canada")
   age                    Int?
   dupr                   Float?
+  duprSingles            Float?
+  duprDoubles            Float?
+  clubRatingSingles      Float?
+  clubRatingDoubles      Float?
+  displayAge             Boolean                  @default(true)
+  displayLocation        Boolean                  @default(true)
   birthdayYear           Int?
   birthdayMonth          Int?
   birthdayDay            Int?
@@ -56,6 +68,7 @@ model Player {
   lineupEntriesAsP1      LineupEntry[]            @relation("LineupPlayer1")
   lineupEntriesAsP2      LineupEntry[]            @relation("LineupPlayer2")
   club                   Club                     @relation(fields: [clubId], references: [id], onUpdate: NoAction)
+  clubsAsDirector        Club[]                   @relation("ClubDirector")
   stopsManaged           Stop[]                   @relation("StopEventManager")
   stopRosterLinks        StopTeamPlayer[]         @relation("PlayerRoster")
   teamsAsCaptain         Team[]                   @relation("TeamCaptain")
@@ -167,6 +180,7 @@ model Stop {
   endAt          DateTime?        @db.Timestamptz(6)
   updatedAt      DateTime         @default(now()) @db.Timestamptz(6)
   eventManagerId String?
+  lineupDeadline DateTime?        @db.Timestamptz(6) // Deadline for captain lineup submission
   Lineup         Lineup[]
   rounds         Round[]
   club           Club?            @relation(fields: [clubId], references: [id], onUpdate: NoAction)
@@ -238,12 +252,6 @@ model Match {
   teamBId         String?
   isBye           Boolean   @default(false)
   forfeitTeam     String?   // 'A' for teamA forfeit, 'B' for teamB forfeit, null for no forfeit
-  slot            GameSlot?
-  teamAScore      Int?
-  teamBScore      Int?
-  teamALineup     Json?
-  teamBLineup     Json?
-  lineupConfirmed Boolean?  @default(false)
   createdAt       DateTime  @default(now()) @db.Timestamp(6)
   updatedAt       DateTime  @default(now()) @db.Timestamptz(6)
   games           Game[]
@@ -260,21 +268,25 @@ model Match {
 /// * Individual game slots within a match.
 /// * Each match has 5 potential games: Men's Doubles, Women's Doubles, Mixed 1, Mixed 2, Tiebreaker
 model Game {
-  id              String    @id(map: "Game_new_pkey") @default(cuid())
-  matchId         String
-  slot            GameSlot?
-  teamAScore      Int?
-  teamBScore      Int?
-  teamALineup     Json?
-  teamBLineup     Json?
-  lineupConfirmed Boolean?  @default(false)
-  courtNumber     String?
-  isComplete      Boolean?  @default(false)
-  startedAt       DateTime? @db.Timestamptz(6)
-  endedAt         DateTime? @db.Timestamptz(6)
-  createdAt       DateTime  @default(now()) @db.Timestamp(6)
-  updatedAt       DateTime  @default(now()) @db.Timestamptz(6)
-  match           Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
+  id                    String    @id(map: "Game_new_pkey") @default(cuid())
+  matchId               String
+  slot                  GameSlot?
+  teamAScore            Int?
+  teamBScore            Int?
+  teamALineup           Json?
+  teamBLineup           Json?
+  lineupConfirmed       Boolean?  @default(false)
+  courtNumber           String?
+  isComplete            Boolean?  @default(false)
+  startedAt             DateTime? @db.Timestamptz(6)
+  endedAt               DateTime? @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime  @default(now()) @db.Timestamptz(6)
+  teamAScoreSubmitted   Boolean?  @default(false) // Team A captain submitted score
+  teamBScoreSubmitted   Boolean?  @default(false) // Team B captain submitted score
+  teamASubmittedScore   Int? // Score submitted by Team A
+  teamBSubmittedScore   Int? // Score submitted by Team B
+  match                 Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
 
   @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
   @@index([matchId])
@@ -336,11 +348,12 @@ model CaptainInvite {
 /// *
 /// * ---------- Tournament config tables ----------
 model TournamentClub {
-  tournamentId String
-  clubId       String
-  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
-  club         Club       @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId       String
+  clubId             String
+  createdAt          DateTime   @default(now()) @db.Timestamptz(6)
+  captainAccessToken String?    @unique // 5-char token for captain portal access
+  club               Club       @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  tournament         Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@id([tournamentId, clubId])
   @@index([clubId])

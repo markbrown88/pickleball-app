@@ -4,8 +4,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
+import { getActAsHeaderFromRequest, getEffectivePlayer } from '@/lib/actAs';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
@@ -55,6 +57,16 @@ async function pruneAndCompact(db: DB, stopId: string, opts?: { prune?: boolean;
 
 export async function GET(req: Request, ctx: Ctx) {
   try {
+    // Authentication
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+
     const { stopId } = await ctx.params;
     // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
@@ -63,10 +75,31 @@ export async function GET(req: Request, ctx: Ctx) {
     // Validate stop (nice 404 if wrong id)
     const stop = await prisma.stop.findUnique({
       where: { id: stopId },
-      select: { id: true },
+      select: { id: true, tournamentId: true },
     });
     if (!stop) {
       return NextResponse.json({ error: `Stop not found: ${stopId}` }, { status: 404 });
+    }
+
+    // Authorization: Check if user is admin or event manager for this stop
+    if (!effectivePlayer.isAppAdmin) {
+      const isEventManager = await prisma.stop.findFirst({
+        where: {
+          id: stopId,
+          eventManagerId: effectivePlayer.targetPlayerId
+        }
+      });
+
+      const isTournamentEventManager = await prisma.tournamentEventManager.findFirst({
+        where: {
+          tournamentId: stop.tournamentId,
+          playerId: effectivePlayer.targetPlayerId
+        }
+      });
+
+      if (!isEventManager && !isTournamentEventManager) {
+        return NextResponse.json({ error: 'Not authorized to view this schedule' }, { status: 403 });
+      }
     }
 
     const roundsRaw = await prisma.round.findMany({
@@ -124,14 +157,84 @@ export async function GET(req: Request, ctx: Ctx) {
               },
             },
             games: {
-              orderBy: { slot: 'asc' }, // enum order
+              orderBy: { slot: 'asc' },
+              select: {
+                id: true,
+                slot: true,
+                teamAScore: true,
+                teamBScore: true,
+                courtNumber: true,
+                isComplete: true,
+                startedAt: true,
+                endedAt: true,
+                createdAt: true,
+                teamALineup: true,
+                teamBLineup: true,
+                lineupConfirmed: true,
+              }
             },
           },
         },
       },
     });
 
-    // Apply bracket filter and return matches directly (no transformation needed)
+    // Collect all player IDs from lineups to fetch player data
+    const playerIds = new Set<string>();
+    roundsRaw.forEach((r) => {
+      r.matches.forEach((match) => {
+        match.games?.forEach((game) => {
+          if (game.teamALineup && Array.isArray(game.teamALineup)) {
+            game.teamALineup.forEach((entry: any) => {
+              if (entry.player1Id) playerIds.add(entry.player1Id);
+              if (entry.player2Id) playerIds.add(entry.player2Id);
+            });
+          }
+          if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
+            game.teamBLineup.forEach((entry: any) => {
+              if (entry.player1Id) playerIds.add(entry.player1Id);
+              if (entry.player2Id) playerIds.add(entry.player2Id);
+            });
+          }
+        });
+      });
+    });
+
+    // Fetch all player data in one query
+    const players = await prisma.player.findMany({
+      where: { id: { in: Array.from(playerIds) } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        gender: true
+      }
+    });
+
+    const playerMap = new Map(players.map(p => [p.id, {
+      id: p.id,
+      name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+      gender: p.gender
+    }]));
+
+    // Helper function to enrich lineup with player data
+    const enrichLineup = (lineup: any) => {
+      if (!lineup || !Array.isArray(lineup)) return lineup;
+      const players: any[] = [];
+      lineup.forEach((entry: any) => {
+        if (entry.player1Id) {
+          const player = playerMap.get(entry.player1Id);
+          if (player) players.push(player);
+        }
+        if (entry.player2Id) {
+          const player = playerMap.get(entry.player2Id);
+          if (player) players.push(player);
+        }
+      });
+      return players;
+    };
+
+    // Apply bracket filter and enrich lineups
     const rounds = roundsRaw
       .map((r) => {
         const matches = r.matches
@@ -159,6 +262,13 @@ export async function GET(req: Request, ctx: Ctx) {
                 slot: game.slot,
                 teamAScore: game.teamAScore,
                 teamBScore: game.teamBScore,
+                courtNumber: game.courtNumber,
+                isComplete: game.isComplete,
+                startedAt: game.startedAt,
+                endedAt: game.endedAt,
+                teamALineup: enrichLineup(game.teamALineup),
+                teamBLineup: enrichLineup(game.teamBLineup),
+                lineupConfirmed: game.lineupConfirmed,
                 createdAt: game.createdAt
               })) || []
             };
@@ -183,6 +293,16 @@ export async function GET(req: Request, ctx: Ctx) {
  */
 export async function DELETE(req: Request, ctx: Ctx) {
   try {
+    // Authentication
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+
     const { stopId } = await ctx.params;
     // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
@@ -190,8 +310,29 @@ export async function DELETE(req: Request, ctx: Ctx) {
     const compact = searchParams.get('compact') !== '0'; // default true
 
     // Validate stop
-    const stop = await prisma.stop.findUnique({ where: { id: stopId }, select: { id: true } });
+    const stop = await prisma.stop.findUnique({ where: { id: stopId }, select: { id: true, tournamentId: true } });
     if (!stop) return NextResponse.json({ error: `Stop not found: ${stopId}` }, { status: 404 });
+
+    // Authorization: Check if user is admin or event manager for this stop
+    if (!effectivePlayer.isAppAdmin) {
+      const isEventManager = await prisma.stop.findFirst({
+        where: {
+          id: stopId,
+          eventManagerId: effectivePlayer.targetPlayerId
+        }
+      });
+
+      const isTournamentEventManager = await prisma.tournamentEventManager.findFirst({
+        where: {
+          tournamentId: stop.tournamentId,
+          playerId: effectivePlayer.targetPlayerId
+        }
+      });
+
+      if (!isEventManager && !isTournamentEventManager) {
+        return NextResponse.json({ error: 'Not authorized to modify this schedule' }, { status: 403 });
+      }
+    }
 
     if (bracketFilter === undefined) {
       // Delete everything (fast path)
@@ -251,13 +392,23 @@ export async function DELETE(req: Request, ctx: Ctx) {
   }
 }
 
-/** PATCH: maintenance actions on a stop’s schedule.
+/** PATCH: maintenance actions on a stop's schedule.
  *  Body: { pruneEmpty?: boolean, compact?: boolean }
  *  - pruneEmpty: delete rounds with no games
  *  - compact: reindex round idx to 0..n-1
  */
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
+    // Authentication
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+
     const { stopId } = await ctx.params;
     // Use singleton prisma instance
 
@@ -266,8 +417,29 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const compact = !!body?.compact;
 
     // Validate stop
-    const stop = await prisma.stop.findUnique({ where: { id: stopId }, select: { id: true } });
+    const stop = await prisma.stop.findUnique({ where: { id: stopId }, select: { id: true, tournamentId: true } });
     if (!stop) return NextResponse.json({ error: `Stop not found: ${stopId}` }, { status: 404 });
+
+    // Authorization: Check if user is admin or event manager for this stop
+    if (!effectivePlayer.isAppAdmin) {
+      const isEventManager = await prisma.stop.findFirst({
+        where: {
+          id: stopId,
+          eventManagerId: effectivePlayer.targetPlayerId
+        }
+      });
+
+      const isTournamentEventManager = await prisma.tournamentEventManager.findFirst({
+        where: {
+          tournamentId: stop.tournamentId,
+          playerId: effectivePlayer.targetPlayerId
+        }
+      });
+
+      if (!isEventManager && !isTournamentEventManager) {
+        return NextResponse.json({ error: 'Not authorized to modify this schedule' }, { status: 403 });
+      }
+    }
 
     await pruneAndCompact({ round: prisma.round }, stopId, { prune: pruneEmpty, compact });
 

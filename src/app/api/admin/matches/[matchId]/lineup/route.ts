@@ -41,12 +41,17 @@ export async function GET(_req: Request, ctx: Ctx) {
       where: { id: matchId },
       select: {
         id: true,
-        slot: true,
-        teamALineup: true,
-        teamBLineup: true,
-        lineupConfirmed: true,
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
+        games: {
+          select: {
+            id: true,
+            slot: true,
+            teamALineup: true,
+            teamBLineup: true,
+            lineupConfirmed: true,
+          }
+        }
       },
     });
 
@@ -54,12 +59,16 @@ export async function GET(_req: Request, ctx: Ctx) {
       return bad('Match not found', 404);
     }
 
+    // Combine lineups from first game (they should all have same lineups)
+    const teamALineup = match.games[0]?.teamALineup || null;
+    const teamBLineup = match.games[0]?.teamBLineup || null;
+    const lineupConfirmed = match.games[0]?.lineupConfirmed || false;
+
     return NextResponse.json({
       id: match.id,
-      slot: match.slot,
-      teamALineup: match.teamALineup,
-      teamBLineup: match.teamBLineup,
-      lineupConfirmed: match.lineupConfirmed,
+      teamALineup,
+      teamBLineup,
+      lineupConfirmed,
       game: {
         id: match.id,
         teamA: match.teamA ? { id: match.teamA.id, name: match.teamA.name } : null,

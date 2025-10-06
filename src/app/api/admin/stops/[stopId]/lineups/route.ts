@@ -28,55 +28,46 @@ export async function GET(
   try {
     const { stopId } = await params;
 
-    // Get all rounds for this stop with retry logic
-    const rounds = await retryDatabaseOperation(() => 
-      prisma.round.findMany({
-        where: { stopId },
-        select: { id: true }
-      })
-    );
-
-    const roundIds = (rounds as Array<{id: string}>).map(round => round.id);
-
-    // Get all lineups for all rounds in this stop with retry logic
-    const lineups = await retryDatabaseOperation(() => 
-      prisma.lineup.findMany({
-        where: {
-          roundId: { in: roundIds }
-        },
-        include: {
-          team: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          entries: {
-            include: {
-              player1: {
-                select: {
-                  id: true,
-                  name: true,
-                  gender: true
-                }
-              },
-              player2: {
-                select: {
-                  id: true,
-                  name: true,
-                  gender: true
-                }
+    // Get all lineups for this stop from Lineup/LineupEntry tables
+    const lineups = await prisma.lineup.findMany({
+      where: {
+        round: { stopId }
+      },
+      include: {
+        team: { select: { id: true, name: true } },
+        round: { select: { id: true } },
+        entries: {
+          select: {
+            id: true,
+            player1Id: true,
+            player2Id: true,
+            player1: {
+              select: {
+                id: true,
+                name: true,
+                firstName: true,
+                lastName: true,
+                gender: true
+              }
+            },
+            player2: {
+              select: {
+                id: true,
+                name: true,
+                firstName: true,
+                lastName: true,
+                gender: true
               }
             }
           }
         }
-      })
-    );
+      }
+    });
 
-    // Group lineups by match and team
+    // Find matches for each lineup
     const groupedLineups: Record<string, Record<string, any[]>> = {};
 
-    for (const lineup of (lineups as any[])) {
+    for (const lineup of lineups) {
       // Find the match for this lineup
       const match = await prisma.match.findFirst({
         where: {
@@ -99,16 +90,16 @@ export async function GET(
         lineup.entries.forEach((entry: any) => {
           players.push({
             id: entry.player1.id,
-            name: entry.player1.name,
+            name: entry.player1.name || `${entry.player1.firstName} ${entry.player1.lastName}`,
             gender: entry.player1.gender
           });
           players.push({
             id: entry.player2.id,
-            name: entry.player2.name,
+            name: entry.player2.name || `${entry.player2.firstName} ${entry.player2.lastName}`,
             gender: entry.player2.gender
           });
         });
-        
+
         // Take only the first 4 players to avoid duplicates
         groupedLineups[match.id][lineup.teamId] = players.slice(0, 4);
       }

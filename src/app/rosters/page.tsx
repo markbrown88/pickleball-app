@@ -158,31 +158,33 @@ export default function AdminRostersPage() {
   );
 
   return (
-    <section className="min-h-screen bg-app p-6 space-y-6">
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-primary">Tournament Rosters</h1>
-          <p className="text-muted mt-1">{headline}</p>
-        </div>
-        {tournaments.length > 0 && (
-          <div className="flex items-center gap-3">
-            <label htmlFor="roster-tournament" className="text-sm font-medium text-secondary">
-              Tournament:
-            </label>
-            <select
-              id="roster-tournament"
-              className="input min-w-[240px]"
-              value={selectedId}
-              onChange={(event) => setSelectedId(event.target.value)}
-            >
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+    <section className="min-h-screen bg-app p-6 space-y-6 max-w-7xl mx-auto">
+      <header className="card">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-primary">Tournament Rosters</h1>
+            <p className="text-sm text-muted mt-1">{headline}</p>
           </div>
-        )}
+          {tournaments.length > 0 && (
+            <div className="flex items-center gap-3">
+              <label htmlFor="roster-tournament" className="text-sm font-semibold text-secondary label-caps">
+                Tournament:
+              </label>
+              <select
+                id="roster-tournament"
+                className="input min-w-[280px]"
+                value={selectedId}
+                onChange={(event) => setSelectedId(event.target.value)}
+              >
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </header>
 
       {err && (
@@ -294,20 +296,17 @@ function RosterDetails({
 
   return (
     <div className="space-y-6">
-      <div className="card p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="card">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-border-subtle">
           <div>
             <h2 className="text-xl font-bold text-primary">{roster.tournamentName}</h2>
-            <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted">
-              <span className="flex items-center gap-1">
-                <span className="font-semibold">📍 Stops:</span> {roster.stops.length || '0'}
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <span className="chip chip-info text-[10px] px-2 py-0.5">{roster.stops.length || '0'} Stops</span>
+              <span className="text-xs text-muted">
+                Roster Cap: <span className="font-semibold text-secondary">{roster.maxTeamSize ?? 'No limit'}</span>
               </span>
-              <span className="flex items-center gap-1">
-                <span className="font-semibold">👥 Roster Cap:</span>{' '}
-                {roster.maxTeamSize ?? 'No limit set'}
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="font-semibold">🏢 Clubs:</span> {roster.clubs.length}
+              <span className="text-xs text-muted">
+                <span className="font-semibold text-secondary">{roster.clubs.length}</span> {roster.clubs.length === 1 ? 'Club' : 'Clubs'}
               </span>
             </div>
           </div>
@@ -316,19 +315,23 @@ function RosterDetails({
 
       <div className="space-y-4">
         {roster.clubs.map((club) => (
-          <div key={club.clubId} className="card overflow-hidden">
+          <div key={club.clubId} className="border-2 border-border-medium rounded-lg overflow-hidden bg-surface-1">
             <button
-              className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-surface-2 transition-colors"
+              className="w-full px-6 py-4 flex items-center justify-between text-left bg-surface-2 hover:bg-surface-1 transition-colors"
               onClick={() => toggleClub(club.clubId)}
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{openClubIds.has(club.clubId) ? '📂' : '📁'}</span>
-                <span className="text-lg font-semibold text-primary">{club.clubName}</span>
+                <div className={`transform transition-transform text-secondary ${openClubIds.has(club.clubId) ? 'rotate-90' : ''}`}>
+                  ▶
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-primary">{club.clubName}</h3>
+                  <p className="text-xs text-muted mt-0.5">{club.brackets.length} {club.brackets.length === 1 ? 'bracket' : 'brackets'}</p>
+                </div>
               </div>
-              <span className="text-muted text-xl">{openClubIds.has(club.clubId) ? '▾' : '▸'}</span>
             </button>
             {openClubIds.has(club.clubId) && (
-              <div className="bg-surface-2/50 border-t border-subtle px-6 py-6">
+              <div className="bg-app border-t border-border-subtle px-6 py-6">
                 <ClubRosterEditor
                   tournamentId={roster.tournamentId}
                   stops={roster.stops}
@@ -366,6 +369,8 @@ function ClubRosterEditor({
 }) {
   const [rosters, setRosters] = useState<Record<string, Record<string, PlayerLite[]>>>({});
   const [saving, setSaving] = useState(false);
+  const [selectedStopId, setSelectedStopId] = useState<string>('');
+  const [expandedStops, setExpandedStops] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const seed: Record<string, Record<string, PlayerLite[]>> = {};
@@ -377,7 +382,16 @@ function ClubRosterEditor({
       }
     }
     setRosters(seed);
-  }, [stops, club.brackets]);
+
+    // Auto-select first stop or expand all if single stop
+    if (stops.length > 0) {
+      if (hasMultipleStops) {
+        setSelectedStopId(stops[0].stopId);
+      } else {
+        setExpandedStops(new Set([stops[0].stopId]));
+      }
+    }
+  }, [stops, club.brackets, hasMultipleStops]);
 
   const setStopTeamRoster = (stopId: string, teamId: string, next: PlayerLite[]) => {
     setRosters((prev) => ({
@@ -387,6 +401,36 @@ function ClubRosterEditor({
         [teamId]: next,
       },
     }));
+  };
+
+  const toggleStop = (stopId: string) => {
+    setExpandedStops((prev) => {
+      const next = new Set(prev);
+      if (next.has(stopId)) {
+        next.delete(stopId);
+      } else {
+        next.add(stopId);
+      }
+      return next;
+    });
+  };
+
+  const getRosterCompletion = (stopId: string) => {
+    const stopRoster = rosters[stopId] || {};
+    const totalSlots = club.brackets.length * (maxTeamSize || 0);
+    if (totalSlots === 0) return { filled: 0, total: 0, percentage: 0 };
+
+    let filled = 0;
+    for (const bracket of club.brackets) {
+      const list = stopRoster[bracket.teamId] || [];
+      filled += list.length;
+    }
+
+    return {
+      filled,
+      total: totalSlots,
+      percentage: Math.round((filled / totalSlots) * 100),
+    };
   };
 
   const handleSave = async () => {
@@ -420,75 +464,150 @@ function ClubRosterEditor({
     }
   };
 
+  // Render function for stop content
+  const renderStopContent = (stop: StopData, idx: number) => {
+    const previousStop = idx > 0 ? stops[idx - 1] : null;
+
+    const copyFromPrevious = () => {
+      if (!previousStop) return;
+      const snapshot = rosters[previousStop.stopId] || {};
+      const cloned: Record<string, PlayerLite[]> = {};
+      for (const bracket of club.brackets) {
+        cloned[bracket.teamId] = (snapshot[bracket.teamId] ?? []).slice();
+      }
+      setRosters((prev) => ({ ...prev, [stop.stopId]: cloned }));
+    };
+
+    const completion = getRosterCompletion(stop.stopId);
+
+    return (
+      <div className="space-y-4">
+        {/* Stop Info Header */}
+        <div className="flex items-center justify-between p-4 bg-surface-2 rounded-lg border border-border-subtle">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-info/20">
+              <span className="text-lg">📍</span>
+            </div>
+            <div>
+              <div className="font-semibold text-base text-primary">
+                {stop.locationName ?? 'Location TBD'}
+              </div>
+              <div className="text-sm text-muted">
+                {between(stop.startAt, stop.endAt)}
+              </div>
+            </div>
+            {maxTeamSize && maxTeamSize > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-muted">
+                  <span className="font-semibold text-secondary">{completion.filled}</span> / {completion.total} players
+                </div>
+                <div className="w-24 h-2 bg-surface-1 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${
+                      completion.percentage >= 100 ? 'bg-success' :
+                      completion.percentage >= 50 ? 'bg-warning' :
+                      'bg-info'
+                    }`}
+                    style={{ width: `${Math.min(completion.percentage, 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs font-semibold text-muted">{completion.percentage}%</span>
+              </div>
+            )}
+          </div>
+          {previousStop && (
+            <button
+              className="btn btn-secondary text-sm"
+              type="button"
+              onClick={copyFromPrevious}
+            >
+              Copy from {previousStop.stopName || 'previous'}
+            </button>
+          )}
+        </div>
+
+        {/* Bracket Rosters Grid */}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {club.brackets.map((bracket) => {
+            const list = rosters[stop.stopId]?.[bracket.teamId] ?? [];
+            const excludeAcrossStop = Object.values(rosters[stop.stopId] ?? {})
+              .flat()
+              .map((p) => p.id);
+
+            return (
+              <BracketRosterEditor
+                key={`${stop.stopId}:${bracket.teamId}`}
+                title={`${bracket.bracketName ?? 'Roster'} (${list.length}${
+                  maxTeamSize ? ` / ${maxTeamSize}` : ''
+                })`}
+                tournamentId={tournamentId}
+                teamId={bracket.teamId}
+                list={list}
+                onChange={(next) => setStopTeamRoster(stop.stopId, bracket.teamId, next)}
+                excludeIdsAcrossStop={excludeAcrossStop}
+              />
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      {stops.map((stop, idx) => {
-        const previousStop = idx > 0 ? stops[idx - 1] : null;
-
-        const copyFromPrevious = () => {
-          if (!previousStop) return;
-          const snapshot = rosters[previousStop.stopId] || {};
-          const cloned: Record<string, PlayerLite[]> = {};
-          for (const bracket of club.brackets) {
-            cloned[bracket.teamId] = (snapshot[bracket.teamId] ?? []).slice();
-          }
-          setRosters((prev) => ({ ...prev, [stop.stopId]: cloned }));
-        };
-
-        return (
-          <div key={stop.stopId} className="space-y-4 pb-6 border-b border-subtle last:border-0 last:pb-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">📍</span>
-                <div>
-                  {stop.stopName && hasMultipleStops ? (
-                    <div className="font-semibold text-primary">{stop.stopName}</div>
-                  ) : null}
-                  <div className="text-sm text-muted">
-                    {stop.locationName ?? 'Location TBD'} • {between(stop.startAt, stop.endAt)}
-                  </div>
-                </div>
-              </div>
-              {previousStop && (
-                <button
-                  className="btn btn-ghost text-sm"
-                  type="button"
-                  onClick={copyFromPrevious}
-                >
-                  📋 Copy from previous
-                </button>
-              )}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {club.brackets.map((bracket) => {
-                const list = rosters[stop.stopId]?.[bracket.teamId] ?? [];
-                const excludeAcrossStop = Object.values(rosters[stop.stopId] ?? {})
-                  .flat()
-                  .map((p) => p.id);
+      {/* Use tabs for multiple stops, accordion for single stop */}
+      {hasMultipleStops ? (
+        <div>
+          {/* Tab Navigation */}
+          <div className="border-b border-border-subtle mb-6">
+            <nav className="flex gap-1 -mb-px" aria-label="Stop tabs">
+              {stops.map((stop) => {
+                const completion = getRosterCompletion(stop.stopId);
+                const isActive = selectedStopId === stop.stopId;
 
                 return (
-                  <BracketRosterEditor
-                    key={`${stop.stopId}:${bracket.teamId}`}
-                    title={`${bracket.bracketName ?? 'Roster'} (${list.length}${
-                      maxTeamSize ? ` / ${maxTeamSize}` : ''
-                    })`}
-                    tournamentId={tournamentId}
-                    teamId={bracket.teamId}
-                    list={list}
-                    onChange={(next) => setStopTeamRoster(stop.stopId, bracket.teamId, next)}
-                    excludeIdsAcrossStop={excludeAcrossStop}
-                  />
+                  <button
+                    key={stop.stopId}
+                    onClick={() => setSelectedStopId(stop.stopId)}
+                    className={`tab-button ${isActive ? 'active' : ''}`}
+                  >
+                    <span>{stop.stopName || 'Stop'}</span>
+                    {maxTeamSize && maxTeamSize > 0 && (
+                      <span className={`chip text-[10px] px-2 py-0.5 ml-2 ${
+                        completion.percentage >= 100 ? 'chip-success' :
+                        completion.percentage >= 50 ? 'chip-warning' :
+                        'chip-info'
+                      }`}>
+                        {completion.filled}/{completion.total}
+                      </span>
+                    )}
+                  </button>
                 );
               })}
-            </div>
+            </nav>
           </div>
-        );
-      })}
 
-      <div className="pt-4 flex items-center gap-3 border-t border-subtle">
+          {/* Active Stop Content */}
+          {stops.map((stop, idx) =>
+            stop.stopId === selectedStopId ? (
+              <div key={stop.stopId}>
+                {renderStopContent(stop, idx)}
+              </div>
+            ) : null
+          )}
+        </div>
+      ) : (
+        /* Accordion for single stop or simple list */
+        stops.map((stop, idx) => (
+          <div key={stop.stopId}>
+            {renderStopContent(stop, idx)}
+          </div>
+        ))
+      )}
+
+      <div className="pt-6 flex items-center gap-3 border-t-2 border-border-medium">
         <button
-          className="btn btn-primary flex items-center gap-2"
+          className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
           type="button"
           onClick={handleSave}
           disabled={saving}
@@ -499,13 +618,15 @@ function ClubRosterEditor({
               Saving…
             </>
           ) : (
-            <>
-              <span>💾</span>
-              Save All Rosters
-            </>
+            'Save All Rosters'
           )}
         </button>
-        {saving && <span className="text-sm text-muted">Updating all stop rosters…</span>}
+        {saving && (
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <div className="loading-spinner w-4 h-4" />
+            <span>Updating all stop rosters…</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -580,26 +701,26 @@ function BracketRosterEditor({
   }, [term, tournamentId, teamId, excludeIdsAcrossStop]);
 
   return (
-    <div className="card space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="text-base font-semibold text-primary">{title}</h4>
+    <div className="card border-2 border-border-medium">
+      <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
+        <h4 className="text-sm font-semibold text-primary label-caps">{title}</h4>
       </div>
 
-      <div className="relative">
+      <div className="relative mt-4">
         <input
           className="input w-full"
-          placeholder="Search players (min 3 chars)"
+          placeholder="🔍 Search players (min 3 chars)"
           value={term}
           onChange={(event) => setTerm(event.target.value)}
           onFocus={() => { if (options.length) setOpen(true); }}
           onBlur={() => setTimeout(() => setOpen(false), 120)}
         />
         {open && options.length > 0 && (
-          <ul className="absolute z-10 mt-1 w-full bg-surface-2 border border-subtle rounded-lg shadow-lg overflow-hidden">
+          <ul className="absolute z-10 mt-2 w-full bg-surface-1 border-2 border-secondary rounded-lg shadow-xl overflow-hidden">
             {options.map((player) => (
               <li
                 key={player.id}
-                className="px-4 py-2.5 text-sm text-secondary hover:bg-surface-1 cursor-pointer transition-colors border-b border-subtle last:border-0"
+                className="px-4 py-3 text-sm hover:bg-surface-2 cursor-pointer transition-colors border-b border-border-subtle last:border-0"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   addPlayer(player);
@@ -608,15 +729,25 @@ function BracketRosterEditor({
                   setOpen(false);
                 }}
               >
-                <span className="font-medium">{labelPL(player)}</span>
-                <span className="text-muted ml-2">
-                  • {player.gender} • DUPR: {player.dupr ?? 'N/A'} • Age: {player.age ?? 'N/A'}
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-secondary">{labelPL(player)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`chip text-[10px] px-2 py-0.5 ${
+                      player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
+                    }`}>
+                      {player.gender === 'MALE' ? 'M' : 'F'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs text-muted mt-1 flex items-center gap-3">
+                  <span>DUPR: {player.dupr ?? 'N/A'}</span>
+                  <span>Age: {player.age ?? 'N/A'}</span>
+                </div>
               </li>
             ))}
             {loading && (
-              <li className="px-4 py-2.5 text-sm text-muted flex items-center gap-2">
-                <div className="loading-spinner" />
+              <li className="px-4 py-3 text-sm text-muted flex items-center gap-2">
+                <div className="loading-spinner w-4 h-4" />
                 Searching…
               </li>
             )}
@@ -624,20 +755,28 @@ function BracketRosterEditor({
         )}
       </div>
 
-      <div className="space-y-2">
-        <div className="text-xs font-semibold text-muted uppercase tracking-wide">Current Roster</div>
+      <div className="space-y-3 mt-4">
+        <div className="text-xs font-semibold text-muted label-caps">Current Roster</div>
         <ul className="space-y-2">
           {list.map((player) => (
-            <li key={player.id} className="flex items-center justify-between p-2 rounded-lg bg-surface-2 hover:bg-surface-1 transition-colors">
-              <span className="text-sm">
-                <span className="font-medium text-secondary">{labelPL(player)}</span>
-                <span className="text-muted ml-2">
-                  • {player.gender} • DUPR: {player.dupr ?? 'N/A'} • Age: {player.age ?? 'N/A'}
-                </span>
-              </span>
+            <li key={player.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-2 border border-border-subtle hover:border-border-medium transition-colors">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
+                  <span className={`chip text-[10px] px-2 py-0.5 ${
+                    player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
+                  }`}>
+                    {player.gender === 'MALE' ? 'M' : 'F'}
+                  </span>
+                </div>
+                <div className="text-xs text-muted mt-1 flex items-center gap-3">
+                  <span>DUPR: <span className="font-semibold text-secondary">{player.dupr ?? 'N/A'}</span></span>
+                  <span>Age: <span className="font-semibold text-secondary">{player.age ?? 'N/A'}</span></span>
+                </div>
+              </div>
               <button
                 type="button"
-                className="text-xs font-medium text-muted hover:text-error transition-colors px-2 py-1"
+                className="btn btn-ghost text-xs px-2 py-1 text-error hover:bg-error/10"
                 onClick={() => removePlayer(player.id)}
               >
                 Remove
@@ -645,7 +784,7 @@ function BracketRosterEditor({
             </li>
           ))}
           {list.length === 0 && (
-            <li className="text-sm text-muted p-3 text-center bg-surface-2 rounded-lg">
+            <li className="text-sm text-muted p-4 text-center bg-surface-2/50 rounded-lg border-2 border-dashed border-border-medium italic">
               No players assigned yet. Search above to add players.
             </li>
           )}

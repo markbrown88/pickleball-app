@@ -848,10 +848,21 @@ function TournamentsBlock(props: TournamentsBlockProps) {
       return;
     }
     const clubs = await api<ClubsResponse>(`/api/admin/clubs?sort=name:asc&q=${encodeURIComponent(q)}`);
+    
+    // Get already selected club IDs for this tournament (excluding the current club being edited)
+    const selectedClubIds = new Set(
+      (ed.clubs || [])
+        .map((c, idx) => idx !== clubIdx ? c.clubId : null)
+        .filter(Boolean)
+    );
+    
+    // Filter out already selected clubs
+    const availableClubs = clubs.filter(c => !selectedClubIds.has(c.id));
+    
     setEditorById(prev => {
       const ed2 = prev[tId]; if (!ed2) return prev;
       const nextClubs = [...(ed2.clubs || [])];
-      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], clubOptions: clubs.map(c => ({ id: c.id, label: `${c.name}${c.city ? ` (${c.city})` : ''}` })) };
+      if (nextClubs[clubIdx]) nextClubs[clubIdx] = { ...nextClubs[clubIdx], clubOptions: availableClubs.map(c => ({ id: c.id, label: `${c.name}${c.city ? ` (${c.city})` : ''}` })) };
       return { ...prev, [tId]: { ...ed2, clubs: nextClubs } };
     });
   }

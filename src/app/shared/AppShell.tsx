@@ -22,7 +22,7 @@ type AppShellProps = {
   availableUsers?: Array<{
     id: string;
     name: string;
-    role: 'app-admin' | 'tournament-admin' | 'captain' | 'player';
+    role: 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
     email?: string;
   }>;
 };
@@ -38,18 +38,17 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
   const fullName = `${(userInfo.firstName ?? '').trim()} ${(userInfo.lastName ?? '').trim()}`.trim();
   const displayName = fullName || 'User';
 
-  // Use acting as user if available, otherwise use current user
-  const effectiveUser = actingAs || {
-    id: 'current',
-    name: displayName,
-    role: userRole,
-  };
+  // Always use server-detected userRole for navigation (it's already Act As-aware)
+  // Use actingAs for display name only
+  const displayUser = actingAs ? actingAs.name : displayName;
 
-  const roleBadge = effectiveUser.role === 'app-admin'
+  const roleBadge = userRole === 'app-admin'
     ? 'App Admin'
-    : effectiveUser.role === 'tournament-admin'
+    : userRole === 'tournament-admin'
     ? 'Tournament Admin'
-    : effectiveUser.role === 'captain'
+    : userRole === 'event-manager'
+    ? 'Event Manager'
+    : userRole === 'captain'
     ? 'Captain'
     : 'Player';
 
@@ -65,16 +64,16 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
                 Klyng Cup
               </Link>
               <div className="mt-4 space-y-1 text-sm text-muted">
-                <div className="font-medium text-secondary">{effectiveUser.name}</div>
+                <div className="font-medium text-secondary">{displayUser}</div>
                 <div className="chip chip-info inline-flex text-xs">{roleBadge}</div>
                 {actingAs && (
                   <div className="text-xs text-warning">
-                    {actingAs.name}, {actingAs.role.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    Acting as {actingAs.name}
                   </div>
                 )}
               </div>
             </div>
-            <Navigation items={navItems} userRole={effectiveUser.role} />
+            <Navigation items={navItems} userRole={userRole} />
           </aside>
 
           <div className="flex-1 flex flex-col">

@@ -1,15 +1,17 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { currentUser } from '@clerk/nextjs/server';
+import { cookies } from 'next/headers';
 import { prisma } from '@/server/db';
 
 import { AppShell } from '../shared/AppShell';
 import { getAvailableUsers } from '../shared/getAvailableUsers';
 
-async function getUserRole(userId: string): Promise<'app-admin' | 'tournament-admin' | 'captain' | 'player'> {
+async function getUserRoleByPlayerId(playerId: string): Promise<'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player'> {
   const player = await prisma.player.findUnique({
-    where: { clerkUserId: userId },
+    where: { id: playerId },
     select: {
+      id: true,
       isAppAdmin: true,
       TournamentCaptain: { select: { tournamentId: true }, take: 1 },
       tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
@@ -21,12 +23,19 @@ async function getUserRole(userId: string): Promise<'app-admin' | 'tournament-ad
     return 'player';
   }
 
-  const hasTournamentAdminRole =
-    player.tournamentAdminLinks.length > 0 || player.TournamentEventManager.length > 0;
+  // Check if player is an event manager (either at stop-level or tournament-level)
+  const eventManagerStops = await prisma.stop.findFirst({
+    where: { eventManagerId: player.id },
+    select: { id: true },
+  });
+
+  const hasTournamentAdminRole = player.tournamentAdminLinks.length > 0;
   const hasCaptainRole = player.TournamentCaptain.length > 0;
+  const hasEventManagerRole = eventManagerStops !== null || player.TournamentEventManager.length > 0;
 
   if (player.isAppAdmin) return 'app-admin';
   if (hasTournamentAdminRole) return 'tournament-admin';
+  if (hasEventManagerRole) return 'event-manager';
   if (hasCaptainRole) return 'captain';
   return 'player';
 }
@@ -38,8 +47,35 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     redirect('/');
   }
 
-  const userRole = await getUserRole(user.id);
-  const availableUsers = await getAvailableUsers(userRole);
+  // Get the real authenticated user's player record
+  const realPlayer = await prisma.player.findUnique({
+    where: { clerkUserId: user.id },
+    select: { id: true, isAppAdmin: true }
+  });
+
+  if (!realPlayer) {
+    redirect('/');
+  }
+
+  // Check for Act As cookie (set by client-side ActAsContext)
+  const cookieStore = await cookies();
+  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+  // Determine the effective player ID (for role detection)
+  let effectivePlayerId = realPlayer.id;
+  if (actAsPlayerId && realPlayer.isAppAdmin) {
+    // Validate target player exists
+    const targetPlayer = await prisma.player.findUnique({
+      where: { id: actAsPlayerId },
+      select: { id: true }
+    });
+    if (targetPlayer) {
+      effectivePlayerId = actAsPlayerId;
+    }
+  }
+
+  const userRole = await getUserRoleByPlayerId(effectivePlayerId);
+  const availableUsers = await getAvailableUsers(realPlayer.isAppAdmin ? 'app-admin' : userRole);
 
   return (
     <AppShell
@@ -49,7 +85,7 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
         lastName: user.lastName,
         email: user.emailAddresses?.[0]?.emailAddress ?? '',
       }}
-      showActAs={userRole === 'app-admin'}
+      showActAs={realPlayer.isAppAdmin}
       availableUsers={availableUsers}
     >
       {children}

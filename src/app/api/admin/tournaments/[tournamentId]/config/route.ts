@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { TournamentType } from '@prisma/client';
+import { generateCaptainToken } from '@/lib/captainToken';
 
 type CtxPromise = { params: Promise<{ tournamentId: string }> };
 
@@ -252,10 +253,28 @@ export async function PUT(req: Request, ctx: CtxPromise) {
       const toRemove = [...currentSet].filter((id) => !incoming.includes(id));
 
       if (toAdd.length) {
-        await tx.tournamentClub.createMany({
-          data: toAdd.map((clubId) => ({ tournamentId, clubId })),
-          skipDuplicates: true,
-        });
+        // Generate unique tokens for each new club
+        for (const clubId of toAdd) {
+          let token = generateCaptainToken();
+          // Ensure token is unique
+          let existing = await tx.tournamentClub.findUnique({
+            where: { captainAccessToken: token }
+          });
+          while (existing) {
+            token = generateCaptainToken();
+            existing = await tx.tournamentClub.findUnique({
+              where: { captainAccessToken: token }
+            });
+          }
+
+          await tx.tournamentClub.create({
+            data: {
+              tournamentId,
+              clubId,
+              captainAccessToken: token
+            }
+          });
+        }
       }
       if (toRemove.length) {
         await tx.tournamentClub.deleteMany({
@@ -288,6 +307,15 @@ export async function PUT(req: Request, ctx: CtxPromise) {
       const byName = new Map(current.map((b) => [b.name.trim(), b]));
       const keepIds: string[] = [];
       const PROV = 1000;
+
+      // Check for duplicate names in incoming data
+      const incomingNames = new Set<string>();
+      for (const item of incoming) {
+        if (incomingNames.has(item.name)) {
+          throw new Error(`Duplicate bracket name: "${item.name}". Each bracket must have a unique name.`);
+        }
+        incomingNames.add(item.name);
+      }
 
       for (let pos = 0; pos < incoming.length; pos++) {
         const item = incoming[pos];

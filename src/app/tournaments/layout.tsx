@@ -45,6 +45,7 @@ async function getUserRole(userId: string): Promise<UserRole> {
   const player = await prisma.player.findUnique({
     where: { clerkUserId: userId },
     select: {
+      id: true,
       isAppAdmin: true,
       TournamentCaptain: { select: { tournamentId: true }, take: 1 },
       tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
@@ -56,12 +57,19 @@ async function getUserRole(userId: string): Promise<UserRole> {
     return 'player';
   }
 
-  const hasTournamentAdminRole =
-    player.tournamentAdminLinks.length > 0 || player.TournamentEventManager.length > 0;
+  // Check if player is an event manager (either at stop-level or tournament-level)
+  const eventManagerStops = await prisma.stop.findFirst({
+    where: { eventManagerId: player.id },
+    select: { id: true },
+  });
+
+  const hasTournamentAdminRole = player.tournamentAdminLinks.length > 0;
   const hasCaptainRole = player.TournamentCaptain.length > 0;
+  const hasEventManagerRole = eventManagerStops !== null || player.TournamentEventManager.length > 0;
 
   if (player.isAppAdmin) return 'app-admin';
   if (hasTournamentAdminRole) return 'tournament-admin';
+  if (hasEventManagerRole) return 'event-manager';
   if (hasCaptainRole) return 'captain';
   return 'player';
 }
@@ -76,6 +84,11 @@ export default async function TournamentsLayout({ children }: { children: ReactN
   const adminUser = await loadAdminUser(user.id);
   const userRole = await getUserRole(user.id);
   const availableUsers = await getAvailableUsers(userRole);
+
+  // Only app-admin and tournament-admin can access this page
+  if (userRole !== 'app-admin' && userRole !== 'tournament-admin') {
+    redirect('/dashboard');
+  }
 
   if (!adminUser) {
     redirect('/dashboard');

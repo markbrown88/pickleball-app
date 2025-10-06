@@ -36,8 +36,12 @@ export function ActAsProvider({ children }: { children: ReactNode }) {
     setActingAsState(user);
     if (user) {
       localStorage.setItem('act-as-user', JSON.stringify(user));
+      // Also set as cookie so server can read it
+      document.cookie = `act-as-player-id=${user.id}; path=/; max-age=86400; SameSite=Lax`;
     } else {
       localStorage.removeItem('act-as-user');
+      // Remove cookie
+      document.cookie = 'act-as-player-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     }
 
     // Force page reload to refetch data with new user context

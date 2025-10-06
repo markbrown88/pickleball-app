@@ -307,6 +307,52 @@ small, .text-muted {
   box-shadow: 0 0 0 2px var(--brand-secondary);
 }
 
+/* Modal-specific input styling for better contrast on white backgrounds */
+.modal .input {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #0B0F14;
+}
+
+.modal .input::placeholder {
+  color: #6b7280;
+}
+
+.modal .input:focus {
+  outline: none;
+  border-color: #01DFCB;
+  box-shadow: 0 0 0 2px rgba(1, 223, 203, 0.2);
+}
+
+/* Modal-specific text styling for better contrast on white backgrounds */
+.modal p {
+  color: #4b5563 !important; /* Override global text-secondary for modal subtitles */
+}
+
+.modal span {
+  color: #1f2937 !important; /* Much darker grey for better readability */
+  font-weight: 600 !important; /* Make spans bolder */
+}
+
+.modal label {
+  color: #0B0F14 !important; /* Override global text-secondary for modal labels */
+  font-weight: 600 !important; /* Make labels bolder */
+}
+
+.modal button {
+  font-weight: 600 !important; /* Override global font weight for modal buttons */
+}
+
+.modal div {
+  font-weight: 600 !important; /* Override global font weight for modal divs (like required fields text) */
+}
+
+/* Specific override for required fields text */
+.modal .text-sm {
+  color: #111827 !important; /* Override text-gray-600 with darker color */
+  font-weight: 600 !important; /* Override font-semibold with !important */
+}
+
 /* Navigation */
 .nav-link {
   color: var(--text-secondary);

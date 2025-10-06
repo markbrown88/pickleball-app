@@ -85,9 +85,40 @@ export interface RegistrationResponse {
   message?: string;
 }
 
+// Player Types
+export interface Player {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  gender?: 'MALE' | 'FEMALE' | null;
+  birthday?: Date | null;
+  age?: number | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  clubId?: string | null;
+  duprSingles?: number | null;
+  duprDoubles?: number | null;
+  clubRatingSingles?: number | null;
+  clubRatingDoubles?: number | null;
+  displayAge?: boolean | null;
+  displayLocation?: boolean | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+  club?: {
+    id: string;
+    name: string;
+    city?: string | null;
+    region?: string | null;
+  } | null;
+}
+
 // Club Types
 export interface Club {
   id: string;
+  fullName: string;
   name: string;
   address1?: string | null;
   city?: string | null;
@@ -96,6 +127,11 @@ export interface Club {
   postalCode?: string | null;
   phone?: string | null;
   address?: string | null;
+  email?: string | null;
+  description?: string | null;
+  directorId?: string | null;
+  logo?: string | null;
+  director?: Player | null;
 }
 
 // Team Types

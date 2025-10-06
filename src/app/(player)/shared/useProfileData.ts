@@ -83,12 +83,16 @@ export type ProfileFormState = {
   lastName: string;
   gender: 'MALE' | 'FEMALE';
   clubId: string;
-  dupr: string;
+  duprSingles: string;
+  duprDoubles: string;
+  clubRatingSingles: string;
+  clubRatingDoubles: string;
   city: string;
   region: string;
   phone: string;
   email: string;
-  clubRating: string;
+  displayAge: boolean;
+  displayLocation: boolean;
   photo: string;
 };
 
@@ -191,12 +195,16 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
     lastName: '',
     gender: 'MALE',
     clubId: '',
-    dupr: '',
+    duprSingles: '',
+    duprDoubles: '',
+    clubRatingSingles: '',
+    clubRatingDoubles: '',
     city: '',
     region: '',
     phone: '',
     email: '',
-    clubRating: '',
+    displayAge: true,
+    displayLocation: true,
     photo: '',
   });
   const [countrySel, setCountrySel] = useState<CountrySel>('Canada');
@@ -217,12 +225,16 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
       lastName: profile.lastName || '',
       gender: profile.gender || 'MALE',
       clubId: profile.club?.id || '',
-      dupr: profile.dupr != null ? String(profile.dupr) : '',
+      duprSingles: (profile as any).duprSingles != null ? String((profile as any).duprSingles) : '',
+      duprDoubles: (profile as any).duprDoubles != null ? String((profile as any).duprDoubles) : '',
+      clubRatingSingles: (profile as any).clubRatingSingles != null ? String((profile as any).clubRatingSingles) : '',
+      clubRatingDoubles: (profile as any).clubRatingDoubles != null ? String((profile as any).clubRatingDoubles) : '',
       city: profile.city || '',
       region: profile.region || '',
       phone: profile.phone || '',
       email: profile.email || '',
-      clubRating: profile.clubRating != null ? String(profile.clubRating) : '',
+      displayAge: (profile as any).displayAge ?? true,
+      displayLocation: (profile as any).displayLocation ?? true,
       photo: profile.photo || '',
     });
   }, []);
