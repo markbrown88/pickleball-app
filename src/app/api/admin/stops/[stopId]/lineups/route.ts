@@ -105,6 +105,111 @@ export async function GET(
       }
     }
 
+    // ALSO check for lineups saved directly in Game table (from Captain Portal)
+    const matches = await prisma.match.findMany({
+      where: {
+        round: { stopId }
+      },
+      include: {
+        games: {
+          select: {
+            id: true,
+            slot: true,
+            teamALineup: true,
+            teamBLineup: true
+          }
+        },
+        teamA: { select: { id: true } },
+        teamB: { select: { id: true } }
+      }
+    });
+
+    // Get all unique player IDs from game lineups
+    const allPlayerIds = new Set<string>();
+    matches.forEach(match => {
+      match.games.forEach(game => {
+        const teamALineup = game.teamALineup as any[];
+        const teamBLineup = game.teamBLineup as any[];
+
+        if (teamALineup) {
+          teamALineup.forEach((entry: any) => {
+            if (entry.player1Id) allPlayerIds.add(entry.player1Id);
+            if (entry.player2Id) allPlayerIds.add(entry.player2Id);
+          });
+        }
+
+        if (teamBLineup) {
+          teamBLineup.forEach((entry: any) => {
+            if (entry.player1Id) allPlayerIds.add(entry.player1Id);
+            if (entry.player2Id) allPlayerIds.add(entry.player2Id);
+          });
+        }
+      });
+    });
+
+    // Fetch player details in batch
+    const players = await prisma.player.findMany({
+      where: { id: { in: Array.from(allPlayerIds) } },
+      select: {
+        id: true,
+        name: true,
+        firstName: true,
+        lastName: true,
+        gender: true
+      }
+    });
+
+    const playerMap = new Map(players.map(p => [p.id, {
+      id: p.id,
+      name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+      gender: p.gender
+    }]));
+
+    // Extract lineups from games and merge with existing lineups
+    for (const match of matches) {
+      const teamAPlayers = new Set<string>();
+      const teamBPlayers = new Set<string>();
+
+      // Collect all unique players from all games for each team
+      match.games.forEach(game => {
+        const teamALineup = game.teamALineup as any[];
+        const teamBLineup = game.teamBLineup as any[];
+
+        if (teamALineup) {
+          teamALineup.forEach((entry: any) => {
+            if (entry.player1Id) teamAPlayers.add(entry.player1Id);
+            if (entry.player2Id) teamAPlayers.add(entry.player2Id);
+          });
+        }
+
+        if (teamBLineup) {
+          teamBLineup.forEach((entry: any) => {
+            if (entry.player1Id) teamBPlayers.add(entry.player1Id);
+            if (entry.player2Id) teamBPlayers.add(entry.player2Id);
+          });
+        }
+      });
+
+      // Only add if we have a complete lineup (4 players)
+      if (teamAPlayers.size === 4 || teamBPlayers.size === 4) {
+        if (!groupedLineups[match.id]) {
+          groupedLineups[match.id] = {};
+        }
+
+        if (teamAPlayers.size === 4) {
+          groupedLineups[match.id][match.teamA.id] = Array.from(teamAPlayers)
+            .map(id => playerMap.get(id))
+            .filter(Boolean);
+        }
+
+        if (teamBPlayers.size === 4) {
+          groupedLineups[match.id][match.teamB.id] = Array.from(teamBPlayers)
+            .map(id => playerMap.get(id))
+            .filter(Boolean);
+        }
+      }
+    }
+
     return NextResponse.json(groupedLineups);
   } catch (error) {
     console.error('Error loading lineups for stop:', error);
