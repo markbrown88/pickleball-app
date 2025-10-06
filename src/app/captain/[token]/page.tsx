@@ -10,6 +10,10 @@ type Stop = {
   lineupDeadline: string | null;
   status: 'completed' | 'upcoming' | 'current';
   lineupsComplete: boolean;
+  club: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 type CaptainPortalData = {
@@ -168,7 +172,20 @@ function StopCard({
     >
       <div className="space-y-2">
         <div className="flex items-start justify-between">
-          <h3 className="text-base md:text-lg font-semibold text-primary pr-2">{stop.name}</h3>
+          <div className="flex-1 min-w-0 pr-2">
+            <h3 className="text-base md:text-lg font-semibold text-primary truncate">
+              {stop.name}{stop.club?.name && ` @ ${stop.club.name}`}
+            </h3>
+            {stop.startAt && (
+              <p className="text-sm text-muted mt-1">
+                {new Date(stop.startAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </p>
+            )}
+          </div>
           <div className="flex-shrink-0">
             {stop.lineupsComplete && (
               <span className="chip chip-success text-xs">
@@ -183,16 +200,6 @@ function StopCard({
             )}
           </div>
         </div>
-        
-        {stop.startAt && (
-          <p className="text-sm text-muted">
-            {new Date(stop.startAt).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </p>
-        )}
         
         {deadlineStatus && !completed && (
           <p className={`text-sm font-medium ${deadlineStatus.color}`}>

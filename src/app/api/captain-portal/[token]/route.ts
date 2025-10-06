@@ -46,7 +46,13 @@ export async function GET(request: Request, { params }: Params) {
         name: true,
         startAt: true,
         endAt: true,
-        lineupDeadline: true
+        lineupDeadline: true,
+        club: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       }
     });
 
@@ -133,7 +139,8 @@ export async function GET(request: Request, { params }: Params) {
           startAt: stop.startAt,
           lineupDeadline: stop.lineupDeadline,
           status,
-          lineupsComplete
+          lineupsComplete,
+          club: stop.club
         };
       })
     );

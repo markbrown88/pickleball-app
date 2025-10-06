@@ -260,6 +260,10 @@ export default function StopDetailPage({
               onUpdate={loadGames}
               myTeamName={myTeamName}
               opponentTeamName={opponentTeamName}
+              onBackToRounds={() => {
+                setView('rounds');
+                setSelectedRoundId(null);
+              }}
             />
           )}
         </div>
@@ -379,6 +383,7 @@ function GamesView({
   onUpdate,
   myTeamName,
   opponentTeamName,
+  onBackToRounds,
 }: {
   games: Game[];
   roster: Player[];
@@ -391,6 +396,7 @@ function GamesView({
   onUpdate: (roundId: string) => void;
   myTeamName: string;
   opponentTeamName: string;
+  onBackToRounds: () => void;
 }) {
   // State for the 4 lineup positions
   const [man1, setMan1] = useState<Player | null>(null);
@@ -464,6 +470,9 @@ function GamesView({
 
       alert('Lineups saved successfully!');
       onUpdate(roundId);
+      
+      // Navigate back to rounds page
+      onBackToRounds();
     } catch (error) {
       console.error('Failed to save lineups:', error);
       alert('Failed to save lineups. Please try again.');
@@ -492,7 +501,7 @@ function GamesView({
                 <select
                   value={man1?.id || ''}
                   onChange={(e) => setMan1(roster.find(p => p.id === e.target.value) || null)}
-                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  className="input w-full text-base"
                 >
                   <option value="">Select first male player...</option>
                   {getAvailablePlayers('man1').map(player => (
@@ -502,7 +511,7 @@ function GamesView({
                 <select
                   value={man2?.id || ''}
                   onChange={(e) => setMan2(roster.find(p => p.id === e.target.value) || null)}
-                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  className="input w-full text-base"
                 >
                   <option value="">Select second male player...</option>
                   {getAvailablePlayers('man2').map(player => (
@@ -519,7 +528,7 @@ function GamesView({
                 <select
                   value={woman1?.id || ''}
                   onChange={(e) => setWoman1(roster.find(p => p.id === e.target.value) || null)}
-                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  className="input w-full text-base"
                 >
                   <option value="">Select first female player...</option>
                   {getAvailablePlayers('woman1').map(player => (
@@ -529,7 +538,7 @@ function GamesView({
                 <select
                   value={woman2?.id || ''}
                   onChange={(e) => setWoman2(roster.find(p => p.id === e.target.value) || null)}
-                  className="w-full text-base px-3 py-2 border-2 border-primary/30 rounded-lg bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                  className="input w-full text-base"
                 >
                   <option value="">Select second female player...</option>
                   {getAvailablePlayers('woman2').map(player => (
