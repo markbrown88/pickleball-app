@@ -81,48 +81,50 @@ export default function CaptainPortalPage({
 
   return (
     <div className="min-h-screen bg-surface-1">
-      {/* Header */}
-      <div className="bg-primary text-white py-8 px-4">
+      {/* Sticky Header */}
+      <div className="sticky top-0 bg-primary text-white py-4 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">
-          <h1 className="text-3xl font-bold mb-2">{data.tournament.name}</h1>
-          <p className="text-xl opacity-90">{data.club.name}</p>
+          <h1 className="text-xl md:text-2xl font-bold mb-1 truncate">{data.tournament.name}</h1>
+          <p className="text-sm md:text-base opacity-90 truncate">{data.club.name}</p>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto max-w-4xl px-4 py-8">
-        {/* Upcoming Stops */}
-        {upcomingStops.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-primary mb-4">Upcoming Stops</h2>
-            <div className="grid gap-4">
-              {upcomingStops.map((stop) => (
-                <StopCard
-                  key={stop.id}
-                  stop={stop}
-                  onClick={() => router.push(`/captain/${token}/stop/${stop.id}`)}
-                />
-              ))}
+      <div className="px-4 py-8">
+        <div className="container mx-auto max-w-4xl">
+          {/* Upcoming Stops */}
+          {upcomingStops.length > 0 && (
+            <div className="mb-6 md:mb-8">
+              <h2 className="text-lg md:text-2xl font-semibold text-primary mb-3 md:mb-4">Upcoming Stops</h2>
+              <div className="grid gap-3 md:gap-4">
+                {upcomingStops.map((stop) => (
+                  <StopCard
+                    key={stop.id}
+                    stop={stop}
+                    onClick={() => router.push(`/captain/${token}/stop/${stop.id}`)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Completed Stops */}
-        {completedStops.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-semibold text-muted mb-4">Completed Stops</h2>
-            <div className="grid gap-4">
-              {completedStops.map((stop) => (
-                <StopCard
-                  key={stop.id}
-                  stop={stop}
-                  completed
-                  onClick={() => router.push(`/captain/${token}/stop/${stop.id}`)}
-                />
-              ))}
+          {/* Completed Stops */}
+          {completedStops.length > 0 && (
+            <div>
+              <h2 className="text-lg md:text-2xl font-semibold text-muted mb-3 md:mb-4">Completed Stops</h2>
+              <div className="grid gap-3 md:gap-4">
+                {completedStops.map((stop) => (
+                  <StopCard
+                    key={stop.id}
+                    stop={stop}
+                    completed
+                    onClick={() => router.push(`/captain/${token}/stop/${stop.id}`)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -160,41 +162,43 @@ function StopCard({
     <button
       onClick={onClick}
       disabled={completed}
-      className={`card p-6 text-left transition-all hover:shadow-lg ${
-        completed ? 'opacity-60 cursor-not-allowed' : 'hover:border-primary'
+      className={`card p-4 md:p-6 text-left transition-all active:scale-95 hover:shadow-lg ${
+        completed ? 'opacity-60 cursor-not-allowed' : 'hover:border-primary active:bg-surface-2'
       }`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <h3 className="text-xl font-semibold text-primary mb-2">{stop.name}</h3>
-          {stop.startAt && (
-            <p className="text-sm text-muted">
-              {new Date(stop.startAt).toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </p>
-          )}
-          {deadlineStatus && !completed && (
-            <p className={`text-sm mt-2 font-medium ${deadlineStatus.color}`}>
-              Lineup Deadline: {deadlineStatus.text}
-            </p>
-          )}
+      <div className="space-y-2">
+        <div className="flex items-start justify-between">
+          <h3 className="text-base md:text-lg font-semibold text-primary pr-2">{stop.name}</h3>
+          <div className="flex-shrink-0">
+            {stop.lineupsComplete && (
+              <span className="chip chip-success text-xs">
+                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Complete
+              </span>
+            )}
+            {completed && (
+              <span className="chip chip-muted text-xs">Completed</span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {stop.lineupsComplete && (
-            <span className="chip chip-success">
-              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-              Complete
-            </span>
-          )}
-          {completed && (
-            <span className="chip chip-muted">Completed</span>
-          )}
-        </div>
+        
+        {stop.startAt && (
+          <p className="text-sm text-muted">
+            {new Date(stop.startAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </p>
+        )}
+        
+        {deadlineStatus && !completed && (
+          <p className={`text-sm font-medium ${deadlineStatus.color}`}>
+            Deadline: {deadlineStatus.text}
+          </p>
+        )}
       </div>
     </button>
   );

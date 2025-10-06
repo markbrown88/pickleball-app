@@ -172,28 +172,28 @@ export default function StopDetailPage({
 
   return (
     <div className="min-h-screen bg-surface-1">
-      {/* Header with Progressive Breadcrumbs */}
-      <div className="bg-primary text-white py-6 px-4">
+      {/* Sticky Header with Progressive Breadcrumbs */}
+      <div className="sticky top-0 bg-primary text-white py-4 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">
           {/* Tournament Name - Always shown */}
-          <h1 className="text-2xl font-bold mb-1">{tournamentName || 'Tournament'}</h1>
+          <h1 className="text-lg md:text-xl font-bold mb-1 truncate">{tournamentName || 'Tournament'}</h1>
 
           {/* Team Name - Always shown */}
-          <p className="text-lg opacity-90 mb-3">
-            Team: {myTeamName || currentBracket?.teamName || 'Your Team'}
+          <p className="text-sm md:text-base opacity-90 mb-2 truncate">
+            {myTeamName || currentBracket?.teamName || 'Your Team'}
           </p>
 
           {/* Progressive Breadcrumbs based on view */}
           {view !== 'brackets' && (
-            <div className="text-sm opacity-80 space-y-1">
-              <div>Stop: {stopName}</div>
+            <div className="text-xs md:text-sm opacity-80 space-y-1">
+              <div className="truncate">Stop: {stopName}</div>
 
               {view !== 'rounds' && currentBracket && (
-                <div>Bracket: {bracketName || currentBracket.name}</div>
+                <div className="truncate">Bracket: {bracketName || currentBracket.name}</div>
               )}
 
               {view === 'games' && currentRound && (
-                <div>
+                <div className="truncate">
                   {roundName} vs. {opponentTeamName}
                 </div>
               )}
@@ -202,42 +202,46 @@ export default function StopDetailPage({
         </div>
       </div>
 
-      {/* Back Button - Below header */}
-      <div className="container mx-auto max-w-4xl px-4 pt-4">
-        <button
-          onClick={handleBack}
-          className="text-primary hover:underline flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
+      {/* Back Button */}
+      <div className="px-4 py-4">
+        <div className="container mx-auto max-w-4xl">
+          <button
+            onClick={handleBack}
+            className="text-primary hover:underline flex items-center gap-2 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+        </div>
       </div>
 
       {/* Content */}
-      <div className="container mx-auto max-w-4xl px-4 py-8">
-        {view === 'brackets' && (
-          <BracketsView brackets={brackets} onSelectBracket={loadRounds} />
-        )}
-        {view === 'rounds' && (
-          <RoundsView rounds={rounds} onSelectRound={loadGames} loading={loading} />
-        )}
-        {view === 'games' && (
-          <GamesView
-            games={games}
-            roster={roster}
-            isTeamA={isTeamA}
-            canEdit={canEdit}
-            token={token}
-            stopId={stopId}
-            bracketId={selectedBracketId!}
-            roundId={selectedRoundId!}
-            onUpdate={loadGames}
-            myTeamName={myTeamName}
-            opponentTeamName={opponentTeamName}
-          />
-        )}
+      <div className="px-4 pb-8">
+        <div className="container mx-auto max-w-4xl">
+          {view === 'brackets' && (
+            <BracketsView brackets={brackets} onSelectBracket={loadRounds} />
+          )}
+          {view === 'rounds' && (
+            <RoundsView rounds={rounds} onSelectRound={loadGames} loading={loading} />
+          )}
+          {view === 'games' && (
+            <GamesView
+              games={games}
+              roster={roster}
+              isTeamA={isTeamA}
+              canEdit={canEdit}
+              token={token}
+              stopId={stopId}
+              bracketId={selectedBracketId!}
+              roundId={selectedRoundId!}
+              onUpdate={loadGames}
+              myTeamName={myTeamName}
+              opponentTeamName={opponentTeamName}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -282,16 +286,16 @@ function BracketsView({
 }) {
   return (
     <div>
-      <h2 className="text-xl font-semibold text-primary mb-4">Select Bracket</h2>
-      <div className="grid gap-4">
+      <h2 className="text-lg md:text-xl font-semibold text-primary mb-4">Select Bracket</h2>
+      <div className="grid gap-3 md:gap-4">
         {brackets.map((bracket) => (
           <button
             key={bracket.id}
             onClick={() => onSelectBracket(bracket.id)}
-            className="card p-6 text-left hover:shadow-lg hover:border-primary transition-all"
+            className="card p-4 md:p-6 text-left active:scale-95 hover:border-primary hover:shadow-lg transition-all w-full"
           >
-            <h3 className="text-lg font-semibold text-primary">{bracket.name}</h3>
-            <p className="text-sm text-muted mt-1">Team: {bracket.teamName}</p>
+            <h3 className="text-base md:text-lg font-semibold text-primary mb-1">{bracket.name}</h3>
+            <p className="text-sm text-muted">Team: {bracket.teamName}</p>
           </button>
         ))}
       </div>
@@ -314,22 +318,22 @@ function RoundsView({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-primary mb-4">Select Round</h2>
-      <div className="grid gap-4">
+      <h2 className="text-lg md:text-xl font-semibold text-primary mb-4">Select Round</h2>
+      <div className="grid gap-3 md:gap-4">
         {rounds.map((round) => (
           <button
             key={round.id}
             onClick={() => onSelectRound(round.id)}
-            className="card p-6 text-left hover:shadow-lg hover:border-primary transition-all"
+            className="card p-4 md:p-6 text-left active:scale-95 hover:border-primary hover:shadow-lg transition-all w-full"
           >
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-primary">Round {round.idx + 1}</h3>
-                <p className="text-sm text-muted mt-1">vs {round.opponentTeamName}</p>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base md:text-lg font-semibold text-primary">Round {round.idx + 1}</h3>
+                <p className="text-sm text-muted mt-1 truncate">vs {round.opponentTeamName}</p>
               </div>
               {round.lineupsComplete && (
-                <span className="chip chip-success text-xs">
-                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <span className="chip chip-success text-xs flex-shrink-0 ml-2">
+                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                   Complete
@@ -452,51 +456,39 @@ function GamesView({
 
   return (
     <div>
-      {!canEdit && (
-        <div className="bg-warning/10 border border-warning text-warning px-4 py-3 rounded mb-6">
-          Lineup deadline has passed. Lineups are now read-only.
-        </div>
-      )}
-
-      {/* Lineup Selection */}
-      {canEdit && (
-        <div className="card p-6 mb-6 bg-surface-2">
-          <h3 className="text-lg font-semibold text-primary mb-3">Players</h3>
+      {canEdit ? (
+        /* Before Deadline: Show Players Section Only */
+        <div className="card p-4 md:p-6 bg-surface-2">
+          <h3 className="text-lg md:text-xl font-semibold text-primary mb-3">Players</h3>
           <p className="text-sm text-muted mb-4">
             Select your lineup and the games will be automatically populated.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
             {/* Men */}
             <div>
               <h4 className="text-sm font-medium text-secondary mb-3">Men</h4>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-muted mb-1">Man 1</label>
-                  <select
-                    value={man1?.id || ''}
-                    onChange={(e) => setMan1(roster.find(p => p.id === e.target.value) || null)}
-                    className="input w-full"
-                  >
-                    <option value="">Select player...</option>
-                    {getAvailablePlayers('man1').map(player => (
-                      <option key={player.id} value={player.id}>{player.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1">Man 2</label>
-                  <select
-                    value={man2?.id || ''}
-                    onChange={(e) => setMan2(roster.find(p => p.id === e.target.value) || null)}
-                    className="input w-full"
-                  >
-                    <option value="">Select player...</option>
-                    {getAvailablePlayers('man2').map(player => (
-                      <option key={player.id} value={player.id}>{player.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={man1?.id || ''}
+                  onChange={(e) => setMan1(roster.find(p => p.id === e.target.value) || null)}
+                  className="input w-full text-base"
+                >
+                  <option value="">Select first male player...</option>
+                  {getAvailablePlayers('man1').map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={man2?.id || ''}
+                  onChange={(e) => setMan2(roster.find(p => p.id === e.target.value) || null)}
+                  className="input w-full text-base"
+                >
+                  <option value="">Select second male player...</option>
+                  {getAvailablePlayers('man2').map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -504,32 +496,26 @@ function GamesView({
             <div>
               <h4 className="text-sm font-medium text-secondary mb-3">Women</h4>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-muted mb-1">Woman 1</label>
-                  <select
-                    value={woman1?.id || ''}
-                    onChange={(e) => setWoman1(roster.find(p => p.id === e.target.value) || null)}
-                    className="input w-full"
-                  >
-                    <option value="">Select player...</option>
-                    {getAvailablePlayers('woman1').map(player => (
-                      <option key={player.id} value={player.id}>{player.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1">Woman 2</label>
-                  <select
-                    value={woman2?.id || ''}
-                    onChange={(e) => setWoman2(roster.find(p => p.id === e.target.value) || null)}
-                    className="input w-full"
-                  >
-                    <option value="">Select player...</option>
-                    {getAvailablePlayers('woman2').map(player => (
-                      <option key={player.id} value={player.id}>{player.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  value={woman1?.id || ''}
+                  onChange={(e) => setWoman1(roster.find(p => p.id === e.target.value) || null)}
+                  className="input w-full text-base"
+                >
+                  <option value="">Select first female player...</option>
+                  {getAvailablePlayers('woman1').map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={woman2?.id || ''}
+                  onChange={(e) => setWoman2(roster.find(p => p.id === e.target.value) || null)}
+                  className="input w-full text-base"
+                >
+                  <option value="">Select second female player...</option>
+                  {getAvailablePlayers('woman2').map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -537,62 +523,66 @@ function GamesView({
           <button
             onClick={saveLineups}
             disabled={!isLineupsComplete || saving}
-            className="btn btn-primary disabled:opacity-50"
+            className="btn btn-primary disabled:opacity-50 w-full md:w-auto"
           >
             {saving ? 'Saving...' : 'Save Lineup'}
           </button>
         </div>
+      ) : (
+        /* After Deadline: Show Games Section Only */
+        <div className="space-y-4">
+          <div className="bg-warning/10 border border-warning text-warning px-4 py-3 rounded mb-6">
+            Lineup deadline has passed. You can now view lineups and enter scores.
+          </div>
+
+          <h3 className="text-lg md:text-xl font-semibold text-primary">Games</h3>
+
+          <GamePreview
+            title="Men's Doubles"
+            player1={man1}
+            player2={man2}
+            game={games.find(g => g.slot === 'MENS_DOUBLES')}
+            token={token}
+            stopId={stopId}
+            bracketId={bracketId}
+            roundId={roundId}
+            onUpdate={() => onUpdate(roundId)}
+          />
+          <GamePreview
+            title="Women's Doubles"
+            player1={woman1}
+            player2={woman2}
+            game={games.find(g => g.slot === 'WOMENS_DOUBLES')}
+            token={token}
+            stopId={stopId}
+            bracketId={bracketId}
+            roundId={roundId}
+            onUpdate={() => onUpdate(roundId)}
+          />
+          <GamePreview
+            title="Mixed Doubles 1"
+            player1={man1}
+            player2={woman1}
+            game={games.find(g => g.slot === 'MIXED_1')}
+            token={token}
+            stopId={stopId}
+            bracketId={bracketId}
+            roundId={roundId}
+            onUpdate={() => onUpdate(roundId)}
+          />
+          <GamePreview
+            title="Mixed Doubles 2"
+            player1={man2}
+            player2={woman2}
+            game={games.find(g => g.slot === 'MIXED_2')}
+            token={token}
+            stopId={stopId}
+            bracketId={bracketId}
+            roundId={roundId}
+            onUpdate={() => onUpdate(roundId)}
+          />
+        </div>
       )}
-
-      {/* Games Preview */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-primary">Games</h3>
-
-        <GamePreview
-          title="Men's Doubles"
-          player1={man1}
-          player2={man2}
-          game={games.find(g => g.slot === 'MENS_DOUBLES')}
-          token={token}
-          stopId={stopId}
-          bracketId={bracketId}
-          roundId={roundId}
-          onUpdate={() => onUpdate(roundId)}
-        />
-        <GamePreview
-          title="Women's Doubles"
-          player1={woman1}
-          player2={woman2}
-          game={games.find(g => g.slot === 'WOMENS_DOUBLES')}
-          token={token}
-          stopId={stopId}
-          bracketId={bracketId}
-          roundId={roundId}
-          onUpdate={() => onUpdate(roundId)}
-        />
-        <GamePreview
-          title="Mixed Doubles 1"
-          player1={man1}
-          player2={woman1}
-          game={games.find(g => g.slot === 'MIXED_1')}
-          token={token}
-          stopId={stopId}
-          bracketId={bracketId}
-          roundId={roundId}
-          onUpdate={() => onUpdate(roundId)}
-        />
-        <GamePreview
-          title="Mixed Doubles 2"
-          player1={man2}
-          player2={woman2}
-          game={games.find(g => g.slot === 'MIXED_2')}
-          token={token}
-          stopId={stopId}
-          bracketId={bracketId}
-          roundId={roundId}
-          onUpdate={() => onUpdate(roundId)}
-        />
-      </div>
     </div>
   );
 }
