@@ -568,8 +568,8 @@ function GamesView({
 
           <GamePreview
             title="Men's Doubles"
-            player1={man1}
-            player2={man2}
+            player1={null}
+            player2={null}
             game={games.find(g => g.slot === 'MENS_DOUBLES')}
             token={token}
             stopId={stopId}
@@ -579,8 +579,8 @@ function GamesView({
           />
           <GamePreview
             title="Women's Doubles"
-            player1={woman1}
-            player2={woman2}
+            player1={null}
+            player2={null}
             game={games.find(g => g.slot === 'WOMENS_DOUBLES')}
             token={token}
             stopId={stopId}
@@ -590,8 +590,8 @@ function GamesView({
           />
           <GamePreview
             title="Mixed Doubles 1"
-            player1={man1}
-            player2={woman1}
+            player1={null}
+            player2={null}
             game={games.find(g => g.slot === 'MIXED_1')}
             token={token}
             stopId={stopId}
@@ -601,8 +601,8 @@ function GamesView({
           />
           <GamePreview
             title="Mixed Doubles 2"
-            player1={man2}
-            player2={woman2}
+            player1={null}
+            player2={null}
             game={games.find(g => g.slot === 'MIXED_2')}
             token={token}
             stopId={stopId}
@@ -749,6 +749,11 @@ function GamePreview({
                 <div className="text-primary font-medium">{player1.name}</div>
                 <div className="text-primary font-medium">{player2.name}</div>
               </div>
+            ) : game.myLineup && game.myLineup.length === 2 ? (
+              <div className="space-y-1">
+                <div className="text-primary font-medium">{game.myLineup[0].name}</div>
+                <div className="text-primary font-medium">{game.myLineup[1].name}</div>
+              </div>
             ) : (
               <span className="text-muted italic">Not selected</span>
             )}
@@ -771,7 +776,7 @@ function GamePreview({
         </div>
 
         {/* Score Entry/Display */}
-        {hasLineup && (
+        {(hasLineup || (game.myLineup && game.myLineup.length === 2)) && (
           <div className="border-t border-border pt-3">
             {game.isComplete ? (
               // Final Score Display
