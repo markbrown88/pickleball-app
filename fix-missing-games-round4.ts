@@ -83,7 +83,7 @@ async function main() {
 
   console.log(`Found ${matches.length} matches to check:\n`);
 
-  const expectedSlots = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2', 'TIEBREAKER'];
+  const expectedSlots: ('MENS_DOUBLES' | 'WOMENS_DOUBLES' | 'MIXED_1' | 'MIXED_2' | 'TIEBREAKER')[] = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2', 'TIEBREAKER'];
 
   for (const match of matches) {
     console.log(`=== ${match.teamA?.name} vs ${match.teamB?.name} ===`);

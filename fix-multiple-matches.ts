@@ -42,7 +42,7 @@ async function main() {
     { round: 7, teamA: 'Pickleplex Barrie Advanced', teamB: 'Greenhills Advanced' }
   ];
 
-  const expectedSlots = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2', 'TIEBREAKER'];
+  const expectedSlots: ('MENS_DOUBLES' | 'WOMENS_DOUBLES' | 'MIXED_1' | 'MIXED_2' | 'TIEBREAKER')[] = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2', 'TIEBREAKER'];
 
   for (const matchInfo of matchesToFix) {
     console.log(`=== Round ${matchInfo.round}: ${matchInfo.teamA} vs ${matchInfo.teamB} ===`);

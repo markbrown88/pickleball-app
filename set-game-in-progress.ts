@@ -30,8 +30,8 @@ async function main() {
       data: {
         isComplete: false,
         // Keep the lineup as is
-        teamALineup: mixed2Game.teamALineup,
-        teamBLineup: mixed2Game.teamBLineup,
+        teamALineup: mixed2Game.teamALineup as any,
+        teamBLineup: mixed2Game.teamBLineup as any,
         lineupConfirmed: mixed2Game.lineupConfirmed
       }
     });

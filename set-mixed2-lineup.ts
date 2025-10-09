@@ -27,7 +27,8 @@ async function main() {
     where: { id: matchId },
     include: {
       teamA: { select: { id: true, name: true } },
-      teamB: { select: { id: true, name: true } }
+      teamB: { select: { id: true, name: true } },
+      round: { select: { stopId: true } }
     }
   });
 

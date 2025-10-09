@@ -47,10 +47,10 @@ async function main() {
   }
 
   // Extract player IDs from existing lineups
-  const mensTeamA = mensDoubles.teamALineup[0];
-  const mensTeamB = mensDoubles.teamBLineup[0];
-  const womensTeamA = womensDoubles.teamALineup[0];
-  const womensTeamB = womensDoubles.teamBLineup[0];
+  const mensTeamA = (mensDoubles.teamALineup as any[])[0];
+  const mensTeamB = (mensDoubles.teamBLineup as any[])[0];
+  const womensTeamA = (womensDoubles.teamALineup as any[])[0];
+  const womensTeamB = (womensDoubles.teamBLineup as any[])[0];
 
   console.log('Extracted players:');
   console.log(`  MENS Team A: ${mensTeamA.player1Id} & ${mensTeamA.player2Id}`);

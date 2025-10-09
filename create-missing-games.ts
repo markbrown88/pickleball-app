@@ -17,7 +17,7 @@ async function main() {
   console.log(`Current games: ${existingSlots.join(', ')}`);
 
   // Create missing games
-  const expectedSlots = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'];
+  const expectedSlots: ('MENS_DOUBLES' | 'WOMENS_DOUBLES' | 'MIXED_1' | 'MIXED_2')[] = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'];
   const missingSlots = expectedSlots.filter(slot => !existingSlots.includes(slot));
 
   console.log(`Missing games: ${missingSlots.join(', ')}`);
