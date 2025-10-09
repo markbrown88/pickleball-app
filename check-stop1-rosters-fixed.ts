@@ -19,11 +19,22 @@ async function main() {
   // Get all teams that played in Stop 1
   const teams = await prisma.team.findMany({
     where: {
-      matches: {
-        some: {
-          round: { stopId: stop1.id }
+      OR: [
+        {
+          matchesA: {
+            some: {
+              round: { stopId: stop1.id }
+            }
+          }
+        },
+        {
+          matchesB: {
+            some: {
+              round: { stopId: stop1.id }
+            }
+          }
         }
-      }
+      ]
     },
     select: {
       id: true,

@@ -68,7 +68,7 @@ export default function ManagerPage() {
     }
 
     loadData();
-  }, [isLoaded, user]);
+  }, [isLoaded, user?.id]); // Only depend on user.id, not the entire user object
 
   if (loading) {
     return (

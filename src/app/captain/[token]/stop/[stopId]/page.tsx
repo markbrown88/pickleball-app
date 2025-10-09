@@ -443,30 +443,22 @@ function GamesView({
 
     setSaving(true);
     try {
-      // Build lineup data for all games
-      const lineups = {
-        MENS_DOUBLES: [man1.id, man2.id],
-        WOMENS_DOUBLES: [woman1.id, woman2.id],
-        MIXED_1: [man1.id, woman1.id],
-        MIXED_2: [man2.id, woman2.id],
-      };
-
-      // Save all lineups
-      await Promise.all(
-        games.map(game => {
-          const lineup = lineups[game.slot as keyof typeof lineups];
-          if (!lineup) return Promise.resolve();
-
-          return fetch(
-            `/api/captain-portal/${token}/stop/${stopId}/bracket/${bracketId}/round/${roundId}/game/${game.id}/lineup`,
-            {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ lineup })
-            }
-          );
-        })
+      // Save lineup using the old system
+      const response = await fetch(
+        `/api/captain-portal/${token}/stop/${stopId}/bracket/${bracketId}/round/${roundId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lineup: [man1, man2, woman1, woman2]
+          })
+        }
       );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save lineup');
+      }
 
       alert('Lineups saved successfully!');
       onUpdate(roundId);

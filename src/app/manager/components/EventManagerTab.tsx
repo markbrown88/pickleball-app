@@ -199,6 +199,8 @@ const GameScoreBox = memo(function GameScoreBox({
           return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
         case 'MIXED_2':
           return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+        case 'TIEBREAKER':
+          return match.teamA?.name || 'Team A';
         default:
           return 'Team A';
       }
@@ -232,6 +234,8 @@ const GameScoreBox = memo(function GameScoreBox({
           return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
         case 'MIXED_2':
           return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
+        case 'TIEBREAKER':
+          return match.teamB?.name || 'Team B';
         default:
           return 'Team B';
       }
@@ -491,7 +495,7 @@ function InlineLineupEditor({
       setTeamBLineup([undefined, undefined, undefined, undefined]);
       setSelectedPlayers(new Set());
     }
-  }, [matchId, teamA.id, teamB.id, lineups]);
+  }, [matchId, teamA.id, teamB.id]);
 
   const addPlayerToLineup = (player: PlayerLite, teamId: string, slotIndex: number) => {
     const isTeamA = teamId === teamA.id;
@@ -1290,6 +1294,7 @@ export function EventManagerTab({
     }
   };
 
+
   const startGame = async (gameId: string) => {
     try {
       const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
@@ -1619,11 +1624,18 @@ export function EventManagerTab({
                   (acc: number, r: any) => acc + (r.matches?.length || 0),
                   0
                 );
+                // Count only games that were actually played (have scores)
                 const totalGames = stopSchedule.reduce(
                   (acc: number, r: any) =>
                     acc + (r.matches?.reduce((matchAcc: number, m: any) => {
                       const matchGames = games[m.id] ?? m.games ?? [];
-                      return matchAcc + (Array.isArray(matchGames) ? matchGames.length : 0);
+                      if (!Array.isArray(matchGames)) return matchAcc;
+                      
+                      // Count only games with actual scores (played games)
+                      const playedGames = matchGames.filter((game: any) => 
+                        game.teamAScore !== null && game.teamBScore !== null
+                      );
+                      return matchAcc + playedGames.length;
                     }, 0) || 0),
                   0
                 );
@@ -1945,7 +1957,7 @@ export function EventManagerTab({
                                                         </div>
 
                                                         {/* Forfeit Buttons */}
-                                                        {!match.isBye && !isMatchComplete(match) && (
+                                                        {!match.isBye && (
                                                           <div className="flex items-center gap-2">
                                                             {match.forfeitTeam ? (
                                                               <div className="flex flex-col items-center gap-1">
@@ -1954,12 +1966,12 @@ export function EventManagerTab({
                                                                 </span>
                                                                 <span className="text-xs text-muted">
                                                                   {match.forfeitTeam === 'A'
-                                                                    ? `${match.teamB?.name || 'Team B'} wins`
-                                                                    : `${match.teamA?.name || 'Team A'} wins`
+                                                                    ? `${match.teamB?.name || 'Team B'} wins by forfeit`
+                                                                    : `${match.teamA?.name || 'Team A'} wins by forfeit`
                                                                   }
                                                                 </span>
                                                               </div>
-                                                            ) : (
+                                                            ) : !isMatchComplete(match) && (
                                                               <div className="flex flex-col gap-1">
                                                                 <button
                                                                   onClick={async () => {
@@ -2198,26 +2210,17 @@ export function EventManagerTab({
                                                                 const teamBWins = completedGames.filter((g) => g.teamBScore > g.teamAScore).length;
                                                                 const needsTiebreaker =
                                                                   completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
-
-                                                                return (
-                                                                  needsTiebreaker &&
-                                                                  games[match.id]?.find((g) => g.slot === 'TIEBREAKER') && (
-                                                                    <div className="border-t border-warning pt-4">
-                                                                      <div className="flex items-center gap-2 mb-3">
-                                                                        <h4 className="text-sm font-semibold text-warning label-caps">Tiebreaker Required</h4>
-                                                                        <span className="chip chip-warning text-[10px] px-2 py-0.5">2-2 Tie</span>
-                                                                      </div>
-                                                                      <GameScoreBox
-                                                                        game={games[match.id].find((g) => g.slot === 'TIEBREAKER')}
-                                                                        match={match}
-                                                                        lineups={lineups}
-                                                                        startGame={startGame}
-                                                                        endGame={endGame}
-                                                                        updateGameScore={updateGameScore}
-                                                                        updateGameCourtNumber={updateGameCourtNumber}
-                                                                      />
-                                                                    </div>
-                                                                  )
+                                                                
+                                                                return needsTiebreaker && games[match.id]?.find((g) => g.slot === 'TIEBREAKER') && (
+                                                                  <GameScoreBox
+                                                                    game={games[match.id].find((g) => g.slot === 'TIEBREAKER')}
+                                                                    match={match}
+                                                                    lineups={lineups}
+                                                                    startGame={startGame}
+                                                                    endGame={endGame}
+                                                                    updateGameScore={updateGameScore}
+                                                                    updateGameCourtNumber={updateGameCourtNumber}
+                                                                  />
                                                                 );
                                                               })()}
                                                             </div>

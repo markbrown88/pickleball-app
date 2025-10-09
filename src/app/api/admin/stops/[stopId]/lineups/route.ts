@@ -28,35 +28,43 @@ export async function GET(
   try {
     const { stopId } = await params;
 
-    // Get all lineups for this stop from Lineup/LineupEntry tables
-    const lineups = await prisma.lineup.findMany({
+    // Initialize grouped lineups
+    const groupedLineups: Record<string, Record<string, any[]>> = {};
+
+    // Get all matches for this stop with their lineups
+    const matches = await prisma.match.findMany({
       where: {
         round: { stopId }
       },
       include: {
-        team: { select: { id: true, name: true } },
-        round: { select: { id: true } },
-        entries: {
-          select: {
-            id: true,
-            player1Id: true,
-            player2Id: true,
-            player1: {
-              select: {
-                id: true,
-                name: true,
-                firstName: true,
-                lastName: true,
-                gender: true
-              }
-            },
-            player2: {
-              select: {
-                id: true,
-                name: true,
-                firstName: true,
-                lastName: true,
-                gender: true
+        teamA: { select: { id: true } },
+        teamB: { select: { id: true } },
+        round: {
+          include: {
+            lineups: {
+              include: {
+                entries: {
+                  include: {
+                    player1: {
+                      select: {
+                        id: true,
+                        name: true,
+                        firstName: true,
+                        lastName: true,
+                        gender: true
+                      }
+                    },
+                    player2: {
+                      select: {
+                        id: true,
+                        name: true,
+                        firstName: true,
+                        lastName: true,
+                        gender: true
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -64,149 +72,97 @@ export async function GET(
       }
     });
 
-    // Find matches for each lineup
-    const groupedLineups: Record<string, Record<string, any[]>> = {};
+    // Process lineups for each match
+    for (const match of matches) {
+      if (!match.teamA || !match.teamB) continue;
 
-    for (const lineup of lineups) {
-      // Find the match for this lineup
-      const match = await prisma.match.findFirst({
-        where: {
-          roundId: lineup.roundId,
-          OR: [
-            { teamAId: lineup.teamId },
-            { teamBId: lineup.teamId }
-          ]
-        },
-        select: { id: true }
-      });
+      const teamALineup: any[] = [];
+      const teamBLineup: any[] = [];
 
-      if (match) {
-        if (!groupedLineups[match.id]) {
-          groupedLineups[match.id] = {};
-        }
+      // Find lineups for this match's teams
+      const teamALineupData = match.round.lineups.find(l => l.teamId === match.teamA!.id);
+      const teamBLineupData = match.round.lineups.find(l => l.teamId === match.teamB!.id);
 
-        // Convert entries to player array (each entry has 2 players)
-        const players: any[] = [];
-        lineup.entries.forEach((entry: any) => {
-          players.push({
-            id: entry.player1.id,
-            name: entry.player1.name || `${entry.player1.firstName} ${entry.player1.lastName}`,
-            gender: entry.player1.gender
-          });
-          players.push({
-            id: entry.player2.id,
-            name: entry.player2.name || `${entry.player2.firstName} ${entry.player2.lastName}`,
-            gender: entry.player2.gender
-          });
+      // Process Team A lineup
+      if (teamALineupData) {
+        // Sort entries by slot to ensure correct order: MENS_DOUBLES, WOMENS_DOUBLES, MIXED_1, MIXED_2
+        const sortedEntries = teamALineupData.entries.sort((a, b) => {
+          const slotOrder = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'];
+          return slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot);
         });
 
-        // Take only the first 4 players to avoid duplicates
-        groupedLineups[match.id][lineup.teamId] = players.slice(0, 4);
-      }
-    }
-
-    // ALSO check for lineups saved directly in Game table (from Captain Portal)
-    const matches = await prisma.match.findMany({
-      where: {
-        round: { stopId }
-      },
-      include: {
-        games: {
-          select: {
-            id: true,
-            slot: true,
-            teamALineup: true,
-            teamBLineup: true
+        // Extract players in order: Man1, Man2, Woman1, Woman2
+        for (const entry of sortedEntries) {
+          if (entry.slot === 'MENS_DOUBLES') {
+            teamALineup.push({
+              id: entry.player1.id,
+              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+              gender: entry.player1.gender
+            });
+            teamALineup.push({
+              id: entry.player2.id,
+              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+              gender: entry.player2.gender
+            });
+          } else if (entry.slot === 'WOMENS_DOUBLES') {
+            teamALineup.push({
+              id: entry.player1.id,
+              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+              gender: entry.player1.gender
+            });
+            teamALineup.push({
+              id: entry.player2.id,
+              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+              gender: entry.player2.gender
+            });
           }
-        },
-        teamA: { select: { id: true } },
-        teamB: { select: { id: true } }
+        }
       }
-    });
 
-    // Get all unique player IDs from game lineups
-    const allPlayerIds = new Set<string>();
-    matches.forEach(match => {
-      match.games.forEach(game => {
-        const teamALineup = game.teamALineup as any[];
-        const teamBLineup = game.teamBLineup as any[];
+      // Process Team B lineup
+      if (teamBLineupData) {
+        // Sort entries by slot to ensure correct order: MENS_DOUBLES, WOMENS_DOUBLES, MIXED_1, MIXED_2
+        const sortedEntries = teamBLineupData.entries.sort((a, b) => {
+          const slotOrder = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'];
+          return slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot);
+        });
 
-        if (teamALineup) {
-          teamALineup.forEach((entry: any) => {
-            if (entry.player1Id) allPlayerIds.add(entry.player1Id);
-            if (entry.player2Id) allPlayerIds.add(entry.player2Id);
-          });
+        // Extract players in order: Man1, Man2, Woman1, Woman2
+        for (const entry of sortedEntries) {
+          if (entry.slot === 'MENS_DOUBLES') {
+            teamBLineup.push({
+              id: entry.player1.id,
+              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+              gender: entry.player1.gender
+            });
+            teamBLineup.push({
+              id: entry.player2.id,
+              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+              gender: entry.player2.gender
+            });
+          } else if (entry.slot === 'WOMENS_DOUBLES') {
+            teamBLineup.push({
+              id: entry.player1.id,
+              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+              gender: entry.player1.gender
+            });
+            teamBLineup.push({
+              id: entry.player2.id,
+              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+              gender: entry.player2.gender
+            });
+          }
         }
-
-        if (teamBLineup) {
-          teamBLineup.forEach((entry: any) => {
-            if (entry.player1Id) allPlayerIds.add(entry.player1Id);
-            if (entry.player2Id) allPlayerIds.add(entry.player2Id);
-          });
-        }
-      });
-    });
-
-    // Fetch player details in batch
-    const players = await prisma.player.findMany({
-      where: { id: { in: Array.from(allPlayerIds) } },
-      select: {
-        id: true,
-        name: true,
-        firstName: true,
-        lastName: true,
-        gender: true
       }
-    });
 
-    const playerMap = new Map(players.map(p => [p.id, {
-      id: p.id,
-      name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
-      gender: p.gender
-    }]));
-
-    // Extract lineups from games and merge with existing lineups
-    for (const match of matches) {
-      const teamAPlayers = new Set<string>();
-      const teamBPlayers = new Set<string>();
-
-      // Collect all unique players from all games for each team
-      match.games.forEach(game => {
-        const teamALineup = game.teamALineup as any[];
-        const teamBLineup = game.teamBLineup as any[];
-
-        if (teamALineup) {
-          teamALineup.forEach((entry: any) => {
-            if (entry.player1Id) teamAPlayers.add(entry.player1Id);
-            if (entry.player2Id) teamAPlayers.add(entry.player2Id);
-          });
-        }
-
-        if (teamBLineup) {
-          teamBLineup.forEach((entry: any) => {
-            if (entry.player1Id) teamBPlayers.add(entry.player1Id);
-            if (entry.player2Id) teamBPlayers.add(entry.player2Id);
-          });
-        }
-      });
-
-      // Only add if we have a complete lineup (4 players)
-      if (teamAPlayers.size === 4 || teamBPlayers.size === 4) {
+      // Only add if we have complete lineups (4 players each)
+      if (teamALineup.length === 4 && teamBLineup.length === 4) {
         if (!groupedLineups[match.id]) {
           groupedLineups[match.id] = {};
         }
 
-        if (teamAPlayers.size === 4 && match.teamA) {
-          groupedLineups[match.id][match.teamA.id] = Array.from(teamAPlayers)
-            .map(id => playerMap.get(id))
-            .filter(Boolean);
-        }
-
-        if (teamBPlayers.size === 4 && match.teamB) {
-          groupedLineups[match.id][match.teamB.id] = Array.from(teamBPlayers)
-            .map(id => playerMap.get(id))
-            .filter(Boolean);
-        }
+        groupedLineups[match.id][match.teamA.id] = teamALineup;
+        groupedLineups[match.id][match.teamB.id] = teamBLineup;
       }
     }
 
@@ -228,73 +184,127 @@ export async function POST(
     const { stopId } = await params;
     const { lineups } = await request.json();
 
-    // Get all rounds for this stop
-    const rounds = await prisma.round.findMany({
-      where: { stopId },
+    // Get all matches for this stop with their rounds
+    const matches = await prisma.match.findMany({
+      where: {
+        round: { stopId }
+      },
       include: {
-        matches: {
-          select: { id: true, teamAId: true, teamBId: true }
-        }
+        round: true,
+        teamA: { select: { id: true } },
+        teamB: { select: { id: true } }
       }
-    });
-
-    // Create a map of match ID to round ID
-    const matchToRound: Record<string, string> = {};
-    rounds.forEach(round => {
-      round.matches.forEach(match => {
-        matchToRound[match.id] = round.id;
-      });
     });
 
     // Process all lineup saves in a single transaction
     await prisma.$transaction(async (tx) => {
       for (const [matchId, teams] of Object.entries(lineups)) {
-        const roundId = matchToRound[matchId];
-        if (!roundId) continue;
+        const match = matches.find(m => m.id === matchId);
+        if (!match || !match.teamA || !match.teamB) continue;
 
-        for (const [teamId, players] of Object.entries(teams as any)) {
-          if (!Array.isArray(players) || players.length === 0) continue;
+        const teamA = (teams as any).teamA as any[];
+        const teamB = (teams as any).teamB as any[];
 
-          // Upsert the lineup
-          const lineup = await tx.lineup.upsert({
+        if (!Array.isArray(teamA) || !Array.isArray(teamB)) continue;
+
+        // Process Team A lineup
+        if (teamA.length >= 4) {
+          // Delete existing lineup for this team in this round
+          await tx.lineup.deleteMany({
             where: {
-              roundId_teamId: {
-                roundId,
-                teamId
-              }
-            },
-            update: {},
-            create: {
-              roundId,
-              teamId
+              roundId: match.roundId,
+              teamId: match.teamA.id
             }
           });
 
-          // Clear existing lineup entries
-          await tx.lineupEntry.deleteMany({
-            where: { lineupId: lineup.id }
+          // Create new lineup
+          const lineupA = await tx.lineup.create({
+            data: {
+              roundId: match.roundId,
+              teamId: match.teamA.id,
+              stopId: stopId
+            }
           });
 
-          // Create new lineup entries (2 players per entry)
-          if (players.length > 0) {
-            const entries = [];
-            for (let i = 0; i < players.length; i += 2) {
-              if (i + 1 < players.length) {
-                entries.push({
-                  lineupId: lineup.id,
-                  player1Id: players[i].id,
-                  player2Id: players[i + 1].id,
-                  slot: (['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'] as GameSlot[])[Math.floor(i / 2)]
-                });
+          // Create lineup entries
+          await tx.lineupEntry.createMany({
+            data: [
+              {
+                lineupId: lineupA.id,
+                player1Id: teamA[0].id, // Man1
+                player2Id: teamA[1].id, // Man2
+                slot: 'MENS_DOUBLES'
+              },
+              {
+                lineupId: lineupA.id,
+                player1Id: teamA[2].id, // Woman1
+                player2Id: teamA[3].id, // Woman2
+                slot: 'WOMENS_DOUBLES'
+              },
+              {
+                lineupId: lineupA.id,
+                player1Id: teamA[0].id, // Man1
+                player2Id: teamA[2].id, // Woman1
+                slot: 'MIXED_1'
+              },
+              {
+                lineupId: lineupA.id,
+                player1Id: teamA[1].id, // Man2
+                player2Id: teamA[3].id, // Woman2
+                slot: 'MIXED_2'
               }
+            ]
+          });
+        }
+
+        // Process Team B lineup
+        if (teamB.length >= 4) {
+          // Delete existing lineup for this team in this round
+          await tx.lineup.deleteMany({
+            where: {
+              roundId: match.roundId,
+              teamId: match.teamB.id
             }
-            
-            if (entries.length > 0) {
-              await tx.lineupEntry.createMany({
-                data: entries
-              });
+          });
+
+          // Create new lineup
+          const lineupB = await tx.lineup.create({
+            data: {
+              roundId: match.roundId,
+              teamId: match.teamB.id,
+              stopId: stopId
             }
-          }
+          });
+
+          // Create lineup entries
+          await tx.lineupEntry.createMany({
+            data: [
+              {
+                lineupId: lineupB.id,
+                player1Id: teamB[0].id, // Man1
+                player2Id: teamB[1].id, // Man2
+                slot: 'MENS_DOUBLES'
+              },
+              {
+                lineupId: lineupB.id,
+                player1Id: teamB[2].id, // Woman1
+                player2Id: teamB[3].id, // Woman2
+                slot: 'WOMENS_DOUBLES'
+              },
+              {
+                lineupId: lineupB.id,
+                player1Id: teamB[0].id, // Man1
+                player2Id: teamB[2].id, // Woman1
+                slot: 'MIXED_1'
+              },
+              {
+                lineupId: lineupB.id,
+                player1Id: teamB[1].id, // Man2
+                player2Id: teamB[3].id, // Woman2
+                slot: 'MIXED_2'
+              }
+            ]
+          });
         }
       }
     });

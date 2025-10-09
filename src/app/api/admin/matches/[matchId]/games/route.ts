@@ -24,9 +24,62 @@ export async function GET(
       orderBy: { slot: 'asc' }
     });
 
-    // Return games without complex lineup generation
-    // The frontend will handle displaying team names for tiebreakers
-    return NextResponse.json(games);
+    // Process lineup data to convert player IDs to player names
+    const allPlayerIds = new Set<string>();
+    games.forEach(game => {
+      if (game.teamALineup && Array.isArray(game.teamALineup)) {
+        game.teamALineup.forEach((entry: any) => {
+          if (entry.player1Id) allPlayerIds.add(entry.player1Id);
+          if (entry.player2Id) allPlayerIds.add(entry.player2Id);
+        });
+      }
+      if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
+        game.teamBLineup.forEach((entry: any) => {
+          if (entry.player1Id) allPlayerIds.add(entry.player1Id);
+          if (entry.player2Id) allPlayerIds.add(entry.player2Id);
+        });
+      }
+    });
+
+    // Fetch player details
+    const players = await prisma.player.findMany({
+      where: { id: { in: Array.from(allPlayerIds) } },
+      select: {
+        id: true,
+        name: true,
+        firstName: true,
+        lastName: true
+      }
+    });
+
+    const playerMap = new Map(players.map(p => [p.id, {
+      id: p.id,
+      name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim()
+    }]));
+
+    // Process games to convert lineup data
+    const processedGames = games.map(game => {
+      const processLineup = (lineup: any) => {
+        if (!lineup || !Array.isArray(lineup)) return lineup;
+        return lineup.map((entry: any) => {
+          const player1 = entry.player1Id ? playerMap.get(entry.player1Id) : null;
+          const player2 = entry.player2Id ? playerMap.get(entry.player2Id) : null;
+          return {
+            player1Id: entry.player1Id,
+            player2Id: entry.player2Id,
+            name: player1 && player2 ? `${player1.name} & ${player2.name}` : 'Unknown Players'
+          };
+        });
+      };
+
+      return {
+        ...game,
+        teamALineup: processLineup(game.teamALineup),
+        teamBLineup: processLineup(game.teamBLineup)
+      };
+    });
+
+    return NextResponse.json(processedGames);
   } catch (error) {
     console.error('Error fetching games:', error);
     return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 });
