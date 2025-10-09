@@ -5,6 +5,7 @@ import { DndContext, DragEndEvent, DragStartEvent, closestCenter } from '@dnd-ki
 import { useSortable, SortableContext } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
+import { expectedGenderForIndex } from '@/lib/lineupSlots';
 
 // Conditional logging helper
 const isDev = process.env.NODE_ENV === 'development';
@@ -403,8 +404,6 @@ function InlineLineupEditor({
   stopId,
   teamA,
   teamB,
-  teamARoster,
-  teamBRoster,
   fetchTeamRoster,
   lineups,
   onSave,
@@ -414,8 +413,6 @@ function InlineLineupEditor({
   stopId: string;
   teamA: { id: string; name: string };
   teamB: { id: string; name: string };
-  teamARoster: PlayerLite[];
-  teamBRoster: PlayerLite[];
   fetchTeamRoster: (teamId: string) => Promise<PlayerLite[]>;
   lineups: Record<string, Record<string, PlayerLite[]>>;
   onSave: (lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
@@ -426,6 +423,7 @@ function InlineLineupEditor({
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [loadedRosters, setLoadedRosters] = useState<{ teamA: PlayerLite[]; teamB: PlayerLite[] }>({ teamA: [], teamB: [] });
+  const [rosterError, setRosterError] = useState<string | null>(null);
 
   // Fetch team rosters for this specific stop when component mounts
   useEffect(() => {
@@ -446,56 +444,56 @@ function InlineLineupEditor({
           const rosterB = dataB.items || [];
 
           setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+          if (!rosterA.length || !rosterB.length) {
+            setRosterError('Rosters for this stop have not yet been created. Add players to each stop roster before setting lineups.');
+          } else {
+            setRosterError(null);
+          }
         } catch (error) {
           console.error('Failed to load stop-specific rosters:', error);
-          // Fallback to tournament-wide rosters
-          const [rosterA, rosterB] = await Promise.all([
-            fetchTeamRoster(teamA.id),
-            fetchTeamRoster(teamB.id)
-          ]);
-          setLoadedRosters({ teamA: rosterA, teamB: rosterB });
+          setLoadedRosters({ teamA: [], teamB: [] });
+          setRosterError('Unable to load rosters for this stop. Please create stop rosters before editing lineups.');
         }
       }
     };
     loadRosters();
-  }, [teamA.id, teamB.id, stopId, fetchTeamRoster]);
+  }, [teamA.id, teamB.id, stopId]);
 
   // Initialize lineups when component mounts or when editing starts
   useEffect(() => {
-    // Check if we have existing lineups for this match
     const existingLineups = lineups[matchId];
+    const rosterMapA = new Map(loadedRosters.teamA.map((p) => [p.id, p]));
+    const rosterMapB = new Map(loadedRosters.teamB.map((p) => [p.id, p]));
+
     if (existingLineups) {
       const teamALineupData = existingLineups[teamA.id] || [];
       const teamBLineupData = existingLineups[teamB.id] || [];
 
-      // Set the lineups with existing data
       setTeamALineup([
-        teamALineupData[0] || undefined,
-        teamALineupData[1] || undefined,
-        teamALineupData[2] || undefined,
-        teamALineupData[3] || undefined
+        rosterMapA.get(teamALineupData[0]?.id) || teamALineupData[0] || undefined,
+        rosterMapA.get(teamALineupData[1]?.id) || teamALineupData[1] || undefined,
+        rosterMapA.get(teamALineupData[2]?.id) || teamALineupData[2] || undefined,
+        rosterMapA.get(teamALineupData[3]?.id) || teamALineupData[3] || undefined
       ]);
 
       setTeamBLineup([
-        teamBLineupData[0] || undefined,
-        teamBLineupData[1] || undefined,
-        teamBLineupData[2] || undefined,
-        teamBLineupData[3] || undefined
+        rosterMapB.get(teamBLineupData[0]?.id) || teamBLineupData[0] || undefined,
+        rosterMapB.get(teamBLineupData[1]?.id) || teamBLineupData[1] || undefined,
+        rosterMapB.get(teamBLineupData[2]?.id) || teamBLineupData[2] || undefined,
+        rosterMapB.get(teamBLineupData[3]?.id) || teamBLineupData[3] || undefined
       ]);
 
-      // Set selected players
       const allSelectedPlayers = new Set([
         ...teamALineupData.map((p: any) => p.id),
         ...teamBLineupData.map((p: any) => p.id)
       ]);
       setSelectedPlayers(allSelectedPlayers);
     } else {
-      // Reset to empty state
       setTeamALineup([undefined, undefined, undefined, undefined]);
       setTeamBLineup([undefined, undefined, undefined, undefined]);
       setSelectedPlayers(new Set());
     }
-  }, [matchId, teamA.id, teamB.id]);
+  }, [matchId, teamA.id, teamB.id, lineups, loadedRosters.teamA, loadedRosters.teamB]);
 
   const addPlayerToLineup = (player: PlayerLite, teamId: string, slotIndex: number) => {
     const isTeamA = teamId === teamA.id;
@@ -586,23 +584,49 @@ function InlineLineupEditor({
     }
   };
 
+  const rosterReady = loadedRosters.teamA.length > 0 && loadedRosters.teamB.length > 0 && !rosterError;
+
   const getAvailablePlayers = (teamId: string, slotIndex: number) => {
     const isTeamA = teamId === teamA.id;
     const roster = isTeamA ? loadedRosters.teamA : loadedRosters.teamB;
-    const expectedGender = slotIndex < 2 ? 'MALE' : 'FEMALE';
+    const expectedGender = expectedGenderForIndex(slotIndex);
     const currentLineup = isTeamA ? teamALineup : teamBLineup;
     const currentPlayer = currentLineup[slotIndex];
 
-    // Filter by gender and exclude players selected in OTHER slots
-    return roster.filter(p => {
-      if (p.gender !== expectedGender) return false;
+    const availableMap = new Map<string, PlayerLite>();
 
-      // If this is the currently selected player in this slot, include them
-      if (currentPlayer && p.id === currentPlayer.id) return true;
+    const addPlayer = (player?: PlayerLite) => {
+      if (!player || player.gender !== expectedGender) return;
+      availableMap.set(player.id, player);
+    };
 
-      // Otherwise, exclude if they're selected in any other slot
-      return !selectedPlayers.has(p.id);
+    roster.forEach((player) => {
+      if (player.gender !== expectedGender) return;
+      if (currentPlayer && player.id === currentPlayer.id) {
+        addPlayer(player);
+        return;
+      }
+      if (!selectedPlayers.has(player.id)) {
+        addPlayer(player);
+      }
     });
+
+    currentLineup.forEach((player, idx) => {
+      if (!player || player.gender !== expectedGender) return;
+      if (idx === slotIndex) {
+        addPlayer(player);
+        return;
+      }
+      if (!selectedPlayers.has(player.id)) {
+        addPlayer(player);
+      }
+    });
+
+    if (currentPlayer) {
+      addPlayer(currentPlayer);
+    }
+
+    return Array.from(availableMap.values());
   };
 
   const isLineupComplete = teamALineup.filter(p => p !== undefined).length === 4 && teamBLineup.filter(p => p !== undefined).length === 4;
@@ -629,7 +653,7 @@ function InlineLineupEditor({
           <button
             className="btn btn-xs btn-primary disabled:opacity-50"
             onClick={handleSave}
-            disabled={!isLineupComplete || isSaving}
+            disabled={!rosterReady || !isLineupComplete || isSaving}
           >
             {isSaving ? 'Saving...' : 'Confirm Lineup'}
           </button>
@@ -642,6 +666,12 @@ function InlineLineupEditor({
         </div>
       </div>
 
+      {rosterError && (
+        <div className="mb-3 p-3 border border-warning/30 bg-warning/10 text-sm text-warning rounded">
+          {rosterError}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         {/* Team A */}
         <div>
@@ -651,7 +681,8 @@ function InlineLineupEditor({
               <div key={slotIndex} className="flex items-center gap-2">
                 <label className="text-xs font-medium w-4">{slotIndex + 1}:</label>
                 <select
-                  className="flex-1 p-1 text-xs border rounded"
+                  disabled={!rosterReady}
+                  className={`flex-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary ${rosterReady ? 'bg-surface-1 text-primary' : 'bg-surface-2 text-muted cursor-not-allowed'}`}
                   value={teamALineup[slotIndex]?.id || ''}
                   onChange={(e) => {
                     if (e.target.value) {
@@ -662,9 +693,9 @@ function InlineLineupEditor({
                     }
                   }}
                 >
-                  <option value="">Select Player {slotIndex + 1}</option>
+                  <option value="">{rosterReady ? `Select Player ${slotIndex + 1}` : 'Waiting for roster...'}</option>
                   {getAvailablePlayers(teamA.id, slotIndex).map(player => (
-                    <option key={player.id} value={player.id}>
+                    <option key={player.id} value={player.id} className="bg-surface-1 text-primary">
                       {player.name}
                     </option>
                   ))}
@@ -682,7 +713,8 @@ function InlineLineupEditor({
               <div key={slotIndex} className="flex items-center gap-2">
                 <label className="text-xs font-medium w-4">{slotIndex + 1}:</label>
                 <select
-                  className="flex-1 p-1 text-xs border rounded"
+                  disabled={!rosterReady}
+                  className={`flex-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary ${rosterReady ? 'bg-surface-1 text-primary' : 'bg-surface-2 text-muted cursor-not-allowed'}`}
                   value={teamBLineup[slotIndex]?.id || ''}
                   onChange={(e) => {
                     if (e.target.value) {
@@ -693,9 +725,9 @@ function InlineLineupEditor({
                     }
                   }}
                 >
-                  <option value="">Select Player {slotIndex + 1}</option>
+                  <option value="">{rosterReady ? `Select Player ${slotIndex + 1}` : 'Waiting for roster...'}</option>
                   {getAvailablePlayers(teamB.id, slotIndex).map(player => (
-                    <option key={player.id} value={player.id}>
+                    <option key={player.id} value={player.id} className="bg-surface-1 text-primary">
                       {player.name}
                     </option>
                   ))}
