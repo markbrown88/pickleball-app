@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -76,8 +76,8 @@ async function main() {
     slot: 'TIEBREAKER' as const,
     teamAScore: null,
     teamBScore: null,
-    teamALineup: null,
-    teamBLineup: null,
+    teamALineup: Prisma.JsonNull,
+    teamBLineup: Prisma.JsonNull,
     lineupConfirmed: false,
     isComplete: false
   }));

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -81,8 +81,8 @@ async function main() {
             teamAScore: teamAScore,
             teamBScore: teamBScore,
             isComplete: true,
-            teamALineup: null, // No lineups for forfeit
-            teamBLineup: null  // No lineups for forfeit
+            teamALineup: Prisma.JsonNull, // No lineups for forfeit
+            teamBLineup: Prisma.JsonNull  // No lineups for forfeit
           }
         });
 
@@ -104,8 +104,8 @@ async function main() {
           teamAScore: teamAScore,
           teamBScore: teamBScore,
           isComplete: true,
-          teamALineup: null, // No lineups for forfeit
-          teamBLineup: null, // No lineups for forfeit
+          teamALineup: Prisma.JsonNull, // No lineups for forfeit
+          teamBLineup: Prisma.JsonNull, // No lineups for forfeit
           lineupConfirmed: false // No lineups to confirm
         }
       });
@@ -125,8 +125,8 @@ async function main() {
             teamAScore: teamAScore,
             teamBScore: teamBScore,
             isComplete: true,
-            teamALineup: null,
-            teamBLineup: null
+            teamALineup: Prisma.JsonNull,
+            teamBLineup: Prisma.JsonNull
           }
         });
 

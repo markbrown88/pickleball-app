@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -48,8 +48,8 @@ async function main() {
       await prisma.game.update({
         where: { id: game.id },
         data: {
-          teamALineup: null, // No lineups for forfeit
-          teamBLineup: null  // No lineups for forfeit
+          teamALineup: Prisma.JsonNull, // No lineups for forfeit
+          teamBLineup: Prisma.JsonNull  // No lineups for forfeit
         }
       });
 
