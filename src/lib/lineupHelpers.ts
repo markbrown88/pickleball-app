@@ -254,8 +254,8 @@ export async function getGamesWithLineups(
 
   // Enrich games with lineup data
   return games.map((game) => {
-    const teamALineup = lineupMap.get(game.match?.teamA?.id) || null;
-    const teamBLineup = lineupMap.get(game.match?.teamB?.id) || null;
+    const teamALineup = game.match?.teamA?.id ? lineupMap.get(game.match.teamA.id) || null : null;
+    const teamBLineup = game.match?.teamB?.id ? lineupMap.get(game.match.teamB.id) || null : null;
 
     return {
       ...game,
