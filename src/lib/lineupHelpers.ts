@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, GameSlot } from '@prisma/client';
 import { mapLineupToEntries, playersForSlot } from './lineupSlots';
 
 type LineupPlayer = {
