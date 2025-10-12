@@ -302,6 +302,7 @@ model Game {
   teamBSubmittedScore   Int? // Score submitted by Team B
   match                 Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
   tiebreakerForMatch    Match?    @relation("MatchTiebreakerGame")
+  scoreSubmissions      GameScoreSubmission[]
 
   @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
   @@index([matchId])
@@ -413,6 +414,19 @@ model TournamentEventManager {
 
   @@id([tournamentId, playerId])
   @@index([playerId])
+}
+
+model GameScoreSubmission {
+  id           String   @id @default(cuid())
+  gameId       String
+  teamId       String
+  teamName     String?
+  reportedScore String  // JSON string like "11-3" or "2-11"
+  submittedAt  DateTime @default(now()) @db.Timestamptz(6)
+  game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@index([teamId])
 }
 
 /// *
