@@ -15,6 +15,7 @@ async function loadAdminUser(userId: string): Promise<AdminUser | null> {
       firstName: true,
       lastName: true,
       email: true,
+      clubId: true,
       isAppAdmin: true,
       TournamentCaptain: { select: { tournamentId: true }, take: 1 },
       tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
