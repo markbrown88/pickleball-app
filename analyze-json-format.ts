@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -13,7 +13,7 @@ async function analyzeJsonFormat() {
       const game = await prisma.game.findFirst({
         where: {
           slot: slot as any,
-          teamALineup: { not: null }
+          teamALineup: { not: Prisma.JsonNull }
         },
         select: {
           id: true,
@@ -49,7 +49,7 @@ async function analyzeJsonFormat() {
     console.log('Checking if player IDs in JSON are valid...\n');
 
     const gameWithPlayers = await prisma.game.findFirst({
-      where: { teamALineup: { not: null } },
+      where: { teamALineup: { not: Prisma.JsonNull } },
       select: { teamALineup: true }
     });
 
