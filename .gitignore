@@ -44,3 +44,37 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# utility scripts (database maintenance, debugging, etc.)
+# Exclude utility scripts in root directory
+/analyze-*.ts
+/check-*.ts
+/clear-*.ts
+/create-*.ts
+/debug-*.ts
+/extract-*.ts
+/find-*.ts
+/fix-*.ts
+/list-*.ts
+/migrate-*.ts
+/restore-*.ts
+/revert-*.ts
+/set-*.ts
+/test-*.ts
+/update-*.ts
+/verify-*.ts
+/add-*.ts
+/compare-*.ts
+/check-*.js
+/fix-*.js
+/test-*.js
+/update-*.js
+*.sql
+*.cjs
+*.csv
+*.txt
+!README.md
+!package.json
+!package-lock.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
