@@ -14,8 +14,8 @@ async function clearJsonData() {
         ]
       },
       data: {
-        teamALineup: null,
-        teamBLineup: null
+        teamALineup: Prisma.JsonNull,
+        teamBLineup: Prisma.JsonNull
       }
     });
 
