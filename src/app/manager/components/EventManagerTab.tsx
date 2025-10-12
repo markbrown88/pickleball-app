@@ -2278,13 +2278,13 @@ export function EventManagerTab({
                                                               {resolvingMatch === match.id ? 'Resolving...' : 'Decide by Points'}
                                                             </button>
                                                           )}
-                                                          {['tied_requires_tiebreaker', 'tied_pending'].includes(matchStatus) && (
+                                                          {matchStatus === 'tied_requires_tiebreaker' && (
                                                             <button
                                                               className="btn btn-xs btn-primary flex-1 sm:flex-none"
                                                               disabled={resolvingMatch === match.id}
                                                               onClick={() => scheduleTiebreakerGame(match)}
                                                             >
-                                                              {resolvingMatch === match.id ? 'Creating...' : matchStatus === 'tied_pending' ? 'View Tiebreaker' : 'Add Tiebreaker'}
+                                                              {resolvingMatch === match.id ? 'Creating...' : 'Add Tiebreaker'}
                                                             </button>
                                                           )}
                                                         </div>
