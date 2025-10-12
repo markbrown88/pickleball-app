@@ -111,14 +111,43 @@ export async function saveLineupForRoundAndTeam(
 
   const entries = mapLineupToEntries(players);
 
-  await prisma.$transaction(async (tx) => {
+  // Check if prisma is a TransactionClient or PrismaClient
+  if ('$transaction' in prisma) {
+    // It's a PrismaClient, use $transaction
+    await prisma.$transaction(async (tx) => {
+      // Delete existing lineup
+      await tx.lineup.deleteMany({
+        where: { roundId, teamId },
+      });
+
+      // Create new lineup
+      const newLineup = await tx.lineup.create({
+        data: {
+          roundId,
+          teamId,
+          stopId,
+        },
+      });
+
+      // Create lineup entries
+      await tx.lineupEntry.createMany({
+        data: entries.map((entry) => ({
+          lineupId: newLineup.id,
+          slot: entry.slot as GameSlot,
+          player1Id: entry.player1Id!,
+          player2Id: entry.player2Id!,
+        })),
+      });
+    });
+  } else {
+    // It's a TransactionClient, use it directly
     // Delete existing lineup
-    await tx.lineup.deleteMany({
+    await prisma.lineup.deleteMany({
       where: { roundId, teamId },
     });
 
     // Create new lineup
-    const newLineup = await tx.lineup.create({
+    const newLineup = await prisma.lineup.create({
       data: {
         roundId,
         teamId,
@@ -127,15 +156,15 @@ export async function saveLineupForRoundAndTeam(
     });
 
     // Create lineup entries
-    await tx.lineupEntry.createMany({
+    await prisma.lineupEntry.createMany({
       data: entries.map((entry) => ({
         lineupId: newLineup.id,
-        slot: entry.slot,
+        slot: entry.slot as GameSlot,
         player1Id: entry.player1Id!,
         player2Id: entry.player2Id!,
       })),
     });
-  });
+  }
 }
 
 /**
@@ -171,7 +200,7 @@ export function getPlayersForSlot(
   if (!lineup || lineup.length !== 4) {
     return [undefined, undefined];
   }
-  return playersForSlot(lineup, slot);
+  return [...playersForSlot(lineup, slot)] as [LineupPlayer | undefined, LineupPlayer | undefined];
 }
 
 /**
@@ -215,8 +244,8 @@ export async function getGamesWithLineups(
       },
     },
     orderBy: [
-      { match: { orderIndex: 'asc' } },
-      { orderIndex: 'asc' },
+      { match: { id: 'asc' } },
+      { id: 'asc' },
     ],
   });
 
@@ -225,8 +254,8 @@ export async function getGamesWithLineups(
 
   // Enrich games with lineup data
   return games.map((game) => {
-    const teamALineup = lineupMap.get(game.match.teamA.id) || null;
-    const teamBLineup = lineupMap.get(game.match.teamB.id) || null;
+    const teamALineup = lineupMap.get(game.match?.teamA?.id) || null;
+    const teamBLineup = lineupMap.get(game.match?.teamB?.id) || null;
 
     return {
       ...game,
