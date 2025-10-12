@@ -35,7 +35,7 @@ async function loadAdminUser(userId: string): Promise<AdminUser | null> {
     firstName: player.firstName,
     lastName: player.lastName,
     email: player.email,
-    clubId: player.primaryClubId || '',
+    clubId: player.clubId || '',
     isAppAdmin: player.isAppAdmin,
     isTournamentAdmin: hasTournamentAdminRole,
     isCaptain: hasCaptainRole,
