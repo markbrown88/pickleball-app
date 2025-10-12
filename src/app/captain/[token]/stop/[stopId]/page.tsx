@@ -187,7 +187,7 @@ export default function StopDetailPage({
 
       setView('games');
 
-      if (!hadTiebreaker && nextGames.some((g) => g.slot === 'TIEBREAKER')) {
+      if (!hadTiebreaker && nextGames.some((g: Game) => g.slot === 'TIEBREAKER')) {
         requestAnimationFrame(() => {
           const node = document.querySelector('[data-game-slot="TIEBREAKER"]');
           if (node instanceof HTMLElement) {
