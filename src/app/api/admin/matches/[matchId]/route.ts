@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
-import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 type Params = { matchId: string };
 type Ctx = { params: Promise<Params> };
