@@ -18,11 +18,17 @@ export async function GET(
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    // Get all games for this match
-    const games = await prisma.game.findMany({
-      where: { matchId },
-      orderBy: { slot: 'asc' }
-    });
+    // Get all games for this match with any lineups/score submissions
+    const [games, submissions] = await prisma.$transaction([
+      prisma.game.findMany({
+        where: { matchId },
+        orderBy: { slot: 'asc' }
+      }),
+      prisma.gameScoreSubmission.findMany({
+        where: { game: { matchId } },
+        orderBy: { submittedAt: 'asc' }
+      })
+    ]);
 
     // Process lineup data to convert player IDs to player names
     const allPlayerIds = new Set<string>();
@@ -59,6 +65,16 @@ export async function GET(
 
     // Process games to convert lineup data
     const processedGames = games.map(game => {
+      const gameSubmissions = submissions
+        .filter(sub => sub.gameId === game.id)
+        .map(sub => ({
+          id: sub.id,
+          teamId: sub.teamId,
+          teamName: sub.teamName ?? undefined,
+          reportedScore: sub.reportedScore,
+          submittedAt: sub.submittedAt,
+        }));
+
       const processLineup = (lineup: any) => {
         if (!lineup || !Array.isArray(lineup)) return lineup;
         return lineup.map((entry: any) => {
@@ -75,7 +91,8 @@ export async function GET(
       return {
         ...game,
         teamALineup: processLineup(game.teamALineup),
-        teamBLineup: processLineup(game.teamBLineup)
+        teamBLineup: processLineup(game.teamBLineup),
+        submissions: gameSubmissions
       };
     });
 

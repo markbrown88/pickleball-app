@@ -16,15 +16,35 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const player = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: {
-        id: true,
-        isAppAdmin: true,
-        tournamentAdminLinks: { select: { tournamentId: true } },
-        TournamentCaptain: { select: { tournamentId: true } },
-      },
-    });
+    // Check for act-as-player-id cookie
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+    let player;
+    if (actAsPlayerId) {
+      // Acting as another player - fetch that player's record
+      player = await prisma.player.findUnique({
+        where: { id: actAsPlayerId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          tournamentAdminLinks: { select: { tournamentId: true } },
+          TournamentCaptain: { select: { tournamentId: true } },
+        },
+      });
+    } else {
+      // Normal operation - use authenticated user
+      player = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          tournamentAdminLinks: { select: { tournamentId: true } },
+          TournamentCaptain: { select: { tournamentId: true } },
+        },
+      });
+    }
 
     if (!player) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

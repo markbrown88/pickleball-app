@@ -165,7 +165,7 @@ export default function AdminRostersPage() {
             <h1 className="text-2xl font-bold text-primary">Tournament Rosters</h1>
             <p className="text-sm text-muted mt-1">{headline}</p>
           </div>
-          {tournaments.length > 0 && (
+          {tournaments.length > 1 && (
             <div className="flex items-center gap-3">
               <label htmlFor="roster-tournament" className="text-sm font-semibold text-secondary label-caps">
                 Tournament:

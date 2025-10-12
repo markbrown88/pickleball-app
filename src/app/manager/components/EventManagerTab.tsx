@@ -5,7 +5,7 @@ import { DndContext, DragEndEvent, DragStartEvent, closestCenter } from '@dnd-ki
 import { useSortable, SortableContext } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
-import { expectedGenderForIndex } from '@/lib/lineupSlots';
+import { expectedGenderForIndex, LINEUP_SLOT_ORDER, LINEUP_SLOT_CONFIG } from '@/lib/lineupSlots';
 
 // Conditional logging helper
 const isDev = process.env.NODE_ENV === 'development';
@@ -155,7 +155,7 @@ const GameScoreBox = memo(function GameScoreBox({
   // Derive game status from isComplete and startedAt fields
   const getGameStatus = (game: any): 'not_started' | 'in_progress' | 'completed' => {
     if (game.isComplete) return 'completed';
-    if (game.startedAt) return 'in_progress';
+    if (game.startedAt || game.teamAScoreSubmitted || game.teamBScoreSubmitted) return 'in_progress';
     return 'not_started';
   };
 
@@ -309,7 +309,7 @@ const GameScoreBox = memo(function GameScoreBox({
       </div>
 
       {/* Game Body - Players and Scores */}
-      <div className="p-4">
+      <div className="p-4 space-y-3">
         <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
           {/* Team A Side */}
           <div className={`text-sm ${
@@ -382,6 +382,22 @@ const GameScoreBox = memo(function GameScoreBox({
             <div className="whitespace-pre-line leading-relaxed">{getTeamBLineup()}</div>
           </div>
         </div>
+
+        {(game.teamAScoreSubmitted || game.teamBScoreSubmitted) && !isCompleted && (
+          <div className="text-xs text-muted border-t border-border-subtle pt-2 mt-2">
+            <div>Latest submissions:</div>
+            <div className="flex justify-between">
+              <span>
+                {match.teamA?.name || 'Team A'}:
+                {game.teamASubmittedScore != null ? ` ${game.teamASubmittedScore}` : ' —'}
+              </span>
+              <span>
+                {match.teamB?.name || 'Team B'}:
+                {game.teamBSubmittedScore != null ? ` ${game.teamBSubmittedScore}` : ' —'}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -404,19 +420,21 @@ function InlineLineupEditor({
   stopId,
   teamA,
   teamB,
-  fetchTeamRoster,
   lineups,
   onSave,
   onCancel,
+  prefetchedTeamRosters,
+  teamRosters,
 }: {
   matchId: string;
   stopId: string;
   teamA: { id: string; name: string };
   teamB: { id: string; name: string };
-  fetchTeamRoster: (teamId: string) => Promise<PlayerLite[]>;
   lineups: Record<string, Record<string, PlayerLite[]>>;
   onSave: (lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
   onCancel: () => void;
+  prefetchedTeamRosters?: { teamA?: PlayerLite[]; teamB?: PlayerLite[] };
+  teamRosters: Record<string, PlayerLite[]>;
 }) {
   const [teamALineup, setTeamALineup] = useState<(PlayerLite | undefined)[]>([undefined, undefined, undefined, undefined]);
   const [teamBLineup, setTeamBLineup] = useState<(PlayerLite | undefined)[]>([undefined, undefined, undefined, undefined]);
@@ -427,37 +445,82 @@ function InlineLineupEditor({
 
   // Fetch team rosters for this specific stop when component mounts
   useEffect(() => {
+    let isMounted = true;
+
     const loadRosters = async () => {
-      if (teamA.id && teamB.id && stopId) {
-        try {
-          const [responseA, responseB] = await Promise.all([
-            fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamA.id}/roster`),
-            fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamB.id}/roster`)
-          ]);
+      if (!teamA.id || !teamB.id || !stopId) return;
 
-          const [dataA, dataB] = await Promise.all([
-            responseA.json(),
-            responseB.json()
-          ]);
+      const validateAndApply = (teamARoster: PlayerLite[], teamBRoster: PlayerLite[]) => {
+        if (!isMounted) return;
 
-          const rosterA = dataA.items || [];
-          const rosterB = dataB.items || [];
+        setLoadedRosters({ teamA: teamARoster, teamB: teamBRoster });
 
-          setLoadedRosters({ teamA: rosterA, teamB: rosterB });
-          if (!rosterA.length || !rosterB.length) {
-            setRosterError('Rosters for this stop have not yet been created. Add players to each stop roster before setting lineups.');
-          } else {
-            setRosterError(null);
-          }
-        } catch (error) {
-          console.error('Failed to load stop-specific rosters:', error);
-          setLoadedRosters({ teamA: [], teamB: [] });
-          setRosterError('Unable to load rosters for this stop. Please create stop rosters before editing lineups.');
+        const issues: string[] = [];
+
+        const teamAMen = teamARoster.filter(player => player?.gender === 'MALE').length;
+        const teamAWomen = teamARoster.filter(player => player?.gender === 'FEMALE').length;
+        const teamBMen = teamBRoster.filter(player => player?.gender === 'MALE').length;
+        const teamBWomen = teamBRoster.filter(player => player?.gender === 'FEMALE').length;
+
+        if (teamAMen < 2 || teamAWomen < 2) {
+          issues.push(`${teamA.name} roster must include at least 2 men and 2 women for this stop before lineups can be edited.`);
         }
+
+        if (teamBMen < 2 || teamBWomen < 2) {
+          issues.push(`${teamB.name} roster must include at least 2 men and 2 women for this stop before lineups can be edited.`);
+        }
+
+        if (issues.length > 0) {
+          setRosterError(issues.join(' '));
+        } else {
+          setRosterError(null);
+        }
+      };
+
+      const prefetchedA = prefetchedTeamRosters?.teamA && prefetchedTeamRosters.teamA.length > 0
+        ? prefetchedTeamRosters.teamA
+        : teamRosters[teamA.id];
+      const prefetchedB = prefetchedTeamRosters?.teamB && prefetchedTeamRosters.teamB.length > 0
+        ? prefetchedTeamRosters.teamB
+        : teamRosters[teamB.id];
+
+      const filteredA = (prefetchedA ?? []).filter(Boolean) as PlayerLite[];
+      const filteredB = (prefetchedB ?? []).filter(Boolean) as PlayerLite[];
+
+      if (prefetchedA && prefetchedB) {
+        validateAndApply(filteredA, filteredB);
+        return;
+      }
+
+      try {
+        const [responseA, responseB] = await Promise.all([
+          fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamA.id}/roster`),
+          fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamB.id}/roster`)
+        ]);
+
+        const [dataA, dataB] = await Promise.all([
+          responseA.json(),
+          responseB.json()
+        ]);
+
+        const rosterA = dataA.items || [];
+        const rosterB = dataB.items || [];
+
+        validateAndApply(rosterA, rosterB);
+      } catch (error) {
+        console.error('Failed to load stop-specific rosters:', error);
+        if (!isMounted) return;
+        setLoadedRosters({ teamA: [], teamB: [] });
+        setRosterError('Unable to load rosters for this stop. Please create stop rosters before editing lineups.');
       }
     };
+
     loadRosters();
-  }, [teamA.id, teamB.id, stopId]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [teamA.id, teamB.id, stopId, prefetchedTeamRosters, teamRosters]);
 
   // Initialize lineups when component mounts or when editing starts
   useEffect(() => {
@@ -584,7 +647,12 @@ function InlineLineupEditor({
     }
   };
 
-  const rosterReady = loadedRosters.teamA.length > 0 && loadedRosters.teamB.length > 0 && !rosterError;
+  const rosterReady =
+    !rosterError &&
+    loadedRosters.teamA.filter(player => player?.gender === 'MALE').length >= 2 &&
+    loadedRosters.teamA.filter(player => player?.gender === 'FEMALE').length >= 2 &&
+    loadedRosters.teamB.filter(player => player?.gender === 'MALE').length >= 2 &&
+    loadedRosters.teamB.filter(player => player?.gender === 'FEMALE').length >= 2;
 
   const getAvailablePlayers = (teamId: string, slotIndex: number) => {
     const isTeamA = teamId === teamA.id;
@@ -667,7 +735,7 @@ function InlineLineupEditor({
       </div>
 
       {rosterError && (
-        <div className="mb-3 p-3 border border-warning/30 bg-warning/10 text-sm text-warning rounded">
+        <div className="mb-3 p-3 border border-warning/40 bg-warning/10 text-warning text-xs rounded">
           {rosterError}
         </div>
       )}
@@ -682,7 +750,9 @@ function InlineLineupEditor({
                 <label className="text-xs font-medium w-4">{slotIndex + 1}:</label>
                 <select
                   disabled={!rosterReady}
-                  className={`flex-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary ${rosterReady ? 'bg-surface-1 text-primary' : 'bg-surface-2 text-muted cursor-not-allowed'}`}
+                  className={`flex-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary ${
+                    rosterReady ? 'bg-surface-1 text-primary' : 'bg-surface-2 text-muted cursor-not-allowed'
+                  }`}
                   value={teamALineup[slotIndex]?.id || ''}
                   onChange={(e) => {
                     if (e.target.value) {
@@ -714,7 +784,9 @@ function InlineLineupEditor({
                 <label className="text-xs font-medium w-4">{slotIndex + 1}:</label>
                 <select
                   disabled={!rosterReady}
-                  className={`flex-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary ${rosterReady ? 'bg-surface-1 text-primary' : 'bg-surface-2 text-muted cursor-not-allowed'}`}
+                  className={`flex-1 text-xs border rounded focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary ${
+                    rosterReady ? 'bg-surface-1 text-primary' : 'bg-surface-2 text-muted cursor-not-allowed'
+                  }`}
                   value={teamBLineup[slotIndex]?.id || ''}
                   onChange={(e) => {
                     if (e.target.value) {
@@ -762,6 +834,7 @@ export function EventManagerTab({
   const [lineups, setLineups] = useState<Record<string, Record<string, PlayerLite[]>>>({});
   const [teamRosters, setTeamRosters] = useState<Record<string, PlayerLite[]>>({});
   const [games, setGames] = useState<Record<string, any[]>>({});
+  const [resolvingMatch, setResolvingMatch] = useState<string | null>(null);
 
   // Derive game status from isComplete and startedAt fields
   const getGameStatus = (game: any): 'not_started' | 'in_progress' | 'completed' => {
@@ -770,25 +843,65 @@ export function EventManagerTab({
     return 'not_started';
   };
 
-  const [matchStatuses, setMatchStatuses] = useState<Record<string, 'not_started' | 'in_progress' | 'completed'>>({});
+  type MatchStatus =
+    | 'not_started'
+    | 'in_progress'
+    | 'completed'
+    | 'tied_pending'
+    | 'tied_requires_tiebreaker'
+    | 'decided_points'
+    | 'decided_tiebreaker';
+  const normalizeTiebreakerStatus = (status?: string | null): MatchStatus | null => {
+    switch (status) {
+      case 'PENDING_TIEBREAKER':
+        return 'tied_pending';
+      case 'NEEDS_DECISION':
+        return 'tied_pending';
+      case 'REQUIRES_TIEBREAKER':
+        return 'tied_requires_tiebreaker';
+      case 'DECIDED_POINTS':
+        return 'decided_points';
+      case 'DECIDED_TIEBREAKER':
+        return 'decided_tiebreaker';
+      case 'tied_pending':
+      case 'tied_requires_tiebreaker':
+      case 'decided_points':
+      case 'decided_tiebreaker':
+        return status as MatchStatus;
+      default:
+        return null;
+    }
+  };
+
+  const deriveMatchStatus = (match: any): MatchStatus => {
+    if (!match) return 'not_started';
+
+    const tiebreakerStatus = normalizeTiebreakerStatus(match.tiebreakerStatus);
+
+    if (tiebreakerStatus) {
+      return tiebreakerStatus;
+    }
+
+    if (match.matchStatus === 'in_progress') return 'in_progress';
+    if (match.matchStatus === 'completed') return 'completed';
+    return 'not_started';
+  };
 
   // Check if a match is completed (one team has >= 3 wins and they're not tied)
   const isMatchComplete = (match: any): boolean => {
-    const matchStatus = matchStatuses[match.id];
-    if (matchStatus === 'completed') return true;
+    const status = deriveMatchStatus(match);
+    if (status === 'completed' || status === 'decided_points' || status === 'decided_tiebreaker') {
+      return true;
+    }
 
     const matchGames = games[match.id] ?? match.games ?? [];
-
-    if (matchGames.length === 0) {
-      return false;
-    }
+    if (matchGames.length === 0) return false;
 
     let teamAWins = 0;
     let teamBWins = 0;
 
     for (const game of matchGames) {
       if (!game) continue;
-
       const status = getGameStatus(game);
       if (status === 'in_progress') {
         return false;
@@ -805,7 +918,75 @@ export function EventManagerTab({
 
     return (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
   };
-  const [creatingTiebreakers, setCreatingTiebreakers] = useState<Set<string>>(new Set());
+
+  const getTiebreakerBanner = (
+    status: MatchStatus,
+    matchLabel: string,
+    winnerName?: string | null,
+    totals?: { teamA: number | null; teamB: number | null },
+  ) => {
+    switch (status) {
+      case 'tied_requires_tiebreaker':
+        return {
+          tone: 'warning' as const,
+          message: `${matchLabel} is tied 2-2. Add and schedule a tiebreaker game to decide the winner.`,
+        };
+      case 'tied_pending':
+        return {
+          tone: 'info' as const,
+          message: `${matchLabel} tiebreaker has been scheduled but is not complete yet.`,
+        };
+      case 'decided_points':
+        return {
+          tone: 'success' as const,
+          message: `${matchLabel} decided via total points${winnerName ? ` – ${winnerName} wins.` : '.'}${
+            totals ? ` (Total Points ${totals.teamA ?? 0} - ${totals.teamB ?? 0})` : ''
+          }`,
+        };
+      case 'decided_tiebreaker':
+        return {
+          tone: 'success' as const,
+          message: `${matchLabel} tiebreaker played${winnerName ? ` – ${winnerName} wins.` : '.'}`,
+        };
+      default:
+        return null;
+    }
+  };
+
+  const formatMatchLabel = (match: any) => {
+    const teamAName = match.teamA?.name || 'Team A';
+    const teamBName = match.teamB?.name || 'Team B';
+    return `${teamAName} vs ${teamBName}`;
+  };
+
+  const gatherRoundTiebreakerAlerts = (
+    roundMatches: any[],
+    statusResolver: (match: any) => MatchStatus,
+  ) => {
+    return roundMatches
+      .map((match) => {
+        const status = statusResolver(match);
+        if (!status || ['not_started', 'in_progress', 'completed'].includes(status)) {
+          return null;
+        }
+        const matchLabel = formatMatchLabel(match);
+        const winnerName = match.tiebreakerWinnerTeamId
+          ? match.tiebreakerWinnerTeamId === match.teamA?.id
+            ? match.teamA?.name
+            : match.teamB?.name
+          : null;
+        return getTiebreakerBanner(status, matchLabel, winnerName, {
+          teamA: match.totalPointsTeamA ?? null,
+          teamB: match.totalPointsTeamB ?? null,
+        });
+      })
+      .filter(Boolean) as Array<{ tone: 'warning' | 'info' | 'success'; message: string }>;
+  };
+
+  const totalPointsDisagree = (pointsA: number | null | undefined, pointsB: number | null | undefined) => {
+    if (pointsA == null || pointsB == null) return false;
+    return pointsA !== pointsB;
+  };
 
   // Matchup editing state
   const [editingRounds, setEditingRounds] = useState<Set<string>>(new Set());
@@ -950,50 +1131,64 @@ export function EventManagerTab({
       log('Schedule data:', data);
       setScheduleData(prev => ({ ...prev, [stopId]: data || [] }));
 
+      // Prefetch stop rosters for all teams in this schedule
+      const teamIds = new Set<string>();
+      data.forEach((round: any) => {
+        round.matches?.forEach((match: any) => {
+          if (match.teamA?.id) teamIds.add(match.teamA.id);
+          if (match.teamB?.id) teamIds.add(match.teamB.id);
+        });
+      });
+
+      if (teamIds.size > 0) {
+        const prefetchEntries = await Promise.all(
+          Array.from(teamIds).map(async (teamId) => {
+            try {
+              const rosterResp = await fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamId}/roster`);
+              if (!rosterResp.ok) {
+                return { teamId, roster: [] as PlayerLite[] };
+              }
+              const rosterJson = await rosterResp.json();
+              return { teamId, roster: (rosterJson.items || []) as PlayerLite[] };
+            } catch (err) {
+              console.error('Failed to prefetch roster for team', teamId, err);
+              return { teamId, roster: [] as PlayerLite[] };
+            }
+          })
+        );
+
+        setTeamRosters(prev => {
+          const updated = { ...prev };
+          prefetchEntries.forEach(({ teamId, roster }) => {
+            if (!updated[teamId] || updated[teamId].length === 0) {
+              updated[teamId] = roster;
+            }
+          });
+          return updated;
+        });
+      }
+
       // Extract games from schedule data and populate games state
       const gamesMap: Record<string, any[]> = {};
-      const lineupsFromGames: Record<string, Record<string, any[]>> = {};
 
       data.forEach((round: any) => {
         round.matches?.forEach((match: any) => {
           if (match.games && match.games.length > 0) {
             gamesMap[match.id] = match.games;
-
-            // Extract lineups from game data (teamALineup/teamBLineup JSON fields)
-            const firstGame = match.games[0];
-            if (firstGame && firstGame.teamALineup && firstGame.teamBLineup) {
-              // Convert lineup data from JSON format to player array
-              const teamAPlayers: any[] = [];
-              const teamBPlayers: any[] = [];
-
-              // teamALineup/teamBLineup contains player IDs, we need to fetch player data
-              // For now, just mark that lineups exist
-              lineupsFromGames[match.id] = {
-                [match.teamA?.id || 'teamA']: firstGame.teamALineup,
-                [match.teamB?.id || 'teamB']: firstGame.teamBLineup
-              };
-            }
           }
         });
       });
 
       log('🎮 EXTRACTED GAMES FOR STOP:', stopId);
       log('🎮 Total matches with games:', Object.keys(gamesMap).length);
-      log('🎮 Lineups from games:', Object.keys(lineupsFromGames).length);
       setGames(prev => {
         const updated = { ...prev, ...gamesMap };
         log('🎮 GAMES STATE UPDATED:', Object.keys(updated).length, 'matches');
         return updated;
       });
 
-      // Populate lineups from game data
-      if (Object.keys(lineupsFromGames).length > 0) {
-        setLineups(prev => {
-          const updated = { ...prev, ...lineupsFromGames };
-          log('🎮 LINEUPS POPULATED FROM GAMES:', Object.keys(updated).length, 'matches');
-          return updated;
-        });
-      }
+      // Load lineups from the dedicated lineups endpoint instead of extracting from games
+      await loadLineupsForStop(stopId);
     } catch (e) {
       console.error('Load schedule error:', e);
       onError(`Failed to load schedule: ${(e as Error).message}`);
@@ -1171,18 +1366,18 @@ export function EventManagerTab({
     let copiedTeams = 0;
 
     currentRound.matches.forEach((match: any) => {
-      const matchUpdates: Record<string, PlayerLite[]> = {};
+            const matchUpdates: Record<string, PlayerLite[]> = {};
 
-      const applyTeam = (team: any) => {
-        if (!team?.id) return;
-        const previousLineup = teamLineupMap.get(team.id);
-        if (!previousLineup || previousLineup.length === 0) return;
-        matchUpdates[team.id] = previousLineup.map((p) => ({ ...p }));
-        copiedTeams += 1;
-      };
+            const applyTeam = (team: any) => {
+              if (!team?.id) return;
+              const previousLineup = teamLineupMap.get(team.id);
+              if (!previousLineup || previousLineup.length === 0) return;
+              matchUpdates[team.id] = previousLineup.map((p) => ({ ...p }));
+              copiedTeams += 1;
+            };
 
-      applyTeam(match.teamA);
-      applyTeam(match.teamB);
+            applyTeam(match.teamA);
+            applyTeam(match.teamB);
 
       if (Object.keys(matchUpdates).length > 0) {
         updates[match.id] = matchUpdates;
@@ -1282,33 +1477,6 @@ export function EventManagerTab({
       onInfo('Matchups confirmed and saved!');
     } catch (e) {
       onError((e as Error).message);
-    }
-  };
-
-  const fetchTeamRoster = async (teamId: string): Promise<PlayerLite[]> => {
-    if (teamRosters[teamId]) {
-      return teamRosters[teamId];
-    }
-
-    try {
-      const response = await fetchWithActAs(`/api/admin/teams/${teamId}/members`);
-      if (!response.ok) {
-        console.error('Failed to fetch team roster:', response.statusText);
-        return [];
-      }
-
-      const data = await response.json();
-      const roster = data.members || [];
-
-      setTeamRosters(prev => ({
-        ...prev,
-        [teamId]: roster
-      }));
-
-      return roster;
-    } catch (error) {
-      console.error('Error fetching team roster:', error);
-      return [];
     }
   };
 
@@ -1606,6 +1774,96 @@ export function EventManagerTab({
 
   }, [roundMatchups, autoSaveRoundMatchups]);
 
+  const resolveMatchByPoints = async (match: any) => {
+    if (!match) return;
+    const derivedStatus = deriveMatchStatus(match);
+    if (derivedStatus !== 'tied_requires_tiebreaker') {
+      onInfo('This match is not currently tied 2-2 on the standard games.');
+      return;
+    }
+
+    const teamAName = match.teamA?.name || 'Team A';
+    const teamBName = match.teamB?.name || 'Team B';
+    const confirmMessage = `Confirm using total points to decide ${teamAName} vs ${teamBName}?`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setResolvingMatch(match.id);
+      const stopId = match.round?.stopId || selectedStopId;
+      const response = await fetchWithActAs(`/api/admin/matches/${match.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decideByPoints: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to decide match by points');
+      }
+
+      await loadGamesForMatch(match.id, true);
+      if (stopId) {
+        await loadSchedule(stopId, true);
+      }
+      onInfo('Match decided by total points');
+    } catch (error) {
+      console.error('Resolve match by points error:', error);
+      onError(error instanceof Error ? error.message : 'Failed to decide match by points');
+    } finally {
+      setResolvingMatch(null);
+    }
+  };
+
+  const scheduleTiebreakerGame = async (match: any) => {
+    if (!match) return;
+    const derivedStatus = deriveMatchStatus(match);
+    if (!['tied_requires_tiebreaker', 'tied_pending'].includes(derivedStatus)) {
+      onInfo('This match does not currently require a tiebreaker.');
+      return;
+    }
+
+    try {
+      setResolvingMatch(match.id);
+      const stopId = match.round?.stopId || selectedStopId;
+      const response = await fetchWithActAs(`/api/admin/matches/${match.id}/games`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          games: [
+            {
+              slot: 'TIEBREAKER',
+              teamAScore: null,
+              teamBScore: null,
+              teamALineup: null,
+              teamBLineup: null,
+              lineupConfirmed: false,
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to schedule tiebreaker');
+      }
+
+      await loadGamesForMatch(match.id, true);
+      if (stopId) {
+        await loadSchedule(stopId, true);
+      }
+      onInfo('Tiebreaker game created');
+    } catch (error) {
+      console.error('Schedule tiebreaker error:', error);
+      onError(error instanceof Error ? error.message : 'Failed to schedule tiebreaker');
+    } finally {
+      setResolvingMatch(null);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="space-y-6">
@@ -1740,9 +1998,10 @@ export function EventManagerTab({
                             const previousRoundAvailable = roundIdx > 0 && !!stopSchedule[roundIdx - 1];
                             const isEditing = editingRounds.has(round.id);
                             const matches = getMatchesForRound(round, isEditing);
+                            const tiebreakerAlerts = gatherRoundTiebreakerAlerts(matches, deriveMatchStatus);
                             const roundHasStarted = hasAnyMatchStarted(round);
                             const roundHasCompletedAllMatches = matches.length > 0 && matches.every((match: any) => {
-                              const matchStatus = matchStatuses[match.id];
+                              const matchStatus = deriveMatchStatus(match);
                               if (matchStatus === 'completed') return true;
 
                               const matchGames = games[match.id] ?? match.games ?? [];
@@ -1838,6 +2097,26 @@ export function EventManagerTab({
                                     {isEditing && (
                                       <div className="mb-4 p-3 bg-info/10 border-l-4 border-info rounded text-sm text-info">
                                         <strong className="font-semibold">Drag teams to swap:</strong> Drag any team over another team to swap their positions.
+                                      </div>
+                                    )}
+
+                                    {tiebreakerAlerts.length > 0 && (
+                                      <div className="mb-4 space-y-2">
+                                        {tiebreakerAlerts.map((alert, idx) => {
+                                          const toneToStyles: Record<string, string> = {
+                                            warning: 'bg-warning/10 border-warning/40 text-warning-dark',
+                                            info: 'bg-info/10 border-info/40 text-info-dark',
+                                            success: 'bg-success/10 border-success/40 text-success-dark',
+                                          };
+                                          return (
+                                            <div
+                                              key={`round-${round.id}-alert-${idx}`}
+                                              className={`rounded-lg border px-3 py-2 text-sm ${toneToStyles[alert.tone] || 'bg-surface-2 border-border-subtle text-secondary'}`}
+                                            >
+                                              {alert.message}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     )}
 
@@ -1948,11 +2227,11 @@ export function EventManagerTab({
                                               <div className="space-y-5">
                                                 {bracketMatches.map((match: any) => {
                                                   const matchId = match.id;
-                                                  const matchGames = games[matchId] ?? match.games ?? [];
-                                                  const matchStatus = matchStatuses[matchId];
-                                                  const canEditLineups = matchStatus !== 'completed';
-                                                  const teamALineup = lineups[matchId]?.[match.teamA?.id || 'teamA'] || [];
-                                                  const teamBLineup = lineups[matchId]?.[match.teamB?.id || 'teamB'] || [];
+                                                      const matchStatus = deriveMatchStatus(match);
+                                                      const matchGames = games[matchId] ?? match.games ?? [];
+                                                      const canEditLineups = !['completed', 'decided_points', 'decided_tiebreaker'].includes(matchStatus);
+                                                  const teamALineup = match.teamA?.id ? (lineups[matchId]?.[match.teamA.id] ?? []) : [];
+                                                  const teamBLineup = match.teamB?.id ? (lineups[matchId]?.[match.teamB.id] ?? []) : [];
                                                   const hasAnyGameStarted = matchGames.some((game: any) =>
                                                     getGameStatus(game) === 'in_progress' || getGameStatus(game) === 'completed'
                                                   );
@@ -1988,133 +2267,93 @@ export function EventManagerTab({
                                                           })()}
                                                         </div>
 
-                                                        {/* Forfeit Buttons */}
-                                                        {!match.isBye && (
-                                                          <div className="flex items-center gap-2">
-                                                            {match.forfeitTeam ? (
-                                                              <div className="flex flex-col items-center gap-1">
-                                                                <span className="text-xs font-bold text-white bg-red-600 px-2 py-1 rounded">
-                                                                  FF
-                                                                </span>
-                                                                <span className="text-xs text-muted">
-                                                                  {match.forfeitTeam === 'A'
-                                                                    ? `${match.teamB?.name || 'Team B'} wins by forfeit`
-                                                                    : `${match.teamA?.name || 'Team A'} wins by forfeit`
-                                                                  }
-                                                                </span>
-                                                              </div>
-                                                            ) : !isMatchComplete(match) && (
-                                                              <div className="flex flex-col gap-1">
-                                                                <button
-                                                                  onClick={async () => {
-                                                                    try {
-                                                                      const response = await fetchWithActAs(`/api/admin/matches/${matchId}`, {
-                                                                        method: 'PATCH',
-                                                                        headers: { 'Content-Type': 'application/json' },
-                                                                        body: JSON.stringify({ forfeitTeam: 'A' })
-                                                                      });
-
-                                                                      if (response.ok) {
-                                                                        onInfo('Forfeit recorded successfully');
-                                                                        // Reload schedule to show updated status
-                                                                        await loadSchedule(stop.stopId, true);
-                                                                      } else {
-                                                                        const errorData = await response.json();
-                                                                        onError(`Failed to record forfeit: ${errorData.error}`);
-                                                                      }
-                                                                    } catch (error) {
-                                                                      onError('Failed to record forfeit. Please try again.');
-                                                                    }
-                                                                  }}
-                                                                  className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
-                                                                >
-                                                                  {match.teamA?.name || 'Team A'} Forfeit
-                                                                </button>
-                                                                <button
-                                                                  onClick={async () => {
-                                                                    try {
-                                                                      const response = await fetchWithActAs(`/api/admin/matches/${matchId}`, {
-                                                                        method: 'PATCH',
-                                                                        headers: { 'Content-Type': 'application/json' },
-                                                                        body: JSON.stringify({ forfeitTeam: 'B' })
-                                                                      });
-
-                                                                      if (response.ok) {
-                                                                        onInfo('Forfeit recorded successfully');
-                                                                        // Reload schedule to show updated status
-                                                                        await loadSchedule(stop.stopId, true);
-                                                                      } else {
-                                                                        const errorData = await response.json();
-                                                                        onError(`Failed to record forfeit: ${errorData.error}`);
-                                                                      }
-                                                                    } catch (error) {
-                                                                      onError('Failed to record forfeit. Please try again.');
-                                                                    }
-                                                                  }}
-                                                                  className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
-                                                                >
-                                                                  {match.teamB?.name || 'Team B'} Forfeit
-                                                                </button>
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                        )}
+                                                        {/* Manager Actions */}
+                                                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
+                                                          {matchStatus === 'tied_requires_tiebreaker' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB) && (
+                                                            <button
+                                                              className="btn btn-xs btn-secondary flex-1 sm:flex-none"
+                                                              disabled={resolvingMatch === match.id || !canEditLineups}
+                                                              onClick={() => resolveMatchByPoints(match)}
+                                                            >
+                                                              {resolvingMatch === match.id ? 'Resolving...' : 'Decide by Points'}
+                                                            </button>
+                                                          )}
+                                                          {['tied_requires_tiebreaker', 'tied_pending'].includes(matchStatus) && (
+                                                            <button
+                                                              className="btn btn-xs btn-primary flex-1 sm:flex-none"
+                                                              disabled={resolvingMatch === match.id}
+                                                              onClick={() => scheduleTiebreakerGame(match)}
+                                                            >
+                                                              {resolvingMatch === match.id ? 'Creating...' : matchStatus === 'tied_pending' ? 'View Tiebreaker' : 'Add Tiebreaker'}
+                                                            </button>
+                                                          )}
+                                                        </div>
                                                       </div>
 
                                                       <div className="mt-3 space-y-3">
                                                         {isEditingThisMatch ? (
-                                                          <InlineLineupEditor
-                                                            matchId={match.id}
-                                                            stopId={round.stopId}
-                                                            teamA={match.teamA || { id: 'teamA', name: 'Team A' }}
-                                                            teamB={match.teamB || { id: 'teamB', name: 'Team B' }}
-                                                            teamARoster={teamRosters[match.teamA?.id || ''] || []}
-                                                            teamBRoster={teamRosters[match.teamB?.id || ''] || []}
-                                                            fetchTeamRoster={fetchTeamRoster}
-                                                            lineups={lineups}
-                                                            onSave={async (lineupData) => {
-                                                              try {
-                                                                if (lineupData.teamA.length !== 4 || lineupData.teamB.length !== 4) {
-                                                                  throw new Error(`Invalid lineup: Team A has ${lineupData.teamA.length} players, Team B has ${lineupData.teamB.length} players. Need exactly 4 each.`);
-                                                                }
-
-                                                                const response = await fetchWithActAs(`/api/admin/stops/${stop.stopId}/lineups`, {
-                                                                  method: 'POST',
-                                                                  headers: { 'Content-Type': 'application/json' },
-                                                                  body: JSON.stringify({
-                                                                    lineups: {
-                                                                      [match.id]: {
-                                                                        [match.teamA?.id || 'teamA']: lineupData.teamA,
-                                                                        [match.teamB?.id || 'teamB']: lineupData.teamB
-                                                                      }
-                                                                    }
-                                                                  })
-                                                                });
-
-                                                                if (!response.ok) {
-                                                                  const errorText = await response.text();
-                                                                  throw new Error(`Save failed: ${response.status} ${errorText}`);
-                                                                }
-
-                                                                setLineups(prev => ({
-                                                                  ...prev,
-                                                                  [match.id]: {
-                                                                    [match.teamA?.id || 'teamA']: lineupData.teamA,
-                                                                    [match.teamB?.id || 'teamB']: lineupData.teamB
+                                                          match.teamA?.id && match.teamB?.id ? (
+                                                            <InlineLineupEditor
+                                                              matchId={match.id}
+                                                              stopId={round.stopId}
+                                                              teamA={match.teamA}
+                                                              teamB={match.teamB}
+                                                              lineups={lineups}
+                                                              prefetchedTeamRosters={{
+                                                                teamA: teamRosters[match.teamA.id] || [],
+                                                                teamB: teamRosters[match.teamB.id] || [],
+                                                              }}
+                                                              teamRosters={teamRosters}
+                                                              onSave={async (lineupData) => {
+                                                                try {
+                                                                  if (lineupData.teamA.length !== 4 || lineupData.teamB.length !== 4) {
+                                                                    throw new Error(`Invalid lineup: Team A has ${lineupData.teamA.length} players, Team B has ${lineupData.teamB.length} players. Need exactly 4 each.`);
                                                                   }
-                                                                }));
 
-                                                                await loadGamesForMatch(match.id, true);
+                                                                  const response = await fetchWithActAs(`/api/admin/stops/${stop.stopId}/lineups`, {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({
+                                                                      lineups: {
+                                                                        [match.id]: {
+                                                                          [match.teamA.id]: lineupData.teamA,
+                                                                          [match.teamB.id]: lineupData.teamB,
+                                                                        },
+                                                                      },
+                                                                    }),
+                                                                  });
 
-                                                                setEditingMatch(null);
-                                                                onInfo('Lineups saved successfully!');
-                                                              } catch (error) {
-                                                                console.error('Error saving lineups:', error);
-                                                                onError(`Failed to save lineups: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                                                              }
-                                                            }}
-                                                            onCancel={() => setEditingMatch(null)}
-                                                          />
+                                                                  if (!response.ok) {
+                                                                    const errorText = await response.text();
+                                                                    throw new Error(`Save failed: ${response.status} ${errorText}`);
+                                                                  }
+
+                                                                  // Reload schedule to pick up saved lineups
+                                                                  await loadSchedule(stop.stopId, true);
+
+                                                                  // Update local state after reload completes
+                                                                  setLineups(prev => ({
+                                                                    ...prev,
+                                                                    [match.id]: {
+                                                                      [match.teamA.id]: lineupData.teamA,
+                                                                      [match.teamB.id]: lineupData.teamB,
+                                                                    },
+                                                                  }));
+
+                                                                  setEditingMatch(null);
+                                                                  onInfo('Lineups saved successfully!');
+                                                                } catch (error) {
+                                                                  console.error('Error saving lineups:', error);
+                                                                  onError(`Failed to save lineups: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                                                                }
+                                                              }}
+                                                              onCancel={() => setEditingMatch(null)}
+                                                            />
+                                                          ) : (
+                                                            <div className="text-sm text-warning">
+                                                              Unable to edit lineups because this match is missing team assignments.
+                                                            </div>
+                                                          )
                                                         ) : (
                                                           !hasAnyGameStarted && (
                                                             <div className="space-y-4">
@@ -2132,7 +2371,7 @@ export function EventManagerTab({
                                                                   <div className="space-y-2">
                                                                     {teamALineup.length > 0 ? (
                                                                       teamALineup.map((player: any, idx: number) => (
-                                                                        <div key={player.id} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
+                                                                        <div key={`teamA-${idx}-${player.id}`} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
                                                                           <span className="text-muted font-semibold w-5">{idx + 1}.</span>
                                                                           <span className="text-secondary flex-1">{player.name}</span>
                                                                           <span className={`chip text-[10px] px-2 py-0.5 ${
@@ -2161,7 +2400,7 @@ export function EventManagerTab({
                                                                   <div className="space-y-2">
                                                                     {teamBLineup.length > 0 ? (
                                                                       teamBLineup.map((player: any, idx: number) => (
-                                                                        <div key={player.id} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
+                                                                        <div key={`teamB-${idx}-${player.id}`} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
                                                                           <span className="text-muted font-semibold w-5">{idx + 1}.</span>
                                                                           <span className="text-secondary flex-1">{player.name}</span>
                                                                           <span className={`chip text-[10px] px-2 py-0.5 ${
@@ -2240,20 +2479,38 @@ export function EventManagerTab({
                                                                   games[match.id]?.filter((g) => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
                                                                 const teamAWins = completedGames.filter((g) => g.teamAScore > g.teamBScore).length;
                                                                 const teamBWins = completedGames.filter((g) => g.teamBScore > g.teamAScore).length;
+                                                                const resolvedTiebreakerStatus = normalizeTiebreakerStatus(match.tiebreakerStatus);
                                                                 const needsTiebreaker =
-                                                                  completedGames.length === 4 && teamAWins === 2 && teamBWins === 2;
-                                                                
-                                                                return needsTiebreaker && games[match.id]?.find((g) => g.slot === 'TIEBREAKER') && (
-                                                                  <GameScoreBox
-                                                                    game={games[match.id].find((g) => g.slot === 'TIEBREAKER')}
-                                                                    match={match}
-                                                                    lineups={lineups}
-                                                                    startGame={startGame}
-                                                                    endGame={endGame}
-                                                                    updateGameScore={updateGameScore}
-                                                                    updateGameCourtNumber={updateGameCourtNumber}
-                                                                  />
-                                                                );
+                                                                  completedGames.length === 4 &&
+                                                                  teamAWins === 2 &&
+                                                                  teamBWins === 2 &&
+                                                                  resolvedTiebreakerStatus === 'tied_requires_tiebreaker';
+
+                                                                if (needsTiebreaker && !games[match.id]?.some((g) => g.slot === 'TIEBREAKER')) {
+                                                                  return (
+                                                                    <div className="border border-warning/40 bg-warning/10 text-warning px-4 py-3 rounded">
+                                                                      This matchup is tied 2-2. Add a Tiebreaker game below to determine the winner.
+                                                                    </div>
+                                                                  );
+                                                                }
+
+                                                                const tiebreakerGame = games[match.id]?.find((g) => g.slot === 'TIEBREAKER');
+                                                                if (tiebreakerGame) {
+                                                                  return (
+                                                                    <GameScoreBox
+                                                                      key={tiebreakerGame.id}
+                                                                      game={tiebreakerGame}
+                                                                      match={match}
+                                                                      lineups={lineups}
+                                                                      startGame={startGame}
+                                                                      endGame={endGame}
+                                                                      updateGameScore={updateGameScore}
+                                                                      updateGameCourtNumber={updateGameCourtNumber}
+                                                                    />
+                                                                  );
+                                                                }
+
+                                                                return null;
                                                               })()}
                                                             </div>
                                                           )}

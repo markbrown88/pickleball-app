@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
@@ -19,8 +20,61 @@ export async function PUT(
   req: Request,
   ctx: { params: Promise<{ clubId: string }> }
 ) {
-  // Use singleton prisma instance
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  // Check for act-as-player-id cookie
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+  let currentPlayer;
+  if (actAsPlayerId) {
+    // Acting as another player - fetch that player's record
+    currentPlayer = await prisma.player.findUnique({
+      where: { id: actAsPlayerId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
+  } else {
+    // Normal operation - use authenticated user
+    currentPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
+  }
+
+  if (!currentPlayer) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
+
+  const isTournamentAdmin =
+    currentPlayer.tournamentAdminLinks.length > 0 ||
+    currentPlayer.TournamentEventManager.length > 0;
+
+  if (!currentPlayer.isAppAdmin && !isTournamentAdmin) {
+    return NextResponse.json({ error: 'Access denied. Admin access required.' }, { status: 403 });
+  }
+
   const { clubId } = await ctx.params;
+
+  // Tournament Admins can only edit their own club
+  if (!currentPlayer.isAppAdmin && isTournamentAdmin && clubId !== currentPlayer.clubId) {
+    return NextResponse.json({ error: 'Access denied. You can only edit your own club.' }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => ({}));
   console.log('Club update request:', { clubId, body });
@@ -84,7 +138,56 @@ export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ clubId: string }> }
 ) {
-  // Use singleton prisma instance
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  // Check for act-as-player-id cookie
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+  let currentPlayer;
+  if (actAsPlayerId) {
+    // Acting as another player - fetch that player's record
+    currentPlayer = await prisma.player.findUnique({
+      where: { id: actAsPlayerId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
+  } else {
+    // Normal operation - use authenticated user
+    currentPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
+  }
+
+  if (!currentPlayer) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
+
+  const isTournamentAdmin =
+    currentPlayer.tournamentAdminLinks.length > 0 ||
+    currentPlayer.TournamentEventManager.length > 0;
+
+  // Only App Admins can delete clubs
+  if (!currentPlayer.isAppAdmin) {
+    return NextResponse.json({ error: 'Access denied. Only App Admins can delete clubs.' }, { status: 403 });
+  }
+
   const { clubId } = await ctx.params;
 
   try {

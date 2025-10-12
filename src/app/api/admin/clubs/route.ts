@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
 function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
@@ -16,6 +17,55 @@ function normalizePhone(input?: string | null): { ok: boolean; formatted?: strin
 /** GET /api/admin/clubs?sort=name:asc */
 export async function GET(req: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Check for act-as-player-id cookie
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+    let currentPlayer;
+    if (actAsPlayerId) {
+      // Acting as another player - fetch that player's record
+      currentPlayer = await prisma.player.findUnique({
+        where: { id: actAsPlayerId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          clubId: true,
+          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+        }
+      });
+    } else {
+      // Normal operation - use authenticated user
+      currentPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          clubId: true,
+          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+        }
+      });
+    }
+
+    if (!currentPlayer) {
+      return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+    }
+
+    const isTournamentAdmin =
+      currentPlayer.tournamentAdminLinks.length > 0 ||
+      currentPlayer.TournamentEventManager.length > 0;
+
+    if (!currentPlayer.isAppAdmin && !isTournamentAdmin) {
+      return NextResponse.json({ error: 'Access denied. Admin access required.' }, { status: 403 });
+    }
+
     const url = new URL(req.url);
     const sortParam = url.searchParams.get('sort'); // e.g. "name:asc"
     const search = (url.searchParams.get('q') || '').trim();
@@ -30,7 +80,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const where = search.length >= 3
+    let where: any = search.length >= 3
       ? {
           OR: [
             { name: { contains: search, mode: 'insensitive' as const } },
@@ -38,7 +88,12 @@ export async function GET(req: Request) {
             { region: { contains: search, mode: 'insensitive' as const } },
           ],
         }
-      : undefined;
+      : {};
+
+    // Tournament Admins can only see their own club
+    if (!currentPlayer.isAppAdmin && isTournamentAdmin) {
+      where.id = currentPlayer.clubId;
+    }
 
     const clubs = await prisma.club.findMany({
       where,
@@ -64,7 +119,46 @@ export async function GET(req: Request) {
 
 /** POST /api/admin/clubs */
 export async function POST(req: Request) {
-  // Use singleton prisma instance
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  // Check for act-as-player-id cookie
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+  let currentPlayer;
+  if (actAsPlayerId) {
+    // Acting as another player - fetch that player's record
+    currentPlayer = await prisma.player.findUnique({
+      where: { id: actAsPlayerId },
+      select: {
+        id: true,
+        isAppAdmin: true
+      }
+    });
+  } else {
+    // Normal operation - use authenticated user
+    currentPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: {
+        id: true,
+        isAppAdmin: true
+      }
+    });
+  }
+
+  if (!currentPlayer) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
+
+  // Only App Admins can create new clubs
+  if (!currentPlayer.isAppAdmin) {
+    return NextResponse.json({ error: 'Access denied. Only App Admins can create clubs.' }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => ({}));
 
   const fullName = String(body.fullName ?? '').trim();

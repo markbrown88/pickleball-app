@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 import { GameSlot as GameSlotEnum } from '@prisma/client';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 type Ctx = { params: Promise<{ gameId: string }> };
 
@@ -156,6 +157,8 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           create: { matchId: game.match.id, slot: u.slot, teamAScore: u.teamAScore, teamBScore: u.teamBScore },
         });
       }
+
+      await evaluateMatchTiebreaker(tx, game.match.id);
     });
 
     const after = await prisma.game.findUnique({

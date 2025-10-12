@@ -76,6 +76,7 @@ model Player {
   tournamentAdminLinks   TournamentAdmin[]
   TournamentCaptain      TournamentCaptain[]
   TournamentEventManager TournamentEventManager[]
+  matchTiebreakerDecisions Match[] @relation("MatchTiebreakerDecider")
 
   @@index([clubId])
   @@index([birthdayYear, birthdayMonth, birthdayDay], map: "Player_birthday_idx")
@@ -107,6 +108,7 @@ model Team {
   club            Club               @relation(fields: [clubId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   tournament      Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   playerLinks     TeamPlayer[]
+  matchTiebreakerWins Match[] @relation("MatchTiebreakerWinner")
 
   @@unique([tournamentId, captainId])
   @@unique([tournamentId, clubId, bracketId])
@@ -258,10 +260,22 @@ model Match {
   round           Round     @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
   teamA           Team?     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
   teamB           Team?     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
+  tiebreakerStatus        MatchTiebreakerStatus @default(NONE)
+  tiebreakerWinnerTeamId  String?
+  tiebreakerGameId        String? @unique
+  tiebreakerDecidedAt     DateTime? @db.Timestamptz(6)
+  tiebreakerDecidedById   String?
+  tiebreakerDecisionNotes String?
+  totalPointsTeamA        Int?
+  totalPointsTeamB        Int?
+  tiebreakerDecidedBy     Player?   @relation("MatchTiebreakerDecider", fields: [tiebreakerDecidedById], references: [id], onDelete: SetNull)
+  tiebreakerGame          Game?     @relation("MatchTiebreakerGame", fields: [tiebreakerGameId], references: [id], onDelete: SetNull)
+  tiebreakerWinnerTeam    Team?     @relation("MatchTiebreakerWinner", fields: [tiebreakerWinnerTeamId], references: [id], onDelete: SetNull)
 
   @@index([roundId])
   @@index([teamAId])
   @@index([teamBId])
+  @@index([tiebreakerWinnerTeamId])
 }
 
 /// *
@@ -287,6 +301,7 @@ model Game {
   teamASubmittedScore   Int? // Score submitted by Team A
   teamBSubmittedScore   Int? // Score submitted by Team B
   match                 Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
+  tiebreakerForMatch    Match?    @relation("MatchTiebreakerGame")
 
   @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
   @@index([matchId])
@@ -417,6 +432,15 @@ enum GameSlot {
   MIXED_1
   MIXED_2
   TIEBREAKER
+}
+
+enum MatchTiebreakerStatus {
+  NONE
+  NEEDS_DECISION
+  REQUIRES_TIEBREAKER
+  PENDING_TIEBREAKER
+  DECIDED_POINTS
+  DECIDED_TIEBREAKER
 }
 
 enum Division {

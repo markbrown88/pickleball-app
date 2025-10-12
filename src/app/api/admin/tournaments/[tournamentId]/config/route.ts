@@ -24,6 +24,8 @@ type Payload = {
     eventManagerId?: string | null; // ✅ per-stop only
   }>;
   maxTeamSize?: number | null;
+  eventManagerId?: string | null; // tournament-level event manager
+  tournamentAdminId?: string | null; // tournament admin
 };
 
 const TYPE_LABEL_TO_ENUM: Record<string, TournamentType> = {
@@ -73,7 +75,26 @@ export async function GET(_req: Request, ctx: CtxPromise) {
 
   const t = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, name: true, type: true, maxTeamSize: true },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      maxTeamSize: true,
+      admins: {
+        take: 1,
+        select: {
+          playerId: true,
+          player: { select: { id: true, firstName: true, lastName: true, name: true } }
+        }
+      },
+      TournamentEventManager: {
+        take: 1,
+        select: {
+          playerId: true,
+          Player: { select: { id: true, firstName: true, lastName: true, name: true } }
+        }
+      }
+    },
   });
 
   if (!t) {
@@ -172,6 +193,20 @@ export async function GET(_req: Request, ctx: CtxPromise) {
       playerId: c.playerId,
       playerName: c.playerName,
     })),
+    // Tournament-level event manager
+    eventManager: t.TournamentEventManager[0]?.playerId
+      ? {
+          id: t.TournamentEventManager[0].playerId,
+          name: playerLabel(t.TournamentEventManager[0].Player),
+        }
+      : null,
+    // Tournament admin
+    tournamentAdmin: t.admins[0]?.playerId
+      ? {
+          id: t.admins[0].playerId,
+          name: playerLabel(t.admins[0].player),
+        }
+      : null,
     // ✅ Per-stop managers only
     stops: stops.map((s) => ({
       id: s.id,
@@ -585,6 +620,54 @@ export async function PUT(req: Request, ctx: CtxPromise) {
             clubId,
           },
           data: { captainId: null },
+        });
+      }
+    }
+
+    // Tournament Admin
+    if (Object.prototype.hasOwnProperty.call(body, 'tournamentAdminId')) {
+      const adminId = body.tournamentAdminId;
+
+      // Validate player exists if provided
+      if (adminId) {
+        const found = await tx.player.findUnique({
+          where: { id: adminId },
+          select: { id: true }
+        });
+        if (!found) throw new Error(`Unknown player id for tournament admin: ${adminId}`);
+      }
+
+      // Delete existing tournament admin
+      await tx.tournamentAdmin.deleteMany({ where: { tournamentId } });
+
+      // Create new if provided
+      if (adminId) {
+        await tx.tournamentAdmin.create({
+          data: { tournamentId, playerId: adminId }
+        });
+      }
+    }
+
+    // Tournament Event Manager
+    if (Object.prototype.hasOwnProperty.call(body, 'eventManagerId')) {
+      const eventMgrId = body.eventManagerId;
+
+      // Validate player exists if provided
+      if (eventMgrId) {
+        const found = await tx.player.findUnique({
+          where: { id: eventMgrId },
+          select: { id: true }
+        });
+        if (!found) throw new Error(`Unknown player id for event manager: ${eventMgrId}`);
+      }
+
+      // Delete existing tournament event manager
+      await tx.tournamentEventManager.deleteMany({ where: { tournamentId } });
+
+      // Create new if provided
+      if (eventMgrId) {
+        await tx.tournamentEventManager.create({
+          data: { tournamentId, playerId: eventMgrId }
         });
       }
     }

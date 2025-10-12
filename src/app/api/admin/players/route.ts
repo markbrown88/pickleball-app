@@ -34,24 +34,54 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Get the player record for the authenticated user
-    const currentPlayer = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: { id: true, isAppAdmin: true }
-    });
+    // Check for act-as-player-id cookie
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+    let currentPlayer;
+    if (actAsPlayerId) {
+      // Acting as another player - fetch that player's record
+      currentPlayer = await prisma.player.findUnique({
+        where: { id: actAsPlayerId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          clubId: true,
+          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+        }
+      });
+    } else {
+      // Normal operation - use authenticated user
+      currentPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          clubId: true,
+          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+        }
+      });
+    }
 
     if (!currentPlayer) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
     }
 
-    // Check if user is App Admin
-    if (!currentPlayer.isAppAdmin) {
-      return NextResponse.json({ error: 'Access denied. App Admin required.' }, { status: 403 });
+    // Check if user is Tournament Admin or App Admin
+    const isTournamentAdmin =
+      currentPlayer.tournamentAdminLinks.length > 0 ||
+      currentPlayer.TournamentEventManager.length > 0;
+
+    if (!currentPlayer.isAppAdmin && !isTournamentAdmin) {
+      return NextResponse.json({ error: 'Access denied. Admin access required.' }, { status: 403 });
     }
 
     const url = new URL(req.url);
@@ -59,7 +89,12 @@ export async function GET(req: NextRequest) {
     const skip = parseInt(url.searchParams.get('skip') || '0');
     const sort = url.searchParams.get('sort') || 'lastName:asc';
     const search = url.searchParams.get('search') || '';
-    const clubId = url.searchParams.get('clubId') || '';
+    let clubId = url.searchParams.get('clubId') || '';
+
+    // Tournament Admins can only see players from their own club
+    if (!currentPlayer.isAppAdmin && isTournamentAdmin) {
+      clubId = currentPlayer.clubId;
+    }
 
     // Parse sort parameter and handle computed fields
     const [sortField, sortOrder] = sort.split(':');
@@ -161,30 +196,64 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Get the player record for the authenticated user
-    const currentPlayer = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: { id: true, isAppAdmin: true }
-    });
+    // Check for act-as-player-id cookie
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+    let currentPlayer;
+    if (actAsPlayerId) {
+      // Acting as another player - fetch that player's record
+      currentPlayer = await prisma.player.findUnique({
+        where: { id: actAsPlayerId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          clubId: true,
+          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+        }
+      });
+    } else {
+      // Normal operation - use authenticated user
+      currentPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          clubId: true,
+          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+        }
+      });
+    }
 
     if (!currentPlayer) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
     }
 
-    // Check if user is App Admin
-    if (!currentPlayer.isAppAdmin) {
-      return NextResponse.json({ error: 'Access denied. App Admin required.' }, { status: 403 });
+    // Check if user is Tournament Admin or App Admin
+    const isTournamentAdmin =
+      currentPlayer.tournamentAdminLinks.length > 0 ||
+      currentPlayer.TournamentEventManager.length > 0;
+
+    if (!currentPlayer.isAppAdmin && !isTournamentAdmin) {
+      return NextResponse.json({ error: 'Access denied. Admin access required.' }, { status: 403 });
     }
 
     const body = await req.json();
 
     // Toggle App Admin role when playerId/isAppAdmin payload is provided
+    // Only App Admins can toggle App Admin role
     if (body && typeof body.playerId === 'string' && typeof body.isAppAdmin === 'boolean') {
+      if (!currentPlayer.isAppAdmin) {
+        return NextResponse.json({ error: 'Access denied. App Admin required to toggle admin roles.' }, { status: 403 });
+      }
       const updatedPlayer = await prisma.player.update({
         where: { id: body.playerId },
         data: { isAppAdmin: body.isAppAdmin },
@@ -203,7 +272,12 @@ export async function POST(req: NextRequest) {
     const firstName = squeeze(String(body?.firstName ?? ''));
     const lastName = squeeze(String(body?.lastName ?? ''));
     const gender = body?.gender === 'FEMALE' ? 'FEMALE' : body?.gender === 'MALE' ? 'MALE' : null;
-    const clubId = typeof body?.clubId === 'string' ? body.clubId.trim() : '';
+    let clubId = typeof body?.clubId === 'string' ? body.clubId.trim() : '';
+
+    // Tournament Admins can only create players in their own club
+    if (!currentPlayer.isAppAdmin && isTournamentAdmin) {
+      clubId = currentPlayer.clubId;
+    }
 
     if (!firstName || !lastName || !gender || !clubId) {
       return NextResponse.json(

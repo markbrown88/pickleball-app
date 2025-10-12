@@ -186,6 +186,11 @@ type EditorRow = {
   tournamentEventManager: CaptainPick;
   tournamentEventManagerQuery: string;
   tournamentEventManagerOptions: Array<{ id: string; label: string }>;
+
+  // NEW: Tournament Admin
+  tournamentAdmin: CaptainPick;
+  tournamentAdminQuery: string;
+  tournamentAdminOptions: Array<{ id: string; label: string }>;
 };
 type EditorState = Record<Id, EditorRow>;
 
@@ -312,6 +317,8 @@ export default function AdminPage() {
         captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
         // NEW: tournament-level event manager
         eventManager?: { id: string; name?: string } | null;
+        // NEW: tournament admin
+        tournamentAdmin?: { id: string; name?: string } | null;
         // NEW: stops can carry their own event manager
         stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManager?: { id: string; name?: string } | null }>;
       }>(`/api/admin/tournaments/${tId}/config`);
@@ -389,6 +396,10 @@ export default function AdminPage() {
             tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
             tournamentEventManagerQuery: '',
             tournamentEventManagerOptions: [],
+
+            tournamentAdmin: cfg.tournamentAdmin?.id ? { id: cfg.tournamentAdmin.id, label: cfg.tournamentAdmin.name || '' } : null,
+            tournamentAdminQuery: '',
+            tournamentAdminOptions: [],
           }
         };
       });
@@ -469,6 +480,7 @@ export default function AdminPage() {
             const ts = await api<TournamentRow[]>('/api/admin/tournaments');
             setTournaments(ts);
           }}
+          userProfile={userProfile}
         />
 
       {/* Team roster tools moved to /admin/rosters */}
@@ -511,6 +523,7 @@ type TournamentsBlockProps = {
   searchPlayers: (term: string)=>Promise<Array<{id:string;label:string}>>;
   allChosenCaptainIdsAcrossClubs: Set<string>;
   afterSaved: () => Promise<void>;
+  userProfile: UserProfile | null;
 };
 
 function TournamentsBlock(props: TournamentsBlockProps) {
@@ -731,6 +744,50 @@ function TournamentsBlock(props: TournamentsBlockProps) {
     });
   }
 
+  // Tournament Admin
+  function setTournamentAdminQuery(tId: Id, q: string) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      return { ...prev, [tId]: { ...ed, tournamentAdminQuery: q, tournamentAdminOptions: [] } };
+    });
+    const k = `tAdmin-${tId}`;
+    if (searchTimers.current[k]) clearTimeout(searchTimers.current[k]);
+    searchTimers.current[k] = window.setTimeout(() => runTournamentAdminSearch(tId), 300);
+  }
+  async function runTournamentAdminSearch(tId: Id) {
+    const ed = editor(tId); if (!ed) return;
+    const q = (ed.tournamentAdminQuery || '').trim();
+    if (q.length < 3) return;
+    const opts = await (props.searchPlayers(q));
+    setEditorById(prev => {
+      const e2 = prev[tId]; if (!e2) return prev;
+      return { ...prev, [tId]: { ...e2, tournamentAdminOptions: opts } };
+    });
+  }
+  function chooseTournamentAdmin(tId: Id, pick: { id: string; label: string }) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      return {
+        ...prev,
+        [tId]: {
+          ...ed,
+          tournamentAdmin: pick,
+          tournamentAdminQuery: '',
+          tournamentAdminOptions: [],
+        }
+      };
+    });
+  }
+  function removeTournamentAdmin(tId: Id) {
+    setEditorById(prev => {
+      const ed = prev[tId]; if (!ed) return prev;
+      return {
+        ...prev,
+        [tId]: { ...ed, tournamentAdmin: null, tournamentAdminQuery: '', tournamentAdminOptions: [] }
+      };
+    });
+  }
+
   // Stop-level
   function setStopEventMgrQuery(tId: Id, stopIdx: number, q: string) {
     setEditorById(prev => {
@@ -931,6 +988,8 @@ function TournamentsBlock(props: TournamentsBlockProps) {
       maxTeamSize?: number | null; // reused: team size when no brackets; bracket size when brackets enabled
       // NEW tournament-level Event Manager
       eventManagerId?: string | null;
+      // NEW tournament admin
+      tournamentAdminId?: string | null;
     } = {
       name,
       type: LABEL_TO_TYPE[ed.type],
@@ -978,6 +1037,9 @@ function TournamentsBlock(props: TournamentsBlockProps) {
 
     // Tournament-level Event Manager
     payload.eventManagerId = ed.tournamentEventManager?.id ?? null;
+
+    // Tournament Admin
+    payload.tournamentAdminId = ed.tournamentAdmin?.id ?? null;
 
     // Stops (+ per-stop Event Manager)
     if (ed.hasMultipleStops) {
@@ -1033,6 +1095,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
         levels: Array<{ id: string; name: string; idx: number }>;
         captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
         eventManager?: { id: string; name?: string } | null;
+        tournamentAdmin?: { id: string; name?: string } | null;
         stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManager?: { id: string; name?: string } | null }>;
       }>(`/api/admin/tournaments/${tId}/config`);
 
@@ -1110,6 +1173,10 @@ function TournamentsBlock(props: TournamentsBlockProps) {
             tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
             tournamentEventManagerQuery: '',
             tournamentEventManagerOptions: [],
+
+            tournamentAdmin: cfg.tournamentAdmin?.id ? { id: cfg.tournamentAdmin.id, label: cfg.tournamentAdmin.name || '' } : null,
+            tournamentAdminQuery: '',
+            tournamentAdminOptions: [],
           }
         };
       });
@@ -1319,6 +1386,51 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                 <span>Multiple Stops</span>
                               </label>
                             </div>
+
+                            {/* Tournament Admin - App Admins only */}
+                            {props.userProfile?.isAppAdmin && (
+                              <div className="flex flex-col gap-2">
+                                <label className="text-sm text-secondary">Tournament Admin:</label>
+                                {ed.tournamentAdmin?.id ? (
+                                  <div className="flex items-center justify-between gap-2 input bg-surface-2 min-w-[220px]">
+                                    <div className="text-sm">
+                                      <span className="font-medium text-primary">{ed.tournamentAdmin.label || '(selected)'}</span>
+                                    </div>
+                                    <button
+                                      className="px-2 py-1 text-error hover:text-error-hover"
+                                      aria-label="Remove tournament admin"
+                                      title="Remove tournament admin"
+                                      onClick={() => removeTournamentAdmin(t.id)}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="relative min-w-[220px]">
+                                    <input
+                                      className="input w-full pr-8"
+                                      placeholder="Type 3+ chars to search players…"
+                                      value={ed.tournamentAdminQuery || ''}
+                                      onChange={e => setTournamentAdminQuery(t.id, e.target.value)}
+                                    />
+                                    {!!ed.tournamentAdminOptions?.length && (
+                                      <div className="absolute z-10 border border-subtle rounded mt-1 bg-surface-1 max-h-40 overflow-auto w-full shadow-lg">
+                                        {(ed.tournamentAdminOptions || []).map(o => (
+                                          <button
+                                            key={o.id}
+                                            className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-primary"
+                                            onClick={() => chooseTournamentAdmin(t.id, o)}
+                                          >
+                                            {o.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {/* Brackets - moved to top row */}
                             {ed.type === 'Team Format' && ed.hasBrackets && (
                               <div className="flex-1">

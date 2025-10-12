@@ -1,4 +1,4 @@
-import { prisma } from './src/lib/prisma';
+import { prisma } from './src/lib/prisma.ts';
 
 async function checkGameData() {
   const game = await prisma.game.findFirst({

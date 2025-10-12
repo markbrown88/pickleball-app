@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Bracket = {
@@ -38,6 +38,20 @@ type Player = {
   gender: 'MALE' | 'FEMALE';
 };
 
+type MatchMeta = {
+  id: string;
+  opponentTeam?: { id?: string | null; name?: string | null } | null;
+  tiebreakerStatus?: string | null;
+  tiebreakerWinnerTeamId?: string | null;
+  totalPointsTeamA?: number | null;
+  totalPointsTeamB?: number | null;
+  tiebreakerDecidedAt?: string | null;
+  matchStatus?: string | null;
+  opponentLineup?: (Player | null)[];
+};
+
+type LineupLockReason = 'deadline_passed' | 'match_started' | null;
+
 export default function StopDetailPage({
   params,
 }: {
@@ -51,16 +65,18 @@ export default function StopDetailPage({
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
 
   const [stopName, setStopName] = useState('');
-  const [lineupDeadline, setLineupDeadline] = useState<string | null>(null);
   const [stopDate, setStopDate] = useState<string | null>(null);
   const [stopLocation, setStopLocation] = useState<string | null>(null);
   const [brackets, setBrackets] = useState<Bracket[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [roster, setRoster] = useState<Player[]>([]);
-  const [isTeamA, setIsTeamA] = useState(false);
   const [canEdit, setCanEdit] = useState(true);
+  const [isTeamA, setIsTeamA] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [existingLineup, setExistingLineup] = useState<Player[]>([]);
+  const [matchMeta, setMatchMeta] = useState<MatchMeta | null>(null);
+  const [lineupLockReason, setLineupLockReason] = useState<LineupLockReason>(null);
 
   // Breadcrumb data
   const [tournamentName, setTournamentName] = useState('');
@@ -69,21 +85,15 @@ export default function StopDetailPage({
   const [opponentTeamName, setOpponentTeamName] = useState('');
   const [roundName, setRoundName] = useState('');
 
-  useEffect(() => {
-    loadBrackets();
-  }, [stopId]);
-
-  const loadBrackets = async () => {
+  const loadBrackets = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/captain-portal/${token}/stop/${stopId}`);
       const data = await response.json();
       setStopName(data.stop.name);
-      setLineupDeadline(data.stop.lineupDeadline);
       setBrackets(data.brackets);
       setTournamentName(data.tournament?.name || '');
-      
-      // Set stop date and location
+
       if (data.stop.startAt) {
         setStopDate(new Date(data.stop.startAt).toLocaleDateString('en-US', {
           month: 'short',
@@ -92,8 +102,7 @@ export default function StopDetailPage({
         }));
       }
       setStopLocation(data.stop.club?.name || null);
-      
-      // Set team name from first bracket if available
+
       if (data.brackets.length > 0) {
         setMyTeamName(data.club?.name || data.brackets[0].teamName || '');
       }
@@ -102,9 +111,9 @@ export default function StopDetailPage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [stopId, token]);
 
-  const loadRounds = async (bracketId: string) => {
+  const loadRounds = useCallback(async (bracketId: string) => {
     setLoading(true);
     try {
       const response = await fetch(`/api/captain-portal/${token}/stop/${stopId}/bracket/${bracketId}`);
@@ -117,17 +126,26 @@ export default function StopDetailPage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [stopId, token]);
 
-  const loadGames = async (roundId: string) => {
+  const loadGames = useCallback(async (roundId: string, bracketIdOverride?: string) => {
     setLoading(true);
     try {
+      const bracketToUse = bracketIdOverride ?? selectedBracketId;
+      if (!bracketToUse) {
+        throw new Error('Please select a bracket first.');
+      }
+
+      setSelectedRoundId(roundId);
+      setSelectedBracketId(bracketToUse);
+
       const response = await fetch(
-        `/api/captain-portal/${token}/stop/${stopId}/bracket/${selectedBracketId}/round/${roundId}`
+        `/api/captain-portal/${token}/stop/${stopId}/bracket/${bracketToUse}/round/${roundId}`
       );
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const error = await response.json().catch(() => ({} as { error?: string }));
+        throw new Error(error?.error || `Failed to load games (HTTP ${response.status})`);
       }
 
       const data = await response.json();
@@ -138,11 +156,27 @@ export default function StopDetailPage({
 
       setGames(data.games || []);
       setRoster(data.roster || []);
-      setIsTeamA(data.isTeamA || false);
-      setCanEdit(!data.deadlinePassed);
-      setSelectedRoundId(roundId);
+      setExistingLineup(data.existingLineup || []);
+      setMatchMeta((data.match as MatchMeta) || null);
+      setIsTeamA(typeof data.isTeamA === 'boolean' ? data.isTeamA : null);
 
-      // Set breadcrumb data
+      const matchStatus: string | undefined = data.match?.matchStatus;
+      const anyGamesStarted = Array.isArray(data.games)
+        ? data.games.some((g: any) => Boolean(g?.startedAt) || Boolean(g?.isComplete))
+        : false;
+      const lockedBecauseStarted = matchStatus && matchStatus !== 'not_started' ? true : anyGamesStarted;
+
+      if (lockedBecauseStarted) {
+        setCanEdit(false);
+        setLineupLockReason('match_started');
+      } else if (data.deadlinePassed) {
+        setCanEdit(false);
+        setLineupLockReason('deadline_passed');
+      } else {
+        setCanEdit(true);
+        setLineupLockReason(null);
+      }
+
       setTournamentName(data.tournament?.name || '');
       setBracketName(data.bracket?.name || '');
       setMyTeamName(data.myTeam?.name || '');
@@ -154,10 +188,15 @@ export default function StopDetailPage({
       console.error('Failed to load games:', error);
       setGames([]);
       setRoster([]);
+      alert(error instanceof Error ? error.message : 'Failed to load games.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedBracketId, stopId, token]);
+
+  useEffect(() => {
+    loadBrackets();
+  }, [loadBrackets]);
 
   const handleBack = () => {
     if (view === 'games') {
@@ -183,24 +222,37 @@ export default function StopDetailPage({
   const currentBracket = brackets.find(b => b.id === selectedBracketId);
   const currentRound = rounds.find(r => r.id === selectedRoundId);
 
+  // Helper function to remove bracket suffix from team names
+  const stripBracketSuffix = (teamName: string) => {
+    // Remove patterns like " 2.5", " 3.0", " 3.5", etc. from end of team name
+    return teamName.replace(/\s+\d+(\.\d+)?$/, '');
+  };
+
+  const displayMyTeamName = stripBracketSuffix(myTeamName || currentBracket?.teamName || 'Your Team');
+  const displayOpponentTeamName = stripBracketSuffix(opponentTeamName);
+
   return (
-    <div className="min-h-screen bg-surface-1">
+    <div className="min-h-screen">
       {/* Sticky Header with Progressive Breadcrumbs */}
       <div className="sticky top-0 bg-primary text-white py-3 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">
           {/* Tournament Name - Always shown */}
           <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-1 truncate">{tournamentName || 'Tournament'}</h1>
 
-          {/* Team Name - Always shown */}
-          <p className="text-xs sm:text-sm md:text-base opacity-90 mb-2 truncate">
-            {myTeamName || currentBracket?.teamName || 'Your Team'}
+          {/* Team Name - Always shown - Larger and bold */}
+          <p className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-2 truncate">
+            {displayMyTeamName}
           </p>
 
           {/* Progressive Breadcrumbs based on view */}
           {view !== 'brackets' && (
             <div className="text-xs sm:text-sm opacity-80 space-y-1">
+              {/* Stop and Bracket on same line */}
               <div className="truncate">
                 Stop: {stopName}
+                {view !== 'rounds' && currentBracket && (
+                  <span className="ml-4">Bracket: {bracketName || currentBracket.name}</span>
+                )}
                 {stopDate && (
                   <span className="ml-2 opacity-75">• {stopDate}</span>
                 )}
@@ -209,13 +261,9 @@ export default function StopDetailPage({
                 <div className="truncate text-xs opacity-70">📍 {stopLocation}</div>
               )}
 
-              {view !== 'rounds' && currentBracket && (
-                <div className="truncate">Bracket: {bracketName || currentBracket.name}</div>
-              )}
-
               {view === 'games' && currentRound && (
                 <div className="truncate">
-                  {roundName} vs. {opponentTeamName}
+                  {roundName} vs. {displayOpponentTeamName}
                 </div>
               )}
             </div>
@@ -245,60 +293,32 @@ export default function StopDetailPage({
             <BracketsView brackets={brackets} onSelectBracket={loadRounds} />
           )}
           {view === 'rounds' && (
-            <RoundsView rounds={rounds} onSelectRound={loadGames} loading={loading} />
+            <RoundsView rounds={rounds} onSelectRound={(roundId) => loadGames(roundId)} loading={loading} />
           )}
           {view === 'games' && (
-            <GamesView
+          <GamesView
               games={games}
               roster={roster}
-              isTeamA={isTeamA}
               canEdit={canEdit}
               token={token}
               stopId={stopId}
               bracketId={selectedBracketId!}
               roundId={selectedRoundId!}
-              onUpdate={loadGames}
+            onUpdate={(roundIdOverride, bracketOverride) => loadGames(roundIdOverride ?? selectedRoundId!, bracketOverride ?? selectedBracketId!)}
               myTeamName={myTeamName}
               opponentTeamName={opponentTeamName}
               onBackToRounds={() => {
                 setView('rounds');
                 setSelectedRoundId(null);
               }}
+            existingLineup={existingLineup}
+            matchMeta={matchMeta}
+            lineupLockReason={lineupLockReason}
             />
           )}
         </div>
       </div>
     </div>
-  );
-}
-
-function DeadlineDisplay({ deadline }: { deadline: string }) {
-  const [timeLeft, setTimeLeft] = useState('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const end = new Date(deadline);
-      const diff = end.getTime() - now.getTime();
-
-      if (diff < 0) {
-        setTimeLeft('Deadline passed');
-      } else {
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const days = Math.floor(hours / 24);
-        setTimeLeft(days > 0 ? `${days}d ${hours % 24}h remaining` : `${hours}h remaining`);
-      }
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, [deadline]);
-
-  return (
-    <p className="text-sm opacity-90 mt-1">
-      Lineup Deadline: {timeLeft}
-    </p>
   );
 }
 
@@ -374,7 +394,6 @@ function RoundsView({
 function GamesView({
   games,
   roster,
-  isTeamA,
   canEdit,
   token,
   stopId,
@@ -384,19 +403,24 @@ function GamesView({
   myTeamName,
   opponentTeamName,
   onBackToRounds,
+  existingLineup,
+  matchMeta,
+  lineupLockReason,
 }: {
   games: Game[];
   roster: Player[];
-  isTeamA: boolean;
   canEdit: boolean;
   token: string;
   stopId: string;
   bracketId: string;
   roundId: string;
-  onUpdate: (roundId: string) => void;
+  onUpdate: (roundId: string, bracketIdOverride?: string) => Promise<void>;
   myTeamName: string;
   opponentTeamName: string;
   onBackToRounds: () => void;
+  existingLineup: Player[];
+  matchMeta: MatchMeta | null;
+  lineupLockReason: LineupLockReason;
 }) {
   // State for the 4 lineup positions
   const [man1, setMan1] = useState<Player | null>(null);
@@ -405,21 +429,73 @@ function GamesView({
   const [woman2, setWoman2] = useState<Player | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Initialize from existing lineups
-  useEffect(() => {
+  const menCount = roster.filter(player => player.gender === 'MALE').length;
+  const womenCount = roster.filter(player => player.gender === 'FEMALE').length;
+  const rosterReady = menCount >= 2 && womenCount >= 2;
+  const derivedLineup = useMemo(() => {
+    if (existingLineup && existingLineup.length === 4 && existingLineup.every(Boolean)) {
+      return existingLineup as Player[];
+    }
+
+    const players: (Player | undefined)[] = [undefined, undefined, undefined, undefined];
+
     const mensDoubles = games.find(g => g.slot === 'MENS_DOUBLES');
     const womensDoubles = games.find(g => g.slot === 'WOMENS_DOUBLES');
 
     if (mensDoubles?.myLineup?.length === 2) {
-      setMan1(mensDoubles.myLineup[0]);
-      setMan2(mensDoubles.myLineup[1]);
+      players[0] = mensDoubles.myLineup[0];
+      players[1] = mensDoubles.myLineup[1];
     }
 
     if (womensDoubles?.myLineup?.length === 2) {
-      setWoman1(womensDoubles.myLineup[0]);
-      setWoman2(womensDoubles.myLineup[1]);
+      players[2] = womensDoubles.myLineup[0];
+      players[3] = womensDoubles.myLineup[1];
     }
-  }, [games]);
+
+    return players as Player[];
+  }, [existingLineup, games]);
+
+  const menAnchor = derivedLineup[0] || null;
+  const secondMale = derivedLineup[1] || null;
+  const womenAnchor = derivedLineup[2] || null;
+  const secondFemale = derivedLineup[3] || null;
+
+  const mixedOneMen = menAnchor;
+  const mixedOneWomen = womenAnchor;
+  const mixedTwoMen = secondMale;
+  const mixedTwoWomen = secondFemale;
+
+  const effectiveRoster = useMemo(() => {
+    const map = new Map<string, Player>();
+    roster.forEach(player => {
+      if (!map.has(player.id)) {
+        map.set(player.id, player);
+      }
+    });
+    if (matchMeta?.opponentLineup && Array.isArray(matchMeta.opponentLineup)) {
+      matchMeta.opponentLineup.forEach((player: Player) => {
+        if (player && !map.has(player.id)) {
+          map.set(player.id, player);
+        }
+      });
+    }
+    derivedLineup.forEach(player => {
+      if (player && !map.has(player.id)) {
+        map.set(player.id, player);
+      }
+    });
+    return Array.from(map.values());
+  }, [roster, derivedLineup, matchMeta]);
+
+  // Initialize from existing lineups
+  useEffect(() => {
+    const lineupSource = derivedLineup;
+
+    if (lineupSource[0]) setMan1(lineupSource[0]);
+    if (lineupSource[1]) setMan2(lineupSource[1]);
+    if (lineupSource[2]) setWoman1(lineupSource[2]);
+    if (lineupSource[3]) setWoman2(lineupSource[3]);
+  }, [derivedLineup]);
 
   // Get available players for each dropdown
   const getAvailablePlayers = (position: 'man1' | 'man2' | 'woman1' | 'woman2'): Player[] => {
@@ -427,15 +503,32 @@ function GamesView({
 
     // Always include the currently selected player for this position
     const currentPlayer = position === 'man1' ? man1 : position === 'man2' ? man2 : position === 'woman1' ? woman1 : woman2;
-    if (currentPlayer) {
+    const gender = position.startsWith('man') ? 'MALE' : 'FEMALE';
+
+    const uniquePlayers = new Map<string, Player>();
+
+    if (currentPlayer && currentPlayer.gender === gender) {
+      uniquePlayers.set(currentPlayer.id, currentPlayer);
       usedPlayerIds.delete(currentPlayer.id);
     }
 
-    const gender = position.startsWith('man') ? 'MALE' : 'FEMALE';
-    return roster.filter(p => p.gender === gender && !usedPlayerIds.has(p.id));
+    effectiveRoster.forEach(player => {
+      if (player.gender !== gender) return;
+      if (usedPlayerIds.has(player.id)) return;
+      if (!uniquePlayers.has(player.id)) {
+        uniquePlayers.set(player.id, player);
+      }
+    });
+
+    return Array.from(uniquePlayers.values());
   };
 
   const saveLineups = async () => {
+    if (!rosterReady) {
+      alert('This team must have at least two men and two women on the stop roster before lineups can be saved.');
+      return;
+    }
+
     if (!man1 || !man2 || !woman1 || !woman2) {
       alert('Please select all 4 players before saving');
       return;
@@ -460,9 +553,14 @@ function GamesView({
         throw new Error(errorData.error || 'Failed to save lineup');
       }
 
+      const updated = await response.json().catch(() => null);
+      if (updated?.match) {
+        setMatchMeta(updated.match);
+      }
+
       alert('Lineups saved successfully!');
-      onUpdate(roundId);
-      
+      await onUpdate(roundId, bracketId);
+
       // Navigate back to rounds page
       onBackToRounds();
     } catch (error) {
@@ -475,15 +573,104 @@ function GamesView({
 
   const isLineupsComplete = man1 && man2 && woman1 && woman2;
 
+  const getTiebreakerBanner = () => {
+    if (!matchMeta) return null;
+    const status = matchMeta.tiebreakerStatus as string | undefined;
+    if (!status) return null;
+
+    const winnerName = matchMeta.tiebreakerWinnerTeamId
+      ? matchMeta.tiebreakerWinnerTeamId === matchMeta.opponentTeam?.id
+        ? opponentTeamName
+        : myTeamName
+      : null;
+
+    switch (status) {
+      case 'tied_requires_tiebreaker':
+        return {
+          tone: 'warning',
+          message: 'Match is tied 2-2. A tiebreaker game is required; contact the manager.',
+        };
+      case 'tied_pending':
+        return {
+          tone: 'info',
+          message: 'Tiebreaker game has been scheduled. Await instructions from the manager.',
+        };
+      case 'decided_points':
+        return {
+          tone: 'success',
+          message: `Match decided via total points${winnerName ? ` — ${winnerName} wins.` : '.'}`,
+        };
+      case 'decided_tiebreaker':
+        return {
+          tone: 'success',
+          message: `Tiebreaker played${winnerName ? ` — ${winnerName} wins.` : '.'}`,
+        };
+      default:
+        return null;
+    }
+  };
+
+  const tiebreakerBanner = getTiebreakerBanner();
+
+  const lineupLockedBanner = (() => {
+    if (!lineupLockReason) return null;
+    if (lineupLockReason === 'match_started') {
+      return 'Lineup editing is locked because this match has already started.';
+    }
+    if (lineupLockReason === 'deadline_passed') {
+      return 'Lineup deadline has passed. You can now view lineups and enter scores.';
+    }
+    return null;
+  })();
+
+  const lineupEditingEnabled = canEdit && lineupLockReason === null;
+
+  const opponentMenPair = useMemo(() => {
+    const core = matchMeta?.opponentLineup || [];
+    return [core[0] || null, core[1] || null];
+  }, [matchMeta]);
+
+  const opponentWomenPair = useMemo(() => {
+    const core = matchMeta?.opponentLineup || [];
+    return [core[2] || null, core[3] || null];
+  }, [matchMeta]);
+
+  const opponentMixedOnePair = useMemo(() => {
+    return [matchMeta?.opponentLineup?.[0] || null, matchMeta?.opponentLineup?.[2] || null];
+  }, [matchMeta]);
+
+  const opponentMixedTwoPair = useMemo(() => {
+    const core = matchMeta?.opponentLineup || [];
+    return [core[1] || null, core[3] || null];
+  }, [matchMeta]);
+
   return (
     <div>
-      {canEdit ? (
+      {lineupEditingEnabled ? (
         /* Before Deadline: Show Players Section Only */
-        <div className="card p-4 md:p-6 bg-surface-2">
+        <div className="card p-4 md:p-6 bg-surface-1">
+          {tiebreakerBanner && (
+            <div className={`mb-4 rounded-lg border px-3 py-2 text-sm ${tiebreakerBanner.tone === 'warning' ? 'bg-warning/10 border-warning/40 text-warning-dark' : tiebreakerBanner.tone === 'info' ? 'bg-info/10 border-info/40 text-info-dark' : 'bg-success/10 border-success/40 text-success-dark'}`}>
+              {tiebreakerBanner.message}
+            </div>
+          )}
+
           <h3 className="text-lg md:text-xl font-semibold text-primary mb-3">Players</h3>
           <p className="text-sm text-muted mb-4">
             Select your lineup and the games will be automatically populated.
           </p>
+
+          {lineupLockedBanner && (
+            <div className="mb-4 border border-warning/40 bg-warning/10 text-warning text-sm p-3 rounded">
+              {lineupLockedBanner}
+            </div>
+          )}
+
+          {!rosterReady && (
+            <div className="mb-4 border border-warning/40 bg-warning/10 text-warning text-sm p-3 rounded">
+              {myTeamName || 'This club'} must add at least two men and two women to its stop roster before lineups can be set for this match. Current roster: {menCount} men, {womenCount} women.
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
             {/* Men */}
@@ -493,7 +680,8 @@ function GamesView({
                 <select
                   value={man1?.id || ''}
                   onChange={(e) => setMan1(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  disabled={!rosterReady}
+                  className={`input w-full text-base ${!rosterReady ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select first male player...</option>
                   {getAvailablePlayers('man1').map(player => (
@@ -503,7 +691,8 @@ function GamesView({
                 <select
                   value={man2?.id || ''}
                   onChange={(e) => setMan2(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  disabled={!rosterReady}
+                  className={`input w-full text-base ${!rosterReady ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select second male player...</option>
                   {getAvailablePlayers('man2').map(player => (
@@ -520,7 +709,8 @@ function GamesView({
                 <select
                   value={woman1?.id || ''}
                   onChange={(e) => setWoman1(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  disabled={!rosterReady}
+                  className={`input w-full text-base ${!rosterReady ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select first female player...</option>
                   {getAvailablePlayers('woman1').map(player => (
@@ -530,7 +720,8 @@ function GamesView({
                 <select
                   value={woman2?.id || ''}
                   onChange={(e) => setWoman2(roster.find(p => p.id === e.target.value) || null)}
-                  className="input w-full text-base"
+                  disabled={!rosterReady}
+                  className={`input w-full text-base ${!rosterReady ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select second female player...</option>
                   {getAvailablePlayers('woman2').map(player => (
@@ -543,7 +734,7 @@ function GamesView({
 
           <button
             onClick={saveLineups}
-            disabled={!isLineupsComplete || saving}
+            disabled={!isLineupsComplete || saving || !rosterReady}
             className="btn btn-primary disabled:opacity-50 w-full md:w-auto"
           >
             {saving ? 'Saving...' : 'Save Lineup'}
@@ -552,55 +743,67 @@ function GamesView({
       ) : (
         /* After Deadline: Show Games Section Only */
         <div className="space-y-4">
-          <div className="bg-warning/10 border border-warning text-warning px-4 py-3 rounded mb-6">
-            Lineup deadline has passed. You can now view lineups and enter scores.
-          </div>
+          {tiebreakerBanner && (
+            <div className={`rounded-lg border px-3 py-2 text-sm ${tiebreakerBanner.tone === 'warning' ? 'bg-warning/10 border-warning/40 text-warning-dark' : tiebreakerBanner.tone === 'info' ? 'bg-info/10 border-info/40 text-info-dark' : 'bg-success/10 border-success/40 text-success-dark'}`}>
+              {tiebreakerBanner.message}
+            </div>
+          )}
+
+          {lineupLockedBanner && (
+            <div className="bg-warning/10 border border-warning text-warning px-4 py-3 rounded mb-6">
+              {lineupLockedBanner}
+            </div>
+          )}
 
           <h3 className="text-lg md:text-xl font-semibold text-primary">Games</h3>
 
           <GamePreview
             title="Men's Doubles"
-            player1={null}
-            player2={null}
+            player1={menAnchor || null}
+            player2={derivedLineup[1] || null}
             game={games.find(g => g.slot === 'MENS_DOUBLES')}
             token={token}
             stopId={stopId}
             bracketId={bracketId}
             roundId={roundId}
-            onUpdate={() => onUpdate(roundId)}
+            onUpdate={(roundIdOverride, bracketOverride) => onUpdate(roundIdOverride ?? roundId, bracketOverride ?? bracketId)}
+            opponentPlayers={opponentMenPair}
           />
           <GamePreview
             title="Women's Doubles"
-            player1={null}
-            player2={null}
+            player1={derivedLineup[2] || null}
+            player2={derivedLineup[3] || null}
             game={games.find(g => g.slot === 'WOMENS_DOUBLES')}
             token={token}
             stopId={stopId}
             bracketId={bracketId}
             roundId={roundId}
-            onUpdate={() => onUpdate(roundId)}
+            onUpdate={(roundIdOverride, bracketOverride) => onUpdate(roundIdOverride ?? roundId, bracketOverride ?? bracketId)}
+            opponentPlayers={opponentWomenPair}
           />
           <GamePreview
             title="Mixed Doubles 1"
-            player1={null}
-            player2={null}
+            player1={mixedOneMen || null}
+            player2={mixedOneWomen || null}
             game={games.find(g => g.slot === 'MIXED_1')}
             token={token}
             stopId={stopId}
             bracketId={bracketId}
             roundId={roundId}
-            onUpdate={() => onUpdate(roundId)}
+            onUpdate={(roundIdOverride, bracketOverride) => onUpdate(roundIdOverride ?? roundId, bracketOverride ?? bracketId)}
+            opponentPlayers={opponentMixedOnePair}
           />
           <GamePreview
             title="Mixed Doubles 2"
-            player1={null}
-            player2={null}
+            player1={mixedTwoMen || null}
+            player2={mixedTwoWomen || null}
             game={games.find(g => g.slot === 'MIXED_2')}
             token={token}
             stopId={stopId}
             bracketId={bracketId}
             roundId={roundId}
-            onUpdate={() => onUpdate(roundId)}
+            onUpdate={(roundIdOverride, bracketOverride) => onUpdate(roundIdOverride ?? roundId, bracketOverride ?? bracketId)}
+            opponentPlayers={opponentMixedTwoPair}
           />
         </div>
       )}
@@ -618,6 +821,7 @@ function GamePreview({
   bracketId,
   roundId,
   onUpdate,
+  opponentPlayers,
 }: {
   title: string;
   player1: Player | null;
@@ -627,7 +831,8 @@ function GamePreview({
   stopId: string;
   bracketId: string;
   roundId: string;
-  onUpdate: () => void;
+  onUpdate: (roundIdOverride?: string, bracketIdOverride?: string) => Promise<void>;
+  opponentPlayers: (Player | null)[];
 }) {
   const [myScore, setMyScore] = useState<string>('');
   const [opponentScore, setOpponentScore] = useState<string>('');
@@ -635,13 +840,32 @@ function GamePreview({
 
   // Initialize from game data
   useEffect(() => {
-    if (game?.mySubmittedScore !== null && game?.mySubmittedScore !== undefined) {
-      setMyScore(String(game.mySubmittedScore));
-    }
-    if (game?.opponentSubmittedScore !== null && game?.opponentSubmittedScore !== undefined) {
-      setOpponentScore(String(game.opponentSubmittedScore));
-    }
-  }, [game]);
+    setMyScore((prev) => {
+      if (game?.mySubmittedScore !== undefined && game?.mySubmittedScore !== null) {
+        return String(game.mySubmittedScore);
+      }
+      if (game?.myScore !== undefined && game?.myScore !== null) {
+        return String(game.myScore);
+      }
+      if (!game?.myScoreSubmitted) {
+        return '';
+      }
+      return prev;
+    });
+
+    setOpponentScore((prev) => {
+      if (game?.opponentSubmittedScore !== undefined && game?.opponentSubmittedScore !== null) {
+        return String(game.opponentSubmittedScore);
+      }
+      if (game?.opponentScore !== undefined && game?.opponentScore !== null) {
+        return String(game.opponentScore);
+      }
+      if (!game?.myScoreSubmitted) {
+        return '';
+      }
+      return prev;
+    });
+  }, [game?.id, game?.mySubmittedScore, game?.opponentSubmittedScore, game?.myScore, game?.opponentScore, game?.myScoreSubmitted]);
 
   const handleSubmitScore = async () => {
     if (!game) return;
@@ -679,15 +903,30 @@ function GamePreview({
 
       const result = await response.json();
 
-      if (result.mismatch) {
-        alert(`Score submitted! The opponent submitted a different score (${result.opponentSubmission.myScore}-${result.opponentSubmission.opponentScore}). Please contact tournament admin to resolve.`);
-      } else if (result.confirmed) {
+      const nextMyScore = result.gameState?.myScore ?? myScoreNum;
+      const nextOpponentScore = result.gameState?.opponentScore ?? oppScoreNum;
+
+      if (result.confirmed) {
         alert('Score confirmed! Both teams agree.');
-      } else {
+      } else if (result.mismatch) {
+        const opp = result.opponentSubmission;
+        if (opp) {
+          alert(
+            `Score submitted! The opponent submitted a different score (${opp.teamAScore}-${opp.teamBScore}). Please contact tournament admin to resolve.`
+          );
+        } else {
+          alert('Score submitted, but the opponent still needs to enter their score.');
+        }
+      } else if (result.waitingForOpponent) {
         alert('Score submitted! Waiting for opponent to confirm.');
+      } else {
+        alert('Score submitted.');
       }
 
-      onUpdate();
+      setMyScore(String(nextMyScore));
+      setOpponentScore(String(nextOpponentScore));
+
+      await onUpdate(roundId, bracketId);
     } catch (error) {
       console.error('Failed to submit score:', error);
       alert('Failed to submit score. Please try again.');
@@ -698,7 +937,7 @@ function GamePreview({
 
   if (!game) {
     return (
-      <div className="card p-4 bg-surface-2 opacity-60">
+      <div className="card p-4 bg-surface-1 opacity-60">
         <h4 className="text-sm font-semibold text-secondary mb-2">{title}</h4>
         <div className="text-sm">
           {player1 && player2 ? (
@@ -712,14 +951,48 @@ function GamePreview({
   }
 
   const hasLineup = player1 && player2;
-  const canSubmitScore = hasLineup && !game.isComplete;
+  const myLineup = hasLineup
+    ? [player1!, player2!]
+    : game?.myLineup && game.myLineup.length === 2
+      ? game.myLineup
+      : [];
   const myScoreSubmitted = game.myScoreSubmitted || false;
   const opponentScoreSubmitted = game.opponentScoreSubmitted || false;
-  const scoresMatch =
-    myScoreSubmitted &&
-    opponentScoreSubmitted &&
-    game.mySubmittedScore === game.opponentSubmittedScore &&
-    game.opponentSubmittedScore === game.myScore;
+  const displayMySubmittedScore =
+    game.mySubmittedScore ?? game.myScore ?? (myScore !== '' ? Number(myScore) : null);
+  const displayOpponentSubmittedScore =
+    game.opponentSubmittedScore ?? game.opponentScore ?? (opponentScore !== '' ? Number(opponentScore) : null);
+
+  const scoresMatch = (() => {
+    if (!myScoreSubmitted || !opponentScoreSubmitted) return false;
+    if (
+      displayMySubmittedScore === null ||
+      displayMySubmittedScore === undefined ||
+      displayOpponentSubmittedScore === null ||
+      displayOpponentSubmittedScore === undefined
+    ) {
+      return false;
+    }
+
+    if (displayMySubmittedScore === displayOpponentSubmittedScore) {
+      return true;
+    }
+
+    const myPerspective = {
+      mine: game.myScore ?? displayMySubmittedScore,
+      theirs: game.opponentScore ?? displayOpponentSubmittedScore,
+    };
+
+    const opponentPerspective = {
+      mine: displayOpponentSubmittedScore,
+      theirs: displayMySubmittedScore,
+    };
+
+    return myPerspective.mine === opponentPerspective.theirs && myPerspective.theirs === opponentPerspective.mine;
+  })();
+
+  const disableInputs = game.isComplete;
+  const canSubmit = !disableInputs && myScore.trim() !== '' && opponentScore.trim() !== '';
 
   return (
     <div className={`card p-4 ${game.isComplete ? 'bg-success/5 border-success' : ''}`}>
@@ -736,15 +1009,10 @@ function GamePreview({
         <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center text-sm mb-3">
           {/* My Team */}
           <div className="text-left">
-            {hasLineup ? (
+            {myLineup.length === 2 ? (
               <div className="space-y-1">
-                <div className="text-primary font-medium">{player1.name}</div>
-                <div className="text-primary font-medium">{player2.name}</div>
-              </div>
-            ) : game.myLineup && game.myLineup.length === 2 ? (
-              <div className="space-y-1">
-                <div className="text-primary font-medium">{game.myLineup[0].name}</div>
-                <div className="text-primary font-medium">{game.myLineup[1].name}</div>
+                <div className="text-primary font-medium">{myLineup[0].name}</div>
+                <div className="text-primary font-medium">{myLineup[1].name}</div>
               </div>
             ) : (
               <span className="text-muted italic">Not selected</span>
@@ -756,10 +1024,10 @@ function GamePreview({
 
           {/* Opponent Team */}
           <div className="text-right">
-            {game.opponentLineup && game.opponentLineup.length === 2 ? (
+            {opponentPlayers.filter(Boolean).length === 2 ? (
               <div className="space-y-1">
-                <div className="text-secondary">{game.opponentLineup[0].name}</div>
-                <div className="text-secondary">{game.opponentLineup[1].name}</div>
+                <div className="text-secondary">{opponentPlayers[0]?.name}</div>
+                <div className="text-secondary">{opponentPlayers[1]?.name}</div>
               </div>
             ) : (
               <span className="text-muted italic">Not set</span>
@@ -789,7 +1057,7 @@ function GamePreview({
                       min="0"
                       value={myScore}
                       onChange={(e) => setMyScore(e.target.value)}
-                      disabled={myScoreSubmitted}
+                      disabled={myScoreSubmitted || disableInputs}
                       className="input w-full"
                       placeholder="0"
                     />
@@ -802,7 +1070,7 @@ function GamePreview({
                       min="0"
                       value={opponentScore}
                       onChange={(e) => setOpponentScore(e.target.value)}
-                      disabled={myScoreSubmitted}
+                      disabled={myScoreSubmitted || disableInputs}
                       className="input w-full"
                       placeholder="0"
                     />
@@ -813,7 +1081,7 @@ function GamePreview({
                 {!myScoreSubmitted && (
                   <button
                     onClick={handleSubmitScore}
-                    disabled={submitting || !myScore || !opponentScore}
+                    disabled={submitting || !canSubmit}
                     className="btn btn-primary btn-sm w-full disabled:opacity-50"
                   >
                     {submitting ? 'Submitting...' : 'Submit Score'}
@@ -824,7 +1092,7 @@ function GamePreview({
                 {myScoreSubmitted && (
                   <div className="space-y-2">
                     <div className="bg-primary/10 border border-primary text-primary px-3 py-2 rounded text-xs">
-                      ✓ You submitted: {game.mySubmittedScore} - {game.opponentSubmittedScore}
+                      ✓ You submitted: {displayMySubmittedScore ?? '—'} - {displayOpponentSubmittedScore ?? '—'}
                     </div>
 
                     {opponentScoreSubmitted ? (

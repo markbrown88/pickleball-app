@@ -55,7 +55,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Find tournaments where the player is an event manager
+    // Find tournaments where the player is an event manager or tournament admin
     // 1. Via Stop.eventManagerId (stop-level assignment)
     const managedStops = await prisma.stop.findMany({
       where: {
@@ -72,10 +72,19 @@ export async function GET(
       select: { tournamentId: true },
     });
 
+    // 3. Via TournamentAdmin table (tournament admin)
+    const tournamentAdmins = await prisma.tournamentAdmin.findMany({
+      where: {
+        playerId: targetPlayerId
+      },
+      select: { tournamentId: true },
+    });
+
     const tournamentIds = [
       ...new Set([
         ...managedStops.map(s => s.tournamentId),
         ...tournamentEventManagers.map(tem => tem.tournamentId),
+        ...tournamentAdmins.map(ta => ta.tournamentId),
       ])
     ];
 
@@ -83,8 +92,10 @@ export async function GET(
       return NextResponse.json({ items: [] });
     }
 
-    // Build a set of tournament IDs where player is a tournament-level manager
+    // Build a set of tournament IDs where player is a tournament-level manager or tournament admin
     const tournamentLevelManagerIds = new Set(tournamentEventManagers.map(tem => tem.tournamentId));
+    const tournamentAdminIds = new Set(tournamentAdmins.map(ta => ta.tournamentId));
+    const canSeeAllStops = new Set([...tournamentLevelManagerIds, ...tournamentAdminIds]);
 
     // Now get only the tournaments that have stops managed by this player
     const tournaments = await prisma.tournament.findMany({
@@ -94,8 +105,8 @@ export async function GET(
           select: { clubId: true, club: { select: { id: true, name: true } } },
         },
         stops: {
-          // If tournament-level manager, show all stops; otherwise only their assigned stops
-          where: tournamentLevelManagerIds.size > 0 ? undefined : {
+          // If tournament-level manager or tournament admin, show all stops; otherwise only their assigned stops
+          where: canSeeAllStops.size > 0 ? undefined : {
             eventManagerId: targetPlayerId
           },
           orderBy: { startAt: 'asc' },

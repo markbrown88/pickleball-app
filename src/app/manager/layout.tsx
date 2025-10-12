@@ -15,6 +15,7 @@ async function loadAdminUser(userId: string): Promise<AdminUser | null> {
       firstName: true,
       lastName: true,
       email: true,
+      clubId: true,
       isAppAdmin: true,
       TournamentCaptain: { select: { tournamentId: true }, take: 1 },
       tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
@@ -33,6 +34,7 @@ async function loadAdminUser(userId: string): Promise<AdminUser | null> {
     firstName: player.firstName,
     lastName: player.lastName,
     email: player.email,
+    clubId: player.clubId,
     isAppAdmin: player.isAppAdmin,
     isTournamentAdmin: hasTournamentAdminRole,
     isCaptain: hasCaptainRole,
@@ -82,8 +84,8 @@ export default async function ManagerLayout({ children }: { children: ReactNode 
   const userRole = await getUserRole(user.id);
   const availableUsers = await getAvailableUsers(userRole);
 
-  // Only app-admin and event-manager can access this page
-  if (userRole !== 'app-admin' && userRole !== 'event-manager') {
+  // Only app-admin, tournament-admin, and event-manager can access this page
+  if (userRole !== 'app-admin' && userRole !== 'tournament-admin' && userRole !== 'event-manager') {
     redirect('/dashboard');
   }
 

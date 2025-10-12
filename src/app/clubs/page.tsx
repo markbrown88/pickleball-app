@@ -79,11 +79,11 @@ export default function AdminClubsPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!admin.isAppAdmin) return;
+    if (!admin.isAppAdmin && !admin.isTournamentAdmin) return;
     void loadClubs(sort);
     void loadPlayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [admin.isAppAdmin]);
+  }, [admin.isAppAdmin, admin.isTournamentAdmin]);
 
   const sortedClubs = useMemo(() => clubs, [clubs]);
 
@@ -164,25 +164,35 @@ export default function AdminClubsPage() {
     }
   }
 
-  if (!admin.isAppAdmin) {
+  if (!admin.isAppAdmin && !admin.isTournamentAdmin) {
     return (
       <section className="space-y-6">
         <h1 className="text-2xl font-semibold text-primary">Clubs</h1>
         <div className="card">
-          <p className="text-muted">Only application administrators can manage clubs.</p>
+          <p className="text-muted">Only administrators can manage clubs.</p>
         </div>
       </section>
     );
   }
 
+  const isTournamentAdminOnly = admin.isTournamentAdmin && !admin.isAppAdmin;
+
   return (
     <section className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-primary">Clubs</h1>
-          <p className="text-muted">Manage club profiles used across tournaments.</p>
+          <h1 className="text-2xl font-semibold text-primary">
+            {isTournamentAdminOnly ? 'My Club' : 'Clubs'}
+          </h1>
+          <p className="text-muted">
+            {isTournamentAdminOnly
+              ? 'Manage your club profile.'
+              : 'Manage club profiles used across tournaments.'}
+          </p>
         </div>
-        <button className="btn btn-primary" onClick={handleAddClub}>Add Club</button>
+        {admin.isAppAdmin && (
+          <button className="btn btn-primary" onClick={handleAddClub}>Add Club</button>
+        )}
       </header>
 
       {err && (
@@ -252,21 +262,23 @@ export default function AdminClubsPage() {
                   <td className="py-2 pr-4 text-muted">{club.phone ?? '—'}</td>
                   <td className="py-2 pr-2 text-right align-middle">
                     <div className="flex gap-1">
-                      <button 
-                        className="btn btn-sm btn-ghost" 
-                        onClick={() => handleEditClub(club)} 
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => handleEditClub(club)}
                         title="Edit"
                       >
                         ✎
                       </button>
-                      <button
-                        aria-label="Delete club"
-                        onClick={() => removeClub(club.id)}
-                        title="Delete"
-                        className="text-error hover:text-error-hover p-1"
-                      >
-                        <TrashIcon />
-                      </button>
+                      {admin.isAppAdmin && (
+                        <button
+                          aria-label="Delete club"
+                          onClick={() => removeClub(club.id)}
+                          title="Delete"
+                          className="text-error hover:text-error-hover p-1"
+                        >
+                          <TrashIcon />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

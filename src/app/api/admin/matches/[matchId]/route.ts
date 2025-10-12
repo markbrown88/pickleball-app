@@ -4,6 +4,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 type Params = { matchId: string };
 type Ctx = { params: Promise<Params> };
@@ -204,6 +206,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return handleForfeit(matchId, body as ForfeitBody);
   }
   
+  if ('decideByPoints' in body && (body as any).decideByPoints) {
+    return decideMatchByPoints(matchId);
+  }
+
   // Otherwise, handle as score update
   return updateMatchScores(matchId, body as PutBody);
 }
@@ -325,6 +331,8 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
 
     console.log(`[FORFEIT] Successfully processed forfeit for match ${matchId}`);
     
+    await evaluateMatchTiebreaker(prisma, matchId);
+
     return NextResponse.json({ 
       ok: true, 
       matchId, 
@@ -335,5 +343,104 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
   } catch (e: any) {
     console.error(`[FORFEIT] Error processing forfeit for match ${matchId}:`, e);
     return NextResponse.json({ error: e?.message ?? 'Failed to update forfeit status' }, { status: 500 });
+  }
+}
+
+async function decideMatchByPoints(matchId: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
+        games: true,
+      },
+    });
+
+    if (!match) {
+      return bad('Match not found', 404);
+    }
+
+    const standardGames = match.games.filter((g) =>
+      ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'].includes(g.slot ?? ''),
+    );
+
+    if (standardGames.length !== 4 || standardGames.some((g) => g.teamAScore == null || g.teamBScore == null)) {
+      return bad('Standard games must be completed before deciding by points.');
+    }
+
+    const tally = standardGames.reduce(
+      (acc, game) => {
+        const a = game.teamAScore ?? 0;
+        const b = game.teamBScore ?? 0;
+        acc.pointsA += a;
+        acc.pointsB += b;
+        if (a > b) acc.winsA += 1;
+        else if (b > a) acc.winsB += 1;
+        return acc;
+      },
+      { pointsA: 0, pointsB: 0, winsA: 0, winsB: 0 },
+    );
+
+    if (tally.winsA > tally.winsB || tally.winsB > tally.winsA) {
+      const winnerTeamId = tally.winsA > tally.winsB ? match.teamAId : match.teamBId;
+
+      const updatedMatch = await prisma.match.update({
+        where: { id: matchId },
+        data: {
+          tiebreakerStatus: 'DECIDED_POINTS',
+          tiebreakerWinnerTeamId: winnerTeamId,
+          totalPointsTeamA: tally.pointsA,
+          totalPointsTeamB: tally.pointsB,
+          tiebreakerDecidedAt: new Date(),
+        },
+        select: {
+          id: true,
+          tiebreakerStatus: true,
+          tiebreakerWinnerTeamId: true,
+          totalPointsTeamA: true,
+          totalPointsTeamB: true,
+        },
+      });
+
+      await evaluateMatchTiebreaker(prisma, matchId);
+
+      return NextResponse.json({
+        ok: true,
+        match: updatedMatch,
+      });
+    }
+
+    if (tally.pointsA === tally.pointsB) {
+      return bad('Total points are tied; a tiebreaker game is required.');
+    }
+
+    const winnerTeamId = tally.pointsA > tally.pointsB ? match.teamAId : match.teamBId;
+
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        tiebreakerStatus: 'DECIDED_POINTS',
+        tiebreakerWinnerTeamId: winnerTeamId,
+        totalPointsTeamA: tally.pointsA,
+        totalPointsTeamB: tally.pointsB,
+        tiebreakerDecidedAt: new Date(),
+      },
+      select: {
+        id: true,
+        tiebreakerStatus: true,
+        tiebreakerWinnerTeamId: true,
+        totalPointsTeamA: true,
+        totalPointsTeamB: true,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      match: updatedMatch,
+    });
+  } catch (error) {
+    console.error('decideMatchByPoints error:', error);
+    return NextResponse.json({ error: 'Failed to decide match by points' }, { status: 500 });
   }
 }

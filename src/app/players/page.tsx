@@ -203,9 +203,11 @@ export default function PlayersPage() {
     setPlayerEditId(null);
     setPlayerCountrySel('Canada');
     setPlayerCountryOther('');
-    setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', country: 'Canada', phone: '', email: '' });
+    // Pre-fill clubId for Tournament Admins
+    const defaultClubId = admin.isTournamentAdmin && !admin.isAppAdmin ? admin.clubId : '';
+    setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: defaultClubId, dupr: '', city: '', region: '', country: 'Canada', phone: '', email: '' });
     setPlayerBirthday('');
-  }, []);
+  }, [admin]);
 
   const openSlideOutEditPlayer = useCallback((p: Player) => {
     setPlayerSlideOutOpen(true);
@@ -291,9 +293,13 @@ export default function PlayersPage() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-primary">Players</h1>
-          <p className="text-muted">Manage player profiles and search across clubs.</p>
+          <p className="text-muted">
+            {admin.isAppAdmin
+              ? 'Manage player profiles and search across clubs.'
+              : 'Manage player profiles for your club.'}
+          </p>
         </div>
-        {admin.isAppAdmin && (
+        {(admin.isAppAdmin || admin.isTournamentAdmin) && (
           <button className="btn btn-primary" onClick={openSlideOutPlayer}>Add Player</button>
         )}
       </header>
@@ -311,21 +317,23 @@ export default function PlayersPage() {
 
       <div className="card">
         <form className="flex flex-wrap items-center gap-3" onSubmit={submitPlayerSearch}>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-muted">Primary Club</label>
-            <select
-              className="input"
-              value={playersClubFilter}
-              onChange={(e) => changePlayersClubFilter(e.target.value)}
-            >
-              <option value="">All Clubs</option>
-              {filteredClubs.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}{c.city ? ` (${c.city})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+          {admin.isAppAdmin && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted">Primary Club</label>
+              <select
+                className="input"
+                value={playersClubFilter}
+                onChange={(e) => changePlayersClubFilter(e.target.value)}
+              >
+                <option value="">All Clubs</option>
+                {filteredClubs.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.city ? ` (${c.city})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted">Search</label>
             <div className="flex items-center gap-2">
@@ -445,6 +453,7 @@ export default function PlayersPage() {
           birthday={playerBirthday}
           setBirthday={setPlayerBirthday}
           clubs={filteredClubs}
+          isClubFieldLocked={admin.isTournamentAdmin && !admin.isAppAdmin}
           onSave={savePlayer}
           onCancel={() => setPlayerSlideOutOpen(false)}
         />
@@ -486,6 +495,7 @@ function PlayerSlideOut({
   birthday,
   setBirthday,
   clubs,
+  isClubFieldLocked,
   onSave,
   onCancel,
 }: {
@@ -502,6 +512,7 @@ function PlayerSlideOut({
   birthday: string;
   setBirthday: React.Dispatch<React.SetStateAction<string>>;
   clubs: Club[];
+  isClubFieldLocked: boolean;
   onSave: () => void;
   onCancel: () => void;
 }) {
@@ -537,7 +548,13 @@ function PlayerSlideOut({
               </div>
               <div>
                 <label className="block text-sm font-medium text-secondary mb-1">Primary Club</label>
-                <select className="input" value={form.clubId} onChange={(e) => setForm((prev) => ({ ...prev, clubId: e.target.value as Id }))}>
+                <select
+                  className="input"
+                  value={form.clubId}
+                  onChange={(e) => setForm((prev) => ({ ...prev, clubId: e.target.value as Id }))}
+                  disabled={isClubFieldLocked}
+                  style={isClubFieldLocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                >
                   <option value="">Select Club…</option>
                   {clubs.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>

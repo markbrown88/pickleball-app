@@ -7,6 +7,7 @@ export type AdminUser = {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
+  clubId: string;
   isAppAdmin: boolean;
   isTournamentAdmin: boolean;
   isCaptain: boolean;

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
+import { playersForSlot } from '@/lib/lineupSlots';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +12,12 @@ type Params = {
     bracketId: string;
     roundId: string;
   }>;
+};
+
+type PlayerLite = {
+  id: string;
+  name: string;
+  gender: 'MALE' | 'FEMALE';
 };
 
 export async function GET(request: Request, { params }: Params) {
@@ -111,16 +119,42 @@ export async function GET(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
-    // Get stop roster (players available for lineup selection) - include both teams
-    const match = round.matches[0]; // Get the match first
+    // Attempt to locate the match for this team in the specified round
+    let rawMatch = round.matches[0];
+
+    if (!rawMatch) {
+      rawMatch = await prisma.match.findFirst({
+        where: {
+          roundId,
+          OR: [{ teamAId: team.id }, { teamBId: team.id }],
+        },
+        select: { id: true },
+      }) ?? undefined;
+    }
+
+    if (!rawMatch?.id) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: rawMatch.id },
+      include: {
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
+        games: true,
+      },
+    });
+
     if (!match) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
+    const refreshedMatch = await evaluateMatchTiebreaker(prisma, match.id) ?? match;
+
     const stopTeamPlayers = await prisma.stopTeamPlayer.findMany({
       where: {
         stopId: stopId,
-        teamId: { in: [match.teamAId, match.teamBId].filter((id): id is string => id !== null) }
+        teamId: { in: [refreshedMatch.teamAId, refreshedMatch.teamBId].filter((id): id is string => id !== null) }
       },
       include: {
         player: {
@@ -152,7 +186,64 @@ export async function GET(request: Request, { params }: Params) {
 
     // Get lineups from the old system
     const myTeamLineup = round.lineups.find(l => l.teamId === team.id);
-    const opponentTeamLineup = round.lineups.find(l => l.teamId === (match.teamAId === team.id ? match.teamBId : match.teamAId));
+    const opponentTeamLineup = round.lineups.find(l => l.teamId === (refreshedMatch.teamAId === team.id ? refreshedMatch.teamBId : refreshedMatch.teamAId));
+
+    const playerLookup = new Map<string, PlayerLite>();
+    allPlayers.forEach(player => {
+      playerLookup.set(player.id, player);
+    });
+
+    myTeamPlayers.forEach(stp => {
+      if (!playerLookup.has(stp.player.id)) {
+        playerLookup.set(stp.player.id, {
+          id: stp.player.id,
+          name: stp.player.name || `${stp.player.firstName || ''} ${stp.player.lastName || ''}`.trim(),
+          gender: stp.player.gender
+        });
+      }
+    });
+
+    const extractCoreLineup = (lineup: { entries: any[] } | null | undefined): (PlayerLite | undefined)[] => {
+      if (!lineup) return [undefined, undefined, undefined, undefined];
+
+      const players: (PlayerLite | undefined)[] = [undefined, undefined, undefined, undefined];
+
+      const sortedEntries = [...lineup.entries].sort((a: any, b: any) => {
+        const order: Record<string, number> = {
+          MENS_DOUBLES: 0,
+          WOMENS_DOUBLES: 1,
+          MIXED_1: 2,
+          MIXED_2: 3,
+        };
+        return (order[a.slot] ?? 10) - (order[b.slot] ?? 10);
+      });
+
+      sortedEntries.forEach((entry: any) => {
+        const addPlayer = (slotIndex: number, player: any, fallbackId?: string) => {
+          const sourcePlayer = player || (fallbackId ? playerLookup.get(fallbackId) : null);
+          if (!sourcePlayer) return;
+          if (players[slotIndex]) return;
+          players[slotIndex] = {
+            id: sourcePlayer.id,
+            name: sourcePlayer.name,
+            gender: sourcePlayer.gender,
+          };
+        };
+
+        if (entry.slot === 'MENS_DOUBLES') {
+          addPlayer(0, entry.player1, entry.player1Id);
+          addPlayer(1, entry.player2, entry.player2Id);
+        } else if (entry.slot === 'WOMENS_DOUBLES') {
+          addPlayer(2, entry.player1, entry.player1Id);
+          addPlayer(3, entry.player2, entry.player2Id);
+        }
+      });
+
+      return players;
+    };
+
+    const myLineupCore = extractCoreLineup(myTeamLineup);
+    const opponentLineupCore = extractCoreLineup(opponentTeamLineup);
 
     // Enrich lineups with player names
     const enrichLineup = (lineup: any) => {
@@ -203,20 +294,26 @@ export async function GET(request: Request, { params }: Params) {
     const deadlinePassed = deadline ? now > deadline : false;
 
     // Enrich games with player info
-    const enrichedGames = match.games.map(game => ({
-      id: game.id,
-      slot: game.slot,
-      myLineup: myTeamLineup ? enrichLineup(myTeamLineup) : [],
-      opponentLineup: opponentTeamLineup ? enrichLineup(opponentTeamLineup) : [],
-      myScore: isTeamA ? game.teamAScore : game.teamBScore,
-      opponentScore: isTeamA ? game.teamBScore : game.teamAScore,
-      mySubmittedScore: isTeamA ? game.teamASubmittedScore : game.teamBSubmittedScore,
-      opponentSubmittedScore: isTeamA ? game.teamBSubmittedScore : game.teamASubmittedScore,
-      myScoreSubmitted: isTeamA ? game.teamAScoreSubmitted : game.teamBScoreSubmitted,
-      opponentScoreSubmitted: isTeamA ? game.teamBScoreSubmitted : game.teamAScoreSubmitted,
-      isComplete: game.isComplete,
-      startedAt: game.startedAt
-    }));
+    const enrichedGames = refreshedMatch.games.map(game => {
+      const slot = game.slot || '';
+      const [myPlayer1, myPlayer2] = myLineupCore ? playersForSlot(myLineupCore, slot) : [undefined, undefined];
+      const [oppPlayer1, oppPlayer2] = opponentLineupCore ? playersForSlot(opponentLineupCore, slot) : [undefined, undefined];
+
+      return {
+        id: game.id,
+        slot: game.slot,
+        myLineup: [myPlayer1, myPlayer2].filter(Boolean),
+        opponentLineup: [oppPlayer1, oppPlayer2].filter(Boolean),
+        myScore: isTeamA ? game.teamAScore : game.teamBScore,
+        opponentScore: isTeamA ? game.teamBScore : game.teamAScore,
+        mySubmittedScore: isTeamA ? game.teamASubmittedScore : game.teamBSubmittedScore,
+        opponentSubmittedScore: isTeamA ? game.teamBSubmittedScore : game.teamASubmittedScore,
+        myScoreSubmitted: isTeamA ? game.teamAScoreSubmitted : game.teamBScoreSubmitted,
+        opponentScoreSubmitted: isTeamA ? game.teamBScoreSubmitted : game.teamAScoreSubmitted,
+        isComplete: game.isComplete,
+        startedAt: game.startedAt
+      };
+    });
 
     return NextResponse.json({
       tournament: {
@@ -238,21 +335,31 @@ export async function GET(request: Request, { params }: Params) {
         name: team.name || team.club?.name || 'Your Team'
       },
       match: {
-        id: match.id,
+        id: refreshedMatch?.id,
         opponentTeam: {
           id: opponentTeam?.id,
           name: opponentTeam?.name
-        }
+        },
+        tiebreakerStatus: refreshedMatch?.tiebreakerStatus ?? null,
+        tiebreakerWinnerTeamId: refreshedMatch?.tiebreakerWinnerTeamId ?? null,
+        totalPointsTeamA: refreshedMatch?.totalPointsTeamA ?? null,
+        totalPointsTeamB: refreshedMatch?.totalPointsTeamB ?? null,
+        tiebreakerDecidedAt: refreshedMatch?.tiebreakerDecidedAt ?? null,
+        matchStatus: refreshedMatch?.games?.every((g: any) => g?.isComplete) ? 'completed' : refreshedMatch?.games?.some((g: any) => g?.startedAt) ? 'in_progress' : 'not_started',
+        opponentLineup: opponentLineupCore ?? [],
       },
       games: enrichedGames,
       roster,
+      existingLineup: myLineupCore,
+      opponentLineup: opponentLineupCore,
       deadlinePassed,
       isTeamA
     });
   } catch (error) {
     console.error('Captain portal round error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to load round data';
     return NextResponse.json(
-      { error: 'Failed to load round data' },
+      { error: message },
       { status: 500 }
     );
   }

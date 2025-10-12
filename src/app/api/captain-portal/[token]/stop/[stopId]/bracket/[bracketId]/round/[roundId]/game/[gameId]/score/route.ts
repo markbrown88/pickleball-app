@@ -69,79 +69,102 @@ export async function PUT(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Scores cannot be negative' }, { status: 400 });
     }
 
-    // Build the update based on which team is submitting
-    // Team A perspective: teamAScore = myScore, teamBScore = opponentScore
-    // Team B perspective: teamBScore = myScore, teamAScore = opponentScore
-    const updateData = isTeamA
-      ? {
-          teamASubmittedScore: myScore,
-          teamBSubmittedScore: opponentScore,
-          teamAScoreSubmitted: true
-        }
-      : {
-          teamBSubmittedScore: myScore,
-          teamASubmittedScore: opponentScore,
-          teamBScoreSubmitted: true
-        };
+    const reportedTeamAScore = isTeamA ? myScore : opponentScore;
+    const reportedTeamBScore = isTeamA ? opponentScore : myScore;
 
-    // Update the game with the submitted score
-    const updatedGame = await prisma.game.update({
-      where: { id: gameId },
-      data: updateData
-    });
+    const opponentReportedTeamAScore = game.teamASubmittedScore;
+    const opponentReportedTeamBScore = game.teamBSubmittedScore;
+    const opponentProvidedScores =
+      opponentReportedTeamAScore !== null &&
+      opponentReportedTeamAScore !== undefined &&
+      opponentReportedTeamBScore !== null &&
+      opponentReportedTeamBScore !== undefined;
 
-    // Check if both teams have submitted
-    const teamASubmitted = isTeamA ? true : updatedGame.teamAScoreSubmitted;
-    const teamBSubmitted = isTeamB ? true : updatedGame.teamBScoreSubmitted;
+    const canonicalMatch =
+      opponentProvidedScores &&
+      opponentReportedTeamAScore === reportedTeamAScore &&
+      opponentReportedTeamBScore === reportedTeamBScore;
 
-    if (teamASubmitted && teamBSubmitted) {
-      // Both teams have submitted - check if scores match
-      const scoresMatch =
-        updatedGame.teamASubmittedScore === updatedGame.teamBSubmittedScore &&
-        updatedGame.teamBSubmittedScore === updatedGame.teamASubmittedScore;
+    const swappedMatch =
+      opponentProvidedScores &&
+      opponentReportedTeamAScore === reportedTeamBScore &&
+      opponentReportedTeamBScore === reportedTeamAScore;
 
-      if (scoresMatch) {
-        // Scores match! Lock them in and mark game as complete
-        await prisma.game.update({
-          where: { id: gameId },
-          data: {
-            teamAScore: updatedGame.teamASubmittedScore,
-            teamBScore: updatedGame.teamBSubmittedScore,
-            isComplete: true
-          }
-        });
+    if (canonicalMatch || swappedMatch) {
+      const finalTeamAScore = reportedTeamAScore;
+      const finalTeamBScore = reportedTeamBScore;
 
-        return NextResponse.json({
-          success: true,
-          confirmed: true,
-          mismatch: false
-        });
-      } else {
-        // Scores don't match - return mismatch status
-        const opponentSubmission = isTeamA
-          ? {
-              myScore: updatedGame.teamBSubmittedScore,
-              opponentScore: updatedGame.teamASubmittedScore
-            }
-          : {
-              myScore: updatedGame.teamASubmittedScore,
-              opponentScore: updatedGame.teamBSubmittedScore
-            };
+      await prisma.game.update({
+        where: { id: gameId },
+        data: {
+          teamAScore: finalTeamAScore,
+          teamBScore: finalTeamBScore,
+          teamASubmittedScore: finalTeamAScore,
+          teamBSubmittedScore: finalTeamBScore,
+          teamAScoreSubmitted: true,
+          teamBScoreSubmitted: true,
+          isComplete: true,
+          startedAt: game.startedAt ?? new Date(),
+        },
+      });
 
-        return NextResponse.json({
-          success: true,
-          confirmed: false,
-          mismatch: true,
-          opponentSubmission
-        });
-      }
+      return NextResponse.json({
+        success: true,
+        confirmed: true,
+        mismatch: false,
+      });
     }
 
-    // Only one team has submitted
+    if (isTeamA) {
+      await prisma.game.update({
+        where: { id: gameId },
+        data: {
+          teamASubmittedScore: reportedTeamAScore,
+          teamAScoreSubmitted: true,
+          teamAScore: reportedTeamAScore,
+          teamBScore: reportedTeamBScore,
+          teamBSubmittedScore: game.teamBSubmittedScore,
+          startedAt: game.startedAt ?? new Date(),
+        },
+      });
+    } else {
+      await prisma.game.update({
+        where: { id: gameId },
+        data: {
+          teamBSubmittedScore: reportedTeamBScore,
+          teamBScoreSubmitted: true,
+          teamAScore: reportedTeamAScore,
+          teamBScore: reportedTeamBScore,
+          teamASubmittedScore: game.teamASubmittedScore,
+          startedAt: game.startedAt ?? new Date(),
+        },
+      });
+    }
+
+    const mySubmissionPayload = {
+      teamAScore: reportedTeamAScore,
+      teamBScore: reportedTeamBScore,
+      perspective: isTeamA ? 'TEAM_A' : 'TEAM_B' as const,
+    };
+
     return NextResponse.json({
       success: true,
       confirmed: false,
-      mismatch: false
+      mismatch: opponentProvidedScores,
+      waitingForOpponent: !opponentProvidedScores,
+      mySubmission: mySubmissionPayload,
+      opponentSubmission: opponentProvidedScores
+        ? {
+            teamAScore: opponentReportedTeamAScore,
+            teamBScore: opponentReportedTeamBScore,
+          }
+        : null,
+      gameState: {
+        myScore: isTeamA ? myScore : opponentScore,
+        opponentScore: isTeamA ? opponentScore : myScore,
+        mySubmittedScore: isTeamA ? reportedTeamAScore : game.teamASubmittedScore,
+        opponentSubmittedScore: isTeamA ? game.teamBSubmittedScore : reportedTeamBScore,
+      },
     });
   } catch (error) {
     console.error('Failed to submit score:', error);

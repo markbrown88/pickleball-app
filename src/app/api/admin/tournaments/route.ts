@@ -49,10 +49,56 @@ function normalizeDateInput(d?: string | null): Date | null {
  *  - participatingClubs: prefer TournamentClub; fallback to Teams' clubs
  *  - dateRange from Stops (min startAt .. max (endAt || startAt))
  */
-export async function GET() {
+export async function GET(req: Request) {
   // Use singleton prisma instance
+  const { userId } = await import('@clerk/nextjs/server').then(m => m.auth());
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check for act-as-player-id cookie
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+  let currentPlayer;
+  if (actAsPlayerId) {
+    // Acting as another player - fetch that player's record
+    currentPlayer = await prisma.player.findUnique({
+      where: { id: actAsPlayerId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        tournamentAdminLinks: { select: { tournamentId: true } },
+      },
+    });
+  } else {
+    // Normal operation - use authenticated user
+    currentPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        tournamentAdminLinks: { select: { tournamentId: true } },
+      },
+    });
+  }
+
+  if (!currentPlayer) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
+
+  const isTournamentAdmin = currentPlayer.tournamentAdminLinks.length > 0;
+
+  // Tournament Admins can only see tournaments they are assigned to
+  const whereClause: any = {};
+  if (!currentPlayer.isAppAdmin && isTournamentAdmin) {
+    const tournamentIds = currentPlayer.tournamentAdminLinks.map(link => link.tournamentId);
+    whereClause.id = { in: tournamentIds };
+  }
 
   const tournaments = await prisma.tournament.findMany({
+    where: whereClause,
     orderBy: { createdAt: 'desc' },
     select: { id: true, name: true, createdAt: true, type: true },
   });

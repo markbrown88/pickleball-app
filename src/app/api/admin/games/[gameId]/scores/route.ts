@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 import { GameSlot as GameSlotEnum } from '@prisma/client';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 type Ctx = { params: Promise<{ gameId: string }> };
 
@@ -106,6 +107,8 @@ export async function PUT(req: Request, ctx: Ctx) {
           updated.push(m as { slot: GameSlot; teamAScore: number | null; teamBScore: number | null });
         }
       }
+
+      await evaluateMatchTiebreaker(tx, game.match.id);
     });
 
     // Return fresh game view

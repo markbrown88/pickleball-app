@@ -84,7 +84,7 @@ export default function CaptainPortalPage({
   const completedStops = data.stops.filter(s => s.status === 'completed');
 
   return (
-    <div className="min-h-screen bg-surface-1">
+    <div className="min-h-screen">
       {/* Sticky Header */}
       <div className="sticky top-0 bg-primary text-white py-4 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">

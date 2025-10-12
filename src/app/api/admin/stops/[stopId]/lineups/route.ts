@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { LINEUP_SLOT_ORDER, mapLineupToEntries, normalizeSlot } from '@/lib/lineupSlots';
 import type { GameSlot } from '@prisma/client';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 // Retry function for database operations
 async function retryDatabaseOperation<T>(
@@ -85,74 +87,98 @@ export async function GET(
 
       // Process Team A lineup
       if (teamALineupData) {
-        // Sort entries by slot to ensure correct order: MENS_DOUBLES, WOMENS_DOUBLES, MIXED_1, MIXED_2
-        const sortedEntries = teamALineupData.entries.sort((a, b) => {
-          const slotOrder = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'];
-          return slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot);
+        const bySlot = new Map<GameSlot, typeof teamALineupData.entries[number]>();
+        teamALineupData.entries.forEach((entry) => {
+          bySlot.set(entry.slot as GameSlot, entry);
         });
 
-        // Extract players in order: Man1, Man2, Woman1, Woman2
-        for (const entry of sortedEntries) {
-          if (entry.slot === 'MENS_DOUBLES') {
-            teamALineup.push({
-              id: entry.player1.id,
-              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-              gender: entry.player1.gender
-            });
-            teamALineup.push({
-              id: entry.player2.id,
-              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-              gender: entry.player2.gender
-            });
-          } else if (entry.slot === 'WOMENS_DOUBLES') {
-            teamALineup.push({
-              id: entry.player1.id,
-              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-              gender: entry.player1.gender
-            });
-            teamALineup.push({
-              id: entry.player2.id,
-              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-              gender: entry.player2.gender
-            });
+        LINEUP_SLOT_ORDER.forEach((slot) => {
+          const normalizedSlot = normalizeSlot(slot);
+          if (!normalizedSlot) return;
+
+          const entry = bySlot.get(normalizedSlot as GameSlot);
+          if (!entry) return;
+
+          if (slot === 'MENS_DOUBLES') {
+            if (entry.player1) {
+              teamALineup[0] = {
+                id: entry.player1.id,
+                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+                gender: entry.player1.gender,
+              };
+            }
+            if (entry.player2) {
+              teamALineup[1] = {
+                id: entry.player2.id,
+                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+                gender: entry.player2.gender,
+              };
+            }
+          } else if (slot === 'WOMENS_DOUBLES') {
+            if (entry.player1) {
+              teamALineup[2] = {
+                id: entry.player1.id,
+                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+                gender: entry.player1.gender,
+              };
+            }
+            if (entry.player2) {
+              teamALineup[3] = {
+                id: entry.player2.id,
+                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+                gender: entry.player2.gender,
+              };
+            }
           }
-        }
+        });
       }
 
       // Process Team B lineup
       if (teamBLineupData) {
-        // Sort entries by slot to ensure correct order: MENS_DOUBLES, WOMENS_DOUBLES, MIXED_1, MIXED_2
-        const sortedEntries = teamBLineupData.entries.sort((a, b) => {
-          const slotOrder = ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'];
-          return slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot);
+        const bySlot = new Map<GameSlot, typeof teamBLineupData.entries[number]>();
+        teamBLineupData.entries.forEach((entry) => {
+          bySlot.set(entry.slot as GameSlot, entry);
         });
 
-        // Extract players in order: Man1, Man2, Woman1, Woman2
-        for (const entry of sortedEntries) {
-          if (entry.slot === 'MENS_DOUBLES') {
-            teamBLineup.push({
-              id: entry.player1.id,
-              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-              gender: entry.player1.gender
-            });
-            teamBLineup.push({
-              id: entry.player2.id,
-              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-              gender: entry.player2.gender
-            });
-          } else if (entry.slot === 'WOMENS_DOUBLES') {
-            teamBLineup.push({
-              id: entry.player1.id,
-              name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-              gender: entry.player1.gender
-            });
-            teamBLineup.push({
-              id: entry.player2.id,
-              name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-              gender: entry.player2.gender
-            });
+        LINEUP_SLOT_ORDER.forEach((slot) => {
+          const normalizedSlot = normalizeSlot(slot);
+          if (!normalizedSlot) return;
+
+          const entry = bySlot.get(normalizedSlot as GameSlot);
+          if (!entry) return;
+
+          if (slot === 'MENS_DOUBLES') {
+            if (entry.player1) {
+              teamBLineup[0] = {
+                id: entry.player1.id,
+                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+                gender: entry.player1.gender,
+              };
+            }
+            if (entry.player2) {
+              teamBLineup[1] = {
+                id: entry.player2.id,
+                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+                gender: entry.player2.gender,
+              };
+            }
+          } else if (slot === 'WOMENS_DOUBLES') {
+            if (entry.player1) {
+              teamBLineup[2] = {
+                id: entry.player1.id,
+                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+                gender: entry.player1.gender,
+              };
+            }
+            if (entry.player2) {
+              teamBLineup[3] = {
+                id: entry.player2.id,
+                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+                gender: entry.player2.gender,
+              };
+            }
           }
-        }
+        });
       }
 
       // Only add if we have complete lineups (4 players each)
@@ -202,13 +228,16 @@ export async function POST(
         const match = matches.find(m => m.id === matchId);
         if (!match || !match.teamA || !match.teamB) continue;
 
-        const teamA = (teams as any).teamA as any[];
-        const teamB = (teams as any).teamB as any[];
+        const teamMap = teams as Record<string, any[]>;
+        const teamA = teamMap[match.teamA.id] as any[] | undefined;
+        const teamB = teamMap[match.teamB.id] as any[] | undefined;
 
-        if (!Array.isArray(teamA) || !Array.isArray(teamB)) continue;
+        if (!Array.isArray(teamA) && !Array.isArray(teamB)) {
+          continue;
+        }
 
         // Process Team A lineup
-        if (teamA.length >= 4) {
+        if (Array.isArray(teamA) && teamA.length >= 4) {
           // Delete existing lineup for this team in this round
           await tx.lineup.deleteMany({
             where: {
@@ -227,38 +256,19 @@ export async function POST(
           });
 
           // Create lineup entries
+          const entries = mapLineupToEntries(teamA);
           await tx.lineupEntry.createMany({
-            data: [
-              {
-                lineupId: lineupA.id,
-                player1Id: teamA[0].id, // Man1
-                player2Id: teamA[1].id, // Man2
-                slot: 'MENS_DOUBLES'
-              },
-              {
-                lineupId: lineupA.id,
-                player1Id: teamA[2].id, // Woman1
-                player2Id: teamA[3].id, // Woman2
-                slot: 'WOMENS_DOUBLES'
-              },
-              {
-                lineupId: lineupA.id,
-                player1Id: teamA[0].id, // Man1
-                player2Id: teamA[2].id, // Woman1
-                slot: 'MIXED_1'
-              },
-              {
-                lineupId: lineupA.id,
-                player1Id: teamA[1].id, // Man2
-                player2Id: teamA[3].id, // Woman2
-                slot: 'MIXED_2'
-              }
-            ]
+            data: entries.map((entry) => ({
+              lineupId: lineupA.id,
+              slot: entry.slot as GameSlot,
+              player1Id: entry.player1Id!,
+              player2Id: entry.player2Id!,
+            })),
           });
         }
 
         // Process Team B lineup
-        if (teamB.length >= 4) {
+        if (Array.isArray(teamB) && teamB.length >= 4) {
           // Delete existing lineup for this team in this round
           await tx.lineup.deleteMany({
             where: {
@@ -277,35 +287,18 @@ export async function POST(
           });
 
           // Create lineup entries
+          const entries = mapLineupToEntries(teamB);
           await tx.lineupEntry.createMany({
-            data: [
-              {
-                lineupId: lineupB.id,
-                player1Id: teamB[0].id, // Man1
-                player2Id: teamB[1].id, // Man2
-                slot: 'MENS_DOUBLES'
-              },
-              {
-                lineupId: lineupB.id,
-                player1Id: teamB[2].id, // Woman1
-                player2Id: teamB[3].id, // Woman2
-                slot: 'WOMENS_DOUBLES'
-              },
-              {
-                lineupId: lineupB.id,
-                player1Id: teamB[0].id, // Man1
-                player2Id: teamB[2].id, // Woman1
-                slot: 'MIXED_1'
-              },
-              {
-                lineupId: lineupB.id,
-                player1Id: teamB[1].id, // Man2
-                player2Id: teamB[3].id, // Woman2
-                slot: 'MIXED_2'
-              }
-            ]
+            data: entries.map((entry) => ({
+              lineupId: lineupB.id,
+              slot: entry.slot as GameSlot,
+              player1Id: entry.player1Id!,
+              player2Id: entry.player2Id!,
+            })),
           });
         }
+
+        await evaluateMatchTiebreaker(tx, match.id);
       }
     });
 

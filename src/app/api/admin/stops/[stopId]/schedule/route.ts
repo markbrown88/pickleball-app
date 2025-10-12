@@ -8,6 +8,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { getActAsHeaderFromRequest, getEffectivePlayer } from '@/lib/actAs';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
@@ -112,6 +113,9 @@ export async function GET(req: Request, ctx: Ctx) {
             id: true,
             isBye: true,
             forfeitTeam: true,
+            roundId: true,
+            teamAId: true,
+            teamBId: true,
             teamA: {
               select: {
                 id: true,
@@ -168,122 +172,204 @@ export async function GET(req: Request, ctx: Ctx) {
                 startedAt: true,
                 endedAt: true,
                 createdAt: true,
-                teamALineup: true,
-                teamBLineup: true,
                 lineupConfirmed: true,
+                teamAScoreSubmitted: true,
+                teamBScoreSubmitted: true,
+                teamASubmittedScore: true,
+                teamBSubmittedScore: true,
               }
             },
+            tiebreakerStatus: true,
+            tiebreakerWinnerTeamId: true,
+            tiebreakerGameId: true,
+            tiebreakerDecidedAt: true,
+            totalPointsTeamA: true,
+            totalPointsTeamB: true,
           },
         },
+        lineups: {
+          include: {
+            entries: {
+              include: {
+                player1: {
+                  select: {
+                    id: true,
+                    name: true,
+                    firstName: true,
+                    lastName: true,
+                    gender: true
+                  }
+                },
+                player2: {
+                  select: {
+                    id: true,
+                    name: true,
+                    firstName: true,
+                    lastName: true,
+                    gender: true
+                  }
+                }
+              }
+            }
+          }
+        }
       },
     });
 
-    // Collect all player IDs from lineups to fetch player data
-    const playerIds = new Set<string>();
-    roundsRaw.forEach((r) => {
-      r.matches.forEach((match) => {
-        match.games?.forEach((game) => {
-          if (game.teamALineup && Array.isArray(game.teamALineup)) {
-            game.teamALineup.forEach((entry: any) => {
-              if (entry.player1Id) playerIds.add(entry.player1Id);
-              if (entry.player2Id) playerIds.add(entry.player2Id);
-            });
-          }
-          if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
-            game.teamBLineup.forEach((entry: any) => {
-              if (entry.player1Id) playerIds.add(entry.player1Id);
-              if (entry.player2Id) playerIds.add(entry.player2Id);
-            });
-          }
-        });
-      });
-    });
+    // Build a map of lineups by roundId and teamId
+    const lineupMap = new Map<string, any[]>();
+    roundsRaw.forEach((round) => {
+      round.lineups.forEach((lineup) => {
+        const key = `${round.id}-${lineup.teamId}`;
+        const players: any[] = [];
 
-    // Fetch all player data in one query
-    const players = await prisma.player.findMany({
-      where: { id: { in: Array.from(playerIds) } },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        name: true,
-        gender: true
-      }
-    });
+        // Extract players from lineup entries in order: [Man1, Man2, Woman1, Woman2]
+        const mensDoubles = lineup.entries.find(e => e.slot === 'MENS_DOUBLES');
+        const womensDoubles = lineup.entries.find(e => e.slot === 'WOMENS_DOUBLES');
 
-    const playerMap = new Map(players.map(p => [p.id, {
-      id: p.id,
-      name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
-      gender: p.gender
-    }]));
-
-    // Helper function to enrich lineup with player data
-    const enrichLineup = (lineup: any) => {
-      if (!lineup || !Array.isArray(lineup)) return lineup;
-      const players: any[] = [];
-      lineup.forEach((entry: any) => {
-        if (entry.player1Id) {
-          const player = playerMap.get(entry.player1Id);
-          if (player) players.push(player);
-        }
-        if (entry.player2Id) {
-          const player = playerMap.get(entry.player2Id);
-          if (player) players.push(player);
-        }
-      });
-      return players;
-    };
-
-    // Apply bracket filter and enrich lineups
-    const rounds = roundsRaw
-      .map((r) => {
-        const matches = r.matches
-          .map((match) => {
-            const inferredBracketId =
-              match.teamA?.bracket?.id ?? match.teamB?.bracket?.id ?? null;
-            const inferredBracketName =
-              match.teamA?.bracket?.name ?? match.teamB?.bracket?.name ?? null;
-
-            // Skip if bracket filter doesn't match
-            if (bracketFilter !== undefined && bracketFilter !== null && inferredBracketId !== bracketFilter) {
-              return null;
-            }
-
-            return {
-              id: match.id,
-              teamA: match.teamA,
-              teamB: match.teamB,
-              isBye: match.isBye,
-              forfeitTeam: match.forfeitTeam,
-              bracketId: inferredBracketId,
-              bracketName: inferredBracketName,
-              games: match.games?.map((game) => ({
-                id: game.id,
-                slot: game.slot,
-                teamAScore: game.teamAScore,
-                teamBScore: game.teamBScore,
-                courtNumber: game.courtNumber,
-                isComplete: game.isComplete,
-                startedAt: game.startedAt,
-                endedAt: game.endedAt,
-                teamALineup: enrichLineup(game.teamALineup),
-                teamBLineup: enrichLineup(game.teamBLineup),
-                lineupConfirmed: game.lineupConfirmed,
-                createdAt: game.createdAt
-              })) || []
+        if (mensDoubles) {
+          if (mensDoubles.player1) {
+            players[0] = {
+              id: mensDoubles.player1.id,
+              name: mensDoubles.player1.name || `${mensDoubles.player1.firstName || ''} ${mensDoubles.player1.lastName || ''}`.trim(),
+              gender: mensDoubles.player1.gender
             };
-          })
-          .filter(Boolean); // Remove null entries
+          }
+          if (mensDoubles.player2) {
+            players[1] = {
+              id: mensDoubles.player2.id,
+              name: mensDoubles.player2.name || `${mensDoubles.player2.firstName || ''} ${mensDoubles.player2.lastName || ''}`.trim(),
+              gender: mensDoubles.player2.gender
+            };
+          }
+        }
 
-        return { ...r, matches };
-      })
-      .filter((r) => r.matches.length > 0 || bracketFilter === undefined); // drop empty rounds only if filtered
+        if (womensDoubles) {
+          if (womensDoubles.player1) {
+            players[2] = {
+              id: womensDoubles.player1.id,
+              name: womensDoubles.player1.name || `${womensDoubles.player1.firstName || ''} ${womensDoubles.player1.lastName || ''}`.trim(),
+              gender: womensDoubles.player1.gender
+            };
+          }
+          if (womensDoubles.player2) {
+            players[3] = {
+              id: womensDoubles.player2.id,
+              name: womensDoubles.player2.name || `${womensDoubles.player2.firstName || ''} ${womensDoubles.player2.lastName || ''}`.trim(),
+              gender: womensDoubles.player2.gender
+            };
+          }
+        }
+
+        // Only add to map if we have a complete lineup (4 players)
+        if (players[0] && players[1] && players[2] && players[3]) {
+          lineupMap.set(key, players);
+        }
+      });
+    });
 
 
-    return NextResponse.json(rounds);
+    const rounds = await Promise.all(
+      roundsRaw.map(async (r) => {
+        const matches = await Promise.all(
+          r.matches.map(async (match) => {
+              const evaluated = await evaluateMatchTiebreaker(prisma, match.id);
+              const resolved = evaluated ?? match;
+              const games = resolved.games ?? match.games ?? [];
+
+              const inferredBracketId =
+                match.teamA?.bracket?.id ?? match.teamB?.bracket?.id ?? null;
+              const inferredBracketName =
+                match.teamA?.bracket?.name ?? match.teamB?.bracket?.name ?? null;
+
+              if (
+                bracketFilter !== undefined &&
+                bracketFilter !== null &&
+                inferredBracketId !== bracketFilter
+              ) {
+                return null;
+              }
+
+              const baseMatchStatus = (() => {
+                if (games.some((g) => g.startedAt && !g.endedAt && !g.isComplete)) return 'in_progress';
+                if (games.every((g) => g.isComplete)) return 'completed';
+                if (games.some((g) => g.teamAScoreSubmitted || g.teamBScoreSubmitted)) return 'in_progress';
+                return 'not_started';
+              })();
+
+              const matchStatus = (() => {
+                switch (resolved.tiebreakerStatus) {
+                  case 'NEEDS_DECISION':
+                  case 'REQUIRES_TIEBREAKER':
+                  case 'PENDING_TIEBREAKER':
+                    return 'in_progress';
+                  case 'DECIDED_POINTS':
+                  case 'DECIDED_TIEBREAKER':
+                    return 'completed';
+                  default:
+                    return baseMatchStatus;
+                }
+              })();
+
+              const teamALineupKey = resolved.teamAId ? `${r.id}-${resolved.teamAId}` : null;
+              const teamBLineupKey = resolved.teamBId ? `${r.id}-${resolved.teamBId}` : null;
+              const teamALineup = teamALineupKey ? lineupMap.get(teamALineupKey) || null : null;
+              const teamBLineup = teamBLineupKey ? lineupMap.get(teamBLineupKey) || null : null;
+
+              return {
+                id: match.id,
+                teamA: match.teamA,
+                teamB: match.teamB,
+                isBye: match.isBye,
+                forfeitTeam: match.forfeitTeam,
+                bracketId: inferredBracketId,
+                bracketName: inferredBracketName,
+                tiebreakerStatus: resolved.tiebreakerStatus,
+                tiebreakerWinnerTeamId: resolved.tiebreakerWinnerTeamId,
+                tiebreakerGameId: resolved.tiebreakerGameId,
+                tiebreakerDecidedAt: resolved.tiebreakerDecidedAt,
+                totalPointsTeamA: resolved.totalPointsTeamA,
+                totalPointsTeamB: resolved.totalPointsTeamB,
+                matchStatus,
+                games: games.map((game) => ({
+                  id: game.id,
+                  slot: game.slot,
+                  teamAScore: game.teamAScore,
+                  teamBScore: game.teamBScore,
+                  courtNumber: game.courtNumber,
+                  isComplete: game.isComplete,
+                  startedAt: game.startedAt,
+                  endedAt: game.endedAt,
+                  teamALineup,
+                  teamBLineup,
+                  lineupConfirmed: game.lineupConfirmed,
+                  createdAt: game.createdAt,
+                  teamAScoreSubmitted: game.teamAScoreSubmitted,
+                  teamBScoreSubmitted: game.teamBScoreSubmitted,
+                  teamASubmittedScore: game.teamASubmittedScore,
+                  teamBSubmittedScore: game.teamBSubmittedScore,
+                })),
+              };
+            })
+          );
+
+          return {
+            ...r,
+            matches: matches.filter(Boolean),
+          };
+        })
+    );
+
+    const filteredRounds = rounds.filter(
+      (r) => r.matches.length > 0 || bracketFilter === undefined,
+    );
+
+    return NextResponse.json(filteredRounds);
   } catch (e) {
+    console.error('Schedule API error:', e);
     const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const stack = e instanceof Error ? e.stack : undefined;
+    return NextResponse.json({ error: msg, stack, details: String(e) }, { status: 500 });
   }
 }
 
