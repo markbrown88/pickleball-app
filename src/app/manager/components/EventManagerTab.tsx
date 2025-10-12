@@ -176,7 +176,9 @@ const GameScoreBox = memo(function GameScoreBox({
 
   const getTeamALineup = () => {
     if (game.teamALineup && Array.isArray(game.teamALineup)) {
-      return game.teamALineup.map((player: any) => player.name).join(' & ');
+      // Only show the 2 players for this specific game, not all team players
+      const players = game.teamALineup.slice(0, 2);
+      return players.map((player: any) => player.name).join(' &\n');
     }
     // For tiebreakers, show actual team names
     if (game.slot === 'TIEBREAKER' && match) {
@@ -211,7 +213,9 @@ const GameScoreBox = memo(function GameScoreBox({
 
   const getTeamBLineup = () => {
     if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
-      return game.teamBLineup.map((player: any) => player.name).join(' & ');
+      // Only show the 2 players for this specific game, not all team players
+      const players = game.teamBLineup.slice(0, 2);
+      return players.map((player: any) => player.name).join(' &\n');
     }
     // For tiebreakers, show actual team names
     if (game.slot === 'TIEBREAKER' && match) {
@@ -388,12 +392,28 @@ const GameScoreBox = memo(function GameScoreBox({
             <div>Latest submissions:</div>
             <div className="flex justify-between">
               <span>
-                {match.teamA?.name || 'Team A'}:
-                {game.teamASubmittedScore != null ? ` ${game.teamASubmittedScore}` : ' —'}
+                {(() => {
+                  const teamAName = match.teamA?.name || 'Team A';
+                  const bracketLabel = match.bracketName || match.teamA?.bracketName;
+                  const cleanName = bracketLabel && teamAName.endsWith(` ${bracketLabel}`)
+                    ? teamAName.replace(` ${bracketLabel}`, '')
+                    : teamAName;
+                  const scoreA = game.teamASubmittedScore != null ? game.teamASubmittedScore : '—';
+                  const scoreB = game.teamBSubmittedScore != null ? game.teamBSubmittedScore : '—';
+                  return `${cleanName}: ${scoreA}-${scoreB}`;
+                })()}
               </span>
               <span>
-                {match.teamB?.name || 'Team B'}:
-                {game.teamBSubmittedScore != null ? ` ${game.teamBSubmittedScore}` : ' —'}
+                {(() => {
+                  const teamBName = match.teamB?.name || 'Team B';
+                  const bracketLabel = match.bracketName || match.teamB?.bracketName;
+                  const cleanName = bracketLabel && teamBName.endsWith(` ${bracketLabel}`)
+                    ? teamBName.replace(` ${bracketLabel}`, '')
+                    : teamBName;
+                  const scoreB = game.teamBSubmittedScore != null ? game.teamBSubmittedScore : '—';
+                  const scoreA = game.teamASubmittedScore != null ? game.teamASubmittedScore : '—';
+                  return `${cleanName}: ${scoreB}-${scoreA}`;
+                })()}
               </span>
             </div>
           </div>
@@ -823,6 +843,7 @@ export function EventManagerTab({
   onError: (m: string) => void;
   onInfo: (m: string) => void;
 }) {
+  // Default to expanding only in-progress or not-started rounds (not completed)
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [scheduleData, setScheduleData] = useState<Record<string, any[]>>({});
@@ -1050,7 +1071,25 @@ export function EventManagerTab({
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString();
+    const date = new Date(dateStr);
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month}. ${day}, ${year}`;
+  };
+
+  const formatDateRange = (startAt: string | null, endAt: string | null) => {
+    if (!startAt && !endAt) return '—';
+    if (!endAt || startAt === endAt) return formatDate(startAt);
+
+    // Check if same day
+    const start = new Date(startAt || '');
+    const end = new Date(endAt || '');
+    if (start.toDateString() === end.toDateString()) {
+      return formatDate(startAt);
+    }
+
+    return `${formatDate(startAt)} - ${formatDate(endAt)}`;
   };
 
   const formatDeadline = (dateStr: string | null) => {
@@ -1189,6 +1228,24 @@ export function EventManagerTab({
 
       // Load lineups from the dedicated lineups endpoint instead of extracting from games
       await loadLineupsForStop(stopId);
+
+      // Auto-expand the first incomplete round
+      const firstIncompleteRound = data.find((round: any) => {
+        const allMatchesComplete = round.matches?.every((match: any) => {
+          const gamesForMatch = match.games || [];
+          return gamesForMatch.length > 0 && gamesForMatch.every((g: any) =>
+            g.teamAScore !== null && g.teamBScore !== null
+          );
+        });
+        return !allMatchesComplete;
+      });
+
+      if (firstIncompleteRound) {
+        setExpandedRounds(new Set([firstIncompleteRound.id]));
+      } else if (data.length > 0) {
+        // If all rounds complete, expand the last one
+        setExpandedRounds(new Set([data[data.length - 1].id]));
+      }
     } catch (e) {
       console.error('Load schedule error:', e);
       onError(`Failed to load schedule: ${(e as Error).message}`);
@@ -1864,41 +1921,41 @@ export function EventManagerTab({
     }
   };
 
+  // Since we now only show one tournament at a time, simplify the structure
+  const tournament = tournaments[0];
+
+  if (!tournament) {
+    return (
+      <div className="text-center py-8 text-muted">
+        You are not assigned as an event manager for any tournaments.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="space-y-6">
-        {tournaments.map((tournament) => (
-          <div key={tournament.tournamentId} className="card">
-            <div className="flex items-center justify-between pb-4 border-b border-border-subtle">
-              <div>
-                <h2 className="text-xl font-semibold text-primary">{tournament.tournamentName}</h2>
-                <p className="text-sm text-muted mt-1">
-                  {getTournamentTypeDisplayName(tournament.type)} • {tournament.stops.length} stop{tournament.stops.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-            </div>
+      {/* Stop tabs navigation */}
+      <div className="border-b border-border-subtle mb-6">
+        <nav className="flex gap-1 -mb-px" aria-label="Tabs">
+          {tournament.stops.map((stop) => (
+            <button
+              key={stop.stopId}
+              onClick={() => {
+                setSelectedStopId(stop.stopId);
+                loadSchedule(stop.stopId);
+              }}
+              className={`tab-button ${
+                selectedStopId === stop.stopId ? 'active' : ''
+              }`}
+            >
+              {stop.stopName}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-            <div className="pt-4">
-              <div className="border-b border-border-subtle mb-6">
-                <nav className="flex gap-1 -mb-px" aria-label="Tabs">
-                  {tournament.stops.map((stop) => (
-                    <button
-                      key={stop.stopId}
-                      onClick={() => {
-                        setSelectedStopId(stop.stopId);
-                        loadSchedule(stop.stopId);
-                      }}
-                      className={`tab-button ${
-                        selectedStopId === stop.stopId ? 'active' : ''
-                      }`}
-                    >
-                      {stop.stopName}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-
-              {selectedStopId && (() => {
+      {/* Stop content */}
+      {selectedStopId && (() => {
                 const stop = tournament.stops.find(s => s.stopId === selectedStopId);
                 if (!stop) return null;
 
@@ -1936,10 +1993,10 @@ export function EventManagerTab({
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <h3 className="text-sm font-semibold text-primary">
-                            {stop.locationName || 'Location TBD'}
+                            <span className="text-muted font-normal">Location:</span> {stop.locationName || 'TBD'}
                           </h3>
                           <span className="text-xs text-muted">
-                            {formatDate(stop.startAt ?? null)} - {formatDate(stop.endAt ?? null)}
+                            {formatDateRange(stop.startAt ?? null, stop.endAt ?? null)}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted">
@@ -2141,13 +2198,6 @@ export function EventManagerTab({
 
                                       return Object.entries(matchesByBracket).map(([bracketName, bracketMatches]) => (
                                         <div key={bracketName} className="space-y-4 mb-6 last:mb-0">
-                                          <div className="flex items-center gap-2 pb-2 border-b-2 border-border-medium">
-                                            <h5 className="font-semibold text-sm text-primary label-caps">
-                                              {bracketName}
-                                            </h5>
-                                            <span className="text-xs text-muted">({bracketMatches.length} matches)</span>
-                                          </div>
-
                                           {isEditing ? (
                                               <DndContext
                                                 collisionDetection={closestCenter}
@@ -2256,15 +2306,10 @@ export function EventManagerTab({
                                                                 ? teamBName.replace(` ${bracketLabel}`, '')
                                                                 : teamBName;
 
-                                                              return `${cleanTeamAName} vs ${cleanTeamBName}`;
+                                                              const matchupText = `${cleanTeamAName} vs ${cleanTeamBName}`;
+                                                              return bracketLabel ? `${matchupText} - ${bracketLabel}` : matchupText;
                                                             })()}
                                                           </h3>
-                                                          {(() => {
-                                                            const bracketLabel = match.bracketName || match.teamA?.bracketName || match.teamB?.bracketName;
-                                                            return bracketLabel && (
-                                                              <p className="text-xs text-muted mt-0.5">{bracketLabel}</p>
-                                                            );
-                                                          })()}
                                                         </div>
 
                                                         {/* Manager Actions */}
@@ -2534,16 +2579,6 @@ export function EventManagerTab({
                   </div>
                 );
               })()}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {tournaments.length === 0 && (
-        <div className="text-center py-8 text-muted">
-          You are not assigned as an event manager for any tournaments.
-        </div>
-      )}
     </div>
   );
 }

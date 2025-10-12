@@ -34,6 +34,7 @@ export default function ManagerPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tournaments, setTournaments] = useState<EventManagerTournament[]>([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
   const [playerId, setPlayerId] = useState<string>('');
 
   // Load player ID and event manager tournaments
@@ -58,7 +59,12 @@ export default function ManagerPage() {
           throw new Error('Failed to load tournaments');
         }
         const data = await tournamentsRes.json();
-        setTournaments(data.items || []);
+        const items = data.items || [];
+        setTournaments(items);
+        // Auto-select first tournament
+        if (items.length > 0) {
+          setSelectedTournamentId(items[0].tournamentId);
+        }
       } catch (error) {
         console.error('Error loading manager data:', error);
         setErr(error instanceof Error ? error.message : 'Failed to load data');
@@ -69,6 +75,9 @@ export default function ManagerPage() {
 
     loadData();
   }, [isLoaded, user?.id]); // Only depend on user.id, not the entire user object
+
+  // Get selected tournament
+  const selectedTournament = tournaments.find(t => t.tournamentId === selectedTournamentId);
 
   if (loading) {
     return (
@@ -83,9 +92,30 @@ export default function ManagerPage() {
 
   return (
     <div className="min-h-screen bg-app p-6 space-y-6">
-      <header>
-        <h1 className="text-3xl font-bold text-primary">Event Manager</h1>
-        <p className="text-muted mt-1">Manage lineups and scores for your assigned tournament stops</p>
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Event Manager</h1>
+          <p className="text-muted mt-1">Manage lineups and scores for your assigned tournament stops</p>
+        </div>
+        {tournaments.length > 1 && (
+          <div className="flex items-center gap-3">
+            <label htmlFor="manager-tournament" className="text-sm font-semibold text-secondary label-caps">
+              Tournament:
+            </label>
+            <select
+              id="manager-tournament"
+              className="input min-w-[280px]"
+              value={selectedTournamentId}
+              onChange={(e) => setSelectedTournamentId(e.target.value)}
+            >
+              {tournaments.map((t) => (
+                <option key={t.tournamentId} value={t.tournamentId}>
+                  {t.tournamentName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </header>
 
       {err && (
@@ -117,13 +147,13 @@ export default function ManagerPage() {
             </p>
           </div>
         </div>
-      ) : (
+      ) : selectedTournament ? (
         <EventManagerTab
-          tournaments={tournaments}
+          tournaments={[selectedTournament]}
           onError={(msg) => setErr(msg)}
           onInfo={(msg) => setInfo(msg)}
         />
-      )}
+      ) : null}
     </div>
   );
 }

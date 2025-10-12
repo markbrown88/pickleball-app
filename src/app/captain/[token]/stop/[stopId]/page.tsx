@@ -154,7 +154,9 @@ export default function StopDetailPage({
         throw new Error(data.error);
       }
 
-      setGames(data.games || []);
+      const nextGames = data.games || [];
+      const hadTiebreaker = games.some((g) => g.slot === 'TIEBREAKER');
+      setGames(nextGames);
       setRoster(data.roster || []);
       setExistingLineup(data.existingLineup || []);
       setMatchMeta((data.match as MatchMeta) || null);
@@ -184,6 +186,15 @@ export default function StopDetailPage({
       setRoundName(data.round?.name || `Round ${(data.round?.idx || 0) + 1}`);
 
       setView('games');
+
+      if (!hadTiebreaker && nextGames.some((g) => g.slot === 'TIEBREAKER')) {
+        requestAnimationFrame(() => {
+          const node = document.querySelector('[data-game-slot="TIEBREAKER"]');
+          if (node instanceof HTMLElement) {
+            node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      }
     } catch (error) {
       console.error('Failed to load games:', error);
       setGames([]);
@@ -805,6 +816,33 @@ function GamesView({
             onUpdate={(roundIdOverride, bracketOverride) => onUpdate(roundIdOverride ?? roundId, bracketOverride ?? bracketId)}
             opponentPlayers={opponentMixedTwoPair}
           />
+          {(() => {
+            const tiebreakerGame = games.find(g => g.slot === 'TIEBREAKER');
+            if (!tiebreakerGame) return null;
+
+            const myPlayers = tiebreakerGame.myLineup && tiebreakerGame.myLineup.length === 2
+              ? tiebreakerGame.myLineup
+              : [menAnchor || mixedOneMen || null, mixedOneWomen || mixedTwoWomen || null];
+            const opponentPlayersForTiebreaker = tiebreakerGame.opponentLineup && tiebreakerGame.opponentLineup.length === 2
+              ? tiebreakerGame.opponentLineup
+              : opponentMenPair;
+
+            return (
+              <GamePreview
+                title="Tiebreaker"
+                player1={myPlayers[0] || null}
+                player2={myPlayers[1] || null}
+                game={tiebreakerGame}
+                token={token}
+                stopId={stopId}
+                bracketId={bracketId}
+                roundId={roundId}
+                onUpdate={(roundIdOverride, bracketOverride) => onUpdate(roundIdOverride ?? roundId, bracketOverride ?? bracketId)}
+                opponentPlayers={opponentPlayersForTiebreaker as (Player | null)[]}
+              data-slot="TIEBREAKER"
+              />
+            );
+          })()}
         </div>
       )}
     </div>

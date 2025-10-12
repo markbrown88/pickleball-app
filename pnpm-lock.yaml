@@ -24,7 +24,7 @@ importers:
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.65.0(react@19.1.0))
       '@prisma/client':
-        specifier: ^6.15.0
+        specifier: ^6.17.1
         version: 6.17.1(prisma@6.17.1(typescript@5.9.3))(typescript@5.9.3)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
@@ -100,7 +100,7 @@ importers:
         specifier: 15.5.0
         version: 15.5.0(eslint@9.37.0(jiti@2.6.1))(typescript@5.9.3)
       prisma:
-        specifier: ^6.15.0
+        specifier: ^6.17.1
         version: 6.17.1(typescript@5.9.3)
       tailwindcss:
         specifier: ^4
