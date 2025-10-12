@@ -120,9 +120,11 @@ export async function GET(request: Request, { params }: Params) {
     }
 
     // Attempt to locate the match for this team in the specified round
-    let rawMatch = round.matches[0];
-
-    if (!rawMatch) {
+    let matchId: string | null = null;
+    
+    if (round.matches[0]) {
+      matchId = round.matches[0].id;
+    } else {
       const foundMatch = await prisma.match.findFirst({
         where: {
           roundId,
@@ -130,15 +132,15 @@ export async function GET(request: Request, { params }: Params) {
         },
         select: { id: true },
       });
-      rawMatch = foundMatch ? { id: foundMatch.id } : undefined;
+      matchId = foundMatch?.id ?? null;
     }
 
-    if (!rawMatch?.id) {
+    if (!matchId) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
     const match = await prisma.match.findUnique({
-      where: { id: rawMatch.id },
+      where: { id: matchId },
       include: {
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
