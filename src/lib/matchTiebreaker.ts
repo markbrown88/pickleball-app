@@ -1,4 +1,4 @@
-import type { GameSlot, Match, MatchTiebreakerStatus, Prisma } from '@prisma/client';
+import type { GameSlot, Match, MatchTiebreakerStatus, Prisma, PrismaClient } from '@prisma/client';
 
 const STANDARD_SLOTS: GameSlot[] = [
   'MENS_DOUBLES',
@@ -17,7 +17,7 @@ type MatchWithGames = Prisma.MatchGetPayload<{
   };
 }>;
 
-type PrismaClientOrTx = Prisma.TransactionClient | Prisma.PrismaClient;
+type PrismaClientOrTx = Prisma.TransactionClient | PrismaClient;
 
 export async function evaluateMatchTiebreaker(
   tx: PrismaClientOrTx,
