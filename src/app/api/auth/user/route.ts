@@ -130,6 +130,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check if a player with this email already exists in the database
+    if (email?.trim()) {
+      const existingPlayerByEmail = await prisma.player.findUnique({
+        where: { email: email.trim() }
+      });
+
+      if (existingPlayerByEmail) {
+        // Link the existing player to this Clerk user
+        const updatedPlayer = await prisma.player.update({
+          where: { id: existingPlayerByEmail.id },
+          data: { clerkUserId: userId },
+          include: {
+            club: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                region: true
+              }
+            }
+          }
+        });
+
+        return NextResponse.json({
+          id: updatedPlayer.id,
+          clerkUserId: updatedPlayer.clerkUserId,
+          firstName: updatedPlayer.firstName,
+          lastName: updatedPlayer.lastName,
+          name: updatedPlayer.name,
+          email: updatedPlayer.email,
+          phone: updatedPlayer.phone,
+          gender: updatedPlayer.gender,
+          dupr: updatedPlayer.dupr,
+          age: updatedPlayer.age,
+          birthday: updatedPlayer.birthday,
+          city: updatedPlayer.city,
+          region: updatedPlayer.region,
+          country: updatedPlayer.country,
+          club: updatedPlayer.club,
+          isAppAdmin: updatedPlayer.isAppAdmin
+        }, { status: 200 });
+      }
+    }
+
     // Parse birthday if provided
     let birthdayYear = null;
     let birthdayMonth = null;
