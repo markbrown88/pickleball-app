@@ -22,7 +22,7 @@ type PrismaClientOrTx = Prisma.TransactionClient | Prisma.PrismaClient;
 export async function evaluateMatchTiebreaker(
   tx: PrismaClientOrTx,
   matchId: string,
-): Promise<Match | null> {
+): Promise<MatchWithGames | null> {
   const match = await tx.match.findUnique({
     where: { id: matchId },
     include: {
