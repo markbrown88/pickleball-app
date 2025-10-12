@@ -566,7 +566,7 @@ function GamesView({
 
       const updated = await response.json().catch(() => null);
       if (updated?.match) {
-        setMatchMeta(updated.match);
+        setMatchMeta(updated.match as MatchMeta);
       }
 
       alert('Lineups saved successfully!');
