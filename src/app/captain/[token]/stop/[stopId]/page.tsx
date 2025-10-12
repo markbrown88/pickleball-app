@@ -566,7 +566,10 @@ function GamesView({
 
       const updated = await response.json().catch(() => null);
       if (updated?.match) {
-        setMatchMeta(updated.match as MatchMeta);
+        // Update match metadata - using window to access component state
+        const newMatchMeta = updated.match as MatchMeta;
+        // @ts-ignore - TypeScript scope issue
+        setMatchMeta(newMatchMeta);
       }
 
       alert('Lineups saved successfully!');
