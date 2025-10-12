@@ -484,7 +484,7 @@ function GamesView({
       }
     });
     if (matchMeta?.opponentLineup && Array.isArray(matchMeta.opponentLineup)) {
-      matchMeta.opponentLineup.forEach((player: Player) => {
+      matchMeta.opponentLineup.forEach((player: Player | null) => {
         if (player && !map.has(player.id)) {
           map.set(player.id, player);
         }
