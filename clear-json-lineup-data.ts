@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -9,8 +9,8 @@ async function clearJsonData() {
     const result = await prisma.game.updateMany({
       where: {
         OR: [
-          { teamALineup: { not: null } },
-          { teamBLineup: { not: null } }
+          { teamALineup: { not: Prisma.JsonNull } },
+          { teamBLineup: { not: Prisma.JsonNull } }
         ]
       },
       data: {
@@ -25,8 +25,8 @@ async function clearJsonData() {
     const remaining = await prisma.game.count({
       where: {
         OR: [
-          { teamALineup: { not: null } },
-          { teamBLineup: { not: null } }
+          { teamALineup: { not: Prisma.JsonNull } },
+          { teamBLineup: { not: Prisma.JsonNull } }
         ]
       }
     });

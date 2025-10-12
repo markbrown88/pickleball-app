@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -12,8 +12,8 @@ async function migrateJsonToLineupEntries() {
         games: {
           some: {
             OR: [
-              { teamALineup: { not: null } },
-              { teamBLineup: { not: null } }
+              { teamALineup: { not: Prisma.JsonNull } },
+              { teamBLineup: { not: Prisma.JsonNull } }
             ]
           }
         }
@@ -25,8 +25,8 @@ async function migrateJsonToLineupEntries() {
         games: {
           where: {
             OR: [
-              { teamALineup: { not: null } },
-              { teamBLineup: { not: null } }
+              { teamALineup: { not: Prisma.JsonNull } },
+              { teamBLineup: { not: Prisma.JsonNull } }
             ]
           },
           select: {

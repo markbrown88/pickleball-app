@@ -1,11 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function checkGameJson() {
   try {
     const gameWithJSON = await prisma.game.findFirst({
-      where: { teamALineup: { not: null } },
+      where: { teamALineup: { not: Prisma.JsonNull } },
       select: { id: true, slot: true, teamALineup: true, teamBLineup: true }
     });
 

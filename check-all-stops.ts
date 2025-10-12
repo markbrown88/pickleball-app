@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -14,8 +14,8 @@ async function checkAllStops() {
                 games: {
                   some: {
                     OR: [
-                      { teamALineup: { not: null } },
-                      { teamBLineup: { not: null } }
+                      { teamALineup: { not: Prisma.JsonNull } },
+                      { teamBLineup: { not: Prisma.JsonNull } }
                     ]
                   }
                 }

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -8,8 +8,8 @@ async function analyzeImpact() {
     const gamesWithJSON = await prisma.game.count({
       where: {
         OR: [
-          { teamALineup: { not: null } },
-          { teamBLineup: { not: null } }
+          { teamALineup: { not: Prisma.JsonNull } },
+          { teamBLineup: { not: Prisma.JsonNull } }
         ]
       }
     });
@@ -28,8 +28,8 @@ async function analyzeImpact() {
       where: {
         isComplete: true,
         OR: [
-          { teamALineup: { not: null } },
-          { teamBLineup: { not: null } }
+          { teamALineup: { not: Prisma.JsonNull } },
+          { teamBLineup: { not: Prisma.JsonNull } }
         ]
       }
     });
