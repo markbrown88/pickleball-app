@@ -123,13 +123,14 @@ export async function GET(request: Request, { params }: Params) {
     let rawMatch = round.matches[0];
 
     if (!rawMatch) {
-      rawMatch = await prisma.match.findFirst({
+      const foundMatch = await prisma.match.findFirst({
         where: {
           roundId,
           OR: [{ teamAId: team.id }, { teamBId: team.id }],
         },
         select: { id: true },
-      }) ?? undefined;
+      });
+      rawMatch = foundMatch ? { id: foundMatch.id } : undefined;
     }
 
     if (!rawMatch?.id) {
