@@ -1071,11 +1071,32 @@ export function EventManagerTab({
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
+    
+    // Check if it's a simple YYYY-MM-DD format
+    const simpleDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if (simpleDateMatch) {
+      const year = parseInt(simpleDateMatch[1]);
+      const month = parseInt(simpleDateMatch[2]) - 1; // Month is 0-indexed
+      const day = parseInt(simpleDateMatch[3]);
+      
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      
+      return `${monthNames[month]}. ${day}, ${year}`;
+    }
+    
+    // Handle ISO strings using UTC methods
     const date = new Date(dateStr);
-    const month = date.toLocaleDateString('en-US', { month: 'short' });
-    const day = date.getDate();
-    const year = date.getFullYear();
-    return `${month}. ${day}, ${year}`;
+    if (isNaN(date.getTime())) return '—';
+    
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    return `${monthNames[month]}. ${day}, ${year}`;
   };
 
   const formatDateRange = (startAt: string | null, endAt: string | null) => {

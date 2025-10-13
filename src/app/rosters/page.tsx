@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useAdminUser } from '../admin/AdminContext';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
+import { formatDateUTC } from '@/lib/utils';
 
 type RosterTournament = {
   id: string;
@@ -72,13 +73,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 function fmtDateDisplay(iso?: string | null) {
-  if (!iso) return '—';
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return '—';
-  const month = dt.toLocaleDateString('en-US', { month: 'short' });
-  const day = dt.getDate();
-  const year = dt.getFullYear();
-  return `${month} ${day}, ${year}`;
+  return formatDateUTC(iso);
 }
 
 function between(start?: string | null, end?: string | null) {

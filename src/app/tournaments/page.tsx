@@ -10,6 +10,7 @@ import {
   type ReactNode,
   useCallback,
 } from 'react';
+import { formatDateUTC } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 
 import { useAppToolbar } from '../shared/AppShell';
@@ -48,12 +49,7 @@ function fmtDate(d?: string | null) {
 }
 
 function fmtDateDisplay(d?: string | null) {
-  if (!d) return '—';
-  const dt = new Date(d);
-  const month = dt.toLocaleDateString('en-US', { month: 'short' });
-  const day = dt.getDate();
-  const year = dt.getFullYear();
-  return `${month} ${day}, ${year}`;
+  return formatDateUTC(d);
 }
 function toDateInput(iso?: string | null) {
   if (!iso) return '';

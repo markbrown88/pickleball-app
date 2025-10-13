@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { UserProfile } from '@/types';
+import { formatDateUTC } from '@/lib/utils';
 
 interface TournamentAdmin {
   id: string;
@@ -338,10 +339,10 @@ export default function AppAdminPage() {
                       <td className="text-muted tabular">{tournament._count.teams}</td>
                       <td className="text-muted tabular">{tournament._count.stops}</td>
                       <td className="text-muted tabular">
-                        {tournament.startDate ? new Date(tournament.startDate).toLocaleDateString() : 'TBD'}
+                        {tournament.startDate ? formatDateUTC(tournament.startDate) : 'TBD'}
                       </td>
                       <td className="text-muted tabular">
-                        {tournament.endDate ? new Date(tournament.endDate).toLocaleDateString() : 'TBD'}
+                        {tournament.endDate ? formatDateUTC(tournament.endDate) : 'TBD'}
                       </td>
                       <td style={{ position: 'relative', overflow: 'visible' }}>
                         <div className="space-y-2">
