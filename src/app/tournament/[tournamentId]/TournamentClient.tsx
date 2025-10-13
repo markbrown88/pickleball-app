@@ -505,6 +505,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
       || 'Unknown Team';
 
   // Transform API data to match expected format
+  console.log('Raw standings data:', standings);
   const transformedStandings = standings.map(standing => ({
     team: {
       id: standing.team_id,
@@ -515,6 +516,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     wins: standing.wins,
     losses: standing.losses
   }));
+  console.log('Transformed standings:', transformedStandings);
 
   const combinedStandingsRaw = Array.from(
     transformedStandings.reduce((map, standing) => {
@@ -568,6 +570,10 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   const combinedStandings = attachPlaces(combinedStandingsRaw);
   const advancedStandings = attachPlaces(advancedStandingsRaw);
   const intermediateStandings = attachPlaces(intermediateStandingsRaw);
+  
+  console.log('Combined standings:', combinedStandings);
+  console.log('Advanced standings:', advancedStandings);
+  console.log('Intermediate standings:', intermediateStandings);
 
   const formatStopDates = (stop: Stop) => {
     const cached = stopDataCache[stop.id];
@@ -862,7 +868,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 {/* Combined Standings */}
                 <div className="mb-2 md:mb-6">
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Combined</h3>
-                  {combinedStandings.length > 0 ? (
+                  {standingsLoading ? (
+                    <div className="bg-surface-2 rounded p-3">
+                      <div className="flex items-center justify-center py-4">
+                        <div className="loading-spinner"></div>
+                        <span className="ml-2 text-sm text-muted">Loading standings...</span>
+                      </div>
+                    </div>
+                  ) : combinedStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
                         {combinedStandings.map((standing) => (
@@ -884,7 +897,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 {/* Advanced Bracket Standings */}
                 <div className="mb-2 md:mb-6">
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Advanced</h3>
-                  {advancedStandings.length > 0 ? (
+                  {standingsLoading ? (
+                    <div className="bg-surface-2 rounded p-3">
+                      <div className="flex items-center justify-center py-4">
+                        <div className="loading-spinner"></div>
+                        <span className="ml-2 text-sm text-muted">Loading standings...</span>
+                      </div>
+                    </div>
+                  ) : advancedStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
                         {advancedStandings.map((standing) => (
@@ -906,7 +926,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 {/* Intermediate Bracket Standings */}
                 <div>
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Intermediate</h3>
-                  {intermediateStandings.length > 0 ? (
+                  {standingsLoading ? (
+                    <div className="bg-surface-2 rounded p-3">
+                      <div className="flex items-center justify-center py-4">
+                        <div className="loading-spinner"></div>
+                        <span className="ml-2 text-sm text-muted">Loading standings...</span>
+                      </div>
+                    </div>
+                  ) : intermediateStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
                         {intermediateStandings.map((standing) => (
