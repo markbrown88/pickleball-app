@@ -9,8 +9,7 @@ const ClubRegistrationClient = dynamic(() => import('./ClubRegistrationClient'),
         <span className="text-muted">Loading registration form...</span>
       </div>
     </div>
-  ),
-  ssr: false
+  )
 });
 
 export default function ClubRegistrationPage() {

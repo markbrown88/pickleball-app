@@ -479,3 +479,26 @@ enum TournamentType {
   POOL_PLAY
   LADDER_TOURNAMENT
 }
+
+/// *
+/// * ---------- Club Registration ----------
+model ClubRegistration {
+  id           String   @id @default(cuid())
+  name         String
+  address1     String
+  city         String
+  region       String
+  postalCode   String
+  phone        String?
+  contactEmail String
+  contactName  String
+  contactPhone String?
+  description  String?
+  status       String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  submittedAt  DateTime @default(now())
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @db.Timestamptz(6)
+}

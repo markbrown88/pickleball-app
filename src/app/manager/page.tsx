@@ -15,8 +15,7 @@ const EventManagerTab = dynamic(
         <div className="loading-spinner" />
         <span className="text-muted">Loading event manager...</span>
       </div>
-    ),
-    ssr: false // Event manager is interactive, no need for SSR
+    )
   }
 );
 

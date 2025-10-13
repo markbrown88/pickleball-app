@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { Club, Player } from '@/types';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { playerValidationRules } from '@/lib/validation';
+import { showSuccess, showError } from '@/lib/toast';
 
 interface PlayerModalProps {
   isOpen: boolean;
@@ -32,8 +35,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
     displayLocation: true,
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { errors, validateField, validateForm, clearErrors } = useFormValidation(playerValidationRules);
 
   useEffect(() => {
     if (player) {
@@ -88,71 +91,26 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
     setErrors({});
   }, [player, isOpen]);
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    // Required fields
-    if (!form.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!form.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!form.clubId) newErrors.clubId = 'Primary Club is required';
-    if (!form.email.trim()) newErrors.email = 'Email is required';
-
-    // Email validation
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      newErrors.email = 'Please enter a valid email address';
+  const handleFieldChange = (field: string, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      validateField(field, value);
     }
+  };
 
-    // Phone validation (10 digits)
-    if (form.phone.trim()) {
-      const phoneDigits = form.phone.replace(/\D/g, '');
-      if (phoneDigits.length !== 10) {
-        newErrors.phone = 'Phone must be 10 digits';
-      }
-    }
-
-    // Birthday validation (YYYY/MM/DD format)
-    if (form.birthday.trim()) {
-      const birthdayRegex = /^\d{4}\/\d{2}\/\d{2}$/;
-      if (!birthdayRegex.test(form.birthday.trim())) {
-        newErrors.birthday = 'Birthday must be in YYYY/MM/DD format';
-      } else {
-        // Validate the actual date
-        const [year, month, day] = form.birthday.split('/').map(Number);
-        const date = new Date(year, month - 1, day);
-        if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-          newErrors.birthday = 'Please enter a valid date';
-        }
-      }
-    }
-
-    // DUPR Singles validation
-    if (form.duprSingles && (isNaN(Number(form.duprSingles)) || Number(form.duprSingles) < 1 || Number(form.duprSingles) > 7)) {
-      newErrors.duprSingles = 'DUPR Singles must be between 1.0 and 7.0';
-    }
-
-    // DUPR Doubles validation
-    if (form.duprDoubles && (isNaN(Number(form.duprDoubles)) || Number(form.duprDoubles) < 1 || Number(form.duprDoubles) > 7)) {
-      newErrors.duprDoubles = 'DUPR Doubles must be between 1.0 and 7.0';
-    }
-
-    // Club Rating Singles validation
-    if (form.clubRatingSingles && (isNaN(Number(form.clubRatingSingles)) || Number(form.clubRatingSingles) < 1 || Number(form.clubRatingSingles) > 7)) {
-      newErrors.clubRatingSingles = 'Club Rating Singles must be between 1.0 and 7.0';
-    }
-
-    // Club Rating Doubles validation
-    if (form.clubRatingDoubles && (isNaN(Number(form.clubRatingDoubles)) || Number(form.clubRatingDoubles) < 1 || Number(form.clubRatingDoubles) > 7)) {
-      newErrors.clubRatingDoubles = 'Club Rating Doubles must be between 1.0 and 7.0';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleFieldBlur = (field: string) => {
+    validateField(field, form[field as keyof typeof form]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    // Validate form
+    const formErrors = validateForm(form);
+    if (Object.keys(formErrors).length > 0) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -183,29 +141,24 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
       };
 
       await onSave(playerData);
+      showSuccess(player ? 'Player updated successfully!' : 'Player created successfully!');
       onClose();
     } catch (error: any) {
       console.error('Error saving player:', error);
       
       // Handle specific error cases
       if (error?.message?.includes('email already exists')) {
-        setErrors({ email: 'A player with this email already exists' });
+        showError('A player with this email already exists');
       } else if (error?.message) {
-        setErrors({ general: error.message });
+        showError(error.message);
       } else {
-        setErrors({ general: 'Failed to save player. Please try again.' });
+        showError('Failed to save player. Please try again.');
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleChange = (field: string, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
 
   const handlePhoneChange = (value: string) => {
     // Remove all non-digits
@@ -224,7 +177,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
       formatted = `(${limitedDigits}`;
     }
     
-    handleChange('phone', formatted);
+    handleFieldChange('phone', formatted);
   };
 
   return (
@@ -275,7 +228,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                 <input
                   type="text"
                   value={form.firstName}
-                  onChange={(e) => handleChange('firstName', e.target.value)}
+                  onChange={(e) => handleFieldChange('firstName', e.target.value)}
+                  onBlur={() => handleFieldBlur('firstName')}
                   className={`input w-full ${errors.firstName ? 'border-red-500' : ''}`}
                   placeholder="Enter first name"
                 />
@@ -289,7 +243,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                 <input
                   type="text"
                   value={form.lastName}
-                  onChange={(e) => handleChange('lastName', e.target.value)}
+                  onChange={(e) => handleFieldChange('lastName', e.target.value)}
+                  onBlur={() => handleFieldBlur('lastName')}
                   className={`input w-full ${errors.lastName ? 'border-red-500' : ''}`}
                   placeholder="Enter last name"
                 />
@@ -348,7 +303,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                 </label>
                 <select
                   value={form.clubId}
-                  onChange={(e) => handleChange('clubId', e.target.value)}
+                  onChange={(e) => handleFieldChange('clubId', e.target.value)}
+                  onBlur={() => handleFieldBlur('clubId')}
                   className={`input w-full ${errors.clubId ? 'border-red-500' : ''}`}
                 >
                   <option value="">Select a club</option>
@@ -373,7 +329,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
             <input
               type="email"
               value={form.email}
-              onChange={(e) => handleChange('email', e.target.value)}
+              onChange={(e) => handleFieldChange('email', e.target.value)}
+              onBlur={() => handleFieldBlur('email')}
               className={`input w-full ${errors.email ? 'border-red-500' : ''}`}
               placeholder="Enter email address"
             />

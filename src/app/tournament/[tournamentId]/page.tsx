@@ -11,8 +11,7 @@ const TournamentClient = dynamic(() => import('./TournamentClient'), {
         <span className="text-muted">Loading tournament...</span>
       </div>
     </div>
-  ),
-  ssr: false // Tournament is interactive, client-side only
+  )
 });
 
 interface Tournament {

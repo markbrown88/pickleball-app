@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 import { Player } from '@/types';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { clubValidationRules } from '@/lib/validation';
+import { showSuccess, showError } from '@/lib/toast';
 
 interface Club {
   id: string;
@@ -49,8 +52,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
     logo: '',
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { errors, validateField, validateForm, clearErrors } = useFormValidation(clubValidationRules);
   const [directorSearch, setDirectorSearch] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState<Player[]>([]);
   const [showDirectorDropdown, setShowDirectorDropdown] = useState(false);
@@ -116,51 +119,40 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
     }
   }, [showDirectorDropdown]);
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!form.fullName.trim()) newErrors.fullName = 'Full name is required';
-    if (!form.name.trim()) newErrors.name = 'Nickname is required';
-    if (!form.directorId.trim()) newErrors.director = 'Director is required';
-    if (!form.email.trim()) newErrors.email = 'Email is required';
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Please enter a valid email address';
+  const handleFieldChange = (field: string, value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      validateField(field, value);
     }
-    if (!form.city.trim()) newErrors.city = 'City is required';
-    if (!form.region.trim()) newErrors.region = 'Prov/State is required';
-    if (!form.country.trim()) newErrors.country = 'Country is required';
-    if (!form.address.trim()) newErrors.address = 'Address is required';
-    if (form.description && form.description.length > 300) {
-      newErrors.description = 'Description must be 300 characters or less';
-    }
+  };
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleFieldBlur = (field: string) => {
+    validateField(field, form[field as keyof typeof form]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
+    // Validate form
+    const formErrors = validateForm(form);
+    if (Object.keys(formErrors).length > 0) {
+      return;
+    }
 
     setIsLoading(true);
     try {
       await onSave(form);
+      showSuccess(club ? 'Club updated successfully!' : 'Club created successfully!');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving club:', error);
-      // Handle error (could show toast notification)
+      showError(error?.message || 'Failed to save club. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleChange = (field: string, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
 
   const handleDirectorSearch = (value: string) => {
     setDirectorSearch(value);

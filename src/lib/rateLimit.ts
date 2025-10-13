@@ -9,10 +9,11 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
 // Initialize Redis client for rate limiting
-const redis = process.env.REDIS_URL
+// Upstash requires REST API endpoint, not redis:// URL
+const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
   ? new Redis({
-      url: process.env.REDIS_URL,
-      token: process.env.REDIS_TOKEN || '',
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
     })
   : null;
 

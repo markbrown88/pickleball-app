@@ -188,7 +188,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
       return NextResponse.json(
         {
           error: 'Invalid lineup format',
-          details: validation.error.errors.map(e => ({
+          details: validation.error.issues.map(e => ({
             path: e.path.join('.'),
             message: e.message
           }))

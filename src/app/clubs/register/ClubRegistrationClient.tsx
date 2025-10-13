@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { clubRegistrationValidationRules } from '@/lib/validation';
+import { showSuccess, showError } from '@/lib/toast';
 
 export default function ClubRegistrationClient() {
   const [formData, setFormData] = useState({
@@ -19,6 +22,7 @@ export default function ClubRegistrationClient() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const { errors, validateField, validateForm, clearErrors } = useFormValidation(clubRegistrationValidationRules);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = event.target;
@@ -26,19 +30,48 @@ export default function ClubRegistrationClient() {
       ...prev,
       [name]: value,
     }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      validateField(name, value);
+    }
+  };
+
+  const handleFieldBlur = (fieldName: string) => {
+    validateField(fieldName, formData[fieldName as keyof typeof formData]);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    
+    // Validate form
+    const formErrors = validateForm(formData);
+    if (Object.keys(formErrors).length > 0) {
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitStatus('idle');
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const response = await fetch('/api/clubs/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit registration');
+      }
+
       setSubmitStatus('success');
-    } catch (error) {
+      showSuccess('Club registration submitted successfully! We\'ll review your application and get back to you within 1-2 business days.');
+    } catch (error: any) {
       console.error(error);
       setSubmitStatus('error');
+      showError(error.message || 'Failed to submit registration. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -125,10 +158,11 @@ export default function ClubRegistrationClient() {
                         name="name"
                         value={formData.name}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('name')}
+                        className={`input ${errors.name ? 'border-red-500' : ''}`}
                         placeholder="Enter your club name"
                       />
+                      {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
                     </div>
 
                     <div>
@@ -141,9 +175,11 @@ export default function ClubRegistrationClient() {
                         name="phone"
                         value={formData.phone}
                         onChange={handleInputChange}
-                        className="input"
+                        onBlur={() => handleFieldBlur('phone')}
+                        className={`input ${errors.phone ? 'border-red-500' : ''}`}
                         placeholder="(555) 123-4567"
                       />
+                      {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
                     </div>
 
                     <div className="md:col-span-2">
@@ -176,10 +212,11 @@ export default function ClubRegistrationClient() {
                         name="address1"
                         value={formData.address1}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('address1')}
+                        className={`input ${errors.address1 ? 'border-red-500' : ''}`}
                         placeholder="123 Main Street"
                       />
+                      {errors.address1 && <p className="text-red-500 text-sm mt-1">{errors.address1}</p>}
                     </div>
 
                     <div>
@@ -192,10 +229,11 @@ export default function ClubRegistrationClient() {
                         name="city"
                         value={formData.city}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('city')}
+                        className={`input ${errors.city ? 'border-red-500' : ''}`}
                         placeholder="Toronto"
                       />
+                      {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
                     </div>
 
                     <div>
@@ -207,8 +245,8 @@ export default function ClubRegistrationClient() {
                         name="region"
                         value={formData.region}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('region')}
+                        className={`input ${errors.region ? 'border-red-500' : ''}`}
                       >
                         <option value="">Select Province</option>
                         <option value="ON">Ontario</option>
@@ -225,6 +263,7 @@ export default function ClubRegistrationClient() {
                         <option value="NT">Northwest Territories</option>
                         <option value="NU">Nunavut</option>
                       </select>
+                      {errors.region && <p className="text-red-500 text-sm mt-1">{errors.region}</p>}
                     </div>
 
                     <div>
@@ -237,10 +276,11 @@ export default function ClubRegistrationClient() {
                         name="postalCode"
                         value={formData.postalCode}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('postalCode')}
+                        className={`input ${errors.postalCode ? 'border-red-500' : ''}`}
                         placeholder="M5V 3A8"
                       />
+                      {errors.postalCode && <p className="text-red-500 text-sm mt-1">{errors.postalCode}</p>}
                     </div>
                   </div>
                 </div>
@@ -258,10 +298,11 @@ export default function ClubRegistrationClient() {
                         name="contactName"
                         value={formData.contactName}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('contactName')}
+                        className={`input ${errors.contactName ? 'border-red-500' : ''}`}
                         placeholder="John Smith"
                       />
+                      {errors.contactName && <p className="text-red-500 text-sm mt-1">{errors.contactName}</p>}
                     </div>
 
                     <div>
@@ -274,10 +315,11 @@ export default function ClubRegistrationClient() {
                         name="contactEmail"
                         value={formData.contactEmail}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('contactEmail')}
+                        className={`input ${errors.contactEmail ? 'border-red-500' : ''}`}
                         placeholder="john@example.com"
                       />
+                      {errors.contactEmail && <p className="text-red-500 text-sm mt-1">{errors.contactEmail}</p>}
                     </div>
 
                     <div>
@@ -290,10 +332,11 @@ export default function ClubRegistrationClient() {
                         name="contactPhone"
                         value={formData.contactPhone}
                         onChange={handleInputChange}
-                        required
-                        className="input"
+                        onBlur={() => handleFieldBlur('contactPhone')}
+                        className={`input ${errors.contactPhone ? 'border-red-500' : ''}`}
                         placeholder="(555) 123-4567"
                       />
+                      {errors.contactPhone && <p className="text-red-500 text-sm mt-1">{errors.contactPhone}</p>}
                     </div>
                   </div>
                 </div>

@@ -98,7 +98,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json(
         {
           error: 'Invalid request body',
-          details: validation.error.errors.map(e => ({
+          details: validation.error.issues.map(e => ({
             path: e.path.join('.'),
             message: e.message
           }))
@@ -126,14 +126,14 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'Cannot enter scores for a BYE game' }, { status: 400 });
     }
 
-    // Upsert each slot’s score
+    // Upsert each slot's score
     const updated: { slot: GameSlot; teamAScore: number | null; teamBScore: number | null }[] = [];
     await prisma.$transaction(async (tx) => {
       for (const row of body.scores) {
         const m = await tx.game.upsert({
-          where: { matchId_slot: { matchId: game.match.id, slot: row.slot } },
+          where: { matchId_slot: { matchId: game.match.id, slot: row.slot as GameSlot } },
           update: { teamAScore: row.teamAScore, teamBScore: row.teamBScore },
-          create: { matchId: game.match.id, slot: row.slot, teamAScore: row.teamAScore, teamBScore: row.teamBScore },
+          create: { matchId: game.match.id, slot: row.slot as GameSlot, teamAScore: row.teamAScore, teamBScore: row.teamBScore },
           select: { slot: true, teamAScore: true, teamBScore: true },
         });
         if (m.slot) {
