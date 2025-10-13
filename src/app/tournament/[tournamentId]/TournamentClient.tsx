@@ -88,11 +88,35 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'in-progress' | 'completed' | 'standings'>('standings');
 
-  // Initialize with first stop if available
+  // Find stop closest to today's date
+  const findClosestStop = (stops: Stop[]) => {
+    if (stops.length === 0) return null;
+    
+    const today = new Date();
+    const todayTime = today.getTime();
+    
+    return stops.reduce((closest, stop) => {
+      const stopDate = new Date(stop.startAt || stop.endAt || '');
+      const stopTime = stopDate.getTime();
+      const closestDate = new Date(closest.startAt || closest.endAt || '');
+      const closestTime = closestDate.getTime();
+      
+      const stopDiff = Math.abs(todayTime - stopTime);
+      const closestDiff = Math.abs(todayTime - closestTime);
+      
+      return stopDiff < closestDiff ? stop : closest;
+    });
+  };
+
+  // Initialize with stop closest to today's date
   useEffect(() => {
     if (stops.length > 0 && !selectedStopId) {
-      setSelectedStopId(stops[0].id);
+      const closestStop = findClosestStop(stops);
+      if (closestStop) {
+        setSelectedStopId(closestStop.id);
+      }
     }
   }, [stops, selectedStopId]);
 
@@ -571,18 +595,18 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
   return (
     <div className="min-h-screen bg-app">
-      <div className="w-full px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-primary">{tournament.name}</h1>
+      <div className="w-full px-1 py-2 md:px-4 md:py-6">
+        <div className="flex items-center justify-between mb-2 md:mb-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl md:text-3xl font-bold text-primary truncate">{tournament.name}</h1>
             {tournament.description && (
-              <p className="text-secondary mt-1">{tournament.description}</p>
+              <p className="text-secondary mt-1 text-sm md:text-base line-clamp-2">{tournament.description}</p>
             )}
           </div>
           <button
             onClick={() => window.location.reload()}
             disabled={refreshing}
-            className="btn btn-primary"
+            className="btn btn-primary text-xs md:text-sm px-2 py-1 md:px-4 md:py-2 ml-2"
           >
             {refreshing ? (
               <div className="loading-spinner"></div>
@@ -596,15 +620,16 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
         </div>
 
         {/* Main Content Layout - Stops (2/3) and Standings (1/3) */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {/* Left side - Games (2/3 width) */}
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 mb-20 md:mb-6">
+          {/* Left side - Games (2/3 width) - Mobile: only show when not standings */}
+          <div className={`col-span-1 md:col-span-2 ${activeTab === 'standings' ? 'hidden' : 'block'} md:block`}>
             {/* Combined Games Card */}
             <div className="card">
               {/* Stop Tabs */}
-              <div className="px-3 py-2 border-b border-subtle">
-                <h2 className="text-lg font-semibold text-primary mb-1">Matches & Games</h2>
-                <nav className="flex space-x-4" aria-label="Tabs">
+              <div className="px-1 py-1 md:px-3 border-b border-subtle pb-2">
+                <h2 className="text-sm md:text-lg font-semibold text-primary mb-2">Matches & Games</h2>
+                {/* Desktop: Horizontal tabs */}
+                <nav className="hidden md:flex space-x-4" aria-label="Tabs">
                   {stops.map((stop) => (
                     <button
                       key={stop.id}
@@ -625,13 +650,32 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                     </button>
                   ))}
                 </nav>
+
+                {/* Mobile: Dropdown */}
+                <div className="md:hidden my-2">
+                  <select
+                    value={selectedStopId || ''}
+                    onChange={(e) => {
+                      const stopId = e.target.value;
+                      setSelectedStopId(stopId);
+                      loadStopData(stopId);
+                    }}
+                    className="w-full px-3 py-2 text-xs bg-surface-2 border border-subtle rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  >
+                    {stops.map((stop) => (
+                      <option key={stop.id} value={stop.id}>
+                        {stop.name} {formatStopDates(stop) && `- ${formatStopDates(stop)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Games Section */}
-              <div className="grid grid-cols-2 gap-3 p-4">
-                {/* In Progress Games */}
-                <div>
-                  <h3 className="text-base font-semibold text-primary mb-2 flex items-center">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-3 p-1 md:p-4">
+                {/* In Progress Games - Mobile: only show when active tab is 'in-progress' */}
+                <div className={`${activeTab === 'in-progress' ? 'block' : 'hidden'} md:block`}>
+                  <h3 className="text-sm font-semibold text-primary mb-1 flex items-center">
                     <div className="w-2 h-2 bg-warning rounded-full mr-2"></div>
                     In Progress
                   </h3>
@@ -688,9 +732,9 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                   )}
                 </div>
 
-                {/* Completed Games */}
-                <div>
-                  <h3 className="text-base font-semibold text-primary mb-2 flex items-center">
+                {/* Completed Games - Mobile: only show when active tab is 'completed' */}
+                <div className={`${activeTab === 'completed' ? 'block' : 'hidden'} md:block`}>
+                  <h3 className="text-sm font-semibold text-primary mb-1 flex items-center">
                     <div className="w-2 h-2 bg-success rounded-full mr-2"></div>
                     Completed
                   </h3>
@@ -740,7 +784,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                                   {match.teamA?.name}
                                 </div>
                                 <span className="text-muted">vs</span>
-                                <div className={`flex items-center ${highlightTeamB ? 'text-success' : ''}`}>
+                                <div className={`flex items-center text-right ${highlightTeamB ? 'text-success' : ''}`}>
                                   {match.teamB?.name}
                                   {highlightTeamB && <span className="ml-1">🏆</span>}
                                 </div>
@@ -804,20 +848,20 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
             </div>
           </div>
 
-          {/* Right side - Standings (1/3 width) */}
-          <div className="col-span-1">
+          {/* Right side - Standings (1/3 width) - Mobile: only show when active tab is 'standings' */}
+          <div className={`col-span-1 md:col-span-1 ${activeTab === 'standings' ? 'block' : 'hidden'} md:block`}>
             {/* Tournament Standings */}
             <div className="card">
-              <div className="px-4 py-3 border-b border-subtle">
-                <h2 className="text-lg font-semibold text-primary flex items-center">
+              <div className="px-1 py-1 md:px-4 md:py-3 border-b border-subtle pb-2">
+                <h2 className="text-sm md:text-lg font-semibold text-primary flex items-center mb-2">
                   <div className="w-2 h-2 bg-info rounded-full mr-2"></div>
                   Standings
                 </h2>
               </div>
-              <div className="p-4">
+              <div className="p-1 md:p-4">
                 {/* Combined Standings */}
-                <div className="mb-6">
-                  <h3 className="text-base font-semibold text-primary mb-3">Combined</h3>
+                <div className="mb-2 md:mb-6">
+                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Combined</h3>
                   {combinedStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
@@ -838,8 +882,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </div>
 
                 {/* Advanced Bracket Standings */}
-                <div className="mb-6">
-                  <h3 className="text-base font-semibold text-primary mb-3">Advanced</h3>
+                <div className="mb-2 md:mb-6">
+                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Advanced</h3>
                   {advancedStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
@@ -861,7 +905,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
                 {/* Intermediate Bracket Standings */}
                 <div>
-                  <h3 className="text-base font-semibold text-primary mb-3">Intermediate</h3>
+                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Intermediate</h3>
                   {intermediateStandings.length > 0 ? (
                     <div className="bg-surface-2 rounded p-3">
                       <div className="space-y-1">
@@ -882,6 +926,90 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Navigation - Only show on mobile */}
+        <div className="fixed bottom-0 left-0 right-0 bg-surface border-t-2 border-primary shadow-lg md:hidden z-[9999]">
+          <div className="grid grid-cols-3 h-16">
+            {/* In Progress Tab */}
+            <button
+              onClick={() => setActiveTab('in-progress')}
+              className={`flex flex-col items-center justify-center px-2 py-2 relative ${
+                activeTab === 'in-progress'
+                  ? 'border-t-2 border-warning bg-warning'
+                  : 'text-muted hover:bg-warning bg-surface-2'
+              }`}
+              style={{
+                color: activeTab === 'in-progress' ? '#000000' : undefined
+              }}
+            >
+              <div className={`w-2 h-2 rounded-full mb-1 ${activeTab === 'in-progress' ? 'bg-black' : 'bg-warning'}`}></div>
+              <span 
+                className="text-xs font-medium"
+                style={{
+                  color: activeTab === 'in-progress' ? '#000000' : undefined
+                }}
+              >
+                In Progress Games
+              </span>
+              {inProgress.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-warning text-primary text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                  {inProgress.length}
+                </span>
+              )}
+            </button>
+
+            {/* Completed Tab */}
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`flex flex-col items-center justify-center px-2 py-2 relative ${
+                activeTab === 'completed'
+                  ? 'border-t-2 border-success bg-success'
+                  : 'text-muted hover:bg-success bg-surface-2'
+              }`}
+              style={{
+                color: activeTab === 'completed' ? '#000000' : undefined
+              }}
+            >
+              <div className={`w-2 h-2 rounded-full mb-1 ${activeTab === 'completed' ? 'bg-black' : 'bg-success'}`}></div>
+              <span 
+                className="text-xs font-medium"
+                style={{
+                  color: activeTab === 'completed' ? '#000000' : undefined
+                }}
+              >
+                Completed Games
+              </span>
+              {completed.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-success text-primary text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                  {completed.length}
+                </span>
+              )}
+            </button>
+
+            {/* Standings Tab */}
+            <button
+              onClick={() => setActiveTab('standings')}
+              className={`flex flex-col items-center justify-center px-2 py-2 relative ${
+                activeTab === 'standings'
+                  ? 'border-t-2 border-info bg-info'
+                  : 'text-muted hover:bg-info bg-surface-2'
+              }`}
+              style={{
+                color: activeTab === 'standings' ? '#000000' : undefined
+              }}
+            >
+              <div className={`w-2 h-2 rounded-full mb-1 ${activeTab === 'standings' ? 'bg-black' : 'bg-info'}`}></div>
+              <span 
+                className="text-xs font-medium"
+                style={{
+                  color: activeTab === 'standings' ? '#000000' : undefined
+                }}
+              >
+                Standings
+              </span>
+            </button>
           </div>
         </div>
       </div>
