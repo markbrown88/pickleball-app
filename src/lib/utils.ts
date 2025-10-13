@@ -7,11 +7,25 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Format a date string to avoid timezone conversion issues
- * Uses UTC methods to ensure consistent display regardless of user's timezone
+ * Handles both ISO strings and YYYY-MM-DD format dates
  */
 export function formatDateUTC(dateString: string | null | undefined): string {
   if (!dateString) return '—';
   
+  // Check if it's a simple YYYY-MM-DD format
+  const simpleDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+  if (simpleDateMatch) {
+    const year = parseInt(simpleDateMatch[1]);
+    const month = parseInt(simpleDateMatch[2]) - 1; // Month is 0-indexed
+    const day = parseInt(simpleDateMatch[3]);
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    return `${monthNames[month]} ${day}, ${year}`;
+  }
+  
+  // Handle ISO strings
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '—';
   

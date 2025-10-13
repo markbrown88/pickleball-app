@@ -581,6 +581,12 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     const startRaw = cached?.startAt ?? stop.startAt ?? null;
     const endRaw = cached?.endAt ?? stop.endAt ?? null;
 
+    console.log('Raw date strings:', { startRaw, endRaw });
+    console.log('Parsed dates:', { 
+      start: startRaw ? new Date(startRaw) : null, 
+      end: endRaw ? new Date(endRaw) : null 
+    });
+
     return formatDateRangeUTC(startRaw, endRaw);
   };
 
