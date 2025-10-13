@@ -50,6 +50,7 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: https:",
               "font-src 'self' data:",
               "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.supabase.com https://*.upstash.io",
+              "worker-src 'self' blob:",
               "frame-ancestors 'none'"
             ].join('; ')
           }
