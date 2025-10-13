@@ -102,8 +102,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
       });
       setDirectorSearch('');
     }
-    setErrors({});
-  }, [club, isOpen]);
+    clearErrors();
+  }, [club, isOpen, clearErrors]);
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -276,7 +276,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
         <input
           type="text"
           value={form.fullName}
-          onChange={(e) => handleChange('fullName', e.target.value)}
+          onChange={(e) => handleFieldChange('fullName', e.target.value)}
+          onBlur={() => handleFieldBlur('fullName')}
           className={`input w-full ${errors.fullName ? 'border-red-500' : ''}`}
           placeholder="Enter full club name"
         />
@@ -290,7 +291,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => handleChange('name', e.target.value)}
+                onChange={(e) => handleFieldChange('name', e.target.value)}
+                onBlur={() => handleFieldBlur('name')}
                 className={`input w-full ${errors.name ? 'border-red-500' : ''}`}
                 placeholder="Enter club nickname"
               />
@@ -339,7 +341,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
           <input
             type="text"
             value={form.address}
-            onChange={(e) => handleChange('address', e.target.value)}
+            onChange={(e) => handleFieldChange('address', e.target.value)}
+            onBlur={() => handleFieldBlur('address')}
             className={`input w-full ${errors.address ? 'border-red-500' : ''}`}
             placeholder="Enter club address"
           />
@@ -355,7 +358,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             <input
               type="text"
               value={form.city}
-              onChange={(e) => handleChange('city', e.target.value)}
+              onChange={(e) => handleFieldChange('city', e.target.value)}
+              onBlur={() => handleFieldBlur('city')}
               className={`input w-full ${errors.city ? 'border-red-500' : ''}`}
               placeholder="Enter city"
             />
@@ -369,7 +373,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             <input
               type="text"
               value={form.region}
-              onChange={(e) => handleChange('region', e.target.value)}
+              onChange={(e) => handleFieldChange('region', e.target.value)}
+              onBlur={() => handleFieldBlur('region')}
               className={`input w-full ${errors.region ? 'border-red-500' : ''}`}
               placeholder="Enter prov/state"
             />
@@ -382,7 +387,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             </label>
             <select
               value={form.country}
-              onChange={(e) => handleChange('country', e.target.value)}
+              onChange={(e) => handleFieldChange('country', e.target.value)}
+              onBlur={() => handleFieldBlur('country')}
               className={`input w-full ${errors.country ? 'border-red-500' : ''}`}
             >
               <option value="Canada">Canada</option>
@@ -402,7 +408,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             <input
               type="email"
               value={form.email}
-              onChange={(e) => handleChange('email', e.target.value)}
+              onChange={(e) => handleFieldChange('email', e.target.value)}
+              onBlur={() => handleFieldBlur('email')}
               className={`input w-full ${errors.email ? 'border-red-500' : ''}`}
               placeholder="Enter email address"
             />
@@ -416,7 +423,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             <input
               type="tel"
               value={form.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
+              onChange={(e) => handleFieldChange('phone', e.target.value)}
+              onBlur={() => handleFieldBlur('phone')}
               className="input w-full"
               placeholder="Enter phone number"
             />
@@ -430,7 +438,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
           </label>
           <textarea
             value={form.description}
-            onChange={(e) => handleChange('description', e.target.value)}
+            onChange={(e) => handleFieldChange('description', e.target.value)}
+            onBlur={() => handleFieldBlur('description')}
             className={`input w-full ${errors.description ? 'border-red-500' : ''}`}
             rows={4}
             placeholder="Enter club description (max 300 characters)"

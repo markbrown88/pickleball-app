@@ -88,26 +88,32 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
         displayLocation: true,
       });
     }
-    setErrors({});
-  }, [player, isOpen]);
+    clearErrors();
+  }, [player, isOpen, clearErrors]);
 
-  const handleFieldChange = (field: string, value: string) => {
+  const handleFieldChange = (field: string, value: string | boolean) => {
     setForm(prev => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
-    if (errors[field]) {
+    if (errors[field] && typeof value === 'string') {
       validateField(field, value);
     }
   };
 
   const handleFieldBlur = (field: string) => {
-    validateField(field, form[field as keyof typeof form]);
+    const fieldValue = form[field as keyof typeof form];
+    if (typeof fieldValue === 'string') {
+      validateField(field, fieldValue);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate form
-    const formErrors = validateForm(form);
+
+    // Validate form (only string fields)
+    const formForValidation = Object.fromEntries(
+      Object.entries(form).filter(([_, value]) => typeof value === 'string')
+    ) as Record<string, string>;
+    const formErrors = validateForm(formForValidation);
     if (Object.keys(formErrors).length > 0) {
       return;
     }
@@ -260,7 +266,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                 <div className="flex bg-gray-100 rounded-lg p-1">
                   <button
                     type="button"
-                    onClick={() => handleChange('gender', 'MALE')}
+                    onClick={() => handleFieldChange('gender', 'MALE')}
                     className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
                       form.gender === 'MALE'
                         ? 'bg-white text-gray-900 shadow-sm'
@@ -271,7 +277,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleChange('gender', 'FEMALE')}
+                    onClick={() => handleFieldChange('gender', 'FEMALE')}
                     className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
                       form.gender === 'FEMALE'
                         ? 'bg-white text-gray-900 shadow-sm'
@@ -290,7 +296,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                 <input
                   type="text"
                   value={form.birthday}
-                  onChange={(e) => handleChange('birthday', e.target.value)}
+                  onChange={(e) => handleFieldChange('birthday', e.target.value)}
                   className={`input w-full ${errors.birthday ? 'border-red-500' : ''}`}
                   placeholder="YYYY/MM/DD"
                 />
@@ -366,7 +372,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
             <input
               type="text"
               value={form.city}
-              onChange={(e) => handleChange('city', e.target.value)}
+              onChange={(e) => handleFieldChange('city', e.target.value)}
               className="input w-full"
               placeholder="Enter city"
             />
@@ -379,7 +385,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
             <input
               type="text"
               value={form.region}
-              onChange={(e) => handleChange('region', e.target.value)}
+              onChange={(e) => handleFieldChange('region', e.target.value)}
               className="input w-full"
               placeholder="Enter prov/state"
             />
@@ -391,7 +397,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
             </label>
             <select
               value={form.country}
-              onChange={(e) => handleChange('country', e.target.value)}
+              onChange={(e) => handleFieldChange('country', e.target.value)}
               className="input w-full"
             >
               <option value="Canada">Canada</option>
@@ -414,7 +420,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                   min="1.0"
                   max="7.0"
                   value={form.duprSingles}
-                  onChange={(e) => handleChange('duprSingles', e.target.value)}
+                  onChange={(e) => handleFieldChange('duprSingles', e.target.value)}
                   className={`input w-full ${errors.duprSingles ? 'border-red-500' : ''}`}
                   placeholder="1.0 - 7.0"
                 />
@@ -428,7 +434,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                   min="1.0"
                   max="7.0"
                   value={form.duprDoubles}
-                  onChange={(e) => handleChange('duprDoubles', e.target.value)}
+                  onChange={(e) => handleFieldChange('duprDoubles', e.target.value)}
                   className={`input w-full ${errors.duprDoubles ? 'border-red-500' : ''}`}
                   placeholder="1.0 - 7.0"
                 />
@@ -448,7 +454,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                   min="1.0"
                   max="7.0"
                   value={form.clubRatingSingles}
-                  onChange={(e) => handleChange('clubRatingSingles', e.target.value)}
+                  onChange={(e) => handleFieldChange('clubRatingSingles', e.target.value)}
                   className={`input w-full ${errors.clubRatingSingles ? 'border-red-500' : ''}`}
                   placeholder="1.0 - 7.0"
                 />
@@ -462,7 +468,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
                   min="1.0"
                   max="7.0"
                   value={form.clubRatingDoubles}
-                  onChange={(e) => handleChange('clubRatingDoubles', e.target.value)}
+                  onChange={(e) => handleFieldChange('clubRatingDoubles', e.target.value)}
                   className={`input w-full ${errors.clubRatingDoubles ? 'border-red-500' : ''}`}
                   placeholder="1.0 - 7.0"
                 />
@@ -481,7 +487,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
               <div className="flex items-center">
                 <button
                   type="button"
-                  onClick={() => handleChange('displayAge', String(!form.displayAge))}
+                  onClick={() => handleFieldChange('displayAge', !form.displayAge)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors mr-3 ${
                     form.displayAge ? 'bg-blue-600' : 'bg-gray-200'
                   }`}
@@ -503,7 +509,7 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
               <div className="flex items-center">
                 <button
                   type="button"
-                  onClick={() => handleChange('displayLocation', String(!form.displayLocation))}
+                  onClick={() => handleFieldChange('displayLocation', !form.displayLocation)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors mr-3 ${
                     form.displayLocation ? 'bg-blue-600' : 'bg-gray-200'
                   }`}
