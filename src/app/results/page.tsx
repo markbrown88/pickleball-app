@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
 
 interface Tournament {
   id: string;
@@ -90,12 +91,7 @@ export default function TournamentsPage() {
                     <p className="text-muted mb-3">{tournament.description}</p>
                   )}
                   <div className="flex items-center space-x-6 text-sm text-muted">
-                    {tournament.startDate && (
-                      <span>Start: {new Date(tournament.startDate).toLocaleDateString()}</span>
-                    )}
-                    {tournament.endDate && (
-                      <span>End: {new Date(tournament.endDate).toLocaleDateString()}</span>
-                    )}
+                    {formatDateRangeUTC(tournament.startDate, tournament.endDate)}
                   </div>
                 </div>
                 <div className="text-primary">

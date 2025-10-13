@@ -6,6 +6,7 @@ import { useSortable, SortableContext } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import { expectedGenderForIndex, LINEUP_SLOT_ORDER, LINEUP_SLOT_CONFIG } from '@/lib/lineupSlots';
+import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
 
 // Conditional logging helper
 const isDev = process.env.NODE_ENV === 'development';
@@ -1070,47 +1071,11 @@ export function EventManagerTab({
   }, [tournaments]);
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '—';
-    
-    // Check if it's a simple YYYY-MM-DD format
-    const simpleDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-    if (simpleDateMatch) {
-      const year = parseInt(simpleDateMatch[1]);
-      const month = parseInt(simpleDateMatch[2]) - 1; // Month is 0-indexed
-      const day = parseInt(simpleDateMatch[3]);
-      
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      
-      return `${monthNames[month]}. ${day}, ${year}`;
-    }
-    
-    // Handle ISO strings using UTC methods
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '—';
-    
-    const month = date.getUTCMonth();
-    const day = date.getUTCDate();
-    const year = date.getUTCFullYear();
-    
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    return `${monthNames[month]}. ${day}, ${year}`;
+    return formatDateUTC(dateStr);
   };
 
   const formatDateRange = (startAt: string | null, endAt: string | null) => {
-    if (!startAt && !endAt) return '—';
-    if (!endAt || startAt === endAt) return formatDate(startAt);
-
-    // Check if same day
-    const start = new Date(startAt || '');
-    const end = new Date(endAt || '');
-    if (start.toDateString() === end.toDateString()) {
-      return formatDate(startAt);
-    }
-
-    return `${formatDate(startAt)} - ${formatDate(endAt)}`;
+    return formatDateRangeUTC(startAt, endAt);
   };
 
   const formatDeadline = (dateStr: string | null) => {

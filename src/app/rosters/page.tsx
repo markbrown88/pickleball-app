@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useAdminUser } from '../admin/AdminContext';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
-import { formatDateUTC } from '@/lib/utils';
+import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
 
 type RosterTournament = {
   id: string;
@@ -77,9 +77,7 @@ function fmtDateDisplay(iso?: string | null) {
 }
 
 function between(start?: string | null, end?: string | null) {
-  if (!start && !end) return '—';
-  if (start && end) return `${fmtDateDisplay(start)} – ${fmtDateDisplay(end)}`;
-  return fmtDateDisplay(start || end);
+  return formatDateRangeUTC(start, end);
 }
 
 function labelPL(p: PlayerLite) {

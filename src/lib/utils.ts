@@ -6,11 +6,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format a date string to avoid timezone conversion issues
- * Handles both ISO strings and YYYY-MM-DD format dates
+ * Parse a date string and return a Date object using UTC methods
  */
-export function formatDateUTC(dateString: string | null | undefined): string {
-  if (!dateString) return '—';
+function parseDateUTC(dateString: string | null | undefined): Date | null {
+  if (!dateString) return null;
   
   // Check if it's a simple YYYY-MM-DD format
   const simpleDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
@@ -18,18 +17,19 @@ export function formatDateUTC(dateString: string | null | undefined): string {
     const year = parseInt(simpleDateMatch[1]);
     const month = parseInt(simpleDateMatch[2]) - 1; // Month is 0-indexed
     const day = parseInt(simpleDateMatch[3]);
-    
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    return `${monthNames[month]} ${day}, ${year}`;
+    return new Date(Date.UTC(year, month, day));
   }
   
   // Handle ISO strings
   const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '—';
-  
-  // Use UTC methods to avoid timezone conversion
+  return isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Format a single date using standardized format
+ * Format: "Aug 23, 2025"
+ */
+function formatSingleDate(date: Date): string {
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
   const day = date.getUTCDate();
@@ -41,17 +41,53 @@ export function formatDateUTC(dateString: string | null | undefined): string {
 }
 
 /**
- * Format a date range using UTC methods
+ * Format a date string using standardized format
+ * Format: "Aug 23, 2025"
+ */
+export function formatDateUTC(dateString: string | null | undefined): string {
+  const date = parseDateUTC(dateString);
+  if (!date) return '—';
+  
+  return formatSingleDate(date);
+}
+
+/**
+ * Format a date range using standardized format
+ * Same year: "Aug 23 – Aug 24, 2025"
+ * Different years: "Dec 23, 2025 – Jan 23, 2026"
+ * Same day: "Aug 23, 2025"
  */
 export function formatDateRangeUTC(start?: string | null, end?: string | null): string {
   if (!start && !end) return '—';
   
-  const startFormatted = formatDateUTC(start);
-  const endFormatted = formatDateUTC(end);
+  const startDate = parseDateUTC(start);
+  const endDate = parseDateUTC(end);
   
-  if (start && end && start !== end) {
-    return `${startFormatted} – ${endFormatted}`;
+  if (!startDate) return '—';
+  if (!endDate) return formatSingleDate(startDate);
+  
+  // Check if same day
+  const startTime = startDate.getTime();
+  const endTime = endDate.getTime();
+  if (startTime === endTime) {
+    return formatSingleDate(startDate);
   }
   
-  return startFormatted;
+  const startYear = startDate.getUTCFullYear();
+  const endYear = endDate.getUTCFullYear();
+  const startMonth = startDate.getUTCMonth();
+  const endMonth = endDate.getUTCMonth();
+  const startDay = startDate.getUTCDate();
+  const endDay = endDate.getUTCDate();
+  
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  // Different years - show year for both
+  if (startYear !== endYear) {
+    return `${monthNames[startMonth]} ${startDay}, ${startYear} – ${monthNames[endMonth]} ${endDay}, ${endYear}`;
+  }
+  
+  // Same year - show year only at the end
+  return `${monthNames[startMonth]} ${startDay} – ${monthNames[endMonth]} ${endDay}, ${startYear}`;
 }

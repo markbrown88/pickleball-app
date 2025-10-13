@@ -17,35 +17,83 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     const standings = await getCached(
       cacheKeys.tournamentStandings(tournamentId),
       async () => {
-        // Query the materialized view for tournament standings
-        const rawStandings = await prisma.$queryRaw`
-          SELECT 
-            team_id,
-            team_name,
-            "clubId",
-            "tournamentId",
-            matches_played,
+        // Calculate standings from existing tables
+        const teams = await prisma.team.findMany({
+          where: { tournamentId },
+          include: {
+            club: true,
+            matchesA: {
+              include: {
+                games: true
+              }
+            },
+            matchesB: {
+              include: {
+                games: true
+              }
+            }
+          }
+        });
+
+        const standings = teams.map(team => {
+          // Combine all matches (both as teamA and teamB)
+          const allMatches = [...team.matchesA, ...team.matchesB];
+          
+          // Filter out bye matches
+          const realMatches = allMatches.filter(match => !match.isBye);
+          
+          let wins = 0;
+          let losses = 0;
+          let points = 0;
+          
+          realMatches.forEach(match => {
+            // Calculate match result
+            const teamAScore = match.totalPointsTeamA || 0;
+            const teamBScore = match.totalPointsTeamB || 0;
+            
+            if (teamAScore > teamBScore) {
+              // Team A won
+              if (match.teamAId === team.id) {
+                wins++;
+                points += 2; // 2 points for a win
+              } else {
+                losses++;
+              }
+            } else if (teamBScore > teamAScore) {
+              // Team B won
+              if (match.teamBId === team.id) {
+                wins++;
+                points += 2; // 2 points for a win
+              } else {
+                losses++;
+              }
+            }
+            // If scores are equal, it's a tie (no points awarded)
+          });
+          
+          return {
+            team_id: team.id,
+            team_name: team.name,
+            clubId: team.clubId,
+            tournamentId: team.tournamentId,
+            matches_played: realMatches.length,
             wins,
             losses,
             points
-          FROM tournament_standings 
-          WHERE "tournamentId" = ${tournamentId}
-          ORDER BY points DESC, team_name ASC
-        `;
+          };
+        });
 
-        console.log('Public API: Standings query result:', rawStandings);
+        // Sort by points (descending), then by team name (ascending)
+        standings.sort((a, b) => {
+          if (b.points !== a.points) {
+            return b.points - a.points;
+          }
+          return a.team_name.localeCompare(b.team_name);
+        });
+
+        console.log('Public API: Calculated standings:', standings);
         
-        // Convert BigInt values to regular numbers for JSON serialization
-        return (rawStandings as any[]).map((standing: any) => ({
-          team_id: standing.team_id,
-          team_name: standing.team_name,
-          clubId: standing.clubId,
-          tournamentId: standing.tournamentId,
-          matches_played: Number(standing.matches_played),
-          wins: Number(standing.wins),
-          losses: Number(standing.losses),
-          points: Number(standing.points)
-        }));
+        return standings;
       },
       CACHE_TTL.STANDINGS // 5 minutes
     );

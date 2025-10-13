@@ -164,7 +164,7 @@ Once the specific error is identified from production logs, we can implement a p
 
 ---
 
-### 5. Deprecated Clerk Props ⚠️ LOW PRIORITY
+### 5. Deprecated Clerk Props ⚠️ ACTION REQUIRED (Clerk Dashboard)
 
 **Warning:**
 ```
@@ -173,19 +173,25 @@ or "forceRedirectUrl" props instead.
 ```
 
 **Root Cause:**
-Using deprecated Clerk prop `afterSignInUrl` somewhere in the codebase.
+The `afterSignInUrl` property is **NOT in your source code** - it's configured in your **Clerk Dashboard** settings. This is a dashboard configuration issue, not a code issue.
 
 **Fix Required:**
-Search for and replace `afterSignInUrl` with `fallbackRedirectUrl` or `forceRedirectUrl` depending on the use case:
 
-```bash
-# Search for usage
-grep -r "afterSignInUrl" src/
-```
+1. **Log in to Clerk Dashboard:**
+   - Go to https://dashboard.clerk.com
+   - Select your production instance
 
-**Migration:**
-- `afterSignInUrl` → `fallbackRedirectUrl` (for default redirect after sign in)
-- `afterSignInUrl` → `forceRedirectUrl` (to force redirect even if Clerk has a saved redirect)
+2. **Update Redirect Settings:**
+   - Navigate to **Paths** section in the sidebar
+   - Look for "After sign in URL" or "After sign up URL" settings
+   - These settings use the deprecated configuration
+   - Update to use the new redirect strategy (or leave blank to use default behavior)
+
+3. **Alternative - Clear Dashboard Redirects:**
+   - If you don't need custom redirects, simply remove these values from the dashboard
+   - Clerk will use intelligent defaults based on where the user initiated sign-in
+
+**Note:** No code changes are needed. This warning comes from Clerk's internal configuration when it detects dashboard settings using the old redirect format.
 
 ---
 
