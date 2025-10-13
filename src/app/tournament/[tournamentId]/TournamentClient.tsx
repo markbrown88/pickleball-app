@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { formatDateRangeUTC } from '@/lib/utils';
 
 interface Tournament {
   id: string;
@@ -580,23 +581,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     const startRaw = cached?.startAt ?? stop.startAt ?? null;
     const endRaw = cached?.endAt ?? stop.endAt ?? null;
 
-    const startAt = startRaw ? new Date(startRaw) : null;
-    const endAt = endRaw ? new Date(endRaw) : null;
-
-    if (!startAt && !endAt) return null;
-
-    const formatDate = (date: Date) =>
-      date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-
-    if (startAt && endAt && startAt.getTime() !== endAt.getTime()) {
-      return `${formatDate(startAt)} – ${formatDate(endAt)}`;
-    }
-
-    return formatDate(startAt ?? endAt!);
+    return formatDateRangeUTC(startRaw, endRaw);
   };
 
   return (

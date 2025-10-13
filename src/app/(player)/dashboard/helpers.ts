@@ -1,18 +1,14 @@
 import type { Tournament } from '@/types';
+import { formatDateRangeUTC, formatDateUTC } from '@/lib/utils';
 
 export function formatDateRange(start?: string | null, end?: string | null) {
-  if (!start && !end) return '—';
-  const format = (value: string) => new Date(value).toLocaleDateString();
-  if (start && end) {
-    return `${format(start)} – ${format(end)}`;
-  }
-  return format(start ?? end!);
+  return formatDateRangeUTC(start, end);
 }
 
 export function nextStopLabel(tournament: Tournament) {
   const firstStop = tournament.stops?.[0];
   if (!firstStop) return 'Schedule coming soon';
-  return `Next stop: ${new Date(firstStop.startAt).toLocaleDateString()}`;
+  return `Next stop: ${formatDateUTC(firstStop.startAt)}`;
 }
 
 
