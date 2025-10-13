@@ -21,7 +21,7 @@ function navLinkClasses(active: boolean) {
   }`;
 }
 
-export function Navigation({ items, userRole }: { items: NavItem[]; userRole: UserRole }) {
+export function Navigation({ items, userRole, onMobileNavClose }: { items: NavItem[]; userRole: UserRole; onMobileNavClose?: () => void }) {
   const pathname = usePathname();
 
   // Filter items based on user role
@@ -41,6 +41,7 @@ export function Navigation({ items, userRole }: { items: NavItem[]; userRole: Us
                 className={navLinkClasses(active)}
                 aria-current={active ? 'page' : undefined}
                 target={item.target}
+                onClick={onMobileNavClose}
               >
                 {item.label}
               </Link>

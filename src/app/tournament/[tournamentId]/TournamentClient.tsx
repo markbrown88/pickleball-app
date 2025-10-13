@@ -467,7 +467,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     setStandingsLoading(true);
     try {
       console.log('Fetching standings for tournament:', tournamentId);
-      const response = await fetch(`/api/tournaments/${tournamentId}/standings`);
+      const response = await fetch(`/api/public/tournaments/${tournamentId}/standings`);
       console.log('Standings response status:', response.status);
       
       if (response.ok) {

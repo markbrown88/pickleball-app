@@ -61,6 +61,7 @@ export const CACHE_TTL = {
 
   // Change during events
   STOPS: 300,               // 5 minutes
+  STANDINGS: 300,           // 5 minutes
   SCHEDULE: 60,             // 1 minute
   GAMES: 30,                // 30 seconds
   SCORES: 30,               // 30 seconds (real-time updates)
@@ -169,6 +170,7 @@ export const cacheKeys = {
   tournaments: () => 'tournaments:all',
   tournament: (id: string) => `tournament:${id}`,
   tournamentStops: (id: string) => `tournament:${id}:stops`,
+  tournamentStandings: (id: string) => `tournament:${id}:standings`,
 
   // Clubs
   clubs: () => 'clubs:all',
