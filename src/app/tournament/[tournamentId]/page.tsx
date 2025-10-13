@@ -1,6 +1,19 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import TournamentClient from './TournamentClient';
+import dynamic from 'next/dynamic';
+
+// Dynamically import TournamentClient to reduce initial bundle size
+const TournamentClient = dynamic(() => import('./TournamentClient'), {
+  loading: () => (
+    <div className="min-h-screen bg-app flex items-center justify-center">
+      <div className="flex items-center gap-3">
+        <div className="loading-spinner" />
+        <span className="text-muted">Loading tournament...</span>
+      </div>
+    </div>
+  ),
+  ssr: false // Tournament is interactive, client-side only
+});
 
 interface Tournament {
   id: string;

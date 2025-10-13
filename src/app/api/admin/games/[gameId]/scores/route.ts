@@ -7,17 +7,30 @@ import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 import { GameSlot as GameSlotEnum } from '@prisma/client';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
+import { invalidateCache } from '@/lib/cache';
+import { z } from 'zod';
+import { scoreSubmissionLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
 
 type Ctx = { params: Promise<{ gameId: string }> };
 
-type PutBody = {
-  /** Partial update is allowed; only provided slots are upserted. */
-  scores: Array<{
-    slot: GameSlot;
-    teamAScore: number | null;
-    teamBScore: number | null;
-  }>;
-};
+// Zod schema for score validation (SEC-004)
+const ScoreSchema = z.object({
+  scores: z.array(
+    z.object({
+      slot: z.enum(['GAME_1', 'GAME_2', 'GAME_3', 'GAME_4', 'GAME_5']),
+      teamAScore: z.number().int().nonnegative().nullable(),
+      teamBScore: z.number().int().nonnegative().nullable(),
+    })
+  ).min(1).refine(
+    (scores) => {
+      const slots = scores.map(s => s.slot);
+      return new Set(slots).size === slots.length;
+    },
+    { message: 'Duplicate slots are not allowed' }
+  ),
+});
+
+type PutBody = z.infer<typeof ScoreSchema>;
 
 function isValidSlot(v: unknown): v is GameSlot {
   return typeof v === 'string' && Object.prototype.hasOwnProperty.call(GameSlotEnum, v);
@@ -55,10 +68,46 @@ export async function PUT(req: Request, ctx: Ctx) {
   const { gameId } = await ctx.params;
 
   try {
-    const body = (await req.json().catch(() => ({}))) as PutBody;
-    if (!Array.isArray(body?.scores)) {
-      return NextResponse.json({ error: 'scores must be an array' }, { status: 400 });
+    // Rate limiting to prevent rapid score manipulation (SEC-002)
+    const clientIp = getClientIp(req);
+    const rateLimitResult = await checkRateLimit(scoreSubmissionLimiter, clientIp);
+
+    if (rateLimitResult && !rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Too many score submissions. Please try again later.',
+          retryAfter: rateLimitResult.reset
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString()
+          }
+        }
+      );
     }
+
+    // Parse and validate request body with Zod (SEC-004)
+    const rawBody = await req.json().catch(() => ({}));
+    const validation = ScoreSchema.safeParse(rawBody);
+
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid request body',
+          details: validation.error.errors.map(e => ({
+            path: e.path.join('.'),
+            message: e.message
+          }))
+        },
+        { status: 400 }
+      );
+    }
+
+    const body = validation.data;
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
@@ -75,22 +124,6 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
     if (game.match.isBye) {
       return NextResponse.json({ error: 'Cannot enter scores for a BYE game' }, { status: 400 });
-    }
-
-    // Validate payload
-    const seen = new Set<GameSlot>();
-    for (const row of body.scores) {
-      if (!row || !isValidSlot(row.slot)) {
-        return NextResponse.json({ error: 'Each score row must include a valid slot' }, { status: 400 });
-      }
-      if (seen.has(row.slot)) {
-        return NextResponse.json({ error: `Duplicate slot: ${row.slot}` }, { status: 400 });
-      }
-      seen.add(row.slot);
-
-      if (!isValidScore(row.teamAScore) || !isValidScore(row.teamBScore)) {
-        return NextResponse.json({ error: 'Scores must be integers ≥ 0 or null' }, { status: 400 });
-      }
     }
 
     // Upsert each slot’s score
@@ -135,6 +168,13 @@ export async function PUT(req: Request, ctx: Ctx) {
         teamBScore: m.teamBScore,
       }));
     const summary = summarize(matches, fresh?.match?.isBye ?? false);
+
+    // Invalidate scoreboard cache for this stop (scores changed)
+    const stopId = fresh?.match?.round?.stopId;
+    if (stopId) {
+      await invalidateCache(`stop:${stopId}:*`);
+      await invalidateCache(`captain:*:stop:${stopId}`);
+    }
 
     return NextResponse.json({
       ok: true,

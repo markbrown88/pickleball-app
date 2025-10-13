@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
+import { getCached, cacheKeys, CACHE_TTL } from '@/lib/cache';
 
 type Params = { playerId: string };
 
@@ -97,8 +98,12 @@ export async function GET(
     const tournamentAdminIds = new Set(tournamentAdmins.map(ta => ta.tournamentId));
     const canSeeAllStops = new Set([...tournamentLevelManagerIds, ...tournamentAdminIds]);
 
-    // Now get only the tournaments that have stops managed by this player
-    const tournaments = await prisma.tournament.findMany({
+    // Cache manager tournaments data (5 minute TTL)
+    const items = await getCached(
+      cacheKeys.userTournaments(targetPlayerId),
+      async () => {
+        // Now get only the tournaments that have stops managed by this player
+        const tournaments = await prisma.tournament.findMany({
       where: { id: { in: tournamentIds } },
       include: {
         clubs: {
@@ -125,9 +130,9 @@ export async function GET(
         admins: { select: { playerId: true } },
         TournamentCaptain: { select: { playerId: true, clubId: true } },
       },
-    });
+        });
 
-    const items = tournaments.map((t: any) => {
+        return tournaments.map((t: any) => {
       const stops = (t.stops ?? []).map((s: any) => ({
         stopId: s.id,
         stopName: s.name,
@@ -155,8 +160,11 @@ export async function GET(
         },
         clubs,
         stops,
-      };
-    });
+          };
+        });
+      },
+      CACHE_TTL.SCHEDULE // 5 minutes
+    );
 
     return NextResponse.json({ items });
   } catch (e) {

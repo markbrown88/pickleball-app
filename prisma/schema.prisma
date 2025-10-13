@@ -82,6 +82,7 @@ model Player {
   @@index([birthdayYear, birthdayMonth, birthdayDay], map: "Player_birthday_idx")
   @@index([firstName])
   @@index([lastName])
+  @@index([clubId, gender]) // For filtering players by club and gender
 }
 
 /// *
@@ -223,6 +224,8 @@ model StopTeamPlayer {
   @@id([stopId, teamId, playerId])
   @@index([playerId], map: "ix_StopTeamPlayer_player")
   @@index([teamId], map: "ix_StopTeamPlayer_team")
+  @@index([stopId, teamId]) // For querying roster by stop and team
+  @@index([stopId, playerId]) // For checking player availability
 }
 
 /// *
@@ -276,6 +279,8 @@ model Match {
   @@index([teamAId])
   @@index([teamBId])
   @@index([tiebreakerWinnerTeamId])
+  @@index([roundId, isBye]) // For filtering out bye matches
+  @@index([tiebreakerStatus]) // For filtering matches needing tiebreakers
 }
 
 /// *
@@ -306,6 +311,8 @@ model Game {
 
   @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
   @@index([matchId])
+  @@index([isComplete, startedAt]) // For filtering incomplete games
+  @@index([courtNumber]) // For filtering by court
 }
 
 /// *
@@ -339,6 +346,8 @@ model LineupEntry {
   player2   Player   @relation("LineupPlayer2", fields: [player2Id], references: [id])
 
   @@unique([lineupId, slot])
+  @@index([player1Id, slot]) // For checking player participation
+  @@index([player2Id, slot]) // For checking player participation
 }
 
 /// *

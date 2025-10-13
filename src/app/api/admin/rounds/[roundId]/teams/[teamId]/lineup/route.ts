@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
+import { lineupSubmissionLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
 
 type Params = { roundId: string; teamId: string };
+
+// Zod schema for admin lineup validation (SEC-004)
+const AdminLineupSchema = z.object({
+  players: z.array(z.string().uuid()).length(4)
+});
 
 function displayName(p: { firstName?: string | null; lastName?: string | null; name?: string | null }) {
   return p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown';
@@ -150,13 +157,47 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
   // Use singleton prisma instance
   try {
     const { roundId, teamId } = await ctx.params;
-    const body = await req.json();
-    
-    const { players } = body; // Array of 4 player IDs: [man1, man2, woman1, woman2]
-    
-    if (!Array.isArray(players) || players.length !== 4) {
-      return NextResponse.json({ error: 'Exactly 4 players required' }, { status: 400 });
+
+    // Rate limiting to prevent rapid lineup changes (SEC-002)
+    const clientIp = getClientIp(req);
+    const rateLimitResult = await checkRateLimit(lineupSubmissionLimiter, clientIp);
+
+    if (rateLimitResult && !rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Too many lineup submissions. Please try again later.',
+          retryAfter: rateLimitResult.reset
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString()
+          }
+        }
+      );
     }
+
+    // Parse and validate request body with Zod (SEC-004)
+    const rawBody = await req.json().catch(() => ({}));
+    const validation = AdminLineupSchema.safeParse(rawBody);
+
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid lineup format',
+          details: validation.error.errors.map(e => ({
+            path: e.path.join('.'),
+            message: e.message
+          }))
+        },
+        { status: 400 }
+      );
+    }
+
+    const { players } = validation.data; // Array of 4 player IDs: [man1, man2, woman1, woman2]
     
     // Verify round exists
     const round = await prisma.round.findUnique({

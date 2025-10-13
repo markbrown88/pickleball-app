@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
+import { lineupSubmissionLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
+
+// Zod schema for lineup validation (SEC-004)
+const LineupSchema = z.object({
+  lineup: z.array(z.string().uuid()).length(2)
+});
 
 type Params = {
   params: Promise<{
@@ -16,7 +23,47 @@ type Params = {
 export async function PUT(request: Request, { params }: Params) {
   try {
     const { token, stopId, gameId } = await params;
-    const { lineup } = await request.json();
+
+    // Rate limiting to prevent rapid lineup changes (SEC-002)
+    const clientIp = getClientIp(request);
+    const rateLimitResult = await checkRateLimit(lineupSubmissionLimiter, clientIp);
+
+    if (rateLimitResult && !rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Too many lineup submissions. Please try again later.',
+          retryAfter: rateLimitResult.reset
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString()
+          }
+        }
+      );
+    }
+
+    // Parse and validate request body with Zod (SEC-004)
+    const rawBody = await request.json().catch(() => ({}));
+    const validation = LineupSchema.safeParse(rawBody);
+
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid lineup format',
+          details: validation.error.errors.map(e => ({
+            path: e.path.join('.'),
+            message: e.message
+          }))
+        },
+        { status: 400 }
+      );
+    }
+
+    const { lineup } = validation.data;
 
     // Validate token
     const tournamentClub = await prisma.tournamentClub.findUnique({
@@ -64,11 +111,6 @@ export async function PUT(request: Request, { params }: Params) {
 
     if (!isTeamA && !isTeamB) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    // Validate lineup: should be array of 2 player IDs
-    if (!Array.isArray(lineup) || lineup.length !== 2) {
-      return NextResponse.json({ error: 'Invalid lineup format' }, { status: 400 });
     }
 
     // Build lineup structure: [{player1Id, player2Id}]

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCached, cacheKeys, CACHE_TTL } from '@/lib/cache';
+import { captainPortalLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +9,28 @@ type Params = { params: Promise<{ token: string }> };
 
 export async function GET(request: Request, { params }: Params) {
   try {
+    // Rate limiting to prevent brute force attacks on tokens
+    const clientIp = getClientIp(request);
+    const rateLimitResult = await checkRateLimit(captainPortalLimiter, clientIp);
+
+    if (rateLimitResult && !rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests. Please try again later.',
+          retryAfter: rateLimitResult.reset
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString()
+          }
+        }
+      );
+    }
+
     const { token } = await params;
 
     // Find tournament club by access token
@@ -35,8 +59,25 @@ export async function GET(request: Request, { params }: Params) {
       );
     }
 
-    // Get all stops for this tournament
-    const stops = await prisma.stop.findMany({
+    // Use cache to reduce database load (1 minute TTL for captain portal)
+    // Cache key includes token to ensure captain-specific data
+    const result = await getCached(
+      cacheKeys.captainPortal(token),
+      async () => {
+        // Get teams for this club in this tournament (used for filtering)
+        const teams = await prisma.team.findMany({
+          where: {
+            tournamentId: tournamentClub.tournamentId,
+            clubId: tournamentClub.clubId
+          },
+          select: { id: true }
+        });
+
+        const teamIds = teams.map(t => t.id);
+
+        // Get all stops WITH all games in a single query (eliminates N+1 problem)
+        // This replaces 3 queries per stop with 1 total query
+        const stopsWithGames = await prisma.stop.findMany({
       where: {
         tournamentId: tournamentClub.tournamentId
       },
@@ -52,110 +93,96 @@ export async function GET(request: Request, { params }: Params) {
             id: true,
             name: true
           }
+        },
+        rounds: {
+          select: {
+            matches: {
+              where: {
+                OR: [
+                  { teamAId: { in: teamIds } },
+                  { teamBId: { in: teamIds } }
+                ]
+              },
+              select: {
+                teamAId: true,
+                teamBId: true,
+                games: {
+                  select: {
+                    id: true,
+                    teamALineup: true,
+                    teamBLineup: true
+                  }
+                }
+              }
+            }
+          }
         }
       }
     });
 
-    // For each stop, determine status and lineup completion
+    // Process data in memory (much faster than multiple DB queries)
     const now = new Date();
-    const stopsWithStatus = await Promise.all(
-      stops.map(async (stop) => {
-        // Determine status
-        const stopStart = stop.startAt ? new Date(stop.startAt) : null;
-        const stopEnd = stop.endAt ? new Date(stop.endAt) : null;
+    const stopsWithStatus = stopsWithGames.map((stop) => {
+      // Determine status
+      const stopStart = stop.startAt ? new Date(stop.startAt) : null;
+      const stopEnd = stop.endAt ? new Date(stop.endAt) : null;
 
-        let status: 'completed' | 'upcoming' | 'current' = 'upcoming';
-        if (stopEnd && now > stopEnd) {
-          status = 'completed';
-        } else if (stopStart && now >= stopStart && (!stopEnd || now <= stopEnd)) {
-          status = 'current';
+      let status: 'completed' | 'upcoming' | 'current' = 'upcoming';
+      if (stopEnd && now > stopEnd) {
+        status = 'completed';
+      } else if (stopStart && now >= stopStart && (!stopEnd || now <= stopEnd)) {
+        status = 'current';
+      }
+
+      // Count games and check lineup completion
+      let totalGames = 0;
+      let gamesWithLineups = 0;
+
+      for (const round of stop.rounds) {
+        for (const match of round.matches) {
+          for (const game of match.games) {
+            totalGames++;
+
+            // Check if this club's team has submitted lineup
+            const isTeamA = teamIds.includes(match.teamAId || '');
+            const lineup = isTeamA ? game.teamALineup : game.teamBLineup;
+
+            if (lineup && Array.isArray(lineup) && lineup.length > 0) {
+              gamesWithLineups++;
+            }
+          }
         }
+      }
 
-        // Check lineup completion for this club in this stop
-        // A stop is complete if all games for all teams in all brackets have lineups
-        const teams = await prisma.team.findMany({
-          where: {
-            tournamentId: tournamentClub.tournamentId,
-            clubId: tournamentClub.clubId
-          },
-          select: { id: true }
+      const lineupsComplete = totalGames > 0 && totalGames === gamesWithLineups;
+
+      return {
+        id: stop.id,
+        name: stop.name,
+        startAt: stop.startAt,
+        lineupDeadline: stop.lineupDeadline,
+        status,
+        lineupsComplete,
+        club: stop.club
+      };
         });
-
-        const teamIds = teams.map(t => t.id);
-
-        // Count total games and games with lineups for this club's teams
-        const totalGames = await prisma.game.count({
-          where: {
-            match: {
-              round: {
-                stopId: stop.id
-              },
-              OR: [
-                { teamAId: { in: teamIds } },
-                { teamBId: { in: teamIds } }
-              ]
-            }
-          }
-        });
-
-        // Get all games for this club's teams and check lineups
-        const games = await prisma.game.findMany({
-          where: {
-            match: {
-              round: {
-                stopId: stop.id
-              },
-              OR: [
-                { teamAId: { in: teamIds } },
-                { teamBId: { in: teamIds } }
-              ]
-            }
-          },
-          select: {
-            id: true,
-            teamALineup: true,
-            teamBLineup: true,
-            match: {
-              select: {
-                teamAId: true,
-                teamBId: true
-              }
-            }
-          }
-        });
-
-        // Count games with lineups for this club
-        const gamesWithLineups = games.filter(game => {
-          const isTeamA = teamIds.includes(game.match.teamAId || '');
-          const lineup = isTeamA ? game.teamALineup : game.teamBLineup;
-          return lineup && Array.isArray(lineup) && lineup.length > 0;
-        }).length;
-
-        const lineupsComplete = totalGames > 0 && totalGames === gamesWithLineups;
 
         return {
-          id: stop.id,
-          name: stop.name,
-          startAt: stop.startAt,
-          lineupDeadline: stop.lineupDeadline,
-          status,
-          lineupsComplete,
-          club: stop.club
+          tournament: {
+            id: tournamentClub.tournament.id,
+            name: tournamentClub.tournament.name
+          },
+          club: {
+            id: tournamentClub.club.id,
+            name: tournamentClub.club.name
+          },
+          stops: stopsWithStatus
         };
-      })
+      },
+      CACHE_TTL.CAPTAIN_PORTAL
     );
 
-    return NextResponse.json({
-      tournament: {
-        id: tournamentClub.tournament.id,
-        name: tournamentClub.tournament.name
-      },
-      club: {
-        id: tournamentClub.club.id,
-        name: tournamentClub.club.name
-      },
-      stops: stopsWithStatus
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Captain portal error:', error);
     return NextResponse.json(

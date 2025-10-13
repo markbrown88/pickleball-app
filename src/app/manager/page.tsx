@@ -3,7 +3,22 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
-import { EventManagerTab } from './components/EventManagerTab';
+import dynamic from 'next/dynamic';
+
+// Dynamically import the heavy EventManagerTab component (2,584 lines!)
+// This reduces initial bundle size significantly
+const EventManagerTab = dynamic(
+  () => import('./components/EventManagerTab').then(mod => ({ default: mod.EventManagerTab })),
+  {
+    loading: () => (
+      <div className="card p-8 flex items-center justify-center gap-3">
+        <div className="loading-spinner" />
+        <span className="text-muted">Loading event manager...</span>
+      </div>
+    ),
+    ssr: false // Event manager is interactive, no need for SSR
+  }
+);
 
 type Id = string;
 

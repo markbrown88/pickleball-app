@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCached, cacheKeys, CACHE_TTL } from '@/lib/cache';
 
 function formatLocation(details?: { name: string | null; city: string | null; region: string | null } | null) {
   if (!details) return null;
@@ -19,38 +20,42 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
 
-    const tournaments = await prisma.tournament.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        brackets: {
-          select: {
-            id: true,
-            name: true,
-            idx: true
-          },
-          orderBy: { idx: 'asc' }
-        },
-        stops: {
-          select: {
-            id: true,
-            name: true,
-            startAt: true,
-            endAt: true,
-            club: {
+    // Use cache to reduce database load (10 minute TTL)
+    const formattedTournaments = await getCached(
+      cacheKeys.tournaments(),
+      async () => {
+        const tournaments = await prisma.tournament.findMany({
+          orderBy: { createdAt: 'desc' },
+          include: {
+            brackets: {
               select: {
+                id: true,
                 name: true,
-                city: true,
-                region: true
-              }
+                idx: true
+              },
+              orderBy: { idx: 'asc' }
+            },
+            stops: {
+              select: {
+                id: true,
+                name: true,
+                startAt: true,
+                endAt: true,
+                club: {
+                  select: {
+                    name: true,
+                    city: true,
+                    region: true
+                  }
+                }
+              },
+              orderBy: { startAt: 'asc' }
             }
-          },
-          orderBy: { startAt: 'asc' }
-        }
-      }
-    });
+          }
+        });
 
-    // Format the response to match what the frontend expects
-    const formattedTournaments = tournaments.map((tournament: any) => {
+        // Format the response to match what the frontend expects
+        return tournaments.map((tournament: any) => {
       // Calculate start and end dates from stops
       const startDate = tournament.stops.length > 0 ? tournament.stops[0].startAt : null;
       const endDate = tournament.stops.length > 0 
@@ -79,7 +84,10 @@ export async function GET(req: NextRequest) {
           locationName: formatLocation(stop.club)
         }))
       };
-    });
+        });
+      },
+      CACHE_TTL.TOURNAMENTS
+    );
 
     return NextResponse.json({
       tournaments: formattedTournaments

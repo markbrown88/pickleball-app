@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCached, cacheKeys, CACHE_TTL } from '@/lib/cache';
 
 type Params = { stopId: string };
 
@@ -18,27 +19,30 @@ function ymd(d?: Date | null): string | null {
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   try {
     const { stopId } = await ctx.params;
-    // Use singleton prisma instance
 
-    // Stop header + context
-    const stop = await prisma.stop.findUnique({
-      where: { id: stopId },
-      select: {
-        id: true,
-        name: true,
-        startAt: true,
-        endAt: true,
-        club: { select: { name: true } },
-        tournament: { select: { id: true, name: true } },
-      },
-    });
+    // Cache scoreboard data (30 second TTL for real-time updates during tournaments)
+    const payload = await getCached(
+      cacheKeys.stopScoreboard(stopId),
+      async () => {
+        // Stop header + context
+        const stop = await prisma.stop.findUnique({
+          where: { id: stopId },
+          select: {
+            id: true,
+            name: true,
+            startAt: true,
+            endAt: true,
+            club: { select: { name: true } },
+            tournament: { select: { id: true, name: true } },
+          },
+        });
 
-    if (!stop) {
-      return NextResponse.json({ error: 'Stop not found' }, { status: 404 });
-    }
+        if (!stop) {
+          throw new Error('Stop not found');
+        }
 
-    // Rounds → Matches → Games (correct hierarchy, no transformation needed)
-    const rounds = await prisma.round.findMany({
+        // Rounds → Matches → Games (correct hierarchy, no transformation needed)
+        const rounds = await prisma.round.findMany({
       where: { stopId },
       orderBy: { idx: 'asc' },
       include: {
@@ -144,18 +148,18 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       },
     });
 
-    // Shape & compute small summary (wins per match)
-    const payload = {
-      stop: {
-        id: stop.id,
-        name: stop.name,
-        tournamentId: stop.tournament?.id ?? null,
-        tournamentName: stop.tournament?.name ?? null,
-        locationName: stop.club?.name ?? null,
-        startAt: ymd(stop.startAt),
-        endAt: ymd(stop.endAt),
-      },
-      rounds: rounds.map((r: any) => {
+        // Shape & compute small summary (wins per match)
+        return {
+          stop: {
+            id: stop.id,
+            name: stop.name,
+            tournamentId: stop.tournament?.id ?? null,
+            tournamentName: stop.tournament?.name ?? null,
+            locationName: stop.club?.name ?? null,
+            startAt: ymd(stop.startAt),
+            endAt: ymd(stop.endAt),
+          },
+          rounds: rounds.map((r: any) => {
         // Debug: Log the order of matches for this round
         console.log(`[SCOREBOARD] Round ${r.idx} matches order:`, r.matches.map((m: any) => ({
           id: m.id,
@@ -272,12 +276,19 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           };
         }),
         };
-      }),
-    };
+          }),
+        };
+      },
+      CACHE_TTL.SCORES // 30 seconds for real-time updates
+    );
 
     return NextResponse.json(payload);
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'error';
+    // Handle 'Stop not found' error specifically
+    if (msg === 'Stop not found') {
+      return NextResponse.json({ error: msg }, { status: 404 });
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
