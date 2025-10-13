@@ -45,11 +45,11 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://clerk.com https://*.clerk.com https://*.supabase.com https://*.upstash.io",
+              "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://*.supabase.com https://*.upstash.io",
               "frame-ancestors 'none'"
             ].join('; ')
           }
