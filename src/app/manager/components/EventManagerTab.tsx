@@ -1263,7 +1263,8 @@ export function EventManagerTab({
 
           if (matchLineups[teamAId]?.length === 4 && matchLineups[teamBId]?.length === 4) {
             log('=== Loading games for match with confirmed lineups:', matchId);
-            loadGamesForMatch(matchId, true);
+            // Add a small delay to prevent overwhelming the API
+            setTimeout(() => loadGamesForMatch(matchId, true), 100);
           }
         });
       }
@@ -1531,6 +1532,14 @@ export function EventManagerTab({
       if (response.ok) {
         const gamesData = await response.json();
         setGames(prev => ({ ...prev, [matchId]: gamesData }));
+      } else if (response.status === 404) {
+        console.warn(`Match ${matchId} not found, removing from games state`);
+        setGames(prev => {
+          const { [matchId]: removed, ...rest } = prev;
+          return rest;
+        });
+      } else {
+        console.error(`Failed to load games for match ${matchId}:`, response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error loading games:', error);
