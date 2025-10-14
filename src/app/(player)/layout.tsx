@@ -71,6 +71,10 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     });
     if (targetPlayer) {
       effectivePlayerId = actAsPlayerId;
+    } else {
+      // Target player doesn't exist (deleted), clear the Act As cookie
+      console.warn('Act As target player not found, clearing cookie:', actAsPlayerId);
+      // Note: We can't clear cookies from server-side, but the client will handle this
     }
   }
 

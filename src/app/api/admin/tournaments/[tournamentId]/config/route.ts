@@ -586,14 +586,15 @@ export async function PUT(req: Request, ctx: CtxPromise) {
 
           // Assign captain to all teams for this club
           if (primary && primary.captainId !== captainId) {
+            // First, remove captain from ALL teams in this club (not just teams with this specific captain)
             await tx.team.updateMany({
               where: {
                 tournamentId,
                 clubId,
-                captainId,
               },
               data: { captainId: null },
             });
+            // Then assign the new captain to ALL teams in this club
             await tx.team.updateMany({
               where: {
                 tournamentId,
@@ -701,8 +702,9 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     });
   } catch (error) {
     console.error('Error updating tournament config:', error);
+    console.error('Request body:', JSON.stringify(body, null, 2));
     const message = error instanceof Error ? error.message : 'Failed to update tournament configuration';
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: message, details: error instanceof Error ? error.stack : undefined }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true });

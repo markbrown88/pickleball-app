@@ -111,7 +111,7 @@ model Team {
   playerLinks     TeamPlayer[]
   matchTiebreakerWins Match[] @relation("MatchTiebreakerWinner")
 
-  @@unique([tournamentId, captainId])
+  @@unique([tournamentId, clubId, captainId])
   @@unique([tournamentId, clubId, bracketId])
   @@unique([tournamentId, clubId, levelId])
   @@index([tournamentId])

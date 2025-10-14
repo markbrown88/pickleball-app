@@ -24,10 +24,19 @@ export function ActAsProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem('act-as-user');
     if (stored) {
       try {
-        setActingAsState(JSON.parse(stored));
+        const parsedUser = JSON.parse(stored);
+        // Validate that the user has required fields
+        if (parsedUser && parsedUser.id && parsedUser.name) {
+          setActingAsState(parsedUser);
+        } else {
+          console.warn('Invalid act-as user data, clearing...');
+          localStorage.removeItem('act-as-user');
+          document.cookie = 'act-as-player-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        }
       } catch (error) {
         console.error('Failed to parse stored act-as user:', error);
         localStorage.removeItem('act-as-user');
+        document.cookie = 'act-as-player-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       }
     }
   }, []);

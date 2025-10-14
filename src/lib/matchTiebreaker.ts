@@ -36,16 +36,18 @@ export async function evaluateMatchTiebreaker(
     return null;
   }
 
-  // For forfeits we can short-circuit and mark as decided via points
+  // For forfeits we can short-circuit - no tiebreaker needed
   if (match.forfeitTeam) {
     const winnerTeamId = match.forfeitTeam === 'A' ? match.teamBId ?? null : match.teamAId ?? null;
     return tx.match.update({
       where: { id: matchId },
       data: {
-        tiebreakerStatus: 'DECIDED_POINTS',
+        tiebreakerStatus: 'NONE',
         tiebreakerWinnerTeamId: winnerTeamId,
         tiebreakerGameId: null,
-        tiebreakerDecidedAt: match.tiebreakerDecidedAt ?? new Date(),
+        tiebreakerDecidedAt: null,
+        totalPointsTeamA: 0,
+        totalPointsTeamB: 0,
       },
       include: {
         games: true,
@@ -100,9 +102,7 @@ export async function evaluateMatchTiebreaker(
 
     if (summary.winsA > summary.winsB || summary.winsB > summary.winsA) {
       // Match already decided via standard games, clear any tiebreaker data
-      if (!DECIDED_STATUSES.includes(tiebreakerStatus)) {
-        tiebreakerStatus = 'NONE';
-      }
+      tiebreakerStatus = 'NONE';
       resetTiebreaker();
     } else {
       // 2-2 situation – evaluate totals or tiebreaker game
@@ -152,11 +152,9 @@ export async function evaluateMatchTiebreaker(
       }
     }
   } else {
-    // Not all standard games complete – clear interim values unless already decided
-    if (!DECIDED_STATUSES.includes(tiebreakerStatus)) {
-      tiebreakerStatus = 'NONE';
-      resetTiebreaker();
-    }
+    // Not all standard games complete – clear interim values
+    tiebreakerStatus = 'NONE';
+    resetTiebreaker();
   }
 
   // Persist changes when something differs
