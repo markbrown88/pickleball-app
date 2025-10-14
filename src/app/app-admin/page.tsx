@@ -339,10 +339,10 @@ export default function AppAdminPage() {
                       <td className="text-muted tabular">{tournament._count.teams}</td>
                       <td className="text-muted tabular">{tournament._count.stops}</td>
                       <td className="text-muted tabular">
-                        {tournament.startDate ? formatDateUTC(tournament.startDate) : 'TBD'}
+                        {tournament.startDate ? formatDateUTC(tournament.startDate instanceof Date ? tournament.startDate.toISOString() : tournament.startDate) : 'TBD'}
                       </td>
                       <td className="text-muted tabular">
-                        {tournament.endDate ? formatDateUTC(tournament.endDate) : 'TBD'}
+                        {tournament.endDate ? formatDateUTC(tournament.endDate instanceof Date ? tournament.endDate.toISOString() : tournament.endDate) : 'TBD'}
                       </td>
                       <td style={{ position: 'relative', overflow: 'visible' }}>
                         <div className="space-y-2">
