@@ -181,14 +181,18 @@ export async function GET(
         });
       }
 
-      // Only add if we have complete lineups (4 players each)
-      if (teamALineup.length === 4 && teamBLineup.length === 4) {
+      // Add lineup data if at least one team has a complete lineup
+      if (teamALineup.length === 4 || teamBLineup.length === 4) {
         if (!groupedLineups[match.id]) {
           groupedLineups[match.id] = {};
         }
 
-        groupedLineups[match.id][match.teamA.id] = teamALineup;
-        groupedLineups[match.id][match.teamB.id] = teamBLineup;
+        if (teamALineup.length === 4) {
+          groupedLineups[match.id][match.teamA.id] = teamALineup;
+        }
+        if (teamBLineup.length === 4) {
+          groupedLineups[match.id][match.teamB.id] = teamBLineup;
+        }
       }
     }
 
