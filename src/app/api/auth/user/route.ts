@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Authentication service not configured' }, { status: 500 });
     }
 
-    // Get the authenticated user ID first
+    // Get the authenticated user ID and email
     const { userId } = await auth();
     console.log('Auth API: Authenticated user ID:', userId);
 
@@ -24,8 +24,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Check if user has a player record
-    const existingPlayer = await prisma.player.findUnique({
+    // Get user email from Clerk
+    const clerkUser = await currentUser();
+    const userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress;
+    console.log('Auth API: User email from Clerk:', userEmail);
+
+    // First, try to find player by Clerk user ID
+    let player = await prisma.player.findUnique({
       where: { clerkUserId: userId },
       include: {
         club: {
@@ -39,11 +44,63 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    console.log('Auth API: Existing player found:', !!existingPlayer);
+    console.log('Auth API: Player found by Clerk ID:', !!player);
 
-    if (!existingPlayer) {
+    // If no player found by Clerk ID, check if one exists with the same email
+    if (!player && userEmail) {
+      console.log('Auth API: No player found by Clerk ID, checking by email:', userEmail);
+      
+      const existingPlayerByEmail = await prisma.player.findUnique({
+        where: { email: userEmail },
+        include: {
+          club: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+              region: true
+            }
+          }
+        }
+      });
+
+      if (existingPlayerByEmail) {
+        console.log('Auth API: Found existing player by email, updating Clerk ID. Player ID:', existingPlayerByEmail.id);
+        
+        // Update the existing player record with the new Clerk user ID
+        player = await prisma.player.update({
+          where: { id: existingPlayerByEmail.id },
+          data: { clerkUserId: userId },
+          include: {
+            club: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                region: true
+              }
+            }
+          }
+        });
+        
+        console.log('Auth API: Successfully merged user with existing player record. Updated player:', {
+          id: player.id,
+          name: player.name,
+          email: player.email,
+          clerkUserId: player.clerkUserId
+        });
+      } else {
+        console.log('Auth API: No existing player found by email either');
+      }
+    }
+
+    if (!player) {
       console.log('Auth API: No player record found for user:', userId);
-      return NextResponse.json({ error: 'Player profile not found. Please complete your profile setup.' }, { status: 404 });
+      return NextResponse.json({ 
+        error: 'Player profile not found', 
+        needsProfileSetup: true,
+        message: 'Please complete your profile setup to continue.' 
+      }, { status: 404 });
     }
 
     // Support Act As functionality (only if player exists)
@@ -57,15 +114,15 @@ export async function GET(req: NextRequest) {
       // If Act As fails, just use the real player
       effectivePlayer = {
         realUserId: userId,
-        realPlayerId: existingPlayer.id,
+        realPlayerId: player.id,
         isActingAs: false,
-        targetPlayerId: existingPlayer.id,
-        isAppAdmin: existingPlayer.isAppAdmin
+        targetPlayerId: player.id,
+        isAppAdmin: player.isAppAdmin
       };
     }
 
     // Find player record for the effective player (real user or target if acting as)
-    const player = await prisma.player.findUnique({
+    const finalPlayer = await prisma.player.findUnique({
       where: { id: effectivePlayer.targetPlayerId },
       include: {
         club: {
@@ -79,38 +136,33 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    if (!player) {
+    if (!finalPlayer) {
       console.log('Auth API: Target player not found:', effectivePlayer.targetPlayerId);
       return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
     }
 
     return NextResponse.json({
-      id: player.id,
-      clerkUserId: player.clerkUserId,
-      firstName: player.firstName,
-      lastName: player.lastName,
-      name: player.name,
-      email: player.email,
-      phone: player.phone,
-      gender: player.gender,
-      dupr: player.dupr,
-      age: player.age,
-      birthday: player.birthday,
-      city: player.city,
-      region: player.region,
-      country: player.country,
-      club: player.club,
-      isAppAdmin: player.isAppAdmin
+      id: finalPlayer.id,
+      clerkUserId: finalPlayer.clerkUserId,
+      firstName: finalPlayer.firstName,
+      lastName: finalPlayer.lastName,
+      name: finalPlayer.name,
+      email: finalPlayer.email,
+      phone: finalPlayer.phone,
+      gender: finalPlayer.gender,
+      dupr: finalPlayer.dupr,
+      age: finalPlayer.age,
+      birthday: finalPlayer.birthday,
+      city: finalPlayer.city,
+      region: finalPlayer.region,
+      country: finalPlayer.country,
+      club: finalPlayer.club,
+      isAppAdmin: finalPlayer.isAppAdmin
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      name: error instanceof Error ? error.name : undefined
-    });
     return NextResponse.json(
-      { error: 'Failed to fetch user profile', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to fetch user profile' },
       { status: 500 }
     );
   }
