@@ -15,9 +15,54 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Authentication service not configured' }, { status: 500 });
     }
 
-    // Support Act As functionality
+    // Get the authenticated user ID first
+    const { userId } = await auth();
+    console.log('Auth API: Authenticated user ID:', userId);
+
+    if (!userId) {
+      console.log('Auth API: No authenticated user');
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    // Check if user has a player record
+    const existingPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      include: {
+        club: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            region: true
+          }
+        }
+      }
+    });
+
+    console.log('Auth API: Existing player found:', !!existingPlayer);
+
+    if (!existingPlayer) {
+      console.log('Auth API: No player record found for user:', userId);
+      return NextResponse.json({ error: 'Player profile not found. Please complete your profile setup.' }, { status: 404 });
+    }
+
+    // Support Act As functionality (only if player exists)
     const actAsPlayerId = getActAsHeaderFromRequest(req);
-    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    let effectivePlayer;
+    
+    try {
+      effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    } catch (actAsError) {
+      console.log('Auth API: Act As error, using real player:', actAsError);
+      // If Act As fails, just use the real player
+      effectivePlayer = {
+        realUserId: userId,
+        realPlayerId: existingPlayer.id,
+        isActingAs: false,
+        targetPlayerId: existingPlayer.id,
+        isAppAdmin: existingPlayer.isAppAdmin
+      };
+    }
 
     // Find player record for the effective player (real user or target if acting as)
     const player = await prisma.player.findUnique({
@@ -35,6 +80,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!player) {
+      console.log('Auth API: Target player not found:', effectivePlayer.targetPlayerId);
       return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
     }
 
@@ -58,8 +104,13 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch user profile' },
+      { error: 'Failed to fetch user profile', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
