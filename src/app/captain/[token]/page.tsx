@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatDateUTC } from '@/lib/utils';
 
 type Stop = {
   id: string;
@@ -178,11 +179,7 @@ function StopCard({
             </h3>
             {stop.startAt && (
               <p className="text-sm text-muted mt-1">
-                {new Date(stop.startAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
+                {formatDateUTC(stop.startAt)}
               </p>
             )}
           </div>

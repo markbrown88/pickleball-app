@@ -7,6 +7,7 @@ import Link from 'next/link';
 import type { PlayerRegistration, Tournament, TournamentsResponse, UserProfile } from '@/types';
 
 import type { DashboardOverview, PlayerAssignment } from './types';
+import { formatDateUTC } from '@/lib/utils';
 
 const PROFILE_ENDPOINT = '/api/auth/user';
 const OVERVIEW_ENDPOINT = (playerId: string) => `/api/players/${playerId}/overview`;
@@ -238,7 +239,7 @@ export default function DashboardPage() {
                       Stops:
                       <ul className="mt-1 space-y-0.5">
                         {tournament.stops.map((stop) => (
-                          <li key={stop.id}>{stop.name} • {new Date(stop.startAt).toLocaleDateString()}</li>
+                          <li key={stop.id}>{stop.name} • {formatDateUTC(stop.startAt instanceof Date ? stop.startAt.toISOString() : stop.startAt)}</li>
                         ))}
                       </ul>
                     </div>
@@ -272,7 +273,7 @@ export default function DashboardPage() {
                 {tournament.stops?.length ? (
                   <div className="text-sm text-muted">
                     Next stop:{' '}
-                    {new Date(tournament.stops[0].startAt).toLocaleDateString()}
+                    {formatDateUTC(tournament.stops[0].startAt instanceof Date ? tournament.stops[0].startAt.toISOString() : tournament.stops[0].startAt)}
                   </div>
                 ) : (
                   <div className="text-sm text-muted">Schedule coming soon</div>

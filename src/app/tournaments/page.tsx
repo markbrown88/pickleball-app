@@ -10,7 +10,7 @@ import {
   type ReactNode,
   useCallback,
 } from 'react';
-import { formatDateUTC } from '@/lib/utils';
+import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 
 import { useAppToolbar } from '../shared/AppShell';
@@ -56,9 +56,7 @@ function toDateInput(iso?: string | null) {
   return iso.slice(0, 10);
 }
 function between(a?: string | null, b?: string | null) {
-  if (!a && !b) return '—';
-  if (a && b) return `${fmtDateDisplay(a)} – ${fmtDateDisplay(b)}`;
-  return fmtDateDisplay(a || b);
+  return formatDateRangeUTC(a, b);
 }
 function stopTitleForDisplay(opts: {
   stopName?: string | null;

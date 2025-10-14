@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatDateUTC } from '@/lib/utils';
 
 type Bracket = {
   id: string;
@@ -95,11 +96,7 @@ export default function StopDetailPage({
       setTournamentName(data.tournament?.name || '');
 
       if (data.stop.startAt) {
-        setStopDate(new Date(data.stop.startAt).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }));
+        setStopDate(formatDateUTC(data.stop.startAt));
       }
       setStopLocation(data.stop.club?.name || null);
 

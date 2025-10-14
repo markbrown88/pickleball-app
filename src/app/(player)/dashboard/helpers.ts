@@ -8,7 +8,11 @@ export function formatDateRange(start?: string | null, end?: string | null) {
 export function nextStopLabel(tournament: Tournament) {
   const firstStop = tournament.stops?.[0];
   if (!firstStop) return 'Schedule coming soon';
-  return `Next stop: ${formatDateUTC(firstStop.startAt)}`;
+  // Convert Date to ISO string for formatDateUTC
+  const dateString = firstStop.startAt instanceof Date
+    ? firstStop.startAt.toISOString()
+    : firstStop.startAt;
+  return `Next stop: ${formatDateUTC(dateString)}`;
 }
 
 
