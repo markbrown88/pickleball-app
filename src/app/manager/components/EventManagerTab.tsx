@@ -1074,7 +1074,7 @@ export function EventManagerTab({
         const teamBName = firstMatch.teamA.id === teamBId ? firstMatch.teamA.name : firstMatch.teamB.name;
         
         // Get round numbers for this duplicate using schedule data
-        const rounds = pairing.matches.map(match => {
+        const rounds = pairing.matches.map((match: any) => {
           // Find which round this match belongs to in the schedule data
           for (const round of scheduleData) {
             if (round.matches?.some(m => m.id === match.id)) {
