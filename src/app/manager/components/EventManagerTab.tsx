@@ -941,6 +941,171 @@ export function EventManagerTab({
     return (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
   };
 
+  // Check for duplicate matchups within a stop
+  const checkForDuplicateMatchups = (stopId: string, roundMatchups: Record<string, any[]>) => {
+    console.log('🔍 Checking for duplicate matchups in stop:', stopId);
+    console.log('📊 Round matchups data:', roundMatchups);
+    
+    const allMatches: any[] = [];
+    
+    // Collect all matches from all rounds in this stop
+    Object.values(roundMatchups).forEach(matches => {
+      allMatches.push(...matches);
+    });
+
+    console.log('🏓 Total matches to check:', allMatches.length);
+
+    // Create a map to track team pairings
+    const teamPairings = new Map<string, { count: number; matches: any[] }>();
+
+    allMatches.forEach(match => {
+      if (match.isBye || !match.teamA || !match.teamB) return;
+
+      // Create a consistent key for the team pairing (alphabetically sorted)
+      const teamAId = match.teamA.id;
+      const teamBId = match.teamB.id;
+      const pairingKey = teamAId < teamBId ? `${teamAId}-${teamBId}` : `${teamBId}-${teamAId}`;
+      
+      if (!teamPairings.has(pairingKey)) {
+        teamPairings.set(pairingKey, { count: 0, matches: [] });
+      }
+      
+      const pairing = teamPairings.get(pairingKey)!;
+      pairing.count++;
+      pairing.matches.push(match);
+    });
+
+    console.log('📈 Team pairings found:', teamPairings.size);
+
+    // Check for duplicates and show alerts
+    let duplicateCount = 0;
+    const duplicateMessages = [];
+    
+    teamPairings.forEach((pairing, pairingKey) => {
+      if (pairing.count > 1) {
+        duplicateCount++;
+        const [teamAId, teamBId] = pairingKey.split('-');
+        const firstMatch = pairing.matches[0];
+        const teamAName = firstMatch.teamA.id === teamAId ? firstMatch.teamA.name : firstMatch.teamB.name;
+        const teamBName = firstMatch.teamA.id === teamBId ? firstMatch.teamA.name : firstMatch.teamB.name;
+        
+        // Get round numbers for this duplicate
+        const rounds = pairing.matches.map(match => {
+          // Find which round this match belongs to
+          for (const [roundId, matches] of Object.entries(roundMatchups)) {
+            if (matches.some(m => m.id === match.id)) {
+              // Find the round index from scheduleData
+              const stopSchedule = scheduleData[stopId] || [];
+              const round = stopSchedule.find(r => r.id === roundId);
+              return round?.idx || 'Unknown';
+            }
+          }
+          return 'Unknown';
+        }).sort((a, b) => a - b);
+        
+        const roundsText = rounds.join(' & ');
+        
+        console.log(`⚠️ Duplicate found: ${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
+        
+        duplicateMessages.push(`${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
+      }
+    });
+
+    // Show all duplicates in a single error message
+    if (duplicateCount > 0) {
+      // Get stop name from the current tournament
+      const currentStop = tournaments[0]?.stops?.find(s => s.stopId === stopId);
+      const stopDisplayName = currentStop?.stopName || `Stop ${stopId}`;
+      
+      onError(
+        `⚠️ ${duplicateCount} duplicate matchup(s) detected in ${stopDisplayName}:\n${duplicateMessages.join('\n')}`
+      );
+    }
+
+    console.log(`✅ Duplicate check complete: ${duplicateCount} duplicates found`);
+  };
+
+  // Check for duplicate matchups using schedule data directly
+  const checkForDuplicateMatchupsFromSchedule = (stopId: string, roundMatchups: Record<string, any[]>, scheduleData: any[]) => {
+    console.log('🔍 Checking for duplicate matchups in stop (from schedule):', stopId);
+    console.log('📊 Round matchups data:', roundMatchups);
+    
+    const allMatches: any[] = [];
+    
+    // Collect all matches from all rounds in this stop
+    Object.values(roundMatchups).forEach(matches => {
+      allMatches.push(...matches);
+    });
+
+    console.log('🏓 Total matches to check:', allMatches.length);
+
+    // Create a map to track team pairings
+    const teamPairings = new Map();
+
+    allMatches.forEach(match => {
+      if (match.isBye || !match.teamA || !match.teamB) return;
+
+      // Create a consistent key for the team pairing (alphabetically sorted)
+      const teamAId = match.teamA.id;
+      const teamBId = match.teamB.id;
+      const pairingKey = teamAId < teamBId ? `${teamAId}-${teamBId}` : `${teamBId}-${teamAId}`;
+      
+      if (!teamPairings.has(pairingKey)) {
+        teamPairings.set(pairingKey, { count: 0, matches: [] });
+      }
+      
+      const pairing = teamPairings.get(pairingKey);
+      pairing.count++;
+      pairing.matches.push(match);
+    });
+
+    console.log('📈 Team pairings found:', teamPairings.size);
+
+    // Check for duplicates and show alerts
+    let duplicateCount = 0;
+    const duplicateMessages = [];
+    
+    teamPairings.forEach((pairing, pairingKey) => {
+      if (pairing.count > 1) {
+        duplicateCount++;
+        const [teamAId, teamBId] = pairingKey.split('-');
+        const firstMatch = pairing.matches[0];
+        const teamAName = firstMatch.teamA.id === teamAId ? firstMatch.teamA.name : firstMatch.teamB.name;
+        const teamBName = firstMatch.teamA.id === teamBId ? firstMatch.teamA.name : firstMatch.teamB.name;
+        
+        // Get round numbers for this duplicate using schedule data
+        const rounds = pairing.matches.map(match => {
+          // Find which round this match belongs to in the schedule data
+          for (const round of scheduleData) {
+            if (round.matches?.some(m => m.id === match.id)) {
+              return round.idx;
+            }
+          }
+          return 'Unknown';
+        }).sort((a, b) => a - b);
+        
+        const roundsText = rounds.join(' & ');
+        
+        console.log(`⚠️ Duplicate found: ${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
+        
+        duplicateMessages.push(`${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
+      }
+    });
+
+    // Show all duplicates in a single error message
+    if (duplicateCount > 0) {
+      // Get stop name from the current tournament
+      const currentStop = tournaments[0]?.stops?.find(s => s.stopId === stopId);
+      const stopDisplayName = currentStop?.stopName || `Stop ${stopId}`;
+      
+      onError(
+        `⚠️ ${duplicateCount} duplicate matchup(s) detected in ${stopDisplayName}:\n${duplicateMessages.join('\n')}`
+      );
+    }
+
+    console.log(`✅ Duplicate check complete: ${duplicateCount} duplicates found`);
+  };
+
   const getTiebreakerBanner = (
     status: MatchStatus,
     matchLabel: string,
@@ -1232,6 +1397,37 @@ export function EventManagerTab({
         // If all rounds complete, expand the last one
         setExpandedRounds(new Set([data[data.length - 1].id]));
       }
+
+      // Check for duplicate matchups after loading schedule
+      setTimeout(() => {
+        // Convert schedule data to roundMatchups format for duplicate checking
+        const scheduleRoundMatchups = {};
+        data.forEach((round: any) => {
+          if (round.matches) {
+            scheduleRoundMatchups[round.id] = round.matches.map((match: any) => ({
+              id: match.id,
+              isBye: match.isBye,
+              bracketName: match.bracketName,
+              teamA: match.teamA ? {
+                id: match.teamA.id,
+                name: match.teamA.name,
+                clubName: match.teamA.clubName || undefined,
+                bracketName: match.teamA.bracketName || undefined,
+              } : undefined,
+              teamB: match.teamB ? {
+                id: match.teamB.id,
+                name: match.teamB.name,
+                clubName: match.teamB.clubName || undefined,
+                bracketName: match.teamB.bracketName || undefined,
+              } : undefined,
+              games: match.games || [],
+            }));
+          }
+        });
+        
+        // Create a modified version of checkForDuplicateMatchups that works with schedule data
+        checkForDuplicateMatchupsFromSchedule(stopId, scheduleRoundMatchups, data);
+      }, 100);
     } catch (e) {
       console.error('Load schedule error:', e);
       onError(`Failed to load schedule: ${(e as Error).message}`);
@@ -1306,10 +1502,27 @@ export function EventManagerTab({
         games: match.games || [],
       }));
 
-      setRoundMatchups(prev => ({
-        ...prev,
-        [roundId]: matches
-      }));
+      setRoundMatchups(prev => {
+        const newRoundMatchups = {
+          ...prev,
+          [roundId]: matches
+        };
+        
+        // Check for duplicate matchups after updating the state
+        // We need to find the stopId for this round to check all rounds in the stop
+        const stopId = Object.keys(scheduleData).find(stopId =>
+          scheduleData[stopId].some((round: any) => round.id === roundId)
+        );
+        
+        if (stopId) {
+          // Use setTimeout to ensure state is updated before checking
+          setTimeout(() => {
+            checkForDuplicateMatchups(stopId, newRoundMatchups);
+          }, 0);
+        }
+        
+        return newRoundMatchups;
+      });
     } catch (e) {
       onError((e as Error).message);
     }
@@ -1337,6 +1550,11 @@ export function EventManagerTab({
 
       // Reload schedule data
       await loadSchedule(stopId, true);
+      
+      // Check for duplicate matchups after schedule generation
+      setTimeout(() => {
+        checkForDuplicateMatchups(stopId, roundMatchups);
+      }, 100);
     } catch (e) {
       onError(`Failed to generate schedule: ${(e as Error).message}`);
     } finally {
