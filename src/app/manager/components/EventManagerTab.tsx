@@ -1077,7 +1077,7 @@ export function EventManagerTab({
         const rounds = pairing.matches.map((match: any) => {
           // Find which round this match belongs to in the schedule data
           for (const round of scheduleData) {
-            if (round.matches?.some(m => m.id === match.id)) {
+            if (round.matches?.some((m: any) => m.id === match.id)) {
               return round.idx;
             }
           }
