@@ -979,7 +979,7 @@ export function EventManagerTab({
 
     // Check for duplicates and show alerts
     let duplicateCount = 0;
-    const duplicateMessages = [];
+    const duplicateMessages: string[] = [];
     
     teamPairings.forEach((pairing, pairingKey) => {
       if (pairing.count > 1) {
@@ -1063,7 +1063,7 @@ export function EventManagerTab({
 
     // Check for duplicates and show alerts
     let duplicateCount = 0;
-    const duplicateMessages = [];
+    const duplicateMessages: string[] = [];
     
     teamPairings.forEach((pairing, pairingKey) => {
       if (pairing.count > 1) {
