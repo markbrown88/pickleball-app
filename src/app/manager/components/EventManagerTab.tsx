@@ -1001,7 +1001,7 @@ export function EventManagerTab({
             }
           }
           return 'Unknown';
-        }).sort((a, b) => a - b);
+        }).sort((a: any, b: any) => a - b);
         
         const roundsText = rounds.join(' & ');
         
@@ -1082,7 +1082,7 @@ export function EventManagerTab({
             }
           }
           return 'Unknown';
-        }).sort((a, b) => a - b);
+        }).sort((a: any, b: any) => a - b);
         
         const roundsText = rounds.join(' & ');
         
@@ -1401,10 +1401,10 @@ export function EventManagerTab({
       // Check for duplicate matchups after loading schedule
       setTimeout(() => {
         // Convert schedule data to roundMatchups format for duplicate checking
-        const scheduleRoundMatchups = {};
+        const scheduleRoundMatchups: Record<string, any> = {};
         data.forEach((round: any) => {
           if (round.matches) {
-            scheduleRoundMatchups[round.id] = round.matches.map((match: any) => ({
+            scheduleRoundMatchups[round.id as string] = round.matches.map((match: any) => ({
               id: match.id,
               isBye: match.isBye,
               bracketName: match.bracketName,
