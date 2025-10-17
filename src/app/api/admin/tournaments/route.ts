@@ -4,11 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { Division, TournamentType } from '@prisma/client';
-
-function divLabel(d: Division) {
-  return d === 'INTERMEDIATE' ? 'Intermediate' : 'Advanced';
-}
+import type { TournamentType } from '@prisma/client';
 
 const TYPE_MAP: Record<string, TournamentType> = {
   TEAM_FORMAT: 'TEAM_FORMAT',
@@ -160,8 +156,6 @@ export async function GET(req: Request) {
  * {
  *   name: string,
  *   type?: TournamentType | "Team Format" | ... (defaults to TEAM_FORMAT),
- *   // legacy participants (optional)
- *   participants?: Array<{ clubId: string, intermediateCaptainId?: string, advancedCaptainId?: string }>,
  *
  *   // Optional at creation time (stops can be added later via /config):
  *   // Single-stop "details" (Location + dates)...
@@ -270,57 +264,8 @@ export async function POST(req: Request) {
         }
       }
 
-      // Legacy: create/update two division-based teams if participants supplied.
-      if (participants.length) {
-        for (const p of participants) {
-          const clubId = String(p.clubId);
-          const iCap = p.intermediateCaptainId ? String(p.intermediateCaptainId) : '';
-          const aCap = p.advancedCaptainId ? String(p.advancedCaptainId) : '';
-
-          for (const division of ['INTERMEDIATE', 'ADVANCED'] as Division[]) {
-            const captainId = division === 'INTERMEDIATE' ? iCap : aCap;
-            // Find existing team for (tournament, club, division)
-            let team = await tx.team.findFirst({
-              where: { tournamentId: t.id, clubId, division },
-              select: { id: true, captainId: true },
-            });
-
-            if (!team) {
-              const club = await tx.club.findUnique({ where: { id: clubId }, select: { name: true } });
-              const defaultName = `${club?.name ?? 'Club'} ${divLabel(division)}`;
-              team = await tx.team.create({
-                data: {
-                  name: defaultName,
-                  division,
-                  tournament: { connect: { id: t.id } },
-                  club: { connect: { id: clubId } },
-                  ...(captainId ? { captain: { connect: { id: captainId } } } : {}),
-                },
-                select: { id: true, captainId: true },
-              });
-            } else if (captainId && team.captainId !== captainId) {
-              await tx.team.update({ where: { id: team.id }, data: { captainId } });
-            }
-
-            // Keep captain on roster if given
-            if (captainId) {
-              const existing = await tx.teamPlayer.findFirst({
-                where: { teamId: team.id, playerId: captainId },
-                select: { teamId: true },
-              });
-              if (!existing) {
-                await tx.teamPlayer.create({
-                  data: {
-                    team: { connect: { id: team.id } },
-                    player: { connect: { id: captainId } },
-                    tournament: { connect: { id: t.id } },
-                  },
-                });
-              }
-            }
-          }
-        }
-      }
+      // Note: Legacy division-based team creation removed.
+      // Teams are now created through the modern bracket system via /config endpoint.
 
       return t;
     });

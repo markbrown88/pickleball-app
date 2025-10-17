@@ -10,7 +10,7 @@ import Redis from 'ioredis';
 // Initialize Redis client
 // In development, this will attempt to connect to localhost:6379
 // In production, use REDIS_URL environment variable
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+const redis = process.env.REDIS_DISABLED === 'true' ? null : new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: 3,
   retryStrategy(times) {
     // Exponential backoff: 50ms, 100ms, 200ms
@@ -25,25 +25,29 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
 // Track connection status
 let isConnected = false;
 
-redis.on('connect', () => {
-  isConnected = true;
-  console.log('[Cache] Connected to Redis');
-});
+if (redis) {
+  redis.on('connect', () => {
+    isConnected = true;
+    console.log('[Cache] Connected to Redis');
+  });
 
-redis.on('error', (err) => {
-  isConnected = false;
-  console.warn('[Cache] Redis connection error (proceeding without cache):', err.message);
-});
+  redis.on('error', (err) => {
+    isConnected = false;
+    console.warn('[Cache] Redis connection error (proceeding without cache):', err.message);
+  });
 
-redis.on('close', () => {
-  isConnected = false;
-  console.log('[Cache] Redis connection closed');
-});
+  redis.on('close', () => {
+    isConnected = false;
+    console.log('[Cache] Redis connection closed');
+  });
 
-// Attempt to connect (but don't block if it fails)
-redis.connect().catch((err) => {
-  console.warn('[Cache] Failed to connect to Redis (proceeding without cache):', err.message);
-});
+  // Attempt to connect (but don't block if it fails)
+  redis.connect().catch((err) => {
+    console.warn('[Cache] Failed to connect to Redis (proceeding without cache):', err.message);
+  });
+} else {
+  console.log('[Cache] Redis disabled via REDIS_DISABLED environment variable');
+}
 
 /**
  * Cache TTL (Time To Live) constants in seconds
@@ -84,8 +88,8 @@ export async function getCached<T>(
   fetcher: () => Promise<T>,
   ttlSeconds: number = 300
 ): Promise<T> {
-  // If Redis is not connected, skip cache and fetch directly
-  if (!isConnected) {
+  // If Redis is disabled or not connected, skip cache and fetch directly
+  if (!redis || !isConnected) {
     return await fetcher();
   }
 
@@ -106,7 +110,7 @@ export async function getCached<T>(
   const data = await fetcher();
 
   // Store in cache (fire and forget - don't block on cache write)
-  if (isConnected) {
+  if (redis && isConnected) {
     redis.setex(key, ttlSeconds, JSON.stringify(data)).catch((err) => {
       console.warn('[Cache] Error writing to cache:', err);
     });
@@ -121,7 +125,7 @@ export async function getCached<T>(
  * @param pattern - Redis key pattern (e.g., "tournaments:*", "user:123:*")
  */
 export async function invalidateCache(pattern: string): Promise<void> {
-  if (!isConnected) {
+  if (!redis || !isConnected) {
     return;
   }
 
@@ -143,7 +147,7 @@ export async function invalidateCache(pattern: string): Promise<void> {
  * @param key - Cache key to delete
  */
 export async function deleteCache(key: string): Promise<void> {
-  if (!isConnected) {
+  if (!redis || !isConnected) {
     return;
   }
 
@@ -158,7 +162,7 @@ export async function deleteCache(key: string): Promise<void> {
  * Check if cache is available
  */
 export function isCacheAvailable(): boolean {
-  return isConnected;
+  return redis !== null && isConnected;
 }
 
 /**

@@ -321,14 +321,14 @@ export async function PUT(req: Request, ctx: CtxPromise) {
       }
     }
 
-    // Brackets upsert/reorder/delete (keeps implicit DEFAULT hidden if no real levels)
+    // Brackets upsert/reorder/delete
     let bracketsAfter = await tx.tournamentBracket.findMany({
       where: { tournamentId },
       orderBy: { idx: 'asc' },
       select: { id: true, name: true, idx: true },
     });
 
-    if (Array.isArray(body.levels)) {
+    if (Object.prototype.hasOwnProperty.call(body, 'levels') && Array.isArray(body.levels)) {
       const incoming = body.levels
         .map((l, i) => ({
           id: (l.id || '').trim() || undefined,
@@ -401,6 +401,7 @@ export async function PUT(req: Request, ctx: CtxPromise) {
       });
     }
 
+    // Ensure at least a DEFAULT bracket exists
     if (bracketsAfter.length === 0) {
       const def = await tx.tournamentBracket.upsert({
         where: { tournamentId_name: { tournamentId, name: 'DEFAULT' } },
@@ -410,8 +411,6 @@ export async function PUT(req: Request, ctx: CtxPromise) {
       bracketsAfter = [def];
     }
     const firstBracket = bracketsAfter[0] ?? null;
-    const firstBracketId = firstBracket?.id ?? null;
-    const firstBracketName = firstBracket?.name ?? null;
 
     // Stops upsert/delete (+ per-stop event manager)
     if (Array.isArray(body.stops)) {
@@ -465,7 +464,6 @@ export async function PUT(req: Request, ctx: CtxPromise) {
             ((ex.endAt && endAt && ex.endAt.getTime() === endAt.getTime()) || (!ex.endAt && !endAt))
         );
         if (duplicate) {
-          // await tx.stop.update({ where: { id: duplicate.id }, data: { eventManagerId } }); // temporarily disabled
           keepIds.push(duplicate.id);
           continue;
         }
@@ -483,146 +481,69 @@ export async function PUT(req: Request, ctx: CtxPromise) {
       }
     }
 
-    // Primary team per club + captain governance (NO roster ops)
+    // Captains Governance
     const captainByClub = new Map<string, string>();
-    const playerUsage = new Map<string, string>();
-    const incomingCaptains = Array.isArray(body.captainsSimple) ? body.captainsSimple : [];
-    const hasCaptainsFlag = body.hasCaptains ?? incomingCaptains.length > 0;
-
-    if (hasCaptainsFlag) {
-      const seen = new Set<string>();
-      const clubIds: string[] = [];
-      const playerIds: string[] = [];
-      for (const c of incomingCaptains) {
+    if (Array.isArray(body.captainsSimple)) {
+      const playerUsage = new Map<string, string>();
+      for (const c of body.captainsSimple) {
         const clubId = String(c.clubId);
         const playerId = String(c.playerId);
-        if (seen.has(clubId)) throw new Error('Only one captain per club is allowed.');
-        seen.add(clubId);
+        if (captainByClub.has(clubId)) throw new Error('Only one captain per club is allowed.');
         if (playerUsage.has(playerId) && playerUsage.get(playerId) !== clubId) {
           throw new Error('A player can only captain one club per tournament.');
         }
         playerUsage.set(playerId, clubId);
         captainByClub.set(clubId, playerId);
-        clubIds.push(clubId);
-        playerIds.push(playerId);
-      }
-      if (clubIds.length) {
-        const found = await tx.club.findMany({ where: { id: { in: clubIds } }, select: { id: true } });
-        const foundSet = new Set(found.map((x) => x.id));
-        const missing = clubIds.filter((id) => !foundSet.has(id));
-        if (missing.length) throw new Error(`Unknown club ids: ${missing.join(', ')}`);
-      }
-      if (playerIds.length) {
-        const found = await tx.player.findMany({ where: { id: { in: playerIds } }, select: { id: true } });
-        const foundSet = new Set(found.map((x) => x.id));
-        const missing = playerIds.filter((id) => !foundSet.has(id));
-        if (missing.length) throw new Error(`Unknown player ids: ${missing.join(', ')}`);
       }
     }
 
+    // Re-link captains
     await tx.tournamentCaptain.deleteMany({ where: { tournamentId } });
+    if (captainByClub.size > 0) {
+      await tx.tournamentCaptain.createMany({
+        data: Array.from(captainByClub.entries()).map(([clubId, playerId]) => ({
+          tournamentId, clubId, playerId,
+        })),
+      });
+    }
 
+    // Ensure teams & assign captains
     const tcLinks = await tx.tournamentClub.findMany({
       where: { tournamentId },
       include: { club: true },
     });
 
-    const primaryTeamByClub = new Map<string, string>();
-
     for (const tc of tcLinks) {
       const clubId = tc.clubId;
       const clubName = tc.club?.name ?? 'Team';
+      const captainId = captainByClub.get(clubId) ?? null;
 
       const existingTeams = await tx.team.findMany({
         where: { tournamentId, clubId },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true, bracketId: true, captainId: true, name: true },
+        select: { id: true, bracketId: true },
       });
+      const byBracketId = new Map(existingTeams.map(t => [t.bracketId, t]));
 
-      // Create teams for all brackets if they don't exist
-      const existingTeamBrackets = new Set(existingTeams.map(t => t.bracketId));
-      const teamsByBracket = new Map<string, any>();
-      
       for (const bracket of bracketsAfter) {
-        if (!existingTeamBrackets.has(bracket.id)) {
-          // Create a new team for this bracket
-          let teamName = clubName;
-          if (bracket.name && bracket.name !== 'DEFAULT') {
-            teamName = `${clubName} ${bracket.name}`;
-          }
-          
-          const newTeam = await tx.team.create({
+        if (!byBracketId.has(bracket.id)) {
+          const teamName = bracket.name === 'DEFAULT' ? clubName : `${clubName} ${bracket.name}`;
+          await tx.team.create({
             data: {
               name: teamName,
               tournamentId,
               clubId,
               bracketId: bracket.id,
+              captainId, // Assign captain on creation
             },
-            select: { id: true, bracketId: true, captainId: true, name: true },
           });
-          
-          teamsByBracket.set(bracket.id, newTeam);
-        } else {
-          // Use existing team
-          const existingTeam = existingTeams.find(t => t.bracketId === bracket.id);
-          if (existingTeam) {
-            teamsByBracket.set(bracket.id, existingTeam);
-          }
         }
       }
 
-      // Set primary team (first bracket team)
-      const primary = teamsByBracket.get(firstBracketId!) || existingTeams[0];
-      if (primary) {
-        primaryTeamByClub.set(clubId, primary.id);
-      }
-
-      if (hasCaptainsFlag) {
-        const captainId = captainByClub.get(clubId) ?? null;
-        if (captainId) {
-          await tx.tournamentCaptain.create({
-            data: { tournamentId, clubId, playerId: captainId },
-          });
-
-          // Assign captain to all teams for this club
-          if (primary && primary.captainId !== captainId) {
-            // First, remove captain from ALL teams in this club (not just teams with this specific captain)
-            await tx.team.updateMany({
-              where: {
-                tournamentId,
-                clubId,
-              },
-              data: { captainId: null },
-            });
-            // Then assign the new captain to ALL teams in this club
-            await tx.team.updateMany({
-              where: {
-                tournamentId,
-                clubId,
-              },
-              data: { captainId },
-            });
-          }
-        } else {
-          // Remove captain from all teams for this club
-          await tx.team.updateMany({
-            where: {
-              tournamentId,
-              clubId,
-            },
-            data: { captainId: null },
-          });
-        }
-      } else {
-        // Remove captain from all teams for this club
-        await tx.team.updateMany({
-          where: {
-            tournamentId,
-            clubId,
-          },
-          data: { captainId: null },
-        });
-      }
+      // Update captain for all teams of this club
+      await tx.team.updateMany({
+        where: { tournamentId, clubId },
+        data: { captainId },
+      });
     }
 
     // Tournament Admin

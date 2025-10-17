@@ -177,9 +177,26 @@ const GameScoreBox = memo(function GameScoreBox({
 
   const getTeamALineup = () => {
     if (game.teamALineup && Array.isArray(game.teamALineup)) {
-      // Only show the 2 players for this specific game, not all team players
-      const players = game.teamALineup.slice(0, 2);
-      return players.map((player: any) => player.name).join(' &\n');
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = game.teamALineup[0];
+      const man2 = game.teamALineup[1];
+      const woman1 = game.teamALineup[2];
+      const woman2 = game.teamALineup[3];
+
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+        case 'TIEBREAKER':
+          return match?.teamA?.name || 'Team A';
+        default:
+          return 'Team A';
+      }
     }
     // For tiebreakers, show actual team names
     if (game.slot === 'TIEBREAKER' && match) {
@@ -214,9 +231,26 @@ const GameScoreBox = memo(function GameScoreBox({
 
   const getTeamBLineup = () => {
     if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
-      // Only show the 2 players for this specific game, not all team players
-      const players = game.teamBLineup.slice(0, 2);
-      return players.map((player: any) => player.name).join(' &\n');
+      // Lineup structure: [Man1, Man2, Woman1, Woman2]
+      const man1 = game.teamBLineup[0];
+      const man2 = game.teamBLineup[1];
+      const woman1 = game.teamBLineup[2];
+      const woman2 = game.teamBLineup[3];
+
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team B';
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team B';
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
+        case 'TIEBREAKER':
+          return match?.teamB?.name || 'Team B';
+        default:
+          return 'Team B';
+      }
     }
     // For tiebreakers, show actual team names
     if (game.slot === 'TIEBREAKER' && match) {
@@ -871,6 +905,7 @@ export function EventManagerTab({
     | 'completed'
     | 'tied_pending'
     | 'tied_requires_tiebreaker'
+    | 'needs_decision'
     | 'decided_points'
     | 'decided_tiebreaker';
   const normalizeTiebreakerStatus = (status?: string | null): MatchStatus | null => {
@@ -878,7 +913,7 @@ export function EventManagerTab({
       case 'PENDING_TIEBREAKER':
         return 'tied_pending';
       case 'NEEDS_DECISION':
-        return 'tied_pending';
+        return 'needs_decision';
       case 'REQUIRES_TIEBREAKER':
         return 'tied_requires_tiebreaker';
       case 'DECIDED_POINTS':
@@ -887,6 +922,7 @@ export function EventManagerTab({
         return 'decided_tiebreaker';
       case 'tied_pending':
       case 'tied_requires_tiebreaker':
+      case 'needs_decision':
       case 'decided_points':
       case 'decided_tiebreaker':
         return status as MatchStatus;
@@ -2047,8 +2083,8 @@ export function EventManagerTab({
   const resolveMatchByPoints = async (match: any) => {
     if (!match) return;
     const derivedStatus = deriveMatchStatus(match);
-    if (derivedStatus !== 'tied_requires_tiebreaker') {
-      onInfo('This match is not currently tied 2-2 on the standard games.');
+    if (derivedStatus !== 'tied_requires_tiebreaker' && derivedStatus !== 'needs_decision') {
+      onInfo('This match is not currently in a state where it can be decided by points.');
       return;
     }
 
@@ -2527,7 +2563,7 @@ export function EventManagerTab({
 
                                                         {/* Manager Actions */}
                                                         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
-                                                          {matchStatus === 'tied_requires_tiebreaker' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB) && (
+                                                          {(matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (
                                                             <button
                                                               className="btn btn-xs btn-secondary flex-1 sm:flex-none"
                                                               disabled={resolvingMatch === match.id || !canEditLineups}
@@ -2536,7 +2572,7 @@ export function EventManagerTab({
                                                               {resolvingMatch === match.id ? 'Resolving...' : 'Decide by Points'}
                                                             </button>
                                                           )}
-                                                          {matchStatus === 'tied_requires_tiebreaker' && (
+                                                          {(matchStatus === 'tied_requires_tiebreaker' || matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (
                                                             <button
                                                               className="btn btn-xs btn-primary flex-1 sm:flex-none"
                                                               disabled={resolvingMatch === match.id}
@@ -2733,18 +2769,14 @@ export function EventManagerTab({
                                                               </div>
 
                                                               {(() => {
-                                                                const completedGames =
-                                                                  games[match.id]?.filter((g) => g.slot !== 'TIEBREAKER' && g.isComplete) || [];
-                                                                const teamAWins = completedGames.filter((g) => g.teamAScore > g.teamBScore).length;
-                                                                const teamBWins = completedGames.filter((g) => g.teamBScore > g.teamAScore).length;
                                                                 const resolvedTiebreakerStatus = normalizeTiebreakerStatus(match.tiebreakerStatus);
-                                                                const needsTiebreaker =
-                                                                  completedGames.length === 4 &&
-                                                                  teamAWins === 2 &&
-                                                                  teamBWins === 2 &&
-                                                                  resolvedTiebreakerStatus === 'tied_requires_tiebreaker';
+                                                                
+                                                                // Only show tiebreaker-related UI if the database indicates a tiebreaker is needed
+                                                                const showTiebreakerPrompt = 
+                                                                  resolvedTiebreakerStatus === 'tied_requires_tiebreaker' &&
+                                                                  !games[match.id]?.some((g) => g.slot === 'TIEBREAKER');
 
-                                                                if (needsTiebreaker && !games[match.id]?.some((g) => g.slot === 'TIEBREAKER')) {
+                                                                if (showTiebreakerPrompt) {
                                                                   return (
                                                                     <div className="border border-warning/40 bg-warning/10 text-warning px-4 py-3 rounded">
                                                                       This matchup is tied 2-2. Add a Tiebreaker game below to determine the winner.
@@ -2753,7 +2785,7 @@ export function EventManagerTab({
                                                                 }
 
                                                                 const tiebreakerGame = games[match.id]?.find((g) => g.slot === 'TIEBREAKER');
-                                                                if (tiebreakerGame) {
+                                                                if (tiebreakerGame && (resolvedTiebreakerStatus === 'tied_requires_tiebreaker' || resolvedTiebreakerStatus === 'tied_pending')) {
                                                                   return (
                                                                     <GameScoreBox
                                                                       key={tiebreakerGame.id}

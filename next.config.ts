@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://challenges.cloudflare.com",
               "img-src 'self' data: https: https://challenges.cloudflare.com",
               "font-src 'self' data: https://fonts.gstatic.com",
-              "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk.klyngcup.com https://*.supabase.com https://*.upstash.io https://challenges.cloudflare.com https://cloudflareinsights.com",
+              "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk.klyngcup.com https://clerk-telemetry.com https://*.supabase.com https://*.upstash.io https://challenges.cloudflare.com https://cloudflareinsights.com",
               "frame-src 'self' https://challenges.cloudflare.com",
               "worker-src 'self' blob:",
               "frame-ancestors 'none'"

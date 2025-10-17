@@ -5,11 +5,7 @@ export const dynamic = 'force-dynamic';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { Division, TournamentType } from '@prisma/client';
-
-function divLabel(d: Division) {
-  return d === 'INTERMEDIATE' ? 'Intermediate' : 'Advanced';
-}
+import type { TournamentType } from '@prisma/client';
 
 const TYPE_MAP: Record<string, TournamentType> = {
   TEAM_FORMAT: 'TEAM_FORMAT',
@@ -50,7 +46,6 @@ export async function DELETE(
  * {
  *   name: string,
  *   type?: TournamentType | "Team Format" | ...,
- *   participants?: [{ clubId, intermediateCaptainId?, advancedCaptainId? }],
  *   syncParticipants?: boolean
  * }
  *
@@ -72,12 +67,6 @@ export async function PUT(
   const type: TournamentType | undefined =
     typeInput && TYPE_MAP[String(typeInput)] ? TYPE_MAP[String(typeInput)] : undefined;
 
-  const participants: Array<{
-    clubId: string;
-    intermediateCaptainId?: string;
-    advancedCaptainId?: string;
-  }> = Array.isArray(body.participants) ? body.participants : [];
-
   const syncParticipants = !!body.syncParticipants;
 
   if (!name) {
@@ -98,89 +87,10 @@ export async function PUT(
         data: { name, ...(type ? { type } : {}) },
       });
 
-      // 2) TournamentClub sync from participants (if provided)
-      let keepClubIds: string[] = [];
-      if (participants.length) {
-        keepClubIds = Array.from(new Set(participants.map((p) => String(p.clubId)).filter(Boolean)));
+      // Note: TournamentClub management is now handled through the /config endpoint.
 
-        if (keepClubIds.length) {
-          const clubs = await tx.club.findMany({
-            where: { id: { in: keepClubIds } },
-            select: { id: true },
-          });
-          const found = new Set(clubs.map((c) => c.id));
-          const missing = keepClubIds.filter((id) => !found.has(id));
-          if (missing.length) throw new Error(`Club(s) not found: ${missing.join(', ')}`);
-
-          await tx.tournamentClub.createMany({
-            data: keepClubIds.map((cid) => ({ tournamentId, clubId: cid })),
-            skipDuplicates: true,
-          });
-
-          if (syncParticipants) {
-            await tx.tournamentClub.deleteMany({
-              where: { tournamentId, clubId: { notIn: keepClubIds } },
-            });
-          }
-        } else if (syncParticipants) {
-          await tx.tournamentClub.deleteMany({ where: { tournamentId } });
-        }
-      }
-
-      // 3) Legacy division-based team + (optional) captain support
-      if (participants.length) {
-        for (const p of participants) {
-          const clubId = String(p.clubId || '').trim();
-          if (!clubId) throw new Error('Participant clubId is required');
-
-          const iCap = p.intermediateCaptainId ? String(p.intermediateCaptainId).trim() : '';
-          const aCap = p.advancedCaptainId ? String(p.advancedCaptainId).trim() : '';
-
-          const club = await tx.club.findUnique({ where: { id: clubId }, select: { name: true } });
-          const clubName = club?.name ?? 'Club';
-
-          for (const division of ['INTERMEDIATE', 'ADVANCED'] as Division[]) {
-            const captainId = division === 'INTERMEDIATE' ? iCap : aCap;
-
-            let team = await tx.team.findFirst({
-              where: { tournamentId, clubId, division },
-              select: { id: true, captainId: true, name: true },
-            });
-
-            if (!team) {
-              const defaultName = `${clubName} ${divLabel(division)}`;
-              team = await tx.team.create({
-                data: {
-                  name: defaultName,
-                  division,
-                  tournament: { connect: { id: tournamentId } },
-                  club: { connect: { id: clubId } },
-                  ...(captainId ? { captain: { connect: { id: captainId } } } : {}),
-                },
-                select: { id: true, captainId: true, name: true },
-              });
-            } else if (captainId && team.captainId !== captainId) {
-              await tx.team.update({ where: { id: team.id }, data: { captainId } });
-            }
-
-            if (captainId) {
-              const existing = await tx.teamPlayer.findFirst({
-                where: { teamId: team.id, playerId: captainId },
-                select: { teamId: true },
-              });
-              if (!existing) {
-                await tx.teamPlayer.create({
-                  data: {
-                    team: { connect: { id: team.id } },
-                    player: { connect: { id: captainId } },
-                    tournament: { connect: { id: tournamentId } },
-                  },
-                });
-              }
-            }
-          }
-        }
-      }
+      // Note: Legacy division-based team creation removed.
+      // Teams are now created through the modern bracket system via /config endpoint.
 
       // 4) Reconciliation: brackets + StopTeams
       const full = await tx.tournament.findUnique({
@@ -204,36 +114,17 @@ export async function PUT(
         brackets = [def];
       }
 
-      // Ensure teams per (club × bracket) and StopTeam links
-      for (const tc of full.clubs) {
-        const clubId = tc.clubId;
-        for (const br of brackets) {
-          let team = await tx.team.findFirst({
-            where: { tournamentId, clubId, bracketId: br.id },
-            include: { club: true, bracket: true },
+      // Ensure StopTeam links for all teams across all stops
+      const allStops = await tx.stop.findMany({ where: { tournamentId: full.id } });
+      const allTeams = await tx.team.findMany({ where: { tournamentId: full.id } });
+
+      for (const team of allTeams) {
+        for (const stop of allStops) {
+          await tx.stopTeam.upsert({
+            where: { stopId_teamId: { stopId: stop.id, teamId: team.id } },
+            update: {},
+            create: { stopId: stop.id, teamId: team.id },
           });
-
-          if (!team) {
-            const label =
-              br.name === 'DEFAULT' ? (tc.club?.name ?? 'Team') : `${tc.club?.name ?? 'Team'} ${br.name}`;
-            team = await tx.team.create({
-              data: {
-                name: label,
-                tournamentId,
-                clubId,
-                bracketId: br.id,
-              },
-              include: { club: true, bracket: true },
-            });
-          }
-
-          for (const s of full.stops) {
-            await tx.stopTeam.upsert({
-              where: { stopId_teamId: { stopId: s.id, teamId: team.id } },
-              update: {},
-              create: { stopId: s.id, teamId: team.id },
-            });
-          }
         }
       }
 

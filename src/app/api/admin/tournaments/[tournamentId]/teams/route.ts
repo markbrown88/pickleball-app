@@ -76,36 +76,18 @@ async function ensureStopLinks(prisma: PrismaClient, tournamentId: string, teamI
   }
 }
 
-/** Try creating a team; if legacy unique (tournamentId,clubId,division) exists, retry with a safe division. */
-async function createTeamWithLegacyFallback(
+/** Create a team for a bracket. */
+async function createTeam(
   prisma: PrismaClient,
   data: { name: string; tournamentId: string; clubId: string; bracketId: string }
 ): Promise<string> {
-  try {
-    const created = await prisma.team.create({ data, select: { id: true } });
-    return created.id;
-  } catch (e: any) {
-    const msg = e?.message ?? '';
-    const isUnique = e?.code === 'P2002' || /unique constraint/i.test(msg) || /duplicate key value/i.test(msg);
-    if (!isUnique) throw e;
-  }
-  const existing = await prisma.team.findMany({
-    where: { tournamentId: data.tournamentId, clubId: data.clubId },
-    select: { division: true },
-  });
-  const used = new Set(existing.map((t) => String(t.division)));
-  const pick = (['INTERMEDIATE', 'ADVANCED'] as const).find((d) => !used.has(d));
-  if (!pick) {
-    throw new Error(
-      `Cannot create another team for this club in this tournament: both legacy divisions are in use.`
-    );
-  }
-  const created = await prisma.team.create({
-    data: { ...data, division: pick as any },
-    select: { id: true },
+  const created = await prisma.team.create({ 
+    data: { ...data, division: null }, 
+    select: { id: true } 
   });
   return created.id;
 }
+
 
 /** Ensure teams exist for (club × each bracket) in a tournament, with sensible names. */
 async function ensureTeamsForClubAcrossBrackets(
@@ -150,7 +132,7 @@ async function ensureTeamsForClubAcrossBrackets(
       byBracketId.set(br.id, { id: reuse.id, name: label });
       continue;
     }
-    const createdId = await createTeamWithLegacyFallback(prisma, {
+    const createdId = await createTeam(prisma, {
       name: label, tournamentId, clubId, bracketId: br.id,
     });
     ensuredIds.push(createdId);

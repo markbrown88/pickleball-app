@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 export async function GET(
   request: NextRequest,
@@ -115,19 +116,40 @@ export async function POST(
     // Check if this is a tiebreaker creation (single game)
     if (games.length === 1 && games[0].slot === 'TIEBREAKER') {
       // Create just the tiebreaker game
-      const tiebreakerGame = await prisma.game.create({
-        data: {
-          matchId,
-          slot: 'TIEBREAKER',
-          teamAScore: games[0].teamAScore || null,
-          teamBScore: games[0].teamBScore || null,
-          teamALineup: games[0].teamALineup || null,
-          teamBLineup: games[0].teamBLineup || null,
-          lineupConfirmed: games[0].lineupConfirmed || false
+      try {
+        // First check if tiebreaker already exists for this match
+        const existingTiebreaker = await prisma.game.findFirst({
+          where: {
+            matchId,
+            slot: 'TIEBREAKER'
+          }
+        });
+        
+        if (existingTiebreaker) {
+          // Tiebreaker already exists, just return it
+          return NextResponse.json([existingTiebreaker]);
         }
-      });
-      
-      return NextResponse.json([tiebreakerGame]);
+        
+        const tiebreakerGame = await prisma.game.create({
+          data: {
+            matchId,
+            slot: 'TIEBREAKER',
+            teamAScore: games[0].teamAScore || null,
+            teamBScore: games[0].teamBScore || null,
+            teamALineup: games[0].teamALineup || null,
+            teamBLineup: games[0].teamBLineup || null,
+            lineupConfirmed: games[0].lineupConfirmed || false
+          }
+        });
+        
+        // Evaluate match tiebreaker status now that the game exists
+        await evaluateMatchTiebreaker(prisma, matchId);
+        
+        return NextResponse.json([tiebreakerGame]);
+      } catch (tiebreakerError: any) {
+        console.error('Error creating tiebreaker game:', tiebreakerError);
+        throw tiebreakerError;
+      }
     }
 
     // Original logic for creating all 4 standard games

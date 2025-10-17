@@ -963,225 +963,223 @@ function TournamentsBlock(props: TournamentsBlockProps) {
     });
   }
 
-  /* ----- Save inline to /config ----- */
-  async function saveInline(tId: Id) {
-    const ed = editor(tId);
-    if (!ed) return;
-
-    const name = (ed.name || '').trim();
-    if (!name) throw new Error('Tournament name is required');
-
-    const payload: {
-      name: string;
-      type: string; // enum
-      clubs: string[];
-      levels?: Array<{ id?: string; name: string; idx?: number }>; // brackets
-      captainsSimple?: Array<{ clubId: string; playerId: string }>;
-      hasCaptains?: boolean;
-      stops?: Array<{ id?: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManagerId?: string | null }>;
-      maxTeamSize?: number | null; // reused: team size when no brackets; bracket size when brackets enabled
-      // NEW tournament-level Event Manager
-      eventManagerId?: string | null;
-      // NEW tournament admin
-      tournamentAdminId?: string | null;
-    } = {
-      name,
-      type: LABEL_TO_TYPE[ed.type],
-      clubs: [],
-    };
-
-    // Participating clubs
-    payload.clubs = Array.from(new Set(ed.clubs.map(c => c.clubId).filter(Boolean) as string[]));
-
-    // Max limit (blank => null; else positive integer)
-    {
-      const mtsRaw = (ed.maxTeamSize ?? '').trim();
-      if (mtsRaw === '') {
-        payload.maxTeamSize = null;
-      } else if (/^\d+$/.test(mtsRaw) && Number(mtsRaw) > 0) {
-        payload.maxTeamSize = Number(mtsRaw);
-      } else {
-        throw new Error((ed.hasBrackets ? 'Max bracket size' : 'Max team size') + ' must be blank or a positive integer.');
-      }
-    }
-
-    // Brackets (optional, independent of captains)
-    if (ed.hasBrackets) {
-      payload.levels = ed.brackets
-        .map((l, idx) => ({ id: l.id, name: (l.name || '').trim(), idx }))
-        .filter(l => !!l.name);
-    } else {
-      payload.levels = []; // explicitly clear if toggled off
-    }
-
-    // Captains: one per club
-    if (ed.hasCaptains) {
-      const simple: Array<{ clubId: string; playerId: string }> = [];
-      for (const crow of ed.clubs) {
-        if (!crow.clubId) continue;
-        if (crow.singleCaptain?.id) {
-          simple.push({ clubId: crow.clubId, playerId: crow.singleCaptain.id });
+    /* ----- Save inline to /config ----- */
+    async function saveInline(tId: Id) {
+      const ed = editor(tId);
+      if (!ed) return;
+  
+      const name = (ed.name || '').trim();
+      if (!name) throw new Error('Tournament name is required');
+  
+      if (ed.hasBrackets) {
+        const hasAtLeastOneBracket = ed.brackets.some(b => (b.name || '').trim());
+        if (!hasAtLeastOneBracket) {
+          throw new Error('When "Multiple Brackets" is enabled, you must define at least one bracket name.');
         }
       }
-      payload.captainsSimple = simple;
-    } else {
-      payload.captainsSimple = [];
-    }
-    payload.hasCaptains = ed.hasCaptains;
-
-    // Tournament-level Event Manager
-    payload.eventManagerId = ed.tournamentEventManager?.id ?? null;
-
-    // Tournament Admin
-    payload.tournamentAdminId = ed.tournamentAdmin?.id ?? null;
-
-    // Stops (+ per-stop Event Manager)
-    if (ed.hasMultipleStops) {
-      payload.stops = (ed.stops || [])
-        .filter(s => (s.name || '').trim())
-        .map(s => ({
-          id: s.id,
-          name: (s.name || '').trim(),
-          clubId: s.clubId || null,
-          startAt: s.startAt || null,
-          endAt: s.endAt || null,
-          eventManagerId: s.eventManager?.id ?? null,
-        }));
-    } else {
-      // Single Details: treat as one stop named "Main"
-      const s0 = ed.stops && ed.stops.length ? ed.stops[0] : { name: 'Main', clubId: undefined, startAt: '', endAt: '', eventManager: null as CaptainPick };
-      payload.stops = [{
-        id: s0.id,
-        name: 'Main',
-        clubId: s0.clubId || null,
-        startAt: s0.startAt || null,
-        endAt: s0.endAt || null,
-        eventManagerId: s0.eventManager?.id ?? null,
-      }];
-    }
-
-    await api(`/api/admin/tournaments/${tId}/config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    // Rehydrate
-    try {
-      const cfg = await api<{
-        id: string;
+  
+      const payload: {
         name: string;
-        type: string;
-        maxTeamSize?: number | null;
+        type: string; // enum
+        clubs: string[];
+        levels?: Array<{ id?: string; name: string; idx?: number }>; // brackets
+        captainsSimple?: Array<{ clubId: string; playerId: string }>;
         hasCaptains?: boolean;
-        clubs: Array<
-          | string
-          | {
-              clubId: string;
-              club?: {
-                id: string;
-                name: string;
-                city?: string | null;
-                region?: string | null;
-              } | null;
-            }
-        >;
-        levels: Array<{ id: string; name: string; idx: number }>;
-        captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
-        eventManager?: { id: string; name?: string } | null;
-        tournamentAdmin?: { id: string; name?: string } | null;
-        stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManager?: { id: string; name?: string } | null }>;
-      }>(`/api/admin/tournaments/${tId}/config`);
-
-      const brackets = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
-
-      setEditorById((prev: EditorState) => {
-      const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(entry => {
-        const normalizedId = typeof entry === 'string'
-          ? entry
-          : entry?.clubId;
-
-        if (!normalizedId) {
-          return {
-            clubId: undefined,
-            club: null,
-            clubQuery: '',
-            clubOptions: [],
-            singleCaptain: null,
-            singleQuery: '',
-            singleOptions: [],
-          };
+        stops?: Array<{ id?: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManagerId?: string | null }>;
+        maxTeamSize?: number | null; // reused: team size when no brackets; bracket size when brackets enabled
+        // NEW tournament-level Event Manager
+        eventManagerId?: string | null;
+        // NEW tournament admin
+        tournamentAdminId?: string | null;
+      } = {
+        name,
+        type: LABEL_TO_TYPE[ed.type],
+        clubs: [],
+      };
+  
+      // Participating clubs
+      payload.clubs = Array.from(new Set(ed.clubs.map(c => c.clubId).filter(Boolean) as string[]));
+  
+      // Max limit (blank => null; else positive integer)
+      {
+        const mtsRaw = (ed.maxTeamSize ?? '').trim();
+        if (mtsRaw === '') {
+          payload.maxTeamSize = null;
+        } else if (/^\d+$/.test(mtsRaw) && Number(mtsRaw) > 0) {
+          payload.maxTeamSize = Number(mtsRaw);
+        } else {
+          throw new Error((ed.hasBrackets ? 'Max bracket size' : 'Max team size') + ' must be blank or a positive integer.');
         }
-
-        const clubMeta = typeof entry === 'string' ? null : entry?.club;
-        const fallbackClub = clubsAll.find(c => c.id === normalizedId);
-        const label = clubMeta
-          ? formatClubLabel(clubMeta.name, clubMeta.city, clubMeta.region)
-          : fallbackClub
-            ? formatClubLabel(fallbackClub.name, fallbackClub.city, fallbackClub.region)
-            : undefined;
-
-        const cap = (cfg.captainsSimple || []).find(c => c.clubId === normalizedId) || null;
-
-        return {
-          clubId: normalizedId,
-          club: label ? { id: normalizedId, label } : null,
-          clubQuery: '',
-          clubOptions: [],
-          singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
-          singleQuery: '',
-          singleOptions: [],
-        };
-      });
-
-      const hasCaptainsFromConfig = Array.isArray(cfg.captainsSimple) && cfg.captainsSimple.length > 0;
-
-        return {
-          ...prev,
-          [tId]: {
-            name: cfg.name,
-            type: (cfg.type as any) || 'Team Format',
-            hasMultipleStops: (cfg.stops || []).length > 1,
-            hasBrackets: (cfg.levels || []).length > 0,
-            hasCaptains: cfg.hasCaptains ?? hasCaptainsFromConfig,
-            clubs: clubRows,
-            brackets,
-            stops: (cfg.stops || []).map(s => {
-              const club = s.clubId ? clubsAll.find(c => c.id === s.clubId) : null;
-              return {
-              id: s.id,
-              name: s.name,
-              clubId: (s.clubId || undefined) as Id | undefined,
-              startAt: toDateInput(s.startAt || null),
-              endAt: toDateInput(s.endAt || null),
-              eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
-              eventManagerQuery: '',
-              eventManagerOptions: [],
-                club: club ? { id: club.id, label: `${club.name}${club.city ? ` (${club.city})` : ''}` } : null,
-                clubQuery: '',
-                clubOptions: [],
-              };
-            }),
-            maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
-
-            tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
-            tournamentEventManagerQuery: '',
-            tournamentEventManagerOptions: [],
-
-            tournamentAdmin: cfg.tournamentAdmin?.id ? { id: cfg.tournamentAdmin.id, label: cfg.tournamentAdmin.name || '' } : null,
-            tournamentAdminQuery: '',
-            tournamentAdminOptions: [],
+      }
+  
+      // Brackets (optional, independent of captains)
+      if (ed.hasBrackets) {
+        payload.levels = ed.brackets
+          .map((l, idx) => ({ id: l.id, name: (l.name || '').trim(), idx }))
+          .filter(l => !!l.name);
+      }
+  
+      // Captains: one per club
+      if (ed.hasCaptains) {
+        const simple: Array<{ clubId: string; playerId: string }> = [];
+        for (const crow of ed.clubs) {
+          if (!crow.clubId) continue;
+          if (crow.singleCaptain?.id) {
+            simple.push({ clubId: crow.clubId, playerId: crow.singleCaptain.id });
           }
-        };
+        }
+        payload.captainsSimple = simple;
+      } else {
+        payload.captainsSimple = [];
+      }
+      payload.hasCaptains = ed.hasCaptains;
+  
+      // Tournament-level Event Manager
+      payload.eventManagerId = ed.tournamentEventManager?.id ?? null;
+  
+      // Tournament Admin
+      payload.tournamentAdminId = ed.tournamentAdmin?.id ?? null;
+  
+      // Stops (+ per-stop Event Manager)
+      if (ed.hasMultipleStops) {
+        payload.stops = (ed.stops || [])
+          .filter(s => (s.name || '').trim())
+          .map(s => ({
+            id: s.id,
+            name: (s.name || '').trim(),
+            clubId: s.clubId || null,
+            startAt: s.startAt || null,
+            endAt: s.endAt || null,
+            eventManagerId: s.eventManager?.id ?? null,
+          }));
+      } else {
+        // Single Details: treat as one stop named "Main"
+        const s0 = ed.stops && ed.stops.length ? ed.stops[0] : { name: 'Main', clubId: undefined, startAt: '', endAt: '', eventManager: null as CaptainPick };
+        payload.stops = [{
+          id: s0.id,
+          name: 'Main',
+          clubId: s0.clubId || null,
+          startAt: s0.startAt || null,
+          endAt: s0.endAt || null,
+          eventManagerId: s0.eventManager?.id ?? null,
+        }];
+      }
+  
+      await api(`/api/admin/tournaments/${tId}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
-    } catch {
-      // ignore rehydrate failure; backend has saved
+  
+      // Rehydrate
+      try {
+        const cfg = await api<{
+          id: string;
+          name: string;
+          type: string;
+          maxTeamSize?: number | null;
+          hasCaptains?: boolean;
+          clubs: Array<
+            | string
+            | {
+                clubId: string;
+                club?: {
+                  id: string;
+                  name: string;
+                  city?: string | null;
+                  region?: string | null;
+                } | null;
+              }
+          >;
+          levels: Array<{ id: string; name: string; idx: number }>;
+          captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
+          eventManager?: { id: string; name?: string } | null;
+          tournamentAdmin?: { id: string; name?: string } | null;
+          stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManager?: { id: string; name?: string } | null }>;
+        }>(`/api/admin/tournaments/${tId}/config`);
+  
+        const brackets = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
+  
+        setEditorById((prev: EditorState) => {
+        const clubRows: ClubWithCaptain[] = (cfg.clubs || []).map(entry => {
+          const normalizedId = typeof entry === 'string'
+            ? entry
+            : entry?.clubId;
+  
+          if (!normalizedId) {
+            return {
+              clubId: undefined,
+              club: null,
+              clubQuery: '',
+              clubOptions: [],
+              singleCaptain: null,
+              singleQuery: '',
+              singleOptions: [],
+            };
+          }
+  
+          const club = clubsAll.find(c => c.id === normalizedId);
+          const label = club
+            ? `${club.name}${club.city ? ` (${club.city})` : ''}`
+            : undefined;
+  
+            const cap = (cfg.captainsSimple || []).find(c => c.clubId === normalizedId) || null;
+  
+            return {
+              clubId: normalizedId,
+              club: label ? { id: normalizedId, label } : null,
+              clubQuery: '',
+              clubOptions: [],
+              singleCaptain: cap ? { id: cap.playerId, label: cap.playerName || '' } : null,
+              singleQuery: '',
+              singleOptions: [],
+            };
+          });
+  
+          return {
+            ...prev,
+            [tId]: {
+              name: cfg.name,
+              type: (cfg.type as any) || 'Team Format',
+              hasMultipleStops: (cfg.stops || []).length > 1, // heuristic
+              hasBrackets: (cfg.levels || []).length > 0,
+              hasCaptains: (cfg.captainsSimple || []).length > 0,
+              clubs: clubRows,
+              brackets,
+              stops: (cfg.stops || []).map(s => {
+                const club = s.clubId ? clubsAll.find(c => c.id === s.clubId) : null;
+                return {
+                id: s.id,
+                name: s.name,
+                clubId: (s.clubId || undefined) as Id | undefined,
+                startAt: toDateInput(s.startAt || null),
+                endAt: toDateInput(s.endAt || null),
+                eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
+                eventManagerQuery: '',
+                eventManagerOptions: [],
+                  club: club ? { id: club.id, label: `${club.name}${club.city ? ` (${club.city})` : ''}` } : null,
+                  clubQuery: '',
+                  clubOptions: [],
+                };
+              }),
+              maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
+  
+              tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
+              tournamentEventManagerQuery: '',
+              tournamentEventManagerOptions: [],
+  
+              tournamentAdmin: cfg.tournamentAdmin?.id ? { id: cfg.tournamentAdmin.id, label: cfg.tournamentAdmin.name || '' } : null,
+              tournamentAdminQuery: '',
+              tournamentAdminOptions: [],
+            }
+          };
+        });
+        await afterSaved();
+      } catch (e) {
+        alert((e as Error).message);
+      }
     }
-
-    await afterSaved();
-    toggleExpand(tId);
-  }
-
+    
   /* ----- Stops UI helpers (inline editor) ----- */
   function addStopRow(tId: Id) {
     setEditorById((prev: EditorState) => {
@@ -1597,7 +1595,7 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                                 const singleStops =
                                   ed.stops && ed.stops.length
                                     ? ed.stops
-                                    : [{ name: 'Main', clubId: undefined as Id | undefined, startAt: '', endAt: '', eventManager: null as CaptainPick, eventManagerQuery: '', eventManagerOptions: [] }];
+                                    : [{ name: 'Main', clubId: undefined, startAt: '', endAt: '', eventManager: null as CaptainPick, eventManagerQuery: '', eventManagerOptions: [] }];
 
                                 const s0 = singleStops[0];
 
@@ -2226,9 +2224,12 @@ function AdminClubRosterEditor(props: {
           setRosters(prevAll => ({ ...prevAll, [s.stopId]: nextForCurr }));
         };
 
+        const stopRosters = rosters[s.stopId] ?? {};
+        const excludeIdsAcrossStop = Object.values(stopRosters).flat().map(p => p.id);
+
         return (
-          <div key={s.stopId} className="space-y-2">
-            <div className="flex items-center justify-between">
+          <div key={s.stopId} className="border rounded p-4 space-y-4 bg-surface-1">
+            <div className="flex justify-between items-center">
               <div className="font-medium">
                 {(() => {
                   const title = stopTitleForDisplay({ stopName: s.stopName, hasMultipleStops });
@@ -2244,19 +2245,19 @@ function AdminClubRosterEditor(props: {
               )}
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {bracketOrder.map(({ teamId, name }) => {
                 const list = rosters[s.stopId]?.[teamId] ?? [];
-                const excludeAcrossThisStop = Object.values(rosters[s.stopId] ?? {}).flat().map(p => p.id);
                 return (
                   <AdminBracketRosterEditor
-                    key={`${s.stopId}:${teamId}`}
-                    title={`${name} (${list.length}${maxTeamSize ? ` / ≤${maxTeamSize}` : ''})`}
+                    key={teamId}
+                    title={name}
                     tournamentId={tournamentId}
                     teamId={teamId}
+                    stopId={s.stopId}
                     list={list}
                     onChange={(next) => setStopTeamRoster(s.stopId, teamId, next)}
-                    excludeIdsAcrossStop={excludeAcrossThisStop}
+                    excludeIdsAcrossStop={excludeIdsAcrossStop}
                   />
                 );
               })}
@@ -2278,6 +2279,7 @@ function AdminBracketRosterEditor({
   title,
   tournamentId,
   teamId,
+  stopId,
   list,
   onChange,
   excludeIdsAcrossStop,
@@ -2285,6 +2287,7 @@ function AdminBracketRosterEditor({
   title: string;
   tournamentId: Id;
   teamId: Id;
+  stopId: Id;
   list: PlayerLite[];
   onChange: (next: PlayerLite[]) => void;
   excludeIdsAcrossStop: string[];
@@ -2315,6 +2318,7 @@ function AdminBracketRosterEditor({
         url.searchParams.set('term', term.trim());
         url.searchParams.set('tournamentId', String(tournamentId));
         url.searchParams.set('teamId', String(teamId));
+        url.searchParams.set('stopId', String(stopId));
         if (excludeIdsAcrossStop.length) url.searchParams.set('excludeIds', excludeIdsAcrossStop.join(','));
         const res = await fetch(url.toString());
         const j = await res.json();
@@ -2328,7 +2332,7 @@ function AdminBracketRosterEditor({
       } finally { if (!cancelled) setLoading(false); }
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [term, tournamentId, teamId, excludeIdsAcrossStop]);
+  }, [term, tournamentId, teamId, stopId, excludeIdsAcrossStop]);
 
   return (
     <div className="border rounded p-3 space-y-2 bg-white">

@@ -30,7 +30,7 @@ export async function PUT(request: Request, { params }: Params) {
     });
 
     if (!team) {
-      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      throw new Error('Team not found');
     }
 
     // Verify stop exists
@@ -40,28 +40,30 @@ export async function PUT(request: Request, { params }: Params) {
     });
 
     if (!stop) {
-      return NextResponse.json({ error: 'Stop not found' }, { status: 404 });
+      throw new Error('Stop not found');
     }
 
-    // Remove existing roster for this team/stop
-    await prisma.stopTeamPlayer.deleteMany({
-      where: {
-        stopId,
-        teamId
+    await prisma.$transaction(async (tx) => {
+      // Remove existing roster for this team/stop
+      await tx.stopTeamPlayer.deleteMany({
+        where: {
+          stopId,
+          teamId
+        }
+      });
+
+      // Add new roster entries
+      if (playerIds.length > 0) {
+        await tx.stopTeamPlayer.createMany({
+          data: playerIds.map(playerId => ({
+            stopId,
+            teamId,
+            playerId
+          })),
+          skipDuplicates: true
+        });
       }
     });
-
-    // Add new roster entries
-    if (playerIds.length > 0) {
-      await prisma.stopTeamPlayer.createMany({
-        data: playerIds.map(playerId => ({
-          stopId,
-          teamId,
-          playerId
-        })),
-        skipDuplicates: true
-      });
-    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

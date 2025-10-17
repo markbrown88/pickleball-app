@@ -120,17 +120,6 @@ export async function GET(req: Request) {
           select: { playerId: true },
         });
         for (const r of rosteredElsewhere) excludeSet.add(r.playerId);
-      } else {
-        // Tournament-wide roster uniqueness (legacy behavior):
-        // exclude players already on any other team in this tournament.
-        const rosteredElsewhere = await prisma.teamPlayer.findMany({
-          where: {
-            tournamentId,
-            ...(teamId ? { NOT: { teamId } } : {}),
-          },
-          select: { playerId: true },
-        });
-        for (const r of rosteredElsewhere) excludeSet.add(r.playerId);
       }
     }
 

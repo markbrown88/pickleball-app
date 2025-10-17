@@ -537,6 +537,7 @@ function ClubRosterEditor({
                 })`}
                 tournamentId={tournamentId}
                 teamId={bracket.teamId}
+                stopId={stop.stopId}
                 list={list}
                 onChange={(next) => setStopTeamRoster(stop.stopId, bracket.teamId, next)}
                 excludeIdsAcrossStop={excludeWithinStop}
@@ -631,6 +632,7 @@ function BracketRosterEditor({
   title,
   tournamentId,
   teamId,
+  stopId,
   list,
   onChange,
   excludeIdsAcrossStop,
@@ -638,6 +640,7 @@ function BracketRosterEditor({
   title: string;
   tournamentId: string;
   teamId: string;
+  stopId: string;
   list: PlayerLite[];
   onChange: (players: PlayerLite[]) => void;
   excludeIdsAcrossStop: string[];
@@ -668,7 +671,7 @@ function BracketRosterEditor({
     setLoading(true);
     const timeout = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ term: term.trim(), tournamentId, teamId });
+        const params = new URLSearchParams({ term: term.trim(), tournamentId, teamId, stopId });
         if (excludeIdsAcrossStop.length) {
           params.set('excludeIds', excludeIdsAcrossStop.join(','));
         }
@@ -693,7 +696,7 @@ function BracketRosterEditor({
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [term, tournamentId, teamId, excludeIdsAcrossStop]);
+  }, [term, tournamentId, teamId, stopId, excludeIdsAcrossStop]);
 
   return (
     <div className="card border-2 border-border-medium">

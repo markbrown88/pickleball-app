@@ -94,7 +94,7 @@ model Team {
   tournamentId    String
   clubId          String
   captainId       String?
-  division        Division           @default(INTERMEDIATE)
+  division        Division?          @default(INTERMEDIATE)
   updatedAt       DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
   levelId         String?
   bracketId       String?

@@ -166,7 +166,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tou
           tournamentId: tournamentId,
           clubId: player.clubId,
           bracketId: targetBracketId,
-          division: 'INTERMEDIATE' // Default division
+          division: null
         },
         include: {
           bracket: {
