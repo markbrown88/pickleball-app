@@ -2561,6 +2561,18 @@ export function EventManagerTab({
                                                           </h3>
                                                         </div>
 
+                                                        {/* Match Status Badge */}
+                                                        {matchStatus === 'decided_points' && (
+                                                          <div className="text-xs font-semibold px-2 py-1 bg-success/20 text-success rounded">
+                                                            ✓ Decided by Total Points
+                                                          </div>
+                                                        )}
+                                                        {matchStatus === 'decided_tiebreaker' && (
+                                                          <div className="text-xs font-semibold px-2 py-1 bg-success/20 text-success rounded">
+                                                            ✓ Decided by Tiebreaker
+                                                          </div>
+                                                        )}
+
                                                         {/* Manager Actions */}
                                                         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
                                                           {(matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (
@@ -2583,6 +2595,22 @@ export function EventManagerTab({
                                                           )}
                                                         </div>
                                                       </div>
+
+                                                      {/* Total Points Summary */}
+                                                      {match.totalPointsTeamA !== null && match.totalPointsTeamB !== null && (
+                                                        <div className="bg-surface-2 rounded px-3 py-2 text-sm mb-3">
+                                                          <div className="flex justify-between items-center gap-4">
+                                                            <div className="flex-1">
+                                                              <div className="text-muted text-xs mb-1">Total Points:</div>
+                                                              <div className="font-semibold">{match.teamA?.name || 'Team A'}: <span className="text-success">{match.totalPointsTeamA}</span></div>
+                                                            </div>
+                                                            <div className="flex-1 text-right">
+                                                              <div className="text-muted text-xs mb-1">Total Points:</div>
+                                                              <div className="font-semibold">{match.teamB?.name || 'Team B'}: <span className="text-success">{match.totalPointsTeamB}</span></div>
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      )}
 
                                                       <div className="mt-3 space-y-3">
                                                         {isEditingThisMatch ? (
