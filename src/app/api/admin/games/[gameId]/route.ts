@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 export async function PATCH(
   request: NextRequest,
@@ -37,6 +38,11 @@ export async function PATCH(
       where: { id: gameId },
       data: updateData
     });
+
+    // After updating game, recalculate match tiebreaker status
+    if (updatedGame.matchId) {
+      await evaluateMatchTiebreaker(prisma, updatedGame.matchId);
+    }
 
     console.log('Game updated successfully:', updatedGame);
     return NextResponse.json(updatedGame);
