@@ -64,6 +64,11 @@ export async function evaluateMatchTiebreaker(
     (game) => game.teamAScore !== null && game.teamBScore !== null,
   );
 
+  // If match is already decided, preserve that decision
+  if (DECIDED_STATUSES.includes(match.tiebreakerStatus)) {
+    return match;
+  }
+
   let totalPointsTeamA: number | null = null;
   let totalPointsTeamB: number | null = null;
   let winnerTeamId: string | null = null;
