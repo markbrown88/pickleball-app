@@ -2813,7 +2813,7 @@ export function EventManagerTab({
                                                                 }
 
                                                                 const tiebreakerGame = games[match.id]?.find((g) => g.slot === 'TIEBREAKER');
-                                                                if (tiebreakerGame && (resolvedTiebreakerStatus === 'tied_requires_tiebreaker' || resolvedTiebreakerStatus === 'tied_pending')) {
+                                                                if (tiebreakerGame && (resolvedTiebreakerStatus === 'tied_requires_tiebreaker' || resolvedTiebreakerStatus === 'tied_pending') && resolvedTiebreakerStatus !== 'needs_decision') {
                                                                   return (
                                                                     <GameScoreBox
                                                                       key={tiebreakerGame.id}

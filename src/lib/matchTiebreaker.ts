@@ -127,6 +127,7 @@ export async function evaluateMatchTiebreaker(
             tiebreakerStatus = 'PENDING_TIEBREAKER';
           }
         } else {
+          // Tiebreaker game exists but doesn't have scores yet
           tiebreakerStatus = 'PENDING_TIEBREAKER';
         }
       } else {
