@@ -24,6 +24,16 @@ export async function GET() {
 
   try {
     // Test Redis connection
+    if (!redis) {
+      return NextResponse.json({
+        status: 'disconnected',
+        message: 'Redis client not initialized',
+        env: {
+          redisUrlConfigured: !!process.env.REDIS_URL
+        }
+      });
+    }
+
     const pingResult = await redis.ping();
 
     // Get some basic stats
