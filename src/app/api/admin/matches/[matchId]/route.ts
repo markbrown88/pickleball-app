@@ -381,39 +381,12 @@ async function decideMatchByPoints(matchId: string) {
       { pointsA: 0, pointsB: 0, winsA: 0, winsB: 0 },
     );
 
-    if (tally.winsA > tally.winsB || tally.winsB > tally.winsA) {
-      const winnerTeamId = tally.winsA > tally.winsB ? match.teamAId : match.teamBId;
-
-      const updatedMatch = await prisma.match.update({
-        where: { id: matchId },
-        data: {
-          tiebreakerStatus: 'DECIDED_POINTS',
-          tiebreakerWinnerTeamId: winnerTeamId,
-          totalPointsTeamA: tally.pointsA,
-          totalPointsTeamB: tally.pointsB,
-          tiebreakerDecidedAt: new Date(),
-        },
-        select: {
-          id: true,
-          tiebreakerStatus: true,
-          tiebreakerWinnerTeamId: true,
-          totalPointsTeamA: true,
-          totalPointsTeamB: true,
-        },
-      });
-
-      await evaluateMatchTiebreaker(prisma, matchId);
-
-      return NextResponse.json({
-        ok: true,
-        match: updatedMatch,
-      });
-    }
-
+    // Check if points are equal - if so, can't decide by points
     if (tally.pointsA === tally.pointsB) {
       return bad('Total points are tied; a tiebreaker game is required.');
     }
 
+    // Points are unequal - decide by points
     const winnerTeamId = tally.pointsA > tally.pointsB ? match.teamAId : match.teamBId;
 
     const updatedMatch = await prisma.match.update({
@@ -433,6 +406,8 @@ async function decideMatchByPoints(matchId: string) {
         totalPointsTeamB: true,
       },
     });
+
+    await evaluateMatchTiebreaker(prisma, matchId);
 
     return NextResponse.json({
       ok: true,

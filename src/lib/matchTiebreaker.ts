@@ -128,7 +128,15 @@ export async function evaluateMatchTiebreaker(
           }
         } else {
           // Tiebreaker game exists but doesn't have scores yet
-          tiebreakerStatus = 'PENDING_TIEBREAKER';
+          // Check if points are equal or unequal
+          if (summary.pointsA === summary.pointsB) {
+            tiebreakerStatus = 'PENDING_TIEBREAKER';
+          } else {
+            // Points are unequal - user should decide by points instead
+            // Clear the tiebreaker game reference since we shouldn't use it
+            tiebreakerStatus = 'NEEDS_DECISION';
+            tiebreakerGameId = null;
+          }
         }
       } else {
         if (summary.pointsA === summary.pointsB) {

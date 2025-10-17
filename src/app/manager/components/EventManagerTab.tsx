@@ -2127,8 +2127,8 @@ export function EventManagerTab({
   const scheduleTiebreakerGame = async (match: any) => {
     if (!match) return;
     const derivedStatus = deriveMatchStatus(match);
-    if (!['tied_requires_tiebreaker', 'tied_pending'].includes(derivedStatus)) {
-      onInfo('This match does not currently require a tiebreaker.');
+    if (!['tied_requires_tiebreaker', 'tied_pending', 'needs_decision'].includes(derivedStatus)) {
+      onInfo('This match does not currently allow a tiebreaker.');
       return;
     }
 
@@ -2813,7 +2813,7 @@ export function EventManagerTab({
                                                                 }
 
                                                                 const tiebreakerGame = games[match.id]?.find((g) => g.slot === 'TIEBREAKER');
-                                                                if (tiebreakerGame && (resolvedTiebreakerStatus === 'tied_requires_tiebreaker' || resolvedTiebreakerStatus === 'tied_pending') && resolvedTiebreakerStatus !== 'needs_decision') {
+                                                                if (tiebreakerGame && (resolvedTiebreakerStatus === 'tied_requires_tiebreaker' || resolvedTiebreakerStatus === 'tied_pending')) {
                                                                   return (
                                                                     <GameScoreBox
                                                                       key={tiebreakerGame.id}
