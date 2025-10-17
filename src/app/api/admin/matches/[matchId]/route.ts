@@ -347,6 +347,8 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
 
 async function decideMatchByPoints(matchId: string) {
   try {
+    console.log(`[DECIDE_BY_POINTS] Starting for match ${matchId}`);
+    
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
@@ -357,14 +359,24 @@ async function decideMatchByPoints(matchId: string) {
     });
 
     if (!match) {
+      console.log(`[DECIDE_BY_POINTS] Match not found: ${matchId}`);
       return bad('Match not found', 404);
     }
+
+    console.log(`[DECIDE_BY_POINTS] Match found: ${match.teamA?.name} vs ${match.teamB?.name}`);
+    console.log(`[DECIDE_BY_POINTS] Current status: ${match.tiebreakerStatus}`);
 
     const standardGames = match.games.filter((g) =>
       ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'].includes(g.slot ?? ''),
     );
 
+    console.log(`[DECIDE_BY_POINTS] Found ${standardGames.length} standard games`);
+    standardGames.forEach((g, i) => {
+      console.log(`[DECIDE_BY_POINTS] Game ${i}: ${g.slot} - ${g.teamAScore} vs ${g.teamBScore}`);
+    });
+
     if (standardGames.length !== 4 || standardGames.some((g) => g.teamAScore == null || g.teamBScore == null)) {
+      console.log(`[DECIDE_BY_POINTS] Not all games complete - cannot decide`);
       return bad('Standard games must be completed before deciding by points.');
     }
 
@@ -381,13 +393,20 @@ async function decideMatchByPoints(matchId: string) {
       { pointsA: 0, pointsB: 0, winsA: 0, winsB: 0 },
     );
 
+    console.log(`[DECIDE_BY_POINTS] Tally: ${tally.pointsA} points vs ${tally.pointsB} points (${tally.winsA} wins vs ${tally.winsB} wins)`);
+
     // Check if points are equal - if so, can't decide by points
     if (tally.pointsA === tally.pointsB) {
+      console.log(`[DECIDE_BY_POINTS] Points are equal - cannot decide`);
       return bad('Total points are tied; a tiebreaker game is required.');
     }
 
     // Points are unequal - decide by points
     const winnerTeamId = tally.pointsA > tally.pointsB ? match.teamAId : match.teamBId;
+    const winnerName = tally.pointsA > tally.pointsB ? match.teamA?.name : match.teamB?.name;
+
+    console.log(`[DECIDE_BY_POINTS] Winner: ${winnerName} (${winnerTeamId})`);
+    console.log(`[DECIDE_BY_POINTS] Setting status to DECIDED_POINTS`);
 
     const updatedMatch = await prisma.match.update({
       where: { id: matchId },
@@ -407,14 +426,18 @@ async function decideMatchByPoints(matchId: string) {
       },
     });
 
-    await evaluateMatchTiebreaker(prisma, matchId);
+    console.log(`[DECIDE_BY_POINTS] Match updated:`, updatedMatch);
+
+    // DO NOT call evaluateMatchTiebreaker here - it will recalculate and override DECIDED_POINTS status
+    // The match is now in a decided state and should not be re-evaluated
+    console.log(`[DECIDE_BY_POINTS] Match decided by total points`);
 
     return NextResponse.json({
       ok: true,
       match: updatedMatch,
     });
   } catch (error) {
-    console.error('decideMatchByPoints error:', error);
+    console.error('[DECIDE_BY_POINTS] Error:', error);
     return NextResponse.json({ error: 'Failed to decide match by points' }, { status: 500 });
   }
 }
