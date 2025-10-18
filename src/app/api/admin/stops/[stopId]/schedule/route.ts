@@ -273,8 +273,8 @@ export async function GET(req: Request, ctx: Ctx) {
       roundsRaw.map(async (r) => {
         const matches = await Promise.all(
           r.matches.map(async (match) => {
-              const evaluated = await evaluateMatchTiebreaker(prisma, match.id);
-              const resolved = evaluated ?? match;
+              // Do NOT re-evaluate tiebreaker status when loading - just return current database state
+              const resolved = match;
               const games = resolved.games ?? match.games ?? [];
 
               const inferredBracketId =
