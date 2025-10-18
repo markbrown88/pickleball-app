@@ -275,3 +275,4 @@ function getGameTypeName(slot) {
 }
 
 generateStop3Matches();
+

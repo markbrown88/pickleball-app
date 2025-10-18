@@ -128,3 +128,4 @@ async function compareStops() {
 }
 
 compareStops();
+

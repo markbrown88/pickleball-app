@@ -58,6 +58,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             updatedAt: true,
             tiebreakerStatus: true,
             tiebreakerWinnerTeamId: true,
+              totalPointsTeamA: true,
+              totalPointsTeamB: true,
             teamA: { 
               select: { 
                 id: true, 
@@ -196,6 +198,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             forfeitTeam: match.forfeitTeam,
             tiebreakerStatus: match.tiebreakerStatus,
             tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
+            totalPointsTeamA: match.totalPointsTeamA,
+            totalPointsTeamB: match.totalPointsTeamB,
             teamA: match.teamA ? { 
               id: match.teamA.id, 
               name: match.teamA.name, 

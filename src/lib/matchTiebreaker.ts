@@ -145,6 +145,21 @@ export async function evaluateMatchTiebreaker(
         }
       } else {
         if (summary.pointsA === summary.pointsB) {
+          // Automatically create a tiebreaker game so it appears without manual action
+          const createdTiebreaker = await tx.game.create({
+            data: {
+              matchId,
+              slot: 'TIEBREAKER',
+              teamAScore: null,
+              teamBScore: null,
+              lineupConfirmed: false,
+              teamALineup: undefined,
+              teamBLineup: undefined,
+            },
+          });
+
+          match.games.push(createdTiebreaker);
+          tiebreakerGameId = createdTiebreaker.id;
           tiebreakerStatus = 'REQUIRES_TIEBREAKER';
         } else {
           // Totals differ – need a decision unless already recorded

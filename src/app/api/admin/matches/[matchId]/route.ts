@@ -139,6 +139,11 @@ export async function GET(_req: Request, ctx: Ctx) {
       select: {
         id: true,
         isBye: true,
+        forfeitTeam: true,
+        tiebreakerStatus: true,
+        tiebreakerWinnerTeamId: true,
+        totalPointsTeamA: true,
+        totalPointsTeamB: true,
         teamA: { select: { id: true, name: true } },
         teamB: { select: { id: true, name: true } },
         round: {
@@ -165,6 +170,11 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     return NextResponse.json({
       id: match.id,
+      tiebreakerStatus: match.tiebreakerStatus,
+      tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
+      forfeitTeam: match.forfeitTeam,
+      totalPointsTeamA: match.totalPointsTeamA,
+      totalPointsTeamB: match.totalPointsTeamB,
       teamAScore: firstGame?.teamAScore || null,
       teamBScore: firstGame?.teamBScore || null,
       game: {
@@ -334,10 +344,14 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
 
     return NextResponse.json({ 
       ok: true, 
-      matchId, 
-      forfeitTeam: body.forfeitTeam,
-      gamesUpdated: games.length,
-      message: `Team ${body.forfeitTeam} forfeited. ${games.length} games marked as complete.`
+      match: {
+        id: matchId,
+        forfeitTeam: body.forfeitTeam,
+        tiebreakerStatus: 'NONE',
+        tiebreakerWinnerTeamId: winningTeamId,
+        totalPointsTeamA: 0,
+        totalPointsTeamB: 0,
+      },
     });
   } catch (e: any) {
     console.error(`[FORFEIT] Error processing forfeit for match ${matchId}:`, e);

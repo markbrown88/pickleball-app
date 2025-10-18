@@ -1,7 +1,10 @@
+
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatDateRangeUTC } from '@/lib/utils';
+import { getMatchOutcomes, type MatchOutcome, type NormalizedGame } from '@/lib/matchOutcome';
+import type { MatchTiebreakerStatus } from '@prisma/client';
 
 interface Tournament {
   id: string;
@@ -36,8 +39,10 @@ interface Match {
   games: Game[];
   status: string;
   forfeitTeam?: string | null;
-  tiebreakerStatus?: string;
+  tiebreakerStatus?: MatchTiebreakerStatus;
   tiebreakerWinnerTeamId?: string | null;
+  totalPointsTeamA?: number | null;
+  totalPointsTeamB?: number | null;
 }
 
 interface Team {
@@ -91,7 +96,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'in-progress' | 'completed' | 'standings'>('standings');
 
   // Find stop closest to today's date
   const findClosestStop = (stops: Stop[]) => {
@@ -139,7 +143,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     try {
       setLoading(true);
       setError(null);
-      
+
       // Use the public scoreboard API to get rounds, matches, and games data
       const response = await fetch(`/api/public/stops/${stopId}/scoreboard`);
       
@@ -161,14 +165,16 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
           name: `Round ${round.idx + 1}`,
           stopId: stopId,
           matches: round.matches.map((match: any) => ({
-            id: match.matchId,
-            teamA: match.teamA,
-            teamB: match.teamB,
-            forfeitTeam: match.forfeitTeam, // Include forfeitTeam
-            updatedAt: match.updatedAt, // Include updatedAt
-            tiebreakerStatus: match.tiebreakerStatus,
-            tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
-            games: match.games.map((game: any) => {
+              id: match.matchId,
+              teamA: match.teamA,
+              teamB: match.teamB,
+              forfeitTeam: match.forfeitTeam, // Include forfeitTeam
+              updatedAt: match.updatedAt, // Include updatedAt
+              tiebreakerStatus: match.tiebreakerStatus && match.tiebreakerStatus !== 'undefined' ? match.tiebreakerStatus : 'NONE',
+              tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId && match.tiebreakerWinnerTeamId !== 'undefined' ? match.tiebreakerWinnerTeamId : null,
+              totalPointsTeamA: match.totalPointsTeamA,
+              totalPointsTeamB: match.totalPointsTeamB,
+              games: match.games.map((game: any) => {
               const rawIsComplete = typeof game.isComplete === 'boolean' ? game.isComplete : null;
               const isComplete = rawIsComplete === true || Boolean(game.endedAt);
 
@@ -238,7 +244,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     }
 
     // If not in game data, try to get from lineup state
-    const teamId = team === 'A' ? match.teamA?.id : match.teamB?.id;
+    const teamId = team === 'A' ? (match.teamA ? match.teamA.id : undefined) : (match.teamB ? match.teamB.id : undefined);
     if (teamId && lineups[match.id] && lineups[match.id][teamId]) {
       const teamLineup = lineups[match.id][teamId];
       if (Array.isArray(teamLineup) && teamLineup.length >= 2) {
@@ -257,7 +263,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
           case 'MIXED_2':
             return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
           case 'TIEBREAKER':
-            return team === 'A' ? (match.teamA?.name || 'Team A') : (match.teamB?.name || 'Team B');
+            return team === 'A' ? (match.teamA ? match.teamA.name || 'Team A' : 'Team A') : (match.teamB ? match.teamB.name || 'Team B' : 'Team B');
           default:
             return team === 'A' ? 'Team A' : 'Team B';
         }
@@ -265,15 +271,15 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     }
 
     if (game.slot === 'TIEBREAKER') {
-      return team === 'A' ? (match.teamA?.name || 'Team A') : (match.teamB?.name || 'Team B');
+      return team === 'A' ? (match.teamA ? match.teamA.name || 'Team A' : 'Team A') : (match.teamB ? match.teamB.name || 'Team B' : 'Team B');
     }
 
     return team === 'A' ? 'Team A' : 'Team B';
   };
 
-  const formatInProgressMatchLabel = (match: Match) => {
-    const rawNameA = match.teamA?.name ?? 'Team A';
-    const rawNameB = match.teamB?.name ?? 'Team B';
+  function formatInProgressMatchLabel(match: Match) {
+    const rawNameA = match.teamA ? match.teamA.name ?? 'Team A' : 'Team A';
+    const rawNameB = match.teamB ? match.teamB.name ?? 'Team B' : 'Team B';
 
     const extractSuffix = (name: string) => {
       const parts = name.trim().split(/\s+/);
@@ -298,7 +304,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     const nameB = trimSuffix(rawNameB, sharedSuffix);
 
     return `${nameA || rawNameA} vs ${nameB || rawNameB} - ${sharedSuffix}`;
-  };
+  }
 
   const getGameStartTime = (game: Game) => {
     const formatTime = (value?: string | null) => (
@@ -328,39 +334,183 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     });
   };
 
-  const getGamesByStatus = (stop: Stop) => {
-    const allGames: Array<{ game: Game; match: Match; round: Round }> = [];
-    
+  type MatchListProps = {
+    title: string;
+    iconColor: string;
+    emptyMessage: string;
+    variant: 'in-progress' | 'completed';
+    matches: Array<{ match: Match; outcome: MatchOutcome; round: Round | null }>;
+  };
+
+  const MatchList = ({ title, iconColor, emptyMessage, variant, matches }: MatchListProps) => (
+    <div>
+      <h3 className="text-sm font-semibold text-primary mb-1 flex items-center">
+        <div className={`w-2 h-2 ${iconColor} rounded-full mr-2`}></div>
+        {title}
+      </h3>
+      {matches.length > 0 ? (
+        <div className="space-y-2">
+          {matches.map(({ match, outcome, round }) => (
+            <MatchCard key={match.id} match={match} outcome={outcome} round={round} variant={variant} />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-6 text-muted text-sm">{emptyMessage}</div>
+      )}
+    </div>
+  );
+
+  const MatchCard = ({ match, outcome, round, variant }: {
+    match: Match;
+    outcome: MatchOutcome;
+    round: Round | null;
+    variant: 'in-progress' | 'completed';
+  }) => {
+    const roundLabel = round?.name ?? 'Round';
+    const divisionLabel = match.teamA?.name?.includes('Advanced') ? 'Advanced' : 'Intermediate';
+    const winnerTeamId = outcome.winnerTeamId;
+
+    return (
+      <div className="border border-subtle rounded p-3 bg-surface-2">
+        <div className="text-sm font-medium text-muted mb-1 flex items-center">
+          {roundLabel}:
+          <span className={`ml-2 ${winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' ? 'font-bold text-success' : ''}`}>
+            {winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' && (
+              <span className="mr-1">🏆</span>
+            )}
+            {match.teamA?.name || 'Team A'}
+          </span>
+          <span className="mx-1">vs</span>
+          <span className={`${winnerTeamId && match.teamB?.id === winnerTeamId && variant === 'completed' ? 'font-bold text-success' : ''}`}>
+            {match.teamB?.name || 'Team B'}
+            {winnerTeamId && match.teamB?.id === winnerTeamId && variant === 'completed' && (
+              <span className="ml-1">🏆</span>
+            )}
+          </span>
+        </div>
+        <div className="text-xs text-muted mb-2">{divisionLabel}</div>
+
+        <div className="space-y-2">
+          {outcome.games.map(({ game, started, completed }) => (
+            <div key={game.id} className="border border-subtle rounded p-2">
+              <div className="flex items-center justify-between text-xs text-muted mb-1">
+                <span className="uppercase tracking-wide">{game.slot.replace('_', ' ')}</span>
+                {variant === 'in-progress' && (
+                  <span>
+                    {completed
+                      ? 'Completed'
+                      : started
+                      ? 'In progress'
+                      : outcome.pendingTiebreaker
+                      ? 'Awaiting tiebreaker'
+                      : 'Not started'}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <div className={`text-xs whitespace-pre-line text-left flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                  {game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore && (
+                    <span className="mr-1">🏆</span>
+                  )}
+                  {getPlayerNames(game, match, 'A')}
+                </div>
+                <span className="font-medium text-primary">
+                  {game.teamAScore !== null ? game.teamAScore : '-'}
+                </span>
+                <span className="text-muted">vs</span>
+                <span className="font-medium text-primary">
+                  {game.teamBScore !== null ? game.teamBScore : '-'}
+                </span>
+                <div className={`text-xs whitespace-pre-line text-right flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                  {getPlayerNames(game, match, 'B')}
+                  {game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore && (
+                    <span className="ml-1">🏆</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-muted mt-1">
+                <span>Started: {getGameStartTime(game) || '—'}</span>
+                <span>Ended: {getGameEndTime(game) || '—'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {match.forfeitTeam && variant === 'completed' ? (
+          <div className="text-center py-3 space-y-1">
+            <div className="text-sm font-semibold text-red-600">
+              {match.forfeitTeam === 'A'
+                ? match.teamB
+                  ? match.teamB.name
+                  : 'Team B'
+                : match.teamA
+                ? match.teamA.name
+                : 'Team A'}{' '}
+              wins by forfeit
+            </div>
+            <div className="text-xs text-muted">
+              Forfeited games are recorded as 1-0 in favor of the opponent.
+            </div>
+          </div>
+        ) : variant === 'completed' && outcome.decidedBy ? (
+          <div className="mt-2 text-xs text-muted text-right">
+            Decided by {outcome.decidedBy === 'GAMES'
+              ? 'game wins'
+              : outcome.decidedBy === 'POINTS'
+              ? 'total points'
+              : outcome.decidedBy === 'TIEBREAKER'
+              ? 'tiebreaker'
+              : 'forfeit'}
+          </div>
+        ) : null}
+
+        {variant === 'in-progress' && outcome.pendingTiebreaker && (
+          <div className="mt-2 text-xs text-warning text-right">Tiebreaker still to be played</div>
+        )}
+      </div>
+    );
+  };
+
+// buildMatchOutcome and getMatchOutcomes are now imported from @/lib/matchOutcome
+
+  const selectedStop = currentStopData || (selectedStopId ? stopDataCache[selectedStopId] : null);
+
+  const matchOutcomes = useMemo(() => {
+    return selectedStop ? getMatchOutcomes(selectedStop) : {};
+  }, [selectedStop]);
+
+  const collectMatchesByStatus = (stop: Stop | null | undefined, status: MatchOutcome['status']) => {
+    if (!stop) return [] as Array<{ match: Match; outcome: MatchOutcome; round: Round | null }>;
+
+    const matches: Array<{ match: Match; outcome: MatchOutcome; round: Round | null }> = [];
+
     stop.rounds?.forEach(round => {
       round.matches?.forEach(match => {
-        match.games?.forEach(game => {
-          allGames.push({ game, match, round });
-        });
+        const outcome = matchOutcomes[match.id];
+        if (!outcome) return;
+
+        // Trust the outcome status - no need for additional pendingTiebreaker check
+        // The buildMatchOutcome function already sets status='in_progress' when pendingTiebreaker=true
+        if (outcome.status === status) {
+          matches.push({ match, outcome, round });
+        }
       });
     });
 
-    const inProgress = allGames
-      .filter(({ game }) => !isGameComplete(game) && hasGameStarted(game))
-      .sort((a, b) => resolveStartTimestamp(a.game) - resolveStartTimestamp(b.game));
-    
-    const completed = allGames
-      .filter(({ game }) => isGameComplete(game))
-      .sort((a, b) => {
-        // Use game endedAt for all matches - this represents when the game was completed
-        // For forfeited matches, this is set to the forfeit time
-        // For regular matches, this is when the game was actually completed
-        const gameACompletionTime = toTimestamp(a.game.endedAt) ?? 0;
-        const gameBCompletionTime = toTimestamp(b.game.endedAt) ?? 0;
-        
-        // Sort by completion time in descending order (most recent first)
-        return gameBCompletionTime - gameACompletionTime;
-      });
-    
-    return { inProgress, completed };
+    return matches;
   };
 
-  const selectedStop = currentStopData || (selectedStopId ? stopDataCache[selectedStopId] : null);
-  const { inProgress, completed } = selectedStop ? getGamesByStatus(selectedStop) : { inProgress: [], completed: [] };
+  const inProgressMatches = useMemo(
+    () => collectMatchesByStatus(selectedStop, 'in_progress'),
+    [selectedStop, matchOutcomes]
+  );
+
+  const completedMatches = useMemo(
+    () => collectMatchesByStatus(selectedStop, 'completed'),
+    [selectedStop, matchOutcomes]
+  );
 
   // Calculate standings for all teams across all stops
   const calculateStandings = () => {
@@ -545,7 +695,10 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
       if (!map.has(key)) {
         map.set(key, {
+          team: {
+            id: key,
           name: clubName,
+          },
           points: 0,
           wins: 0,
           losses: 0,
@@ -558,12 +711,12 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
       entry.losses += standing.losses;
 
       return map;
-    }, new Map<string, { name: string; points: number; wins: number; losses: number }>()).values()
+    }, new Map<string, { team: { id: string; name: string }; points: number; wins: number; losses: number }>()).values()
   ).sort((a, b) => {
     if (b.points !== a.points) {
       return b.points - a.points;
     }
-    return a.name.localeCompare(b.name);
+    return a.team.name.localeCompare(b.team.name);
   });
 
   const advancedStandingsRaw = transformedStandings.filter(s => s.team.name.includes('Advanced'));
@@ -636,8 +789,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
         {/* Main Content Layout - Stops (2/3) and Standings (1/3) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 mb-20 md:mb-6">
-          {/* Left side - Games (2/3 width) - Mobile: only show when not standings */}
-          <div className={`col-span-1 md:col-span-2 ${activeTab === 'standings' ? 'hidden' : 'block'} md:block`}>
+          {/* Left side - Games (2/3 width) */}
+          <div className="col-span-1 md:col-span-2">
             {/* Combined Games Card */}
             <div className="card">
               {/* Stop Tabs */}
@@ -688,199 +841,27 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
               {/* Games Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-3 p-1 md:p-4">
-                {/* In Progress Games - Mobile: only show when active tab is 'in-progress' */}
-                <div className={`${activeTab === 'in-progress' ? 'block' : 'hidden'} md:block`}>
-                  <h3 className="text-sm font-semibold text-primary mb-1 flex items-center">
-                    <div className="w-2 h-2 bg-warning rounded-full mr-2"></div>
-                    In Progress
-                  </h3>
-                  {inProgress.length > 0 ? (
-                    <div className="space-y-2">
-                      {inProgress.map(({ game, match, round }) => (
-                        <div key={game.id} className="border border-subtle rounded p-2 bg-surface-2">
-                          <div className="flex items-start justify-between mb-1">
-                            {/* Team names at top */}
-                            <div className="text-xs text-muted pr-2">
-                              {round?.idx !== undefined
-                                ? `Round ${round.idx + 1}: ${formatInProgressMatchLabel(match)}`
-                                : `${round?.name ?? 'Round'}: ${formatInProgressMatchLabel(match)}`}
-                            </div>
-                            <div className="text-right text-xs text-green-600 whitespace-nowrap ml-2">
-                              {getGameStartTime(game) && (
-                                <div>Started: {getGameStartTime(game)}</div>
-                              )}
-                              {game.courtNumber && (
-                                <div>Court {game.courtNumber}</div>
-                              )}
-                            </div>
-                          </div>
-                          {/* Team names at top */}
-                          {/* Game type */}
-                          <div className="text-sm font-medium text-secondary mb-2">
-                            {game.slot.replace('_', ' ')}
-                          </div>
-                          
-                          {/* Player names and scores */}
-                          <div className="flex items-center justify-between text-sm mb-1">
-                            <div className="text-xs whitespace-pre-line text-left flex items-center text-secondary">
-                              {getPlayerNames(game, match, 'A')}
-                            </div>
-                            <span className="font-medium text-primary">
-                              {game.teamAScore !== null ? game.teamAScore : '-'}
-                            </span>
-                            <span className="text-muted">vs</span>
-                            <span className="font-medium text-primary">
-                              {game.teamBScore !== null ? game.teamBScore : '-'}
-                            </span>
-                            <div className="text-xs whitespace-pre-line text-left flex items-center text-secondary">
-                              {getPlayerNames(game, match, 'B')}
-                            </div>
-                          </div>
-                          
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-muted text-sm">
-                      No games started yet
-                    </div>
-                  )}
-                </div>
+                <MatchList
+                  title="In Progress"
+                  iconColor="bg-warning"
+                  emptyMessage="No games started yet"
+                  matches={inProgressMatches}
+                  variant="in-progress"
+                />
 
-                {/* Completed Games - Mobile: only show when active tab is 'completed' */}
-                <div className={`${activeTab === 'completed' ? 'block' : 'hidden'} md:block`}>
-                  <h3 className="text-sm font-semibold text-primary mb-1 flex items-center">
-                    <div className="w-2 h-2 bg-success rounded-full mr-2"></div>
-                    Completed
-                  </h3>
-                  {completed.length > 0 ? (
-                    <div className="space-y-2">
-                      {(() => {
-                        // Group games by match
-                        const matchGroups = completed.reduce((groups, { game, match, round }) => {
-                          const matchId = match.id;
-                          if (!groups[matchId]) {
-                            groups[matchId] = { match, games: [] };
-                          }
-                          groups[matchId].games.push({ game, round });
-                          return groups;
-                        }, {} as Record<string, { match: any; games: { game: any; round: any }[] }>);
-
-                        return Object.values(matchGroups).map(({ match, games }) => {
-                          // Calculate overall match winner
-                          let teamAWins = 0;
-                          let teamBWins = 0;
-
-                          games.forEach(({ game }) => {
-                            if (game.teamAScore !== null && game.teamBScore !== null) {
-                              if (game.teamAScore > game.teamBScore) {
-                                teamAWins++;
-                              } else if (game.teamBScore > game.teamAScore) {
-                                teamBWins++;
-                              }
-                            }
-                          });
-
-                          // Check if match was decided by tiebreaker (points or game)
-                          let hasWinner = false;
-                          let highlightTeamA = false;
-                          let highlightTeamB = false;
-                          
-                          if (match.tiebreakerStatus === 'DECIDED_POINTS' || match.tiebreakerStatus === 'DECIDED_TIEBREAKER') {
-                            // Match decided by tiebreaker - check tiebreakerWinnerTeamId
-                            if (match.tiebreakerWinnerTeamId) {
-                              hasWinner = true;
-                              highlightTeamA = match.tiebreakerWinnerTeamId === match.teamA?.id;
-                              highlightTeamB = match.tiebreakerWinnerTeamId === match.teamB?.id;
-                            }
-                          } else {
-                            // Standard game-based winner determination
-                            hasWinner = (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
-                            highlightTeamA = hasWinner && teamAWins > teamBWins;
-                            highlightTeamB = hasWinner && teamBWins > teamAWins;
-                          }
-
-                          return (
-                            <div key={match.id} className="border border-subtle rounded p-3 bg-surface-2">
-                              {/* Round and bracket */}
-                              <div className="text-sm font-medium text-muted mb-1">
-                                Round {games[0]?.round?.name?.replace('Round ', '') || '1'}: {match.teamA?.name?.includes('Advanced') ? 'Advanced' : 'Intermediate'}
-                              </div>
-                              
-                              {/* Team names with winner highlighting */}
-                              <div className="text-sm font-medium mb-2 flex items-center justify-between border-b border-medium pb-2">
-                                <div className={`flex items-center ${highlightTeamA ? 'text-success' : ''}`}>
-                                  {highlightTeamA && <span className="mr-1">🏆</span>}
-                                  {match.teamA?.name}
-                                </div>
-                                <span className="text-muted">vs</span>
-                                <div className={`flex items-center text-right ${highlightTeamB ? 'text-success' : ''}`}>
-                                  {match.teamB?.name}
-                                  {highlightTeamB && <span className="ml-1">🏆</span>}
-                                </div>
-                              </div>
-                              
-                              {/* For forfeited matches, show forfeit message instead of games */}
-                              {match.forfeitTeam ? (
-                                <div className="text-center py-3">
-                                  <div className="text-sm font-medium text-red-600">
-                                    {match.forfeitTeam === 'A' ? match.teamB?.name : match.teamA?.name} wins by forfeit
-                                  </div>
-                                </div>
-                              ) : (
-                                /* Games - only show for non-forfeited matches */
-                                <div className="space-y-1">
-                                  {games.map(({ game }) => (
-                                    <div key={game.id} className="border-t border-subtle pt-1 first:border-t-0 first:pt-0">
-                                      {/* Game type */}
-                                      <div className="text-xs font-medium text-secondary mb-1">
-                                        {game.slot.replace('_', ' ')}
-                                      </div>
-                                      
-                                      {/* Player names and scores */}
-                                      <div className="flex items-center justify-between text-sm">
-                                        <div className={`text-xs whitespace-pre-line text-left flex items-center ${(game.teamAScore || 0) > (game.teamBScore || 0) ? 'text-success' : 'text-secondary'}`}>
-                                          {getPlayerNames(game, match, 'A')}
-                                          {(game.teamAScore || 0) > (game.teamBScore || 0) && (
-                                            <span className="ml-1 text-warning">🏆</span>
-                                          )}
-                                        </div>
-                                        <span className="font-medium text-primary">
-                                          {game.teamAScore !== null ? game.teamAScore : '-'}
-                                        </span>
-                                        <span className="text-muted">vs</span>
-                                        <span className="font-medium text-primary">
-                                          {game.teamBScore !== null ? game.teamBScore : '-'}
-                                        </span>
-                                        <div className={`text-xs whitespace-pre-line text-right flex items-center justify-end ${(game.teamBScore || 0) > (game.teamAScore || 0) ? 'text-success' : 'text-secondary'}`}>
-                                          {(game.teamBScore || 0) > (game.teamAScore || 0) && (
-                                            <span className="mr-1 text-warning">🏆</span>
-                                          )}
-                                          {getPlayerNames(game, match, 'B')}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-muted text-sm">
-                      No completed games
-                    </div>
-                  )}
-                </div>
+                <MatchList
+                  title="Completed"
+                  iconColor="bg-success"
+                  emptyMessage="No completed games yet"
+                  matches={completedMatches}
+                  variant="completed"
+                />
               </div>
             </div>
           </div>
 
-          {/* Right side - Standings (1/3 width) - Mobile: only show when active tab is 'standings' */}
-          <div className={`col-span-1 md:col-span-1 ${activeTab === 'standings' ? 'block' : 'hidden'} md:block`}>
-            {/* Tournament Standings */}
+          {/* Right side - Standings (1/3 width) */}
+          <div className="col-span-1 md:col-span-1 block md:block">
             <div className="card">
               <div className="px-1 py-1 md:px-4 md:py-3 border-b border-subtle pb-2">
                 <h2 className="text-sm md:text-lg font-semibold text-primary flex items-center mb-2">
@@ -889,49 +870,12 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </h2>
               </div>
               <div className="p-1 md:p-4">
-                {/* Combined Standings */}
                 <div className="mb-2 md:mb-6">
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Combined</h3>
-                  {standingsLoading ? (
-                    <div className="bg-surface-2 rounded p-3">
-                      <div className="flex items-center justify-center py-4">
-                        <div className="loading-spinner"></div>
-                        <span className="ml-2 text-sm text-muted">Loading standings...</span>
-                      </div>
-                    </div>
-                  ) : combinedStandings.length > 0 ? (
-                    <div className="bg-surface-2 rounded p-3">
+                  <div className="bg-surface-2 rounded p-3">
+                    {combinedStandings.length > 0 ? (
                       <div className="space-y-1">
                         {combinedStandings.map((standing) => (
-                          <div key={standing.name} className="flex items-center justify-between py-1">
-                            <div className="flex items-center">
-                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
-                              <span className="text-sm font-medium text-primary ml-2">{standing.name}</span>
-                            </div>
-                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-3 text-muted text-sm">No Combined results</div>
-                  )}
-                </div>
-
-                {/* Advanced Bracket Standings */}
-                <div className="mb-2 md:mb-6">
-                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Advanced</h3>
-                  {standingsLoading ? (
-                    <div className="bg-surface-2 rounded p-3">
-                      <div className="flex items-center justify-center py-4">
-                        <div className="loading-spinner"></div>
-                        <span className="ml-2 text-sm text-muted">Loading standings...</span>
-                      </div>
-                    </div>
-                  ) : advancedStandings.length > 0 ? (
-                    <div className="bg-surface-2 rounded p-3">
-                      <div className="space-y-1">
-                        {advancedStandings.map((standing) => (
                           <div key={standing.team.id} className="flex items-center justify-between py-1">
                             <div className="flex items-center">
                               <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
@@ -941,35 +885,44 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                           </div>
                         ))}
                       </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted text-sm">No Combined teams</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mb-2 md:mb-6">
+                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Advanced</h3>
+                  {advancedStandings.length > 0 ? (
+                    <div className="bg-surface-2 rounded p-3 space-y-1">
+                      {advancedStandings.map((standing) => (
+                        <div key={standing.team.id} className="flex items-center justify-between py-1">
+                          <div className="flex items-center">
+                            <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
+                            <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                          </div>
+                          <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="text-center py-3 text-muted text-sm">No Advanced teams</div>
                   )}
                 </div>
 
-                {/* Intermediate Bracket Standings */}
                 <div>
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Intermediate</h3>
-                  {standingsLoading ? (
-                    <div className="bg-surface-2 rounded p-3">
-                      <div className="flex items-center justify-center py-4">
-                        <div className="loading-spinner"></div>
-                        <span className="ml-2 text-sm text-muted">Loading standings...</span>
-                      </div>
-                    </div>
-                  ) : intermediateStandings.length > 0 ? (
-                    <div className="bg-surface-2 rounded p-3">
-                      <div className="space-y-1">
-                        {intermediateStandings.map((standing) => (
-                          <div key={standing.team.id} className="flex items-center justify-between py-1">
-                            <div className="flex items-center">
-                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
-                              <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
-                            </div>
-                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
+                  {intermediateStandings.length > 0 ? (
+                    <div className="bg-surface-2 rounded p-3 space-y-1">
+                      {intermediateStandings.map((standing) => (
+                        <div key={standing.team.id} className="flex items-center justify-between py-1">
+                          <div className="flex items-center">
+                            <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
+                            <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
                           </div>
-                        ))}
-                      </div>
+                          <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="text-center py-3 text-muted text-sm">No Intermediate teams</div>
@@ -977,90 +930,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Mobile Bottom Navigation - Only show on mobile */}
-        <div className="fixed bottom-0 left-0 right-0 bg-surface border-t-2 border-primary shadow-lg md:hidden z-[9999]">
-          <div className="grid grid-cols-3 h-16">
-            {/* In Progress Tab */}
-            <button
-              onClick={() => setActiveTab('in-progress')}
-              className={`flex flex-col items-center justify-center px-2 py-2 relative ${
-                activeTab === 'in-progress'
-                  ? 'border-t-2 border-warning bg-warning'
-                  : 'text-muted hover:bg-warning bg-surface-2'
-              }`}
-              style={{
-                color: activeTab === 'in-progress' ? '#000000' : undefined
-              }}
-            >
-              <div className={`w-2 h-2 rounded-full mb-1 ${activeTab === 'in-progress' ? 'bg-black' : 'bg-warning'}`}></div>
-              <span 
-                className="text-xs font-medium"
-                style={{
-                  color: activeTab === 'in-progress' ? '#000000' : undefined
-                }}
-              >
-                In Progress Games
-              </span>
-              {inProgress.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-warning text-primary text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                  {inProgress.length}
-                </span>
-              )}
-            </button>
-
-            {/* Completed Tab */}
-            <button
-              onClick={() => setActiveTab('completed')}
-              className={`flex flex-col items-center justify-center px-2 py-2 relative ${
-                activeTab === 'completed'
-                  ? 'border-t-2 border-success bg-success'
-                  : 'text-muted hover:bg-success bg-surface-2'
-              }`}
-              style={{
-                color: activeTab === 'completed' ? '#000000' : undefined
-              }}
-            >
-              <div className={`w-2 h-2 rounded-full mb-1 ${activeTab === 'completed' ? 'bg-black' : 'bg-success'}`}></div>
-              <span 
-                className="text-xs font-medium"
-                style={{
-                  color: activeTab === 'completed' ? '#000000' : undefined
-                }}
-              >
-                Completed Games
-              </span>
-              {completed.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-success text-primary text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                  {completed.length}
-                </span>
-              )}
-            </button>
-
-            {/* Standings Tab */}
-            <button
-              onClick={() => setActiveTab('standings')}
-              className={`flex flex-col items-center justify-center px-2 py-2 relative ${
-                activeTab === 'standings'
-                  ? 'border-t-2 border-info bg-info'
-                  : 'text-muted hover:bg-info bg-surface-2'
-              }`}
-              style={{
-                color: activeTab === 'standings' ? '#000000' : undefined
-              }}
-            >
-              <div className={`w-2 h-2 rounded-full mb-1 ${activeTab === 'standings' ? 'bg-black' : 'bg-info'}`}></div>
-              <span 
-                className="text-xs font-medium"
-                style={{
-                  color: activeTab === 'standings' ? '#000000' : undefined
-                }}
-              >
-                Standings
-              </span>
-            </button>
           </div>
         </div>
       </div>

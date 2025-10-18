@@ -45,6 +45,11 @@ interface Match {
   teamB: Team;
   games: Game[];
   status: string;
+  forfeitTeam?: string | null;
+  tiebreakerStatus?: string;
+  tiebreakerWinnerTeamId?: string | null;
+  totalPointsTeamA?: number | null;
+  totalPointsTeamB?: number | null;
 }
 
 interface Team {
@@ -170,6 +175,11 @@ async function getStopData(baseUrl: string, stopId: string, stopName: string): P
           id: match.matchId,
           teamA: match.teamA,
           teamB: match.teamB,
+          forfeitTeam: match.forfeitTeam,
+          tiebreakerStatus: match.tiebreakerStatus && match.tiebreakerStatus !== 'undefined' ? match.tiebreakerStatus : 'NONE',
+          tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId && match.tiebreakerWinnerTeamId !== 'undefined' ? match.tiebreakerWinnerTeamId : null,
+          totalPointsTeamA: match.totalPointsTeamA,
+          totalPointsTeamB: match.totalPointsTeamB,
           games: match.games.map((game: any) => {
             const rawIsComplete = typeof game.isComplete === 'boolean' ? game.isComplete : null;
             const isComplete = rawIsComplete === true || Boolean(game.endedAt);

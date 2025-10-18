@@ -892,6 +892,16 @@ export function EventManagerTab({
   const [games, setGames] = useState<Record<string, any[]>>({});
   const [resolvingMatch, setResolvingMatch] = useState<string | null>(null);
 
+  const shortenLineupName = (name?: string | null) => {
+    if (!name) return 'Team';
+    return name.length > 18 ? `${name.slice(0, 15)}…` : name;
+  };
+
+  const shorten = (name?: string | null) => {
+    if (!name) return '';
+    return name.length > 18 ? `${name.slice(0, 15)}…` : name;
+  };
+
   // Derive game status from isComplete and startedAt fields
   const getGameStatus = (game: any): 'not_started' | 'in_progress' | 'completed' => {
     if (game.isComplete) return 'completed';
@@ -1906,7 +1916,7 @@ export function EventManagerTab({
             ...prev,
             [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
               ...round,
-              matches: (round.matches || []).map(m =>
+              matches: (round.matches || []).map((m: any) =>
                 m.id === parentMatchId
                   ? { ...m, tiebreakerStatus: matchData.tiebreakerStatus, tiebreakerWinnerTeamId: matchData.tiebreakerWinnerTeamId }
                   : m
@@ -1949,12 +1959,16 @@ export function EventManagerTab({
           throw new Error('Failed to update score');
         }
 
-        // Find which match this game belongs to
-        let matchIdForGame: string | null = null;
-        for (const [matchId, matchGames] of Object.entries(games)) {
-          if (matchGames?.find(g => g.id === gameId)) {
-            matchIdForGame = matchId;
-            break;
+        // Find which match this game belongs to using response data first
+        const updatedGame = await response.json();
+        let matchIdForGame: string | null = updatedGame.matchId ?? null;
+
+        if (!matchIdForGame) {
+          for (const [matchId, matchGames] of Object.entries(games)) {
+            if (matchGames?.find((g) => g.id === gameId)) {
+              matchIdForGame = matchId;
+              break;
+            }
           }
         }
 
@@ -1964,20 +1978,26 @@ export function EventManagerTab({
         // Reload games for this specific match to get updated scores
         if (matchIdForGame) {
           await loadGamesForMatch(matchIdForGame, true);
-          
-          // Also fetch the match to get updated tiebreaker status
+
           try {
             const matchResponse = await fetchWithActAs(`/api/admin/matches/${matchIdForGame}`);
             if (matchResponse.ok) {
               const matchData = await matchResponse.json();
-              // Update the schedule data with the new tiebreaker status
+
               setScheduleData(prev => ({
                 ...prev,
                 [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
                   ...round,
-                  matches: (round.matches || []).map(m =>
+                  matches: (round.matches || []).map((m: any) =>
                     m.id === matchIdForGame
-                      ? { ...m, tiebreakerStatus: matchData.tiebreakerStatus, tiebreakerWinnerTeamId: matchData.tiebreakerWinnerTeamId }
+                      ? {
+                          ...m,
+                          tiebreakerStatus: matchData.tiebreakerStatus,
+                          tiebreakerWinnerTeamId: matchData.tiebreakerWinnerTeamId,
+                          totalPointsTeamA: matchData.totalPointsTeamA,
+                          totalPointsTeamB: matchData.totalPointsTeamB,
+                          forfeitTeam: matchData.forfeitTeam,
+                        }
                       : m
                   )
                 }))
@@ -2172,13 +2192,11 @@ export function EventManagerTab({
 
     try {
       setResolvingMatch(match.id);
-      const stopId = match.round?.stopId || selectedStopId;
+
       const response = await fetchWithActAs(`/api/admin/matches/${match.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decideByPoints: true,
-        }),
+        body: JSON.stringify({ decideByPoints: true }),
       });
 
       if (!response.ok) {
@@ -2186,10 +2204,29 @@ export function EventManagerTab({
         throw new Error(errorText || 'Failed to decide match by points');
       }
 
+      const result = await response.json();
+
       await loadGamesForMatch(match.id, true);
-      if (stopId) {
-        await loadSchedule(stopId, true);
-      }
+
+      setScheduleData(prev => ({
+        ...prev,
+        [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
+          ...round,
+          matches: (round.matches || []).map((m: any) =>
+            m.id === match.id
+              ? {
+                  ...m,
+                  tiebreakerStatus: result?.match?.tiebreakerStatus || 'DECIDED_POINTS',
+                  tiebreakerWinnerTeamId: result?.match?.tiebreakerWinnerTeamId || m.tiebreakerWinnerTeamId,
+                  totalPointsTeamA: result?.match?.totalPointsTeamA ?? m.totalPointsTeamA,
+                  totalPointsTeamB: result?.match?.totalPointsTeamB ?? m.totalPointsTeamB,
+                  forfeitTeam: result?.match?.forfeitTeam ?? m.forfeitTeam,
+                }
+              : m
+          )
+        }))
+      }));
+
       onInfo('Match decided by total points');
     } catch (error) {
       console.error('Resolve match by points error:', error);
@@ -2209,7 +2246,6 @@ export function EventManagerTab({
 
     try {
       setResolvingMatch(match.id);
-      const stopId = match.round?.stopId || selectedStopId;
       const response = await fetchWithActAs(`/api/admin/matches/${match.id}/games`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2232,14 +2268,92 @@ export function EventManagerTab({
         throw new Error(errorText || 'Failed to schedule tiebreaker');
       }
 
+      const result = await response.json();
+
       await loadGamesForMatch(match.id, true);
-      if (stopId) {
-        await loadSchedule(stopId, true);
-      }
+
+      const newStatus = result?.tiebreakerStatus || 'REQUIRES_TIEBREAKER';
+
+      setScheduleData(prev => ({
+        ...prev,
+        [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
+          ...round,
+          matches: (round.matches || []).map((m: any) =>
+            m.id === match.id
+              ? {
+                  ...m,
+                  tiebreakerStatus: newStatus,
+                }
+              : m
+          )
+        }))
+      }));
+
       onInfo('Tiebreaker game created');
     } catch (error) {
       console.error('Schedule tiebreaker error:', error);
       onError(error instanceof Error ? error.message : 'Failed to schedule tiebreaker');
+    } finally {
+      setResolvingMatch(null);
+    }
+  };
+
+  const forfeitMatch = async (match: any, forfeitTeam: 'A' | 'B') => {
+    if (!match) return;
+
+    const forfeitingTeamName = forfeitTeam === 'A' ? (match.teamA?.name || 'Team A') : (match.teamB?.name || 'Team B');
+    const winningTeamName = forfeitTeam === 'A' ? (match.teamB?.name || 'Team B') : (match.teamA?.name || 'Team A');
+
+    const confirmMessage = `${forfeitingTeamName} will forfeit to ${winningTeamName}. Continue?`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setResolvingMatch(`${match.id}-forfeit${forfeitTeam}`);
+
+      const response = await fetchWithActAs(`/api/admin/matches/${match.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forfeitTeam }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to forfeit match');
+      }
+
+      const result = await response.json();
+
+      await loadGamesForMatch(match.id, true);
+
+      setScheduleData(prev => ({
+        ...prev,
+        [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
+          ...round,
+          matches: (round.matches || []).map((m: any) =>
+            m.id === match.id
+              ? {
+                  ...m,
+                  forfeitTeam: result?.match?.forfeitTeam ?? forfeitTeam,
+                  tiebreakerStatus: result?.match?.tiebreakerStatus ?? 'NONE',
+                  tiebreakerWinnerTeamId: result?.match?.tiebreakerWinnerTeamId ?? (forfeitTeam === 'A' ? match.teamB?.id ?? null : match.teamA?.id ?? null),
+                  totalPointsTeamA:
+                    result?.match?.totalPointsTeamA ??
+                    (forfeitTeam === 'A' ? 0 : match.totalPointsTeamA ?? 0),
+                  totalPointsTeamB:
+                    result?.match?.totalPointsTeamB ??
+                    (forfeitTeam === 'B' ? 0 : match.totalPointsTeamB ?? 0),
+                }
+              : m
+          )
+        }))
+      }));
+
+      onInfo(`${forfeitingTeamName} forfeited. ${winningTeamName} wins.`);
+    } catch (error) {
+      console.error('Forfeit match error:', error);
+      onError(error instanceof Error ? error.message : 'Failed to forfeit match');
     } finally {
       setResolvingMatch(null);
     }
@@ -2605,7 +2719,9 @@ export function EventManagerTab({
                                                       const matchStatus = deriveMatchStatus(match);
                                                       const matchGames = games[matchId] ?? match.games ?? [];
                                                       const tiebreakerGame = matchGames.find((g: any) => g.slot === 'TIEBREAKER');
-                                                      const canEditLineups = !['completed', 'decided_points', 'decided_tiebreaker'].includes(matchStatus);
+                                                      const isDecided = ['decided_points', 'decided_tiebreaker'].includes(matchStatus) || !!match.forfeitTeam;
+                                                      const isTiePending = matchStatus === 'tied_requires_tiebreaker' || matchStatus === 'needs_decision' || matchStatus === 'tied_pending';
+                                                      const canEditLineups = !isDecided;
                                                   const teamALineup = match.teamA?.id ? (lineups[matchId]?.[match.teamA.id] ?? []) : [];
                                                   const teamBLineup = match.teamB?.id ? (lineups[matchId]?.[match.teamB.id] ?? []) : [];
                                                   const hasAnyGameStarted = matchGames.some((game: any) =>
@@ -2639,12 +2755,17 @@ export function EventManagerTab({
                                                         </div>
 
                                                         {/* Match Status Badge */}
-                                                        {matchStatus === 'decided_points' && (
+                                                        {match.forfeitTeam && (
+                                                          <div className="text-xs font-semibold px-2 py-1 bg-warning/20 text-warning rounded">
+                                                            ⚠ Forfeit – {match.forfeitTeam === 'A' ? (match.teamB?.name || 'Team B') : (match.teamA?.name || 'Team A')} wins
+                                                          </div>
+                                                        )}
+                                                      {!match.forfeitTeam && matchStatus === 'decided_points' && (
                                                           <div className="text-xs font-semibold px-2 py-1 bg-success/20 text-success rounded">
                                                             ✓ Decided by Total Points
                                                           </div>
                                                         )}
-                                                        {matchStatus === 'decided_tiebreaker' && (
+                                                        {!match.forfeitTeam && matchStatus === 'decided_tiebreaker' && (
                                                           <div className="text-xs font-semibold px-2 py-1 bg-success/20 text-success rounded">
                                                             ✓ Decided by Tiebreaker
                                                           </div>
@@ -2652,7 +2773,7 @@ export function EventManagerTab({
 
                                                         {/* Manager Actions */}
                                                         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
-                                                          {(matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (
+                                                      {!match.forfeitTeam && !isDecided && (matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (
                                                             <button
                                                               className="btn btn-xs btn-secondary flex-1 sm:flex-none"
                                                               disabled={resolvingMatch === match.id || !canEditLineups}
@@ -2661,7 +2782,7 @@ export function EventManagerTab({
                                                               {resolvingMatch === match.id ? 'Resolving...' : 'Decide by Points'}
                                                             </button>
                                                           )}
-                                                          {(matchStatus === 'tied_requires_tiebreaker' || (matchStatus === 'needs_decision') || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (matchStatus !== 'needs_decision' ? !tiebreakerGame : true) && (
+                                                          {!match.forfeitTeam && !isDecided && (matchStatus === 'tied_requires_tiebreaker' || matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (matchStatus !== 'needs_decision' ? !tiebreakerGame : true) && (
                                                             <button
                                                               className="btn btn-xs btn-primary flex-1 sm:flex-none"
                                                               disabled={resolvingMatch === match.id}
@@ -2670,11 +2791,29 @@ export function EventManagerTab({
                                                               {resolvingMatch === match.id ? 'Creating...' : 'Add Tiebreaker'}
                                                             </button>
                                                           )}
+                                                      {!match.forfeitTeam && !isDecided && (
+                                                            <div className="flex gap-2 flex-1 sm:flex-none">
+                                                              <button
+                                                                className="btn btn-xs btn-error flex-1 sm:flex-none"
+                                                                disabled={resolvingMatch === `${match.id}-forfeitA`}
+                                                                onClick={() => forfeitMatch(match, 'A')}
+                                                              >
+                                                                {resolvingMatch === `${match.id}-forfeitA` ? 'Processing...' : `Forfeit ${shortenLineupName(match.teamA?.name)}`}
+                                                              </button>
+                                                              <button
+                                                                className="btn btn-xs btn-error flex-1 sm:flex-none"
+                                                                disabled={resolvingMatch === `${match.id}-forfeitB`}
+                                                                onClick={() => forfeitMatch(match, 'B')}
+                                                              >
+                                                                {resolvingMatch === `${match.id}-forfeitB` ? 'Processing...' : `Forfeit ${shortenLineupName(match.teamB?.name)}`}
+                                                              </button>
+                                                            </div>
+                                                          )}
                                                         </div>
                                                       </div>
 
                                                       {/* Total Points Summary */}
-                                                      {match.totalPointsTeamA !== null && match.totalPointsTeamB !== null && (
+                                                      {!match.forfeitTeam && matchStatus !== 'tied_requires_tiebreaker' && matchStatus !== 'tied_pending' && match.totalPointsTeamA !== null && match.totalPointsTeamB !== null && (
                                                         <div className="bg-surface-2 rounded px-3 py-2 text-sm mb-3">
                                                           <div className="flex justify-between items-center gap-4">
                                                             <div className="flex-1">
