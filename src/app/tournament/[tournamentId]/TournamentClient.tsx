@@ -166,6 +166,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
             teamB: match.teamB,
             forfeitTeam: match.forfeitTeam, // Include forfeitTeam
             updatedAt: match.updatedAt, // Include updatedAt
+            tiebreakerStatus: match.tiebreakerStatus,
+            tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
             games: match.games.map((game: any) => {
               const rawIsComplete = typeof game.isComplete === 'boolean' ? game.isComplete : null;
               const isComplete = rawIsComplete === true || Boolean(game.endedAt);
