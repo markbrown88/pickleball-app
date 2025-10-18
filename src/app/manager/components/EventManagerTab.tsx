@@ -1355,6 +1355,16 @@ export function EventManagerTab({
       }
       const data = await response.json();
       log('Schedule data:', data);
+      
+      // Log match statuses for debugging
+      data.forEach((round: any, roundIdx: number) => {
+        round.matches?.forEach((match: any) => {
+          if (match.teamA?.name.includes('Pickleplex') && match.teamB?.name.includes('Pickleplex')) {
+            console.log(`[SCHEDULE_LOADED] Round ${roundIdx}: ${match.teamA?.name} vs ${match.teamB?.name} - Status: ${match.tiebreakerStatus}, Winner: ${match.tiebreakerWinnerTeamId}`);
+          }
+        });
+      });
+      
       setScheduleData(prev => ({ ...prev, [stopId]: data || [] }));
 
       // Prefetch stop rosters for all teams in this schedule
