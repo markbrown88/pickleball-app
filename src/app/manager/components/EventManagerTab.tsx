@@ -1938,6 +1938,9 @@ export function EventManagerTab({
           }
         }
 
+        // Give the server a moment to calculate tiebreaker status
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         // Reload both the schedule and games for immediate UI refresh
         if (selectedStopId) {
           await loadSchedule(selectedStopId, true);
