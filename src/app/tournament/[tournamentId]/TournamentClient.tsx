@@ -143,7 +143,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     try {
       setLoading(true);
       setError(null);
-
+      
       // Use the public scoreboard API to get rounds, matches, and games data
       const response = await fetch(`/api/public/stops/${stopId}/scoreboard`);
       
@@ -165,16 +165,16 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
           name: `Round ${round.idx + 1}`,
           stopId: stopId,
           matches: round.matches.map((match: any) => ({
-              id: match.matchId,
-              teamA: match.teamA,
-              teamB: match.teamB,
-              forfeitTeam: match.forfeitTeam, // Include forfeitTeam
-              updatedAt: match.updatedAt, // Include updatedAt
+            id: match.matchId,
+            teamA: match.teamA,
+            teamB: match.teamB,
+            forfeitTeam: match.forfeitTeam, // Include forfeitTeam
+            updatedAt: match.updatedAt, // Include updatedAt
               tiebreakerStatus: match.tiebreakerStatus && match.tiebreakerStatus !== 'undefined' ? match.tiebreakerStatus : 'NONE',
               tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId && match.tiebreakerWinnerTeamId !== 'undefined' ? match.tiebreakerWinnerTeamId : null,
-              totalPointsTeamA: match.totalPointsTeamA,
-              totalPointsTeamB: match.totalPointsTeamB,
-              games: match.games.map((game: any) => {
+            totalPointsTeamA: match.totalPointsTeamA,
+            totalPointsTeamB: match.totalPointsTeamB,
+            games: match.games.map((game: any) => {
               const rawIsComplete = typeof game.isComplete === 'boolean' ? game.isComplete : null;
               const isComplete = rawIsComplete === true || Boolean(game.endedAt);
 
@@ -369,89 +369,89 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     const roundLabel = round?.name ?? 'Round';
     const divisionLabel = match.teamA?.name?.includes('Advanced') ? 'Advanced' : 'Intermediate';
     const winnerTeamId = outcome.winnerTeamId;
+    
+    // Extract club names and bracket name
+    const clubA = deriveClubKey(match.teamA?.name);
+    const clubB = deriveClubKey(match.teamB?.name);
+    const bracketName = match.teamA?.bracket?.name || divisionLabel;
 
     return (
       <div className="border border-subtle rounded p-3 bg-surface-2">
         <div className="text-sm font-medium text-muted mb-1 flex items-center">
-          {roundLabel}:
+          {roundLabel} - {bracketName}:
           <span className={`ml-2 ${winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' ? 'font-bold text-success' : ''}`}>
             {winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' && (
               <span className="mr-1">🏆</span>
             )}
-            {match.teamA?.name || 'Team A'}
+            {clubA}
           </span>
           <span className="mx-1">vs</span>
           <span className={`${winnerTeamId && match.teamB?.id === winnerTeamId && variant === 'completed' ? 'font-bold text-success' : ''}`}>
-            {match.teamB?.name || 'Team B'}
+            {clubB}
             {winnerTeamId && match.teamB?.id === winnerTeamId && variant === 'completed' && (
               <span className="ml-1">🏆</span>
             )}
           </span>
         </div>
-        <div className="text-xs text-muted mb-2">{divisionLabel}</div>
+        {!match.forfeitTeam && <div className="text-xs text-muted mb-2">{divisionLabel}</div>}
 
-        <div className="space-y-2">
-          {outcome.games.map(({ game, started, completed }) => (
-            <div key={game.id} className="border border-subtle rounded p-2">
-              <div className="flex items-center justify-between text-xs text-muted mb-1">
-                <span className="uppercase tracking-wide">{game.slot.replace('_', ' ')}</span>
-                {variant === 'in-progress' && (
-                  <span>
-                    {completed
-                      ? 'Completed'
-                      : started
-                      ? 'In progress'
-                      : outcome.pendingTiebreaker
-                      ? 'Awaiting tiebreaker'
-                      : 'Not started'}
+        {!match.forfeitTeam && (
+          <div className="space-y-2">
+            {outcome.games.map(({ game, started, completed }) => (
+              <div key={game.id} className="border border-subtle rounded p-2">
+                <div className="flex items-center justify-between text-xs text-muted mb-1">
+                  <span className="uppercase tracking-wide">{game.slot.replace('_', ' ')}</span>
+                  {variant === 'in-progress' && (
+                    <span>
+                      {completed
+                        ? 'Completed'
+                        : started
+                        ? 'In progress'
+                        : outcome.pendingTiebreaker
+                        ? 'Awaiting tiebreaker'
+                        : 'Not started'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <div className={`text-xs whitespace-pre-line text-left flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                    {game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore && (
+                      <span className="mr-1">🏆</span>
+                    )}
+                    {getPlayerNames(game, match, 'A')}
+                  </div>
+                  <span className="font-medium text-primary">
+                    {game.teamAScore !== null ? game.teamAScore : '-'}
                   </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <div className={`text-xs whitespace-pre-line text-left flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore ? 'font-bold text-success' : 'text-secondary'}`}>
-                  {game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore && (
-                    <span className="mr-1">🏆</span>
-                  )}
-                  {getPlayerNames(game, match, 'A')}
+                  <span className="text-muted">vs</span>
+                  <span className="font-medium text-primary">
+                    {game.teamBScore !== null ? game.teamBScore : '-'}
+                  </span>
+                  <div className={`text-xs whitespace-pre-line text-right flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                    {getPlayerNames(game, match, 'B')}
+                    {game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore && (
+                      <span className="ml-1">🏆</span>
+                    )}
+                  </div>
                 </div>
-                <span className="font-medium text-primary">
-                  {game.teamAScore !== null ? game.teamAScore : '-'}
-                </span>
-                <span className="text-muted">vs</span>
-                <span className="font-medium text-primary">
-                  {game.teamBScore !== null ? game.teamBScore : '-'}
-                </span>
-                <div className={`text-xs whitespace-pre-line text-right flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore ? 'font-bold text-success' : 'text-secondary'}`}>
-                  {getPlayerNames(game, match, 'B')}
-                  {game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore && (
-                    <span className="ml-1">🏆</span>
-                  )}
+
+                <div className="flex items-center justify-between text-xs text-muted mt-1">
+                  <span>Started: {getGameStartTime(game) || '—'}</span>
+                  <span>Ended: {getGameEndTime(game) || '—'}</span>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between text-xs text-muted mt-1">
-                <span>Started: {getGameStartTime(game) || '—'}</span>
-                <span>Ended: {getGameEndTime(game) || '—'}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {match.forfeitTeam && variant === 'completed' ? (
-          <div className="text-center py-3 space-y-1">
+          <div className="text-center py-3">
             <div className="text-sm font-semibold text-red-600">
               {match.forfeitTeam === 'A'
-                ? match.teamB
-                  ? match.teamB.name
-                  : 'Team B'
-                : match.teamA
-                ? match.teamA.name
-                : 'Team A'}{' '}
+                ? clubB
+                : clubA}{' '}
               wins by forfeit
-            </div>
-            <div className="text-xs text-muted">
-              Forfeited games are recorded as 1-0 in favor of the opponent.
             </div>
           </div>
         ) : variant === 'completed' && outcome.decidedBy ? (
@@ -697,7 +697,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
         map.set(key, {
           team: {
             id: key,
-          name: clubName,
+            name: clubName,
           },
           points: 0,
           wins: 0,
@@ -856,9 +856,9 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                   matches={completedMatches}
                   variant="completed"
                 />
-              </div>
-            </div>
-          </div>
+                            </div>
+                            </div>
+                          </div>
 
           {/* Right side - Standings (1/3 width) */}
           <div className="col-span-1 md:col-span-1 block md:block">
@@ -868,7 +868,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                   <div className="w-2 h-2 bg-info rounded-full mr-2"></div>
                   Standings
                 </h2>
-              </div>
+                            </div>
               <div className="p-1 md:p-4">
                 <div className="mb-2 md:mb-6">
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Combined</h3>
@@ -882,14 +882,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                               <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
                             </div>
                             <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                       <div className="text-center py-3 text-muted text-sm">No Combined teams</div>
-                    )}
-                  </div>
+                  )}
                 </div>
+                            </div>
 
                 <div className="mb-2 md:mb-6">
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Advanced</h3>
@@ -900,15 +900,15 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                           <div className="flex items-center">
                             <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
                             <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
-                          </div>
+                              </div>
                           <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                        </div>
-                      ))}
+                                  </div>
+                                ))}
                     </div>
                   ) : (
                     <div className="text-center py-3 text-muted text-sm">No Advanced teams</div>
                   )}
-                </div>
+            </div>
 
                 <div>
                   <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Intermediate</h3>
@@ -919,15 +919,15 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                           <div className="flex items-center">
                             <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
                             <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
-                          </div>
+                  </div>
                           <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                        </div>
+                </div>
                       ))}
                     </div>
                   ) : (
                     <div className="text-center py-3 text-muted text-sm">No Intermediate teams</div>
                   )}
-                </div>
+                    </div>
               </div>
             </div>
           </div>

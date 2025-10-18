@@ -498,17 +498,57 @@ function InlineLineupEditor({
   const [loadedRosters, setLoadedRosters] = useState<{ teamA: PlayerLite[]; teamB: PlayerLite[] }>({ teamA: [], teamB: [] });
   const [rosterError, setRosterError] = useState<string | null>(null);
 
-  // Fetch team rosters for this specific stop when component mounts
+  // Fetch team rosters and initialize lineups when component mounts
   useEffect(() => {
     let isMounted = true;
 
-    const loadRosters = async () => {
+    const loadRostersAndInitialize = async () => {
       if (!teamA.id || !teamB.id || !stopId) return;
+
+      const initializeLineups = (teamARoster: PlayerLite[], teamBRoster: PlayerLite[]) => {
+        const existingLineups = lineups[matchId];
+        const rosterMapA = new Map(teamARoster.map((p) => [p.id, p]));
+        const rosterMapB = new Map(teamBRoster.map((p) => [p.id, p]));
+        
+        if (existingLineups) {
+          const teamALineupData = existingLineups[teamA.id] || [];
+          const teamBLineupData = existingLineups[teamB.id] || [];
+  
+          setTeamALineup([
+            rosterMapA.get(teamALineupData[0]?.id) || teamALineupData[0] || undefined,
+            rosterMapA.get(teamALineupData[1]?.id) || teamALineupData[1] || undefined,
+            rosterMapA.get(teamALineupData[2]?.id) || teamALineupData[2] || undefined,
+            rosterMapA.get(teamALineupData[3]?.id) || teamALineupData[3] || undefined
+          ]);
+  
+          setTeamBLineup([
+            rosterMapB.get(teamBLineupData[0]?.id) || teamBLineupData[0] || undefined,
+            rosterMapB.get(teamBLineupData[1]?.id) || teamBLineupData[1] || undefined,
+            rosterMapB.get(teamBLineupData[2]?.id) || teamBLineupData[2] || undefined,
+            rosterMapB.get(teamBLineupData[3]?.id) || teamBLineupData[3] || undefined
+          ]);
+  
+          const allSelectedPlayers = new Set([
+            ...teamALineupData.map((p: any) => p.id),
+            ...teamBLineupData.map((p: any) => p.id)
+          ].filter(Boolean));
+          setSelectedPlayers(allSelectedPlayers);
+        } else {
+          setTeamALineup([undefined, undefined, undefined, undefined]);
+          setTeamBLineup([undefined, undefined, undefined, undefined]);
+          setSelectedPlayers(new Set());
+        }
+      };
 
       const validateAndApply = (teamARoster: PlayerLite[], teamBRoster: PlayerLite[]) => {
         if (!isMounted) return;
 
+        console.log(`[InlineLineupEditor] Loading rosters for match ${matchId}`);
+        console.log(`[InlineLineupEditor] Team A (${teamA.name}) roster:`, teamARoster.map(p => `${p.name} (${p.gender})`));
+        console.log(`[InlineLineupEditor] Team B (${teamB.name}) roster:`, teamBRoster.map(p => `${p.name} (${p.gender})`));
+
         setLoadedRosters({ teamA: teamARoster, teamB: teamBRoster });
+        initializeLineups(teamARoster, teamBRoster);
 
         const issues: string[] = [];
 
@@ -532,22 +572,11 @@ function InlineLineupEditor({
         }
       };
 
-      const prefetchedA = prefetchedTeamRosters?.teamA && prefetchedTeamRosters.teamA.length > 0
-        ? prefetchedTeamRosters.teamA
-        : teamRosters[teamA.id];
-      const prefetchedB = prefetchedTeamRosters?.teamB && prefetchedTeamRosters.teamB.length > 0
-        ? prefetchedTeamRosters.teamB
-        : teamRosters[teamB.id];
-
-      const filteredA = (prefetchedA ?? []).filter(Boolean) as PlayerLite[];
-      const filteredB = (prefetchedB ?? []).filter(Boolean) as PlayerLite[];
-
-      if (prefetchedA && prefetchedB) {
-        validateAndApply(filteredA, filteredB);
-        return;
-      }
-
+      // ALWAYS fetch fresh roster data for this specific stop
+      // Don't rely on cached teamRosters which may be from different rounds
       try {
+        console.log(`[InlineLineupEditor] Fetching fresh rosters for stopId: ${stopId}, teamA: ${teamA.id}, teamB: ${teamB.id}`);
+        
         const [responseA, responseB] = await Promise.all([
           fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamA.id}/roster`),
           fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamB.id}/roster`)
@@ -561,6 +590,9 @@ function InlineLineupEditor({
         const rosterA = dataA.items || [];
         const rosterB = dataB.items || [];
 
+        console.log(`[InlineLineupEditor] Fetched Team A roster: ${rosterA.length} players`, rosterA.map((p: any) => p.name));
+        console.log(`[InlineLineupEditor] Fetched Team B roster: ${rosterB.length} players`, rosterB.map((p: any) => p.name));
+
         validateAndApply(rosterA, rosterB);
       } catch (error) {
         console.error('Failed to load stop-specific rosters:', error);
@@ -570,48 +602,12 @@ function InlineLineupEditor({
       }
     };
 
-    loadRosters();
+    loadRostersAndInitialize();
 
     return () => {
       isMounted = false;
     };
-  }, [teamA.id, teamB.id, stopId, prefetchedTeamRosters, teamRosters]);
-
-  // Initialize lineups when component mounts or when editing starts
-  useEffect(() => {
-    const existingLineups = lineups[matchId];
-    const rosterMapA = new Map(loadedRosters.teamA.map((p) => [p.id, p]));
-    const rosterMapB = new Map(loadedRosters.teamB.map((p) => [p.id, p]));
-
-    if (existingLineups) {
-      const teamALineupData = existingLineups[teamA.id] || [];
-      const teamBLineupData = existingLineups[teamB.id] || [];
-
-      setTeamALineup([
-        rosterMapA.get(teamALineupData[0]?.id) || teamALineupData[0] || undefined,
-        rosterMapA.get(teamALineupData[1]?.id) || teamALineupData[1] || undefined,
-        rosterMapA.get(teamALineupData[2]?.id) || teamALineupData[2] || undefined,
-        rosterMapA.get(teamALineupData[3]?.id) || teamALineupData[3] || undefined
-      ]);
-
-      setTeamBLineup([
-        rosterMapB.get(teamBLineupData[0]?.id) || teamBLineupData[0] || undefined,
-        rosterMapB.get(teamBLineupData[1]?.id) || teamBLineupData[1] || undefined,
-        rosterMapB.get(teamBLineupData[2]?.id) || teamBLineupData[2] || undefined,
-        rosterMapB.get(teamBLineupData[3]?.id) || teamBLineupData[3] || undefined
-      ]);
-
-      const allSelectedPlayers = new Set([
-        ...teamALineupData.map((p: any) => p.id),
-        ...teamBLineupData.map((p: any) => p.id)
-      ]);
-      setSelectedPlayers(allSelectedPlayers);
-    } else {
-      setTeamALineup([undefined, undefined, undefined, undefined]);
-      setTeamBLineup([undefined, undefined, undefined, undefined]);
-      setSelectedPlayers(new Set());
-    }
-  }, [matchId, teamA.id, teamB.id, lineups, loadedRosters.teamA, loadedRosters.teamB]);
+  }, [matchId, teamA.id, teamB.id, stopId, prefetchedTeamRosters, teamRosters, lineups]);
 
   const addPlayerToLineup = (player: PlayerLite, teamId: string, slotIndex: number) => {
     const isTeamA = teamId === teamA.id;
@@ -712,47 +708,34 @@ function InlineLineupEditor({
   const getAvailablePlayers = (teamId: string, slotIndex: number) => {
     const isTeamA = teamId === teamA.id;
     const roster = isTeamA ? loadedRosters.teamA : loadedRosters.teamB;
-    const expectedGender = expectedGenderForIndex(slotIndex);
     const currentLineup = isTeamA ? teamALineup : teamBLineup;
-    const currentPlayer = currentLineup[slotIndex];
+    const currentPlayerInSlot = currentLineup[slotIndex];
+    const expectedGender = expectedGenderForIndex(slotIndex);
 
-    const availableMap = new Map<string, PlayerLite>();
+    console.log(`[getAvailablePlayers] Team: ${teamId}, Slot: ${slotIndex}, Expected Gender: ${expectedGender}`);
+    console.log(`[getAvailablePlayers] Full roster (${roster.length} players):`, roster.map(p => `${p.name} (${p.gender})`));
 
-    const addPlayer = (player?: PlayerLite) => {
-      if (!player || player.gender !== expectedGender) return;
-      availableMap.set(player.id, player);
-    };
+    // Filter roster by gender first
+    const genderFilteredRoster = roster.filter(p => p.gender === expectedGender);
+    console.log(`[getAvailablePlayers] After gender filter (${genderFilteredRoster.length} players):`, genderFilteredRoster.map(p => p.name));
 
-    roster.forEach((player) => {
-      if (player.gender !== expectedGender) return;
-      if (currentPlayer && player.id === currentPlayer.id) {
-        addPlayer(player);
-        return;
-      }
-      if (!selectedPlayers.has(player.id)) {
-        addPlayer(player);
-      }
-    });
+    // Get IDs of players already in OTHER slots of the current lineup
+    const playersInOtherSlots = new Set(
+      currentLineup.filter((p, idx) => p && idx !== slotIndex).map(p => p!.id)
+    );
 
-    currentLineup.forEach((player, idx) => {
-      if (!player || player.gender !== expectedGender) return;
-      if (idx === slotIndex) {
-        addPlayer(player);
-        return;
-      }
-      if (!selectedPlayers.has(player.id)) {
-        addPlayer(player);
-      }
-    });
+    // A player is available if they are not in another slot in this lineup
+    const availablePlayers = genderFilteredRoster.filter(p => !playersInOtherSlots.has(p.id));
+    console.log(`[getAvailablePlayers] After removing already-selected (${availablePlayers.length} players):`, availablePlayers.map(p => p.name));
 
-    if (currentPlayer) {
-      addPlayer(currentPlayer);
-    }
-
-    return Array.from(availableMap.values());
+    return availablePlayers;
   };
 
-  const isLineupComplete = teamALineup.filter(p => p !== undefined).length === 4 && teamBLineup.filter(p => p !== undefined).length === 4;
+  const isLineupValid = (lineup: (PlayerLite | undefined)[]): boolean => {
+    const menCount = lineup.filter(p => p?.gender === 'MALE').length;
+    const womenCount = lineup.filter(p => p?.gender === 'FEMALE').length;
+    return menCount >= 2 && womenCount >= 2;
+  };
 
   const handleSave = async () => {
     if (isSaving) return; // Prevent double-clicks
@@ -776,7 +759,7 @@ function InlineLineupEditor({
           <button
             className="btn btn-xs btn-primary disabled:opacity-50"
             onClick={handleSave}
-            disabled={!rosterReady || !isLineupComplete || isSaving}
+            disabled={!rosterReady || !isLineupValid(teamALineup) || !isLineupValid(teamBLineup) || isSaving}
           >
             {isSaving ? 'Saving...' : 'Confirm Lineup'}
           </button>

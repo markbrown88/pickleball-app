@@ -85,112 +85,68 @@ export async function GET(
       const teamALineupData = match.round.lineups.find(l => l.teamId === match.teamA!.id);
       const teamBLineupData = match.round.lineups.find(l => l.teamId === match.teamB!.id);
 
+      const formatPlayer = (p: any) => p ? {
+        id: p.id,
+        name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+        gender: p.gender,
+      } : undefined;
+
       // Process Team A lineup
       if (teamALineupData) {
-        const bySlot = new Map<GameSlot, typeof teamALineupData.entries[number]>();
-        teamALineupData.entries.forEach((entry) => {
-          bySlot.set(entry.slot as GameSlot, entry);
-        });
-
-        LINEUP_SLOT_ORDER.forEach((slot) => {
-          const normalizedSlot = normalizeSlot(slot);
-          if (!normalizedSlot) return;
-
-          const entry = bySlot.get(normalizedSlot as GameSlot);
-          if (!entry) return;
-
-          if (slot === 'MENS_DOUBLES') {
-            if (entry.player1) {
-              teamALineup[0] = {
-                id: entry.player1.id,
-                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-                gender: entry.player1.gender,
-              };
-            }
-            if (entry.player2) {
-              teamALineup[1] = {
-                id: entry.player2.id,
-                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-                gender: entry.player2.gender,
-              };
-            }
-          } else if (slot === 'WOMENS_DOUBLES') {
-            if (entry.player1) {
-              teamALineup[2] = {
-                id: entry.player1.id,
-                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-                gender: entry.player1.gender,
-              };
-            }
-            if (entry.player2) {
-              teamALineup[3] = {
-                id: entry.player2.id,
-                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-                gender: entry.player2.gender,
-              };
-            }
+        const lineup = new Array(4).fill(undefined);
+        for (const entry of teamALineupData.entries) {
+          const p1 = entry.player1;
+          const p2 = entry.player2;
+          if (entry.slot === 'MENS_DOUBLES') {
+            if (p1) lineup[0] = formatPlayer(p1);
+            if (p2) lineup[1] = formatPlayer(p2);
+          } else if (entry.slot === 'WOMENS_DOUBLES') {
+            if (p1) lineup[2] = formatPlayer(p1);
+            if (p2) lineup[3] = formatPlayer(p2);
+          } else if (entry.slot === 'MIXED_1') {
+            if (p1) lineup[p1.gender === 'MALE' ? 0 : 2] = formatPlayer(p1);
+            if (p2) lineup[p2.gender === 'MALE' ? 0 : 2] = formatPlayer(p2);
+          } else if (entry.slot === 'MIXED_2') {
+            if (p1) lineup[p1.gender === 'MALE' ? 1 : 3] = formatPlayer(p1);
+            if (p2) lineup[p2.gender === 'MALE' ? 1 : 3] = formatPlayer(p2);
           }
-        });
+        }
+        teamALineup.push(...lineup);
       }
 
       // Process Team B lineup
       if (teamBLineupData) {
-        const bySlot = new Map<GameSlot, typeof teamBLineupData.entries[number]>();
-        teamBLineupData.entries.forEach((entry) => {
-          bySlot.set(entry.slot as GameSlot, entry);
-        });
-
-        LINEUP_SLOT_ORDER.forEach((slot) => {
-          const normalizedSlot = normalizeSlot(slot);
-          if (!normalizedSlot) return;
-
-          const entry = bySlot.get(normalizedSlot as GameSlot);
-          if (!entry) return;
-
-          if (slot === 'MENS_DOUBLES') {
-            if (entry.player1) {
-              teamBLineup[0] = {
-                id: entry.player1.id,
-                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-                gender: entry.player1.gender,
-              };
-            }
-            if (entry.player2) {
-              teamBLineup[1] = {
-                id: entry.player2.id,
-                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-                gender: entry.player2.gender,
-              };
-            }
-          } else if (slot === 'WOMENS_DOUBLES') {
-            if (entry.player1) {
-              teamBLineup[2] = {
-                id: entry.player1.id,
-                name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
-                gender: entry.player1.gender,
-              };
-            }
-            if (entry.player2) {
-              teamBLineup[3] = {
-                id: entry.player2.id,
-                name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
-                gender: entry.player2.gender,
-              };
-            }
+        const lineup = new Array(4).fill(undefined);
+        for (const entry of teamBLineupData.entries) {
+          const p1 = entry.player1;
+          const p2 = entry.player2;
+          if (entry.slot === 'MENS_DOUBLES') {
+            if (p1) lineup[0] = formatPlayer(p1);
+            if (p2) lineup[1] = formatPlayer(p2);
+          } else if (entry.slot === 'WOMENS_DOUBLES') {
+            if (p1) lineup[2] = formatPlayer(p1);
+            if (p2) lineup[3] = formatPlayer(p2);
+          } else if (entry.slot === 'MIXED_1') {
+            if (p1) lineup[p1.gender === 'MALE' ? 0 : 2] = formatPlayer(p1);
+            if (p2) lineup[p2.gender === 'MALE' ? 0 : 2] = formatPlayer(p2);
+          } else if (entry.slot === 'MIXED_2') {
+            if (p1) lineup[p1.gender === 'MALE' ? 1 : 3] = formatPlayer(p1);
+            if (p2) lineup[p2.gender === 'MALE' ? 1 : 3] = formatPlayer(p2);
           }
-        });
+        }
+        teamBLineup.push(...lineup);
       }
 
       // Add lineup data if at least one team has a complete lineup
-      if (teamALineup.length === 4 || teamBLineup.length === 4) {
+      if (teamALineup.length > 0 || teamBLineup.length > 0) {
         if (!groupedLineups[match.id]) {
           groupedLineups[match.id] = {};
         }
 
-        if (teamALineup.length === 4) {
+        if (teamALineup.length > 0) {
           groupedLineups[match.id][match.teamA.id] = teamALineup;
         }
-        if (teamBLineup.length === 4) {
+        if (teamBLineup.length > 0) {
           groupedLineups[match.id][match.teamB.id] = teamBLineup;
         }
       }
