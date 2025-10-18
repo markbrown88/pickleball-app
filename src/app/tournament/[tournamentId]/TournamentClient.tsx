@@ -435,7 +435,21 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
               
               // Only calculate points if there are completed games
               if (completedGames > 0) {
-                if (teamAScore > teamBScore) {
+                // Check if match was decided by tiebreaker
+                if (match.tiebreakerStatus === 'DECIDED_POINTS' || match.tiebreakerStatus === 'DECIDED_TIEBREAKER') {
+                  // Match decided by tiebreaker - use tiebreakerWinnerTeamId
+                  if (match.tiebreakerWinnerTeamId === match.teamA?.id) {
+                    teamPoints[match.teamA.id].points += 3;
+                    teamPoints[match.teamA.id].wins += 1;
+                    teamPoints[match.teamB.id].points += 1;
+                    teamPoints[match.teamB.id].losses += 1;
+                  } else if (match.tiebreakerWinnerTeamId === match.teamB?.id) {
+                    teamPoints[match.teamB.id].points += 3;
+                    teamPoints[match.teamB.id].wins += 1;
+                    teamPoints[match.teamA.id].points += 1;
+                    teamPoints[match.teamA.id].losses += 1;
+                  }
+                } else if (teamAScore > teamBScore) {
                   // Team A wins
                   teamPoints[match.teamA.id].points += 3;
                   teamPoints[match.teamA.id].wins += 1;
