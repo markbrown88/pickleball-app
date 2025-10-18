@@ -166,7 +166,9 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
         console.log(`[SCOREBOARD] Round ${r.idx} matches order:`, r.matches.map((m: any) => ({
           id: m.id,
           updatedAt: m.updatedAt?.toISOString(),
-          forfeitTeam: m.forfeitTeam
+          forfeitTeam: m.forfeitTeam,
+          tiebreakerStatus: m.tiebreakerStatus,
+          tiebreakerWinnerTeamId: m.tiebreakerWinnerTeamId
         })));
         
         return {
@@ -192,6 +194,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             matchId: match.id,
             isBye: match.isBye,
             forfeitTeam: match.forfeitTeam,
+            tiebreakerStatus: match.tiebreakerStatus,
+            tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
             teamA: match.teamA ? { 
               id: match.teamA.id, 
               name: match.teamA.name, 
