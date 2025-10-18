@@ -1893,6 +1893,11 @@ export function EventManagerTab({
       // Give the server a moment to calculate tiebreaker status
       await new Promise(resolve => setTimeout(resolve, 500));
 
+      // Reload the schedule to get updated match.tiebreakerStatus
+      if (selectedStopId) {
+        await loadSchedule(selectedStopId, true);
+      }
+
       // Only reload games for this specific match
       await loadGamesForMatch(parentMatchId, true);
     } catch (error) {
@@ -1939,7 +1944,12 @@ export function EventManagerTab({
         // Give the server a moment to calculate tiebreaker status
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Only reload games for this specific match, not the entire schedule
+        // Reload the schedule to get updated match.tiebreakerStatus
+        if (selectedStopId) {
+          await loadSchedule(selectedStopId, true);
+        }
+        
+        // Also reload games for this specific match
         if (matchIdForGame) {
           await loadGamesForMatch(matchIdForGame, true);
         }
