@@ -2318,7 +2318,8 @@ export function EventManagerTab({
                             const roundHasStarted = hasAnyMatchStarted(round);
                             const roundHasCompletedAllMatches = matches.length > 0 && matches.every((match: any) => {
                               const matchStatus = deriveMatchStatus(match);
-                              if (matchStatus === 'completed') return true;
+                              // Check for explicitly decided matches (by points or tiebreaker)
+                              if (matchStatus === 'completed' || matchStatus === 'decided_points' || matchStatus === 'decided_tiebreaker') return true;
 
                               const matchGames = games[match.id] ?? match.games ?? [];
 
@@ -2538,6 +2539,7 @@ export function EventManagerTab({
                                                   const matchId = match.id;
                                                       const matchStatus = deriveMatchStatus(match);
                                                       const matchGames = games[matchId] ?? match.games ?? [];
+                                                      const tiebreakerGame = matchGames.find((g: any) => g.slot === 'TIEBREAKER');
                                                       const canEditLineups = !['completed', 'decided_points', 'decided_tiebreaker'].includes(matchStatus);
                                                   const teamALineup = match.teamA?.id ? (lineups[matchId]?.[match.teamA.id] ?? []) : [];
                                                   const teamBLineup = match.teamB?.id ? (lineups[matchId]?.[match.teamB.id] ?? []) : [];

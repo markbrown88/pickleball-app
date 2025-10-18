@@ -763,9 +763,24 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                             }
                           });
 
-                          const hasWinner = (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
-                          const highlightTeamA = hasWinner && teamAWins > teamBWins;
-                          const highlightTeamB = hasWinner && teamBWins > teamAWins;
+                          // Check if match was decided by tiebreaker (points or game)
+                          let hasWinner = false;
+                          let highlightTeamA = false;
+                          let highlightTeamB = false;
+                          
+                          if (match.tiebreakerStatus === 'DECIDED_POINTS' || match.tiebreakerStatus === 'DECIDED_TIEBREAKER') {
+                            // Match decided by tiebreaker - check tiebreakerWinnerTeamId
+                            if (match.tiebreakerWinnerTeamId) {
+                              hasWinner = true;
+                              highlightTeamA = match.tiebreakerWinnerTeamId === match.teamA?.id;
+                              highlightTeamB = match.tiebreakerWinnerTeamId === match.teamB?.id;
+                            }
+                          } else {
+                            // Standard game-based winner determination
+                            hasWinner = (teamAWins >= 3 || teamBWins >= 3) && teamAWins !== teamBWins;
+                            highlightTeamA = hasWinner && teamAWins > teamBWins;
+                            highlightTeamB = hasWinner && teamBWins > teamAWins;
+                          }
 
                           return (
                             <div key={match.id} className="border border-subtle rounded p-3 bg-surface-2">
