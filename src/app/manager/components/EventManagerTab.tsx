@@ -1890,13 +1890,11 @@ export function EventManagerTab({
         return updated;
       });
 
+      // Give the server a moment to calculate tiebreaker status
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Only reload games for this specific match
       await loadGamesForMatch(parentMatchId, true);
-      
-      // Reload schedule to update match tiebreaker status for immediate UI refresh
-      if (selectedStopId) {
-        await loadSchedule(selectedStopId, true);
-        await loadGamesForMatch(parentMatchId, true);
-      }
     } catch (error) {
       onError(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -1941,12 +1939,9 @@ export function EventManagerTab({
         // Give the server a moment to calculate tiebreaker status
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Reload both the schedule and games for immediate UI refresh
-        if (selectedStopId) {
-          await loadSchedule(selectedStopId, true);
-          if (matchIdForGame) {
-            await loadGamesForMatch(matchIdForGame, true);
-          }
+        // Only reload games for this specific match, not the entire schedule
+        if (matchIdForGame) {
+          await loadGamesForMatch(matchIdForGame, true);
         }
       } catch (error) {
         console.error('Error updating game score:', error);
