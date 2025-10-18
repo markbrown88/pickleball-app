@@ -60,8 +60,9 @@ export async function evaluateMatchTiebreaker(
   const standardGames = match.games.filter(
     (game) => game.slot && STANDARD_SLOTS.includes(game.slot),
   );
+  // Only consider games that are marked as complete (finished), not just games with scores
   const completedStandardGames = standardGames.filter(
-    (game) => game.teamAScore !== null && game.teamBScore !== null,
+    (game) => game.isComplete === true,
   );
 
   // If match is already decided, preserve that decision

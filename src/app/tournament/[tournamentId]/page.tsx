@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import type { MatchTiebreakerStatus } from '@prisma/client';
 
 // Dynamically import TournamentClient to reduce initial bundle size
 const TournamentClient = dynamic(() => import('./TournamentClient'), {
@@ -46,7 +47,7 @@ interface Match {
   games: Game[];
   status: string;
   forfeitTeam?: string | null;
-  tiebreakerStatus?: string;
+  tiebreakerStatus?: MatchTiebreakerStatus;
   tiebreakerWinnerTeamId?: string | null;
   totalPointsTeamA?: number | null;
   totalPointsTeamB?: number | null;

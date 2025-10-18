@@ -11,7 +11,23 @@ export async function PATCH(
     const body = await request.json();
     const { teamAScore, teamBScore, courtNumber, isComplete, status, startedAt, endedAt } = body;
 
-    console.log('Updating game:', { gameId, teamAScore, teamBScore, courtNumber, isComplete, status, startedAt, endedAt });
+    // Get current game to check slot type
+    const currentGame = await prisma.game.findUnique({
+      where: { id: gameId },
+      select: { id: true, slot: true, isComplete: true, endedAt: true }
+    });
+
+    if (!currentGame) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+
+    console.log('Updating game:', {
+      gameId,
+      slot: currentGame.slot,
+      currentIsComplete: currentGame.isComplete,
+      currentEndedAt: currentGame.endedAt,
+      requestBody: { teamAScore, teamBScore, courtNumber, isComplete, status, startedAt, endedAt }
+    });
 
     // Prepare update data
     const updateData: any = {
@@ -25,13 +41,19 @@ export async function PATCH(
     };
 
     // Handle timestamps based on game state changes (fallback if not provided directly)
+    // ONLY apply auto-completion logic if isComplete is explicitly provided
     if (isComplete === false && !startedAt) {
       // Game is being started - set startedAt
       updateData.startedAt = new Date();
+      console.log('Auto-setting startedAt for game start');
     } else if (isComplete === true && !endedAt) {
       // Game is being ended - set endedAt
       updateData.endedAt = new Date();
+      console.log('Auto-setting endedAt for game end');
     }
+
+    // Log what we're about to update
+    console.log('Update data being applied:', updateData);
 
     // Update the game with new scores and other fields
     const updatedGame = await prisma.game.update({

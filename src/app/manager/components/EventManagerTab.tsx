@@ -2791,7 +2791,7 @@ export function EventManagerTab({
                                                               {resolvingMatch === match.id ? 'Creating...' : 'Add Tiebreaker'}
                                                             </button>
                                                           )}
-                                                      {!match.forfeitTeam && !isDecided && (
+                                                      {!match.forfeitTeam && (
                                                             <div className="flex gap-2 flex-1 sm:flex-none">
                                                               <button
                                                                 className="btn btn-xs btn-error flex-1 sm:flex-none"
@@ -3029,7 +3029,7 @@ export function EventManagerTab({
                                                                 }
 
                                                                 const tiebreakerGame = games[match.id]?.find((g) => g.slot === 'TIEBREAKER');
-                                                                if (tiebreakerGame && (resolvedTiebreakerStatus === 'tied_requires_tiebreaker' || resolvedTiebreakerStatus === 'tied_pending')) {
+                                                                if (tiebreakerGame && (resolvedTiebreakerStatus === 'tied_requires_tiebreaker' || resolvedTiebreakerStatus === 'tied_pending' || resolvedTiebreakerStatus === 'decided_tiebreaker')) {
                                                                   return (
                                                                     <GameScoreBox
                                                                       key={tiebreakerGame.id}
