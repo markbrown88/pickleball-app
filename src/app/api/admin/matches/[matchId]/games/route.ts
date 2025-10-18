@@ -142,8 +142,12 @@ export async function POST(
           }
         });
         
-        // Evaluate match tiebreaker status now that the game exists
-        await evaluateMatchTiebreaker(prisma, matchId);
+        // After creating tiebreaker game, update match status to REQUIRES_TIEBREAKER
+        // This ensures the tiebreaker game displays in the UI
+        await prisma.match.update({
+          where: { id: matchId },
+          data: { tiebreakerStatus: 'REQUIRES_TIEBREAKER' }
+        });
         
         return NextResponse.json([tiebreakerGame]);
       } catch (tiebreakerError: any) {
