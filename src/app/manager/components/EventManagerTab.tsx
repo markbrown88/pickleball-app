@@ -1895,6 +1895,7 @@ export function EventManagerTab({
       // Reload schedule to update match tiebreaker status for immediate UI refresh
       if (selectedStopId) {
         await loadSchedule(selectedStopId, true);
+        await loadGamesForMatch(parentMatchId, true);
       }
     } catch (error) {
       onError(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1928,9 +1929,21 @@ export function EventManagerTab({
           throw new Error('Failed to update score');
         }
 
-        // Reload schedule to update match tiebreaker status for immediate UI refresh
+        // Find which match this game belongs to
+        let matchIdForGame: string | null = null;
+        for (const [matchId, matchGames] of Object.entries(games)) {
+          if (matchGames?.find(g => g.id === gameId)) {
+            matchIdForGame = matchId;
+            break;
+          }
+        }
+
+        // Reload both the schedule and games for immediate UI refresh
         if (selectedStopId) {
           await loadSchedule(selectedStopId, true);
+          if (matchIdForGame) {
+            await loadGamesForMatch(matchIdForGame, true);
+          }
         }
       } catch (error) {
         console.error('Error updating game score:', error);
