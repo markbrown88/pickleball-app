@@ -36,6 +36,8 @@ interface Match {
   games: Game[];
   status: string;
   forfeitTeam?: string | null;
+  tiebreakerStatus?: string;
+  tiebreakerWinnerTeamId?: string | null;
 }
 
 interface Team {
