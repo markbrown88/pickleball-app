@@ -2627,7 +2627,7 @@ export function EventManagerTab({
                                                               {resolvingMatch === match.id ? 'Resolving...' : 'Decide by Points'}
                                                             </button>
                                                           )}
-                                                          {(matchStatus === 'tied_requires_tiebreaker' || matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && !tiebreakerGame && (
+                                                          {(matchStatus === 'tied_requires_tiebreaker' || (matchStatus === 'needs_decision') || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (matchStatus !== 'needs_decision' ? !tiebreakerGame : true) && (
                                                             <button
                                                               className="btn btn-xs btn-primary flex-1 sm:flex-none"
                                                               disabled={resolvingMatch === match.id}
