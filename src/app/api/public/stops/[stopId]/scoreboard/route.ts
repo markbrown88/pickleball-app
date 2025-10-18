@@ -56,6 +56,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             isBye: true,
             forfeitTeam: true,
             updatedAt: true,
+            tiebreakerStatus: true,
+            tiebreakerWinnerTeamId: true,
             teamA: { 
               select: { 
                 id: true, 
