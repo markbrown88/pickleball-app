@@ -1893,13 +1893,30 @@ export function EventManagerTab({
       // Give the server a moment to calculate tiebreaker status
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Reload the schedule to get updated match.tiebreakerStatus
-      if (selectedStopId) {
-        await loadSchedule(selectedStopId, true);
-      }
-
-      // Only reload games for this specific match
+      // Reload games for this specific match
       await loadGamesForMatch(parentMatchId, true);
+      
+      // Also fetch the match to get updated tiebreaker status
+      try {
+        const matchResponse = await fetchWithActAs(`/api/admin/matches/${parentMatchId}`);
+        if (matchResponse.ok) {
+          const matchData = await matchResponse.json();
+          // Update the schedule data with the new tiebreaker status
+          setScheduleData(prev => ({
+            ...prev,
+            [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
+              ...round,
+              matches: (round.matches || []).map(m =>
+                m.id === parentMatchId
+                  ? { ...m, tiebreakerStatus: matchData.tiebreakerStatus, tiebreakerWinnerTeamId: matchData.tiebreakerWinnerTeamId }
+                  : m
+              )
+            }))
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch match status:', err);
+      }
     } catch (error) {
       onError(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -1944,14 +1961,31 @@ export function EventManagerTab({
         // Give the server a moment to calculate tiebreaker status
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Reload the schedule to get updated match.tiebreakerStatus
-        if (selectedStopId) {
-          await loadSchedule(selectedStopId, true);
-        }
-        
-        // Also reload games for this specific match
+        // Reload games for this specific match to get updated scores
         if (matchIdForGame) {
           await loadGamesForMatch(matchIdForGame, true);
+          
+          // Also fetch the match to get updated tiebreaker status
+          try {
+            const matchResponse = await fetchWithActAs(`/api/admin/matches/${matchIdForGame}`);
+            if (matchResponse.ok) {
+              const matchData = await matchResponse.json();
+              // Update the schedule data with the new tiebreaker status
+              setScheduleData(prev => ({
+                ...prev,
+                [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
+                  ...round,
+                  matches: (round.matches || []).map(m =>
+                    m.id === matchIdForGame
+                      ? { ...m, tiebreakerStatus: matchData.tiebreakerStatus, tiebreakerWinnerTeamId: matchData.tiebreakerWinnerTeamId }
+                      : m
+                  )
+                }))
+              }));
+            }
+          } catch (err) {
+            console.error('Failed to fetch match status:', err);
+          }
         }
       } catch (error) {
         console.error('Error updating game score:', error);
