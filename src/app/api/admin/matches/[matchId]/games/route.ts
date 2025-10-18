@@ -126,7 +126,11 @@ export async function POST(
         });
         
         if (existingTiebreaker) {
-          // Tiebreaker already exists, just return it
+          // Tiebreaker already exists, but ensure match status is set to REQUIRES_TIEBREAKER
+          await prisma.match.update({
+            where: { id: matchId },
+            data: { tiebreakerStatus: 'REQUIRES_TIEBREAKER' }
+          });
           return NextResponse.json([existingTiebreaker]);
         }
         
