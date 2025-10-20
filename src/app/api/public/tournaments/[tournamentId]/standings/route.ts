@@ -47,28 +47,38 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           let points = 0;
           
           realMatches.forEach(match => {
-            // Calculate match result
-            const teamAScore = match.totalPointsTeamA || 0;
-            const teamBScore = match.totalPointsTeamB || 0;
-            
-            if (teamAScore > teamBScore) {
-              // Team A won
-              if (match.teamAId === team.id) {
-                wins++;
-                points += 2; // 2 points for a win
-              } else {
-                losses++;
-              }
-            } else if (teamBScore > teamAScore) {
-              // Team B won
-              if (match.teamBId === team.id) {
-                wins++;
-                points += 2; // 2 points for a win
-              } else {
-                losses++;
-              }
+            let winner: 'A' | 'B' | null = null;
+            let isForfeit = false;
+
+            if (match.forfeitTeam) {
+              isForfeit = true;
+              winner = match.forfeitTeam === 'A' ? 'B' : 'A';
+            } else if (match.tiebreakerWinnerTeamId) {
+                winner = match.tiebreakerWinnerTeamId === match.teamAId ? 'A' : 'B';
             }
-            // If scores are equal, it's a tie (no points awarded)
+            else {
+              let teamAScore = 0;
+              let teamBScore = 0;
+              match.games.forEach(game => {
+                if (game.teamAScore! > game.teamBScore!) {
+                  teamAScore++;
+                } else if (game.teamBScore! > game.teamAScore!) {
+                  teamBScore++;
+                }
+              });
+              if (teamAScore > teamBScore) winner = 'A';
+              if (teamBScore > teamAScore) winner = 'B';
+            }
+
+            if(winner) {
+                if( (winner === 'A' && match.teamAId === team.id) || (winner === 'B' && match.teamBId === team.id) ) {
+                    wins++;
+                    points += 3;
+                } else {
+                    losses++;
+                    points += isForfeit ? 0 : 1;
+                }
+            }
           });
           
           return {

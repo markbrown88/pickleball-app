@@ -5,10 +5,10 @@ import { useUser } from '@clerk/nextjs';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import dynamic from 'next/dynamic';
 
-// Dynamically import the heavy EventManagerTab component (2,584 lines!)
+// Dynamically import the ManagerRouter which routes to the correct manager type
 // This reduces initial bundle size significantly
-const EventManagerTab = dynamic(
-  () => import('./components/EventManagerTab').then(mod => ({ default: mod.EventManagerTab })),
+const ManagerRouter = dynamic(
+  () => import('./components/ManagerRouter').then(mod => ({ default: mod.ManagerRouter })),
   {
     loading: () => (
       <div className="card p-8 flex items-center justify-center gap-3">
@@ -162,7 +162,7 @@ export default function ManagerPage() {
           </div>
         </div>
       ) : selectedTournament ? (
-        <EventManagerTab
+        <ManagerRouter
           tournaments={[selectedTournament]}
           onError={(msg) => setErr(msg)}
           onInfo={(msg) => setInfo(msg)}

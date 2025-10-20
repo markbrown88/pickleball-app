@@ -393,7 +393,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
             )}
           </span>
         </div>
-        {!match.forfeitTeam && <div className="text-xs text-muted mb-2">{divisionLabel}</div>}
 
         {!match.forfeitTeam && (
           <div className="space-y-2">
@@ -434,11 +433,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                       <span className="ml-1">🏆</span>
                     )}
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-muted mt-1">
-                  <span>Started: {getGameStartTime(game) || '—'}</span>
-                  <span>Ended: {getGameEndTime(game) || '—'}</span>
                 </div>
               </div>
             ))}
@@ -511,122 +505,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     () => collectMatchesByStatus(selectedStop, 'completed'),
     [selectedStop, matchOutcomes]
   );
-
-  // Calculate standings for all teams across all stops
-  const calculateStandings = () => {
-    const teamPoints: Record<string, { team: any; points: number; wins: number; losses: number }> = {};
-    
-    const stopDatas = Object.values(stopDataCache);
-    const allStops = stopDatas.length > 0
-      ? stopDatas
-      : currentStopData
-        ? [currentStopData]
-        : [];
-    allStops.forEach(stop => {
-      stop.rounds?.forEach(round => {
-        round.matches?.forEach(match => {
-          if (match.teamA) {
-            teamPoints[match.teamA.id] = {
-              team: match.teamA,
-              points: 0,
-              wins: 0,
-              losses: 0
-            };
-          }
-          if (match.teamB) {
-            teamPoints[match.teamB.id] = {
-              team: match.teamB,
-              points: 0,
-              wins: 0,
-              losses: 0
-            };
-          }
-        });
-      });
-    });
-
-    // Calculate points based on completed games
-    allStops.forEach(stop => {
-      stop.rounds?.forEach(round => {
-        round.matches?.forEach(match => {
-          if (match.teamA && match.teamB) {
-            // Check for forfeit first
-            if (match.forfeitTeam) {
-              // Handle forfeit - forfeiting team gets 0 points, winning team gets 3 points
-              if (match.forfeitTeam === 'A') {
-                // Team A forfeited, Team B wins
-                teamPoints[match.teamB.id].points += 3;
-                teamPoints[match.teamB.id].wins += 1;
-                teamPoints[match.teamA.id].points += 0; // 0 points for forfeit
-                teamPoints[match.teamA.id].losses += 1;
-              } else {
-                // Team B forfeited, Team A wins
-                teamPoints[match.teamA.id].points += 3;
-                teamPoints[match.teamA.id].wins += 1;
-                teamPoints[match.teamB.id].points += 0; // 0 points for forfeit
-                teamPoints[match.teamB.id].losses += 1;
-              }
-            } else if (match.games && match.games.length > 0) {
-              // Normal match - calculate from game scores
-              let teamAScore = 0;
-              let teamBScore = 0;
-              let completedGames = 0;
-              
-              match.games.forEach(game => {
-                if (game.teamAScore !== null && game.teamBScore !== null) {
-                  completedGames++;
-                  if (game.teamAScore > game.teamBScore) {
-                    teamAScore++;
-                  } else if (game.teamBScore > game.teamAScore) {
-                    teamBScore++;
-                  }
-                }
-              });
-              
-              // Only calculate points if there are completed games
-              if (completedGames > 0) {
-                // Check if match was decided by tiebreaker
-                if (match.tiebreakerStatus === 'DECIDED_POINTS' || match.tiebreakerStatus === 'DECIDED_TIEBREAKER') {
-                  // Match decided by tiebreaker - use tiebreakerWinnerTeamId
-                  if (match.tiebreakerWinnerTeamId === match.teamA?.id) {
-                    teamPoints[match.teamA.id].points += 3;
-                    teamPoints[match.teamA.id].wins += 1;
-                    teamPoints[match.teamB.id].points += 1;
-                    teamPoints[match.teamB.id].losses += 1;
-                  } else if (match.tiebreakerWinnerTeamId === match.teamB?.id) {
-                    teamPoints[match.teamB.id].points += 3;
-                    teamPoints[match.teamB.id].wins += 1;
-                    teamPoints[match.teamA.id].points += 1;
-                    teamPoints[match.teamA.id].losses += 1;
-                  }
-                } else if (teamAScore > teamBScore) {
-                  // Team A wins
-                  teamPoints[match.teamA.id].points += 3;
-                  teamPoints[match.teamA.id].wins += 1;
-                  teamPoints[match.teamB.id].points += 1; // 1 point for loss
-                  teamPoints[match.teamB.id].losses += 1;
-                } else if (teamBScore > teamAScore) {
-                  // Team B wins
-                  teamPoints[match.teamB.id].points += 3;
-                  teamPoints[match.teamB.id].wins += 1;
-                  teamPoints[match.teamA.id].points += 1; // 1 point for loss
-                  teamPoints[match.teamA.id].losses += 1;
-                }
-                // No ties - if scores are equal, no points awarded
-              }
-            }
-          }
-        });
-      });
-    });
-
-    return Object.values(teamPoints).sort((a, b) => {
-      if (b.points !== a.points) {
-        return b.points - a.points;
-      }
-      return a.team.name.localeCompare(b.team.name);
-    });
-  };
 
   // Fetch tournament-level standings from API
   const [standings, setStandings] = useState<any[]>([]);

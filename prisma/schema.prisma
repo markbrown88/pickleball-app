@@ -131,6 +131,7 @@ model Tournament {
   type                   TournamentType           @default(TEAM_FORMAT)
   updatedAt              DateTime                 @default(now()) @updatedAt @db.Timestamptz(6)
   maxTeamSize            Int?
+  gamesPerMatch          Int?                     // For bracket tournaments: number of games per match (null for team format)
   CaptainInvite          CaptainInvite[]
   stops                  Stop[]
   teams                  Team[]
@@ -234,46 +235,58 @@ model StopTeamPlayer {
 /// * Match: A matchup between two teams (or one team vs bye)
 /// * Game: Individual game slots within a match (Men's Doubles, Women's Doubles, Mixed 1, Mixed 2, Tiebreaker)
 model Round {
-  id        String   @id @default(cuid())
-  stopId    String
-  idx       Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @db.Timestamptz(6)
-  lineups   Lineup[]
-  matches   Match[]
-  stop      Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  stopId      String
+  idx         Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @db.Timestamptz(6)
+  bracketType String?  // For bracket tournaments: 'WINNER' | 'LOSER' | 'FINALS' (null for team format)
+  depth       Int?     // For bracket tournaments: bracket depth (0=finals, 1=semis, 2=quarters, etc.)
+  lineups     Lineup[]
+  matches     Match[]
+  stop        Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
 
   @@unique([stopId, idx])
   @@index([stopId], map: "ix_round_stop")
+  @@index([stopId, bracketType]) // For filtering by bracket type
 }
 
 /// *
 /// * A matchup between two teams within a round.
 /// * This represents the logical "match" - two teams playing against each other.
 model Match {
-  id              String    @id(map: "Match_new_pkey") @default(cuid())
-  roundId         String
-  teamAId         String?
-  teamBId         String?
-  isBye           Boolean   @default(false)
-  forfeitTeam     String?   // 'A' for teamA forfeit, 'B' for teamB forfeit, null for no forfeit
-  createdAt       DateTime  @default(now()) @db.Timestamp(6)
-  updatedAt       DateTime  @default(now()) @db.Timestamptz(6)
-  games           Game[]
-  round           Round     @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
-  teamA           Team?     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
-  teamB           Team?     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
+  id                      String                @id(map: "Match_new_pkey") @default(cuid())
+  roundId                 String
+  teamAId                 String?
+  teamBId                 String?
+  isBye                   Boolean               @default(false)
+  forfeitTeam             String?               // 'A' for teamA forfeit, 'B' for teamB forfeit, null for no forfeit
+  createdAt               DateTime              @default(now()) @db.Timestamp(6)
+  updatedAt               DateTime              @default(now()) @db.Timestamptz(6)
+  seedA                   Int?                  // For bracket tournaments: seed position of team A (1, 2, 3, etc.)
+  seedB                   Int?                  // For bracket tournaments: seed position of team B
+  sourceMatchAId          String?               // For bracket tournaments: match that feeds team A to this match
+  sourceMatchBId          String?               // For bracket tournaments: match that feeds team B to this match
+  bracketPosition         Int?                  // For bracket tournaments: position in bracket tree
+  games                   Game[]
+  round                   Round                 @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
+  teamA                   Team?                 @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
+  teamB                   Team?                 @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
+  sourceMatchA            Match?                @relation("MatchProgressionA", fields: [sourceMatchAId], references: [id], onDelete: SetNull)
+  sourceMatchB            Match?                @relation("MatchProgressionB", fields: [sourceMatchBId], references: [id], onDelete: SetNull)
+  childMatchesFromA       Match[]               @relation("MatchProgressionA")
+  childMatchesFromB       Match[]               @relation("MatchProgressionB")
   tiebreakerStatus        MatchTiebreakerStatus @default(NONE)
   tiebreakerWinnerTeamId  String?
-  tiebreakerGameId        String? @unique
-  tiebreakerDecidedAt     DateTime? @db.Timestamptz(6)
+  tiebreakerGameId        String?               @unique
+  tiebreakerDecidedAt     DateTime?             @db.Timestamptz(6)
   tiebreakerDecidedById   String?
   tiebreakerDecisionNotes String?
   totalPointsTeamA        Int?
   totalPointsTeamB        Int?
-  tiebreakerDecidedBy     Player?   @relation("MatchTiebreakerDecider", fields: [tiebreakerDecidedById], references: [id], onDelete: SetNull)
-  tiebreakerGame          Game?     @relation("MatchTiebreakerGame", fields: [tiebreakerGameId], references: [id], onDelete: SetNull)
-  tiebreakerWinnerTeam    Team?     @relation("MatchTiebreakerWinner", fields: [tiebreakerWinnerTeamId], references: [id], onDelete: SetNull)
+  tiebreakerDecidedBy     Player?               @relation("MatchTiebreakerDecider", fields: [tiebreakerDecidedById], references: [id], onDelete: SetNull)
+  tiebreakerGame          Game?                 @relation("MatchTiebreakerGame", fields: [tiebreakerGameId], references: [id], onDelete: SetNull)
+  tiebreakerWinnerTeam    Team?                 @relation("MatchTiebreakerWinner", fields: [tiebreakerWinnerTeamId], references: [id], onDelete: SetNull)
 
   @@index([roundId])
   @@index([teamAId])
@@ -281,6 +294,8 @@ model Match {
   @@index([tiebreakerWinnerTeamId])
   @@index([roundId, isBye]) // For filtering out bye matches
   @@index([tiebreakerStatus]) // For filtering matches needing tiebreakers
+  @@index([sourceMatchAId]) // For bracket progression queries
+  @@index([sourceMatchBId]) // For bracket progression queries
 }
 
 /// *
