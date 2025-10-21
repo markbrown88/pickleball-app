@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from 'react';
 import { BracketSetup } from '../BracketSetup';
+import { BracketMatchManager } from '../BracketMatchManager';
 import { EventManagerTournament } from '../ManagerRouter';
 
 interface BracketManagerProps {
@@ -26,6 +27,7 @@ interface Team {
 export function BracketManager({ tournaments, onError, onInfo }: BracketManagerProps) {
   const tournament = tournaments[0];
   const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
+  const [availableClubs, setAvailableClubs] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [hasBracket, setHasBracket] = useState(false);
 
@@ -47,7 +49,16 @@ export function BracketManager({ tournaments, onError, onInfo }: BracketManagerP
 
         // Extract teams from the clubs/brackets structure
         const teams: Team[] = [];
+        const clubs: Array<{ id: string; name: string }> = [];
+
         for (const club of data.clubs || []) {
+          // Add club to clubs list
+          clubs.push({
+            id: club.clubId,
+            name: club.clubName,
+          });
+
+          // Extract teams for each bracket
           for (const bracket of club.brackets || []) {
             teams.push({
               id: bracket.teamId,
@@ -58,10 +69,24 @@ export function BracketManager({ tournaments, onError, onInfo }: BracketManagerP
         }
 
         setAvailableTeams(teams);
+        setAvailableClubs(clubs);
 
-        // Check if bracket already exists
-        const hasRounds = tournament.stops.some(stop => stop.rounds.length > 0);
-        setHasBracket(hasRounds);
+        // Check if bracket already exists by fetching the schedule
+        // Don't rely on tournament.stops because it may have stale data
+        try {
+          const scheduleResponse = await fetch(`/api/admin/stops/${tournament.stops[0]?.stopId}/schedule`);
+          if (scheduleResponse.ok) {
+            const scheduleData = await scheduleResponse.json();
+            // scheduleData is an array of rounds, not an object with a rounds property
+            const hasRounds = Array.isArray(scheduleData) && scheduleData.length > 0;
+            setHasBracket(hasRounds);
+          } else {
+            setHasBracket(false);
+          }
+        } catch (err) {
+          // If we can't fetch schedule, assume no bracket
+          setHasBracket(false);
+        }
       } catch (error) {
         console.error('Error loading teams:', error);
         onError(error instanceof Error ? error.message : 'Failed to load teams');
@@ -100,8 +125,10 @@ export function BracketManager({ tournaments, onError, onInfo }: BracketManagerP
       <div className="space-y-6">
         <BracketSetup
           tournamentId={tournament.tournamentId}
+          tournamentType={tournament.type}
           stopId={tournament.stops[0]?.stopId}
           availableTeams={availableTeams}
+          availableClubs={availableClubs}
           onGenerate={() => {
             setHasBracket(true);
             onInfo('Bracket generated successfully! Refreshing...');
@@ -115,21 +142,6 @@ export function BracketManager({ tournaments, onError, onInfo }: BracketManagerP
     );
   }
 
-  // TODO: Show bracket visualization and match management
-  return (
-    <div className="card p-8 text-center">
-      <div className="max-w-md mx-auto space-y-3">
-        <div className="text-5xl">🏆</div>
-        <h3 className="text-lg font-semibold text-secondary">Bracket Management</h3>
-        <p className="text-muted">
-          Bracket has been generated! Match management interface coming in Sprint 4.
-        </p>
-        <div className="mt-4 text-sm text-gray-400">
-          <p>Tournament: {tournament.tournamentName}</p>
-          <p>Type: {tournament.type}</p>
-          <p>Rounds: {tournament.stops[0]?.rounds.length || 0}</p>
-        </div>
-      </div>
-    </div>
-  );
+  // Show bracket match management
+  return <BracketMatchManager tournament={tournament} stopId={tournament.stops[0]?.stopId} onError={onError} onInfo={onInfo} />;
 }

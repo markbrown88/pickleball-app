@@ -16,17 +16,12 @@ export function checkForDuplicateMatchups(
   tournaments: EventManagerTournament[],
   onError: (message: string) => void
 ): void {
-  console.log('🔍 Checking for duplicate matchups in stop:', stopId);
-  console.log('📊 Round matchups data:', roundMatchups);
-
   const allMatches: any[] = [];
 
   // Collect all matches from all rounds in this stop
   Object.values(roundMatchups).forEach(matches => {
     allMatches.push(...matches);
   });
-
-  console.log('🏓 Total matches to check:', allMatches.length);
 
   // Create a map to track team pairings
   const teamPairings = new Map<string, { count: number; matches: any[] }>();
@@ -47,8 +42,6 @@ export function checkForDuplicateMatchups(
     pairing.count++;
     pairing.matches.push(match);
   });
-
-  console.log('📈 Team pairings found:', teamPairings.size);
 
   // Check for duplicates and show alerts
   let duplicateCount = 0;
@@ -78,8 +71,6 @@ export function checkForDuplicateMatchups(
 
       const roundsText = rounds.join(' & ');
 
-      console.log(`⚠️ Duplicate found: ${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
-
       duplicateMessages.push(`${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
     }
   });
@@ -94,8 +85,6 @@ export function checkForDuplicateMatchups(
       `⚠️ ${duplicateCount} duplicate matchup(s) detected in ${stopDisplayName}:\n${duplicateMessages.join('\n')}`
     );
   }
-
-  console.log(`✅ Duplicate check complete: ${duplicateCount} duplicates found`);
 }
 
 /**
@@ -108,17 +97,12 @@ export function checkForDuplicateMatchupsFromSchedule(
   tournaments: EventManagerTournament[],
   onError: (message: string) => void
 ): void {
-  console.log('🔍 Checking for duplicate matchups in stop (from schedule):', stopId);
-  console.log('📊 Round matchups data:', roundMatchups);
-
   const allMatches: any[] = [];
 
   // Collect all matches from all rounds in this stop
   Object.values(roundMatchups).forEach(matches => {
     allMatches.push(...matches);
   });
-
-  console.log('🏓 Total matches to check:', allMatches.length);
 
   // Create a map to track team pairings
   const teamPairings = new Map();
@@ -139,8 +123,6 @@ export function checkForDuplicateMatchupsFromSchedule(
     pairing.count++;
     pairing.matches.push(match);
   });
-
-  console.log('📈 Team pairings found:', teamPairings.size);
 
   // Check for duplicates and show alerts
   let duplicateCount = 0;
@@ -167,8 +149,6 @@ export function checkForDuplicateMatchupsFromSchedule(
 
       const roundsText = rounds.join(' & ');
 
-      console.log(`⚠️ Duplicate found: ${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
-
       duplicateMessages.push(`${teamAName} vs ${teamBName} (${pairing.count} times) - Rounds ${roundsText}`);
     }
   });
@@ -183,6 +163,4 @@ export function checkForDuplicateMatchupsFromSchedule(
       `⚠️ ${duplicateCount} duplicate matchup(s) detected in ${stopDisplayName}:\n${duplicateMessages.join('\n')}`
     );
   }
-
-  console.log(`✅ Duplicate check complete: ${duplicateCount} duplicates found`);
 }

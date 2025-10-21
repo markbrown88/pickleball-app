@@ -15,6 +15,10 @@ import { useUser } from '@clerk/nextjs';
 
 import { useAppToolbar } from '../shared/AppShell';
 import type { UserProfile } from '@/types';
+import { CreateTournamentModal } from './components/CreateTournamentModal';
+import { TournamentsList } from './components/TournamentsList';
+import { TournamentEditor } from './components/TournamentEditor';
+import type { TournamentTypeLabel } from './components/TournamentEditor';
 
 type Id = string;
 
@@ -175,6 +179,8 @@ type EditorRow = {
   brackets: NewBracket[];
   stops: StopEditorRow[];
   maxTeamSize: string;
+  gamesPerMatch: number; // For bracket tournaments
+  gameSlots: string[]; // For bracket tournaments
 
   // NEW: Tournament-level Event Manager
   tournamentEventManager: CaptainPick;
@@ -200,18 +206,11 @@ function normalizePlayersResponse(v: unknown): PlayersResponse {
 }
 
 /* ================= Tournament type label <-> enum ================= */
-type TournamentTypeLabel =
-  | 'Team Format'
-  | 'Single Elimination'
-  | 'Double Elimination'
-  | 'Round Robin'
-  | 'Pool Play'
-  | 'Ladder Tournament';
-
 const LABEL_TO_TYPE: Record<TournamentTypeLabel, string> = {
   'Team Format': 'TEAM_FORMAT',
   'Single Elimination': 'SINGLE_ELIMINATION',
   'Double Elimination': 'DOUBLE_ELIMINATION',
+  'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS',
   'Round Robin': 'ROUND_ROBIN',
   'Pool Play': 'POOL_PLAY',
   'Ladder Tournament': 'LADDER_TOURNAMENT',
@@ -227,10 +226,8 @@ export default function AdminPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
-  const [expanded, setExpanded] = useState<Record<Id, boolean>>({});
-  
-
-  // active tab
+  const [editingTournamentId, setEditingTournamentId] = useState<Id | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // clubs
   const [clubsAll, setClubsAll] = useState<Club[]>([]);
@@ -295,6 +292,8 @@ export default function AdminPage() {
         name: string;
         type: string; // backend returns label
         maxTeamSize?: number | null;
+        gamesPerMatch?: number | null;
+        gameSlots?: string[];
         clubs: Array<
           | string
           | {
@@ -386,6 +385,8 @@ export default function AdminPage() {
               };
             }),
             maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
+            gamesPerMatch: (cfg.gamesPerMatch ?? 3),
+            gameSlots: (cfg.gameSlots ?? ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2']),
 
             tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
             tournamentEventManagerQuery: '',
@@ -402,24 +403,149 @@ export default function AdminPage() {
     }
   }
 
-  function toggleExpand(tId: Id) {
-    setExpanded((prev: Record<Id, boolean>) => {
-      const opening = !prev[tId];
-      if (opening && !editorById[tId]) {
-        hydrateEditorFromConfig(tId);
+  async function handleCreateTournament(data: { name: string; type: TournamentTypeLabel }) {
+    try {
+      const typeEnum = LABEL_TO_TYPE[data.type];
+      const t = await api<{ id: Id; name: string }>('/api/admin/tournaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: data.name, type: typeEnum }),
+      });
+
+      // Reload tournaments
+      const ts = await api<TournamentRow[]>('/api/admin/tournaments');
+      setTournaments(ts);
+
+      // Load config for the new tournament
+      await hydrateEditorFromConfig(t.id);
+
+      // Open editor for new tournament
+      setEditingTournamentId(t.id);
+      setInfo(`Tournament "${t.name}" created successfully`);
+    } catch (e) {
+      throw e; // Let modal handle the error
+    }
+  }
+
+  async function handleEditTournament(tId: Id) {
+    // Load config if not already loaded
+    if (!editorById[tId]) {
+      await hydrateEditorFromConfig(tId);
+    }
+    setEditingTournamentId(tId);
+  }
+
+  async function handleSaveTournament(tId: Id, editor: EditorRow) {
+    // Reuse existing save logic from TournamentsBlock
+    const payload: any = {
+      name: editor.name.trim(),
+      type: LABEL_TO_TYPE[editor.type],
+    };
+
+    // Participating clubs
+    payload.clubs = Array.from(new Set(editor.clubs.map(c => c.clubId).filter(Boolean) as string[]));
+
+    // Max limit (blank => null; else positive integer)
+    {
+      const mtsRaw = (editor.maxTeamSize ?? '').trim();
+      if (mtsRaw === '') {
+        payload.maxTeamSize = null;
+      } else if (/^\d+$/.test(mtsRaw) && Number(mtsRaw) > 0) {
+        payload.maxTeamSize = Number(mtsRaw);
+      } else {
+        throw new Error((editor.hasBrackets ? 'Max bracket size' : 'Max team size') + ' must be blank or a positive integer.');
       }
-      return { ...prev, [tId]: opening };
+    }
+
+    // Brackets (optional, independent of captains)
+    if (editor.hasBrackets) {
+      payload.levels = editor.brackets
+        .map((l, idx) => ({ id: l.id, name: (l.name || '').trim(), idx }))
+        .filter(l => !!l.name);
+    }
+
+    // Captains: one per club
+    if (editor.hasCaptains) {
+      const simple: Array<{ clubId: string; playerId: string }> = [];
+      for (const crow of editor.clubs) {
+        if (!crow.clubId) continue;
+        if (crow.singleCaptain?.id) {
+          simple.push({ clubId: crow.clubId, playerId: crow.singleCaptain.id });
+        }
+      }
+      payload.captainsSimple = simple;
+    } else {
+      payload.captainsSimple = [];
+    }
+    payload.hasCaptains = editor.hasCaptains;
+
+    // Tournament-level Event Manager
+    payload.eventManagerId = editor.tournamentEventManager?.id ?? null;
+
+    // Tournament Admin
+    payload.tournamentAdminId = editor.tournamentAdmin?.id ?? null;
+
+    // Bracket tournament settings (for Double Elimination, Single Elimination, etc.)
+    if (editor.type === 'Double Elimination' || editor.type === 'Double Elimination Clubs' || editor.type === 'Single Elimination') {
+      payload.gamesPerMatch = editor.gamesPerMatch;
+      payload.gameSlots = editor.gameSlots;
+    }
+
+    // Stops (+ per-stop Event Manager)
+    if (editor.hasMultipleStops) {
+      payload.stops = (editor.stops || [])
+        .filter(s => (s.name || '').trim())
+        .map(s => ({
+          id: s.id,
+          name: (s.name || '').trim(),
+          clubId: s.clubId || null,
+          startAt: s.startAt || null,
+          endAt: s.endAt || null,
+          eventManagerId: s.eventManager?.id ?? null,
+        }));
+    } else {
+      // Single Details: treat as one stop named "Main"
+      const s0 = editor.stops && editor.stops.length ? editor.stops[0] : { name: 'Main', clubId: undefined, startAt: '', endAt: '', eventManager: null as CaptainPick };
+      payload.stops = [{
+        id: s0.id,
+        name: 'Main',
+        clubId: s0.clubId || null,
+        startAt: s0.startAt || null,
+        endAt: s0.endAt || null,
+        eventManagerId: s0.eventManager?.id ?? null,
+      }];
+    }
+
+    await api(`/api/admin/tournaments/${tId}/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
+
+    // Reload tournaments list
+    const ts = await api<TournamentRow[]>('/api/admin/tournaments');
+    setTournaments(ts);
+
+    // Refresh editor state
+    await hydrateEditorFromConfig(tId);
+
+    setInfo('Tournament saved successfully');
   }
 
   async function deleteTournament(tId: Id) {
     try {
-      if (!confirm('Delete this tournament?')) return;
       await api(`/api/admin/tournaments/${tId}`, { method: 'DELETE' });
       const ts = await api<TournamentRow[]>('/api/admin/tournaments');
       setTournaments(ts);
       setInfo('Tournament deleted');
-    } catch (e) { setErr((e as Error).message); }
+
+      // Close editor if this tournament was being edited
+      if (editingTournamentId === tId) {
+        setEditingTournamentId(null);
+      }
+    } catch (e) {
+      setErr((e as Error).message);
+    }
   }
 
   /* ========== Typeahead helpers shared (captains + event managers) ========== */
@@ -437,48 +563,83 @@ export default function AdminPage() {
     const data = await api<{ items: any[] }>(`/api/admin/players/search?term=${encodeURIComponent(term)}`);
     return (data.items || []).map((p: any) => ({ id: p.id, label: personLabel(p) }));
   }
-  useAppToolbar(null);
+
+  const editingTournament = editingTournamentId ? editorById[editingTournamentId] : null;
 
   return (
-    <section className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-primary">Tournaments</h1>
-        <p className="text-muted">
-          Configure tournament stops, rosters, and scheduling.
-        </p>
+    <section className="min-h-screen bg-app p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Header Card */}
+      <header className="card">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-primary">Tournament Setup</h1>
+            <p className="text-sm text-muted mt-1">
+              Create and configure tournaments, manage stops, clubs, and captains
+            </p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowCreateModal(true)}
+          >
+            + Create New Tournament
+          </button>
         </div>
+      </header>
 
-        {err && (
-        <div role="status" aria-live="assertive" aria-atomic="true" className="error-message">
-            {err}
+      {/* Error/Success Messages */}
+      {err && (
+        <div className="card bg-error/10 border-error/30 p-4" role="status" aria-live="assertive">
+          <div className="flex items-center gap-2">
+            <span className="text-error font-semibold">Error:</span>
+            <span className="text-error">{err}</span>
           </div>
-        )}
+        </div>
+      )}
 
-        {info && (
-        <div role="status" aria-live="polite" aria-atomic="true" className="success-message">
-            {info}
+      {info && (
+        <div className="card bg-success/10 border-success/30 p-4" role="status" aria-live="polite">
+          <div className="flex items-center gap-2">
+            <span className="text-success font-semibold">✓</span>
+            <span className="text-success">{info}</span>
           </div>
-        )}
+        </div>
+      )}
 
-        <TournamentsBlock
+      {/* Tournaments List */}
+      {!editingTournamentId && (
+        <TournamentsList
           tournaments={tournaments}
-          expanded={expanded}
-          toggleExpand={toggleExpand}
-          clubsAll={clubsAll}
-          onDeleteTournament={deleteTournament}
-          editorById={editorById}
-          setEditorById={setEditorById}
-          searchPlayers={searchPlayers}
-          allChosenCaptainIdsAcrossClubs={allChosenCaptainIdsAcrossClubs}
-          afterSaved={async () => {
-            const ts = await api<TournamentRow[]>('/api/admin/tournaments');
-            setTournaments(ts);
+          onEdit={handleEditTournament}
+          onDelete={deleteTournament}
+        />
+      )}
+
+      {/* Tournament Editor */}
+      {editingTournamentId && editingTournament && (
+        <TournamentEditor
+          tournamentId={editingTournamentId}
+          editor={editingTournament}
+          setEditor={(updatedEditor) => {
+            setEditorById(prev => ({
+              ...prev,
+              [editingTournamentId]: updatedEditor,
+            }));
           }}
+          clubsAll={clubsAll}
+          searchPlayers={searchPlayers}
+          onSave={handleSaveTournament}
+          onClose={() => setEditingTournamentId(null)}
           userProfile={userProfile}
         />
+      )}
 
-      {/* Team roster tools moved to /admin/rosters */}
-        </section>
+      {/* Create Tournament Modal */}
+      <CreateTournamentModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={handleCreateTournament}
+      />
+    </section>
   );
 }
 
@@ -1078,6 +1239,8 @@ function TournamentsBlock(props: TournamentsBlockProps) {
           name: string;
           type: string;
           maxTeamSize?: number | null;
+          gamesPerMatch?: number | null;
+          gameSlots?: string[];
           hasCaptains?: boolean;
           clubs: Array<
             | string
@@ -1163,11 +1326,13 @@ function TournamentsBlock(props: TournamentsBlockProps) {
                 };
               }),
               maxTeamSize: (cfg.maxTeamSize ?? null) !== null ? String(cfg.maxTeamSize) : '',
-  
+              gamesPerMatch: (cfg.gamesPerMatch ?? 3),
+              gameSlots: (cfg.gameSlots ?? ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2']),
+
               tournamentEventManager: cfg.eventManager?.id ? { id: cfg.eventManager.id, label: cfg.eventManager.name || '' } : null,
               tournamentEventManagerQuery: '',
               tournamentEventManagerOptions: [],
-  
+
               tournamentAdmin: cfg.tournamentAdmin?.id ? { id: cfg.tournamentAdmin.id, label: cfg.tournamentAdmin.name || '' } : null,
               tournamentAdminQuery: '',
               tournamentAdminOptions: [],

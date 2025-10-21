@@ -72,11 +72,13 @@ export function BracketMatchManager({
       }
 
       const data = await response.json();
-      setRounds(data.rounds || []);
+      // data is an array of rounds, not an object with a rounds property
+      const roundsData = Array.isArray(data) ? data : [];
+      setRounds(roundsData);
 
       // Auto-expand incomplete rounds
       const incomplete = new Set<string>();
-      for (const round of data.rounds || []) {
+      for (const round of roundsData) {
         const hasIncomplete = round.matches.some((m: Match) => !m.winnerId);
         if (hasIncomplete) {
           incomplete.add(round.id);
@@ -124,8 +126,14 @@ export function BracketMatchManager({
           <div className="text-5xl">🏆</div>
           <h3 className="text-lg font-semibold text-secondary">No Bracket Found</h3>
           <p className="text-muted">
-            The bracket hasn't been generated yet. Go back to setup to create it.
+            The bracket hasn't been generated yet. Click below to set up the bracket.
           </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            Go to Bracket Setup
+          </button>
         </div>
       </div>
     );

@@ -24,6 +24,8 @@ type Payload = {
     eventManagerId?: string | null; // ✅ per-stop only
   }>;
   maxTeamSize?: number | null;
+  gamesPerMatch?: number; // For bracket tournaments
+  gameSlots?: string[]; // For bracket tournaments
   eventManagerId?: string | null; // tournament-level event manager
   tournamentAdminId?: string | null; // tournament admin
 };
@@ -32,6 +34,7 @@ const TYPE_LABEL_TO_ENUM: Record<string, TournamentType> = {
   'Team Format': 'TEAM_FORMAT',
   'Single Elimination': 'SINGLE_ELIMINATION',
   'Double Elimination': 'DOUBLE_ELIMINATION',
+  'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS',
   'Round Robin': 'ROUND_ROBIN',
   'Pool Play': 'POOL_PLAY',
   'Ladder Tournament': 'LADDER_TOURNAMENT',
@@ -41,6 +44,7 @@ const ENUM_TO_TYPE_LABEL: Record<TournamentType, string> = {
   TEAM_FORMAT: 'Team Format',
   SINGLE_ELIMINATION: 'Single Elimination',
   DOUBLE_ELIMINATION: 'Double Elimination',
+  DOUBLE_ELIMINATION_CLUBS: 'Double Elimination Clubs',
   ROUND_ROBIN: 'Round Robin',
   POOL_PLAY: 'Pool Play',
   LADDER_TOURNAMENT: 'Ladder Tournament',
@@ -80,6 +84,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
       name: true,
       type: true,
       maxTeamSize: true,
+      gamesPerMatch: true,
       admins: {
         take: 1,
         select: {
@@ -174,6 +179,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     name: t.name,
     type: ENUM_TO_TYPE_LABEL[t.type] ?? 'Team Format',
     maxTeamSize: t.maxTeamSize ?? null,
+    gamesPerMatch: t.gamesPerMatch ?? null,
     hasCaptains: byClubCaptain.length > 0,
     clubs: clubLinks.map((c) => ({
       clubId: c.clubId,
@@ -234,7 +240,12 @@ export async function PUT(req: Request, ctx: CtxPromise) {
   });
   if (!exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const updates: Partial<{ name: string; type: TournamentType; maxTeamSize: number | null }> = {};
+  const updates: Partial<{
+    name: string;
+    type: TournamentType;
+    maxTeamSize: number | null;
+    gamesPerMatch: number | null;
+  }> = {};
 
   if (typeof body.name === 'string') {
     const nm = body.name.trim();
@@ -256,6 +267,21 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     } else {
       return NextResponse.json(
         { error: 'maxTeamSize must be a positive integer or null' },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Bracket tournament settings
+  if (Object.prototype.hasOwnProperty.call(body, 'gamesPerMatch')) {
+    const v = body.gamesPerMatch;
+    if (v === null || v === undefined) {
+      updates.gamesPerMatch = null;
+    } else if (typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= 4) {
+      updates.gamesPerMatch = v;
+    } else {
+      return NextResponse.json(
+        { error: 'gamesPerMatch must be a positive integer between 1-4 or null' },
         { status: 400 }
       );
     }

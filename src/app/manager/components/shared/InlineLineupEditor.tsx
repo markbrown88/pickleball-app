@@ -80,10 +80,6 @@ export function InlineLineupEditor({
       const validateAndApply = (teamARoster: PlayerLite[], teamBRoster: PlayerLite[]) => {
         if (!isMounted) return;
 
-        console.log(`[InlineLineupEditor] Loading rosters for match ${matchId}`);
-        console.log(`[InlineLineupEditor] Team A (${teamA.name}) roster:`, teamARoster.map(p => `${p.name} (${p.gender})`));
-        console.log(`[InlineLineupEditor] Team B (${teamB.name}) roster:`, teamBRoster.map(p => `${p.name} (${p.gender})`));
-
         setLoadedRosters({ teamA: teamARoster, teamB: teamBRoster });
         initializeLineups(teamARoster, teamBRoster);
 
@@ -112,8 +108,6 @@ export function InlineLineupEditor({
       // ALWAYS fetch fresh roster data for this specific stop
       // Don't rely on cached teamRosters which may be from different rounds
       try {
-        console.log(`[InlineLineupEditor] Fetching fresh rosters for stopId: ${stopId}, teamA: ${teamA.id}, teamB: ${teamB.id}`);
-
         const [responseA, responseB] = await Promise.all([
           fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamA.id}/roster`),
           fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamB.id}/roster`)
@@ -126,9 +120,6 @@ export function InlineLineupEditor({
 
         const rosterA = dataA.items || [];
         const rosterB = dataB.items || [];
-
-        console.log(`[InlineLineupEditor] Fetched Team A roster: ${rosterA.length} players`, rosterA.map((p: any) => p.name));
-        console.log(`[InlineLineupEditor] Fetched Team B roster: ${rosterB.length} players`, rosterB.map((p: any) => p.name));
 
         validateAndApply(rosterA, rosterB);
       } catch (error) {
@@ -249,12 +240,8 @@ export function InlineLineupEditor({
     const currentPlayerInSlot = currentLineup[slotIndex];
     const expectedGender = expectedGenderForIndex(slotIndex);
 
-    console.log(`[getAvailablePlayers] Team: ${teamId}, Slot: ${slotIndex}, Expected Gender: ${expectedGender}`);
-    console.log(`[getAvailablePlayers] Full roster (${roster.length} players):`, roster.map(p => `${p.name} (${p.gender})`));
-
     // Filter roster by gender first
     const genderFilteredRoster = roster.filter(p => p.gender === expectedGender);
-    console.log(`[getAvailablePlayers] After gender filter (${genderFilteredRoster.length} players):`, genderFilteredRoster.map(p => p.name));
 
     // Get IDs of players already in OTHER slots of the current lineup
     const playersInOtherSlots = new Set(
@@ -263,7 +250,6 @@ export function InlineLineupEditor({
 
     // A player is available if they are not in another slot in this lineup
     const availablePlayers = genderFilteredRoster.filter(p => !playersInOtherSlots.has(p.id));
-    console.log(`[getAvailablePlayers] After removing already-selected (${availablePlayers.length} players):`, availablePlayers.map(p => p.name));
 
     return availablePlayers;
   };

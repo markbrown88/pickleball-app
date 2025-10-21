@@ -110,6 +110,7 @@ model Team {
   tournament      Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   playerLinks     TeamPlayer[]
   matchTiebreakerWins Match[] @relation("MatchTiebreakerWinner")
+  matchWins       Match[]            @relation("MatchWinner")
 
   @@unique([tournamentId, clubId, captainId])
   @@unique([tournamentId, clubId, bracketId])
@@ -268,6 +269,7 @@ model Match {
   sourceMatchAId          String?               // For bracket tournaments: match that feeds team A to this match
   sourceMatchBId          String?               // For bracket tournaments: match that feeds team B to this match
   bracketPosition         Int?                  // For bracket tournaments: position in bracket tree
+  winnerId                String?               // For bracket tournaments: winner of the match
   games                   Game[]
   round                   Round                 @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
   teamA                   Team?                 @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
@@ -287,11 +289,13 @@ model Match {
   tiebreakerDecidedBy     Player?               @relation("MatchTiebreakerDecider", fields: [tiebreakerDecidedById], references: [id], onDelete: SetNull)
   tiebreakerGame          Game?                 @relation("MatchTiebreakerGame", fields: [tiebreakerGameId], references: [id], onDelete: SetNull)
   tiebreakerWinnerTeam    Team?                 @relation("MatchTiebreakerWinner", fields: [tiebreakerWinnerTeamId], references: [id], onDelete: SetNull)
+  winner                  Team?                 @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
 
   @@index([roundId])
   @@index([teamAId])
   @@index([teamBId])
   @@index([tiebreakerWinnerTeamId])
+  @@index([winnerId]) // For bracket winner queries
   @@index([roundId, isBye]) // For filtering out bye matches
   @@index([tiebreakerStatus]) // For filtering matches needing tiebreakers
   @@index([sourceMatchAId]) // For bracket progression queries
@@ -305,6 +309,7 @@ model Game {
   id                    String    @id(map: "Game_new_pkey") @default(cuid())
   matchId               String
   slot                  GameSlot?
+  bracketId             String?   // For DOUBLE_ELIMINATION_CLUBS: which bracket this game belongs to
   teamAScore            Int?
   teamBScore            Int?
   teamALineup           Json?
@@ -321,11 +326,13 @@ model Game {
   teamASubmittedScore   Int? // Score submitted by Team A
   teamBSubmittedScore   Int? // Score submitted by Team B
   match                 Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
+  bracket               TournamentBracket? @relation(fields: [bracketId], references: [id], onDelete: SetNull)
   tiebreakerForMatch    Match?    @relation("MatchTiebreakerGame")
   scoreSubmissions      GameScoreSubmission[]
 
-  @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
+  @@unique([matchId, slot, bracketId], map: "Game_matchId_slot_bracketId_key")
   @@index([matchId])
+  @@index([bracketId]) // For querying games by bracket
   @@index([isComplete, startedAt]) // For filtering incomplete games
   @@index([courtNumber]) // For filtering by court
 }
@@ -405,6 +412,7 @@ model TournamentBracket {
   name         String
   idx          Int        @default(0)
   teams        Team[]
+  games        Game[]     // Games that belong to this bracket (for DOUBLE_ELIMINATION_CLUBS)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, name])
@@ -490,6 +498,7 @@ enum TournamentType {
   TEAM_FORMAT
   SINGLE_ELIMINATION
   DOUBLE_ELIMINATION
+  DOUBLE_ELIMINATION_CLUBS  // Club-based double elimination with bracket teams
   ROUND_ROBIN
   POOL_PLAY
   LADDER_TOURNAMENT

@@ -31,8 +31,7 @@ import {
 } from '../shared/utils';
 
 // Conditional logging helper
-const isDev = process.env.NODE_ENV === 'development';
-const log = (...args: any[]) => { if (isDev) console.log(...args); };
+// Removed dev logging to reduce console noise
 
 // Custom strategy that disables automatic reordering
 const noReorderStrategy = () => null;
@@ -97,10 +96,8 @@ export function TeamFormatManager({
   useEffect(() => {
     if (tournaments.length > 0 && !selectedStopId) {
       const firstTournament = tournaments[0];
-      log('First tournament:', firstTournament);
       if (firstTournament.stops.length > 0) {
         const firstStopId = firstTournament.stops[0].stopId;
-        log('Auto-selecting stop:', firstStopId);
         setSelectedStopId(firstStopId);
         loadSchedule(firstStopId);
       }
@@ -166,28 +163,20 @@ export function TeamFormatManager({
   const loadSchedule = async (stopId: string, force = false) => {
     if (scheduleData[stopId] && !force) return; // Already loaded
 
-    log('Loading schedule for stop:', stopId);
     setLoading(prev => ({ ...prev, [stopId]: true }));
     try {
       const response = await fetchWithActAs(`/api/admin/stops/${stopId}/schedule`);
-      log('Schedule response status:', response.status);
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Schedule error:', errorData);
         throw new Error(errorData.error || 'Failed to load schedule');
       }
       const data = await response.json();
-      log('Schedule data:', data);
       
       // Log match statuses for debugging
       data.forEach((round: any, roundIdx: number) => {
-        round.matches?.forEach((match: any) => {
-          if (match.teamA?.name.includes('Pickleplex') && match.teamB?.name.includes('Pickleplex')) {
-            console.log(`[SCHEDULE_LOADED] Round ${roundIdx}: ${match.teamA?.name} vs ${match.teamB?.name} - Status: ${match.tiebreakerStatus}, Winner: ${match.tiebreakerWinnerTeamId}`);
-          }
-        });
       });
-      
+
       setScheduleData(prev => ({ ...prev, [stopId]: data || [] }));
 
       // Prefetch stop rosters for all teams in this schedule
@@ -238,11 +227,8 @@ export function TeamFormatManager({
         });
       });
 
-      log('🎮 EXTRACTED GAMES FOR STOP:', stopId);
-      log('🎮 Total matches with games:', Object.keys(gamesMap).length);
       setGames(prev => {
         const updated = { ...prev, ...gamesMap };
-        log('🎮 GAMES STATE UPDATED:', Object.keys(updated).length, 'matches');
         return updated;
       });
 
@@ -309,14 +295,10 @@ export function TeamFormatManager({
   const loadLineupsForStop = async (stopId: string) => {
     try {
       const response = await fetchWithActAs(`/api/admin/stops/${stopId}/lineups`);
-      log('=== Lineups response status:', response.status);
       if (response.ok) {
         const lineupsData = await response.json();
-        log('=== Lineups data received:', lineupsData);
-        log('=== Number of matches with lineups:', Object.keys(lineupsData).length);
         setLineups(prev => {
           const updated = { ...prev, ...lineupsData };
-          log('=== Updated lineups state:', updated);
           return updated;
         });
 
@@ -327,7 +309,6 @@ export function TeamFormatManager({
           const teamBId = Object.keys(matchLineups)[1];
 
           if (matchLineups[teamAId]?.length === 4 && matchLineups[teamBId]?.length === 4) {
-            log('=== Loading games for match with confirmed lineups:', matchId);
             // Add a small delay to prevent overwhelming the API
             setTimeout(() => loadGamesForMatch(matchId, true), 100);
           }
@@ -1211,11 +1192,7 @@ export function TeamFormatManager({
                 if (!stop) return null;
 
                 const stopSchedule = scheduleData[stop.stopId] ?? [];
-                log(`=== Stop ${stop.stopName} schedule:`, stopSchedule);
-                log(`=== Number of rounds:`, stopSchedule.length);
                 if (stopSchedule.length > 0) {
-                  log(`=== First round:`, stopSchedule[0]);
-                  log(`=== First round matches:`, stopSchedule[0].matches);
                 }
                 const stopHasAnyGameStarted = stopSchedule.some((round: any) => hasAnyMatchStarted(round));
                 const totalMatches = stopSchedule.reduce(

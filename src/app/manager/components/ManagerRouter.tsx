@@ -56,6 +56,7 @@ export function ManagerRouter({ tournaments, onError, onInfo }: ManagerRouterPro
       );
 
     case 'DOUBLE_ELIMINATION':
+    case 'DOUBLE_ELIMINATION_CLUBS':
       return (
         <BracketManager
           tournaments={tournaments}
