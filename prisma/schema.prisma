@@ -1,3 +1,4 @@
+// Force regeneration: 2025-10-21
 generator client {
   provider = "prisma-client-js"
 }
