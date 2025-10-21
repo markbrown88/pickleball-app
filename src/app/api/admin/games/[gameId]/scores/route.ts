@@ -126,18 +126,45 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'Cannot enter scores for a BYE game' }, { status: 400 });
     }
 
-    // Upsert each slot's score
+    // Update each slot's score
     const updated: { slot: GameSlot; teamAScore: number | null; teamBScore: number | null }[] = [];
     await prisma.$transaction(async (tx) => {
       for (const row of body.scores) {
-        const m = await tx.game.upsert({
-          where: { matchId_slot: { matchId: game.match.id, slot: row.slot as GameSlot } },
-          update: { teamAScore: row.teamAScore, teamBScore: row.teamBScore },
-          create: { matchId: game.match.id, slot: row.slot as GameSlot, teamAScore: row.teamAScore, teamBScore: row.teamBScore },
-          select: { slot: true, teamAScore: true, teamBScore: true },
+        // Find the game by matchId and slot
+        const existingGame = await tx.game.findFirst({
+          where: {
+            matchId: game.match.id,
+            slot: row.slot as GameSlot,
+          },
+          select: { id: true, slot: true },
         });
+
+        let m: { slot: GameSlot; teamAScore: number | null; teamBScore: number | null };
+        if (existingGame) {
+          // Update existing game
+          m = await tx.game.update({
+            where: { id: existingGame.id },
+            data: {
+              teamAScore: row.teamAScore,
+              teamBScore: row.teamBScore,
+            },
+            select: { slot: true, teamAScore: true, teamBScore: true },
+          }) as { slot: GameSlot; teamAScore: number | null; teamBScore: number | null };
+        } else {
+          // Create new game
+          m = await tx.game.create({
+            data: {
+              matchId: game.match.id,
+              slot: row.slot as GameSlot,
+              teamAScore: row.teamAScore,
+              teamBScore: row.teamBScore,
+            },
+            select: { slot: true, teamAScore: true, teamBScore: true },
+          }) as { slot: GameSlot; teamAScore: number | null; teamBScore: number | null };
+        }
+
         if (m.slot) {
-          updated.push(m as { slot: GameSlot; teamAScore: number | null; teamBScore: number | null });
+          updated.push(m);
         }
       }
 

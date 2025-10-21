@@ -93,22 +93,39 @@ export async function PUT(req: Request, ctx: { params: Promise<Params> }) {
       }
     }
 
-    // Apply upserts for each slot; null/undefined clears scores
+    // Apply updates for each slot; null/undefined clears scores
     await prisma.$transaction(async (tx) => {
       for (const s of body.scores) {
-        await tx.game.upsert({
-          where: { matchId_slot: { matchId: game.match.id, slot: s.slot } },
-          update: {
-            teamAScore: s.teamAScore ?? null,
-            teamBScore: s.teamBScore ?? null,
-          },
-          create: {
+        // Find the game by matchId and slot (and bracketId if applicable)
+        const existingGame = await tx.game.findFirst({
+          where: {
             matchId: game.match.id,
             slot: s.slot,
-            teamAScore: s.teamAScore ?? null,
-            teamBScore: s.teamBScore ?? null,
+            // For club tournaments, we'd need to know the bracketId
+            // For now, update the first matching game
           },
         });
+
+        if (existingGame) {
+          // Update existing game
+          await tx.game.update({
+            where: { id: existingGame.id },
+            data: {
+              teamAScore: s.teamAScore ?? null,
+              teamBScore: s.teamBScore ?? null,
+            },
+          });
+        } else {
+          // Create new game if it doesn't exist
+          await tx.game.create({
+            data: {
+              matchId: game.match.id,
+              slot: s.slot,
+              teamAScore: s.teamAScore ?? null,
+              teamBScore: s.teamBScore ?? null,
+            },
+          });
+        }
       }
     });
 

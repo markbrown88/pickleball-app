@@ -151,11 +151,34 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
     await prisma.$transaction(async (tx) => {
       for (const u of updates) {
-        await tx.game.upsert({
-          where: { matchId_slot: { matchId: game.match.id, slot: u.slot } },
-          update: { teamAScore: u.teamAScore, teamBScore: u.teamBScore },
-          create: { matchId: game.match.id, slot: u.slot, teamAScore: u.teamAScore, teamBScore: u.teamBScore },
+        // Find the game by matchId and slot
+        const existingGame = await tx.game.findFirst({
+          where: {
+            matchId: game.match.id,
+            slot: u.slot,
+          },
         });
+
+        if (existingGame) {
+          // Update existing game
+          await tx.game.update({
+            where: { id: existingGame.id },
+            data: {
+              teamAScore: u.teamAScore,
+              teamBScore: u.teamBScore,
+            },
+          });
+        } else {
+          // Create new game
+          await tx.game.create({
+            data: {
+              matchId: game.match.id,
+              slot: u.slot,
+              teamAScore: u.teamAScore,
+              teamBScore: u.teamBScore,
+            },
+          });
+        }
       }
 
       await evaluateMatchTiebreaker(tx, game.match.id);
