@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react';
 import { BracketRound } from './BracketRound';
+import { BracketVisualization } from './BracketVisualization';
 import { EventManagerTournament } from '../shared/types';
 
 interface BracketMatchManagerProps {
@@ -56,6 +57,7 @@ export function BracketMatchManager({
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'list' | 'diagram'>('list');
 
   // Load bracket data
   useEffect(() => {
@@ -154,69 +156,100 @@ export function BracketMatchManager({
             {tournament.tournamentName} - Manage bracket matches
           </p>
         </div>
+
+        {/* View Toggle */}
+        <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700">
+          <button
+            onClick={() => setViewMode('list')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'list'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            📋 List View
+          </button>
+          <button
+            onClick={() => setViewMode('diagram')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'diagram'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            🎯 Bracket Diagram
+          </button>
+        </div>
       </div>
 
-      {/* Winner Bracket */}
-      {winnerRounds.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-xl font-bold text-blue-400 flex items-center gap-2">
-            <span>🏆</span>
-            Winner Bracket
-          </h3>
-          {winnerRounds.map(round => (
-            <BracketRound
-              key={round.id}
-              round={round}
-              isExpanded={expandedRounds.has(round.id)}
-              onToggle={() => toggleRound(round.id)}
-              onMatchUpdate={handleMatchUpdate}
-              onError={onError}
-              onInfo={onInfo}
-            />
-          ))}
-        </div>
-      )}
+      {/* Bracket Diagram View */}
+      {viewMode === 'diagram' ? (
+        <BracketVisualization rounds={rounds} />
+      ) : (
+        <>
+          {/* Winner Bracket */}
+          {winnerRounds.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-xl font-bold text-blue-400 flex items-center gap-2">
+                <span>🏆</span>
+                Winner Bracket
+              </h3>
+              {winnerRounds.map(round => (
+                <BracketRound
+                  key={round.id}
+                  round={round}
+                  isExpanded={expandedRounds.has(round.id)}
+                  onToggle={() => toggleRound(round.id)}
+                  onMatchUpdate={handleMatchUpdate}
+                  onError={onError}
+                  onInfo={onInfo}
+                />
+              ))}
+            </div>
+          )}
 
-      {/* Loser Bracket */}
-      {loserRounds.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-xl font-bold text-orange-400 flex items-center gap-2">
-            <span>⚠️</span>
-            Loser Bracket
-          </h3>
-          {loserRounds.map(round => (
-            <BracketRound
-              key={round.id}
-              round={round}
-              isExpanded={expandedRounds.has(round.id)}
-              onToggle={() => toggleRound(round.id)}
-              onMatchUpdate={handleMatchUpdate}
-              onError={onError}
-              onInfo={onInfo}
-            />
-          ))}
-        </div>
-      )}
+          {/* Loser Bracket */}
+          {loserRounds.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-xl font-bold text-orange-400 flex items-center gap-2">
+                <span>⚠️</span>
+                Loser Bracket
+              </h3>
+              {loserRounds.map(round => (
+                <BracketRound
+                  key={round.id}
+                  round={round}
+                  isExpanded={expandedRounds.has(round.id)}
+                  onToggle={() => toggleRound(round.id)}
+                  onMatchUpdate={handleMatchUpdate}
+                  onError={onError}
+                  onInfo={onInfo}
+                />
+              ))}
+            </div>
+          )}
 
-      {/* Finals */}
-      {finalsRounds.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-xl font-bold text-yellow-400 flex items-center gap-2">
-            <span>👑</span>
-            Finals
-          </h3>
-          {finalsRounds.map(round => (
-            <BracketRound
-              key={round.id}
-              round={round}
-              isExpanded={expandedRounds.has(round.id)}
-              onToggle={() => toggleRound(round.id)}
-              onMatchUpdate={handleMatchUpdate}
-              onError={onError}
-              onInfo={onInfo}
-            />
-          ))}
-        </div>
+          {/* Finals */}
+          {finalsRounds.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-xl font-bold text-yellow-400 flex items-center gap-2">
+                <span>👑</span>
+                Finals
+              </h3>
+              {finalsRounds.map(round => (
+                <BracketRound
+                  key={round.id}
+                  round={round}
+                  isExpanded={expandedRounds.has(round.id)}
+                  onToggle={() => toggleRound(round.id)}
+                  onMatchUpdate={handleMatchUpdate}
+                  onError={onError}
+                  onInfo={onInfo}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
