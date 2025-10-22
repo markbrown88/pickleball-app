@@ -184,7 +184,12 @@ export function BracketMatchManager({
 
       {/* Bracket Diagram View */}
       {viewMode === 'diagram' ? (
-        <BracketVisualization rounds={rounds} />
+        <BracketVisualization
+          rounds={rounds}
+          onMatchUpdate={handleMatchUpdate}
+          onError={onError}
+          onInfo={onInfo}
+        />
       ) : (
         <>
           {/* Winner Bracket */}

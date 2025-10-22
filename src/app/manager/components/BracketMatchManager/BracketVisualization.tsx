@@ -7,7 +7,7 @@
  * Shows winner bracket, loser bracket, and finals in a hierarchical layout.
  */
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Node,
@@ -23,6 +23,7 @@ import {
 import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import { BracketMatchNode } from './BracketMatchNode';
+import { BracketMatchModal } from './BracketMatchModal';
 
 interface Round {
   id: string;
@@ -54,7 +55,9 @@ interface Game {
 
 interface BracketVisualizationProps {
   rounds: Round[];
-  onMatchClick?: (matchId: string) => void;
+  onMatchUpdate?: () => void;
+  onError?: (message: string) => void;
+  onInfo?: (message: string) => void;
 }
 
 // Node width and height constants
@@ -254,7 +257,14 @@ function convertRoundsToFlow(rounds: Round[]): { nodes: Node[]; edges: Edge[] } 
   return { nodes, edges };
 }
 
-export function BracketVisualization({ rounds, onMatchClick }: BracketVisualizationProps) {
+export function BracketVisualization({
+  rounds,
+  onMatchUpdate,
+  onError,
+  onInfo,
+}: BracketVisualizationProps) {
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () => convertRoundsToFlow(rounds),
     [rounds]
@@ -276,12 +286,27 @@ export function BracketVisualization({ rounds, onMatchClick }: BracketVisualizat
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      if (onMatchClick) {
-        onMatchClick(node.id);
+      // Find the match from the rounds data
+      const match = rounds
+        .flatMap(r => r.matches)
+        .find(m => m.id === node.id);
+
+      if (match) {
+        setSelectedMatch(match);
       }
     },
-    [onMatchClick]
+    [rounds]
   );
+
+  const handleModalClose = () => {
+    setSelectedMatch(null);
+  };
+
+  const handleMatchUpdate = () => {
+    if (onMatchUpdate) {
+      onMatchUpdate();
+    }
+  };
 
   if (rounds.length === 0) {
     return (
@@ -292,36 +317,47 @@ export function BracketVisualization({ rounds, onMatchClick }: BracketVisualizat
   }
 
   return (
-    <div className="w-full h-[800px] bg-gray-900 rounded-lg border border-gray-700">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClick}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.1}
-        maxZoom={1.5}
-        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-      >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1}
-          color="#374151"
-        />
-        <Controls
-          style={{
-            button: {
-              backgroundColor: '#1f2937',
-              borderColor: '#374151',
-              color: '#fff',
-            },
-          }}
-        />
-      </ReactFlow>
-    </div>
+    <>
+      <div className="w-full h-[800px] bg-gray-900 rounded-lg border border-gray-700">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.1}
+          maxZoom={1.5}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            size={1}
+            color="#374151"
+          />
+          <Controls
+            style={{
+              button: {
+                backgroundColor: '#1f2937',
+                borderColor: '#374151',
+                color: '#fff',
+              },
+            }}
+          />
+        </ReactFlow>
+      </div>
+
+      {/* Scoring Modal */}
+      <BracketMatchModal
+        match={selectedMatch}
+        onClose={handleModalClose}
+        onUpdate={handleMatchUpdate}
+        onError={onError || (() => {})}
+        onInfo={onInfo || (() => {})}
+      />
+    </>
   );
 }
