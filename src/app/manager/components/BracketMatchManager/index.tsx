@@ -58,6 +58,8 @@ export function BracketMatchManager({
   const [loading, setLoading] = useState(true);
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'list' | 'diagram'>('list');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // Load bracket data
   useEffect(() => {
@@ -112,6 +114,32 @@ export function BracketMatchManager({
     await loadBracketData();
   };
 
+  const handleResetBracket = async () => {
+    try {
+      setResetting(true);
+
+      // Delete all rounds/matches/games for this stop
+      const response = await fetch(`/api/admin/stops/${stopId}/bracket`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reset bracket');
+      }
+
+      onInfo('Bracket reset successfully! Reloading...');
+
+      // Reload the page to go back to setup
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to reset bracket');
+      setResetting(false);
+      setShowResetConfirm(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="card p-8 flex items-center justify-center gap-3">
@@ -157,30 +185,71 @@ export function BracketMatchManager({
           </p>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700">
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              📋 List View
+            </button>
+            <button
+              onClick={() => setViewMode('diagram')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'diagram'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              🎯 Bracket Diagram
+            </button>
+          </div>
+
+          {/* Reset Bracket Button */}
           <button
-            onClick={() => setViewMode('list')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              viewMode === 'list'
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            onClick={() => setShowResetConfirm(true)}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
-            📋 List View
-          </button>
-          <button
-            onClick={() => setViewMode('diagram')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              viewMode === 'diagram'
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            🎯 Bracket Diagram
+            🔄 Reset Bracket
           </button>
         </div>
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full border border-gray-700">
+            <h3 className="text-xl font-bold text-white mb-3">Reset Bracket?</h3>
+            <p className="text-gray-300 mb-2">
+              This will delete all rounds, matches, and scores for this tournament bracket.
+            </p>
+            <p className="text-yellow-400 text-sm mb-6">
+              ⚠️ Warning: This action cannot be undone!
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                disabled={resetting}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetBracket}
+                disabled={resetting}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-md disabled:opacity-50"
+              >
+                {resetting ? 'Resetting...' : 'Yes, Reset Bracket'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bracket Diagram View */}
       {viewMode === 'diagram' ? (
