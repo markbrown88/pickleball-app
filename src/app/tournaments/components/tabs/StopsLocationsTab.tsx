@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { EditorRow, StopEditorRow, Club, CaptainPick } from '../TournamentEditor';
 
 type StopsLocationsTabProps = {
@@ -115,19 +115,21 @@ export function StopsLocationsTab({ editor, setEditor, clubsAll, searchPlayers }
 
   const stops = editor.stops || [];
 
-  if (!editor.hasMultipleStops && stops.length === 0) {
-    // Auto-create single stop
-    const singleStop: StopEditorRow = {
-      name: 'Main',
-      eventManager: null,
-      eventManagerQuery: '',
-      eventManagerOptions: [],
-      club: null,
-      clubQuery: '',
-      clubOptions: [],
-    };
-    setEditor({ ...editor, stops: [singleStop] });
-  }
+  // Auto-create single stop if needed (in useEffect to avoid setState during render)
+  useEffect(() => {
+    if (!editor.hasMultipleStops && stops.length === 0) {
+      const singleStop: StopEditorRow = {
+        name: 'Main',
+        eventManager: null,
+        eventManagerQuery: '',
+        eventManagerOptions: [],
+        club: null,
+        clubQuery: '',
+        clubOptions: [],
+      };
+      setEditor({ ...editor, stops: [singleStop] });
+    }
+  }, [editor.hasMultipleStops, stops.length]); // Only run when these values change
 
   return (
     <div className="space-y-6 max-w-3xl">
