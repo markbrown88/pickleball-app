@@ -231,24 +231,23 @@ export async function POST(
         matchIdMap.set(round.idx * 1000 + match.bracketPosition, dbMatch.id);
 
         // Create games for this match (if not a bye)
-        if (!match.isBye && finalGamesPerMatch > 0) {
+        if (!match.isBye && finalGameSlots.length > 0) {
           if (isClubBased) {
-            // For club-based tournaments, create games for EACH bracket
+            // For club-based tournaments, create games for EACH bracket × EACH slot
+            // Example: 2 brackets (Advanced, Intermediate) × 4 slots (MD, WD, MX1, MX2) = 8 games
             const brackets = await prisma.tournamentBracket.findMany({
               where: { tournamentId },
               orderBy: { idx: 'asc' },
             });
 
-            // Create one set of games for each bracket
-            for (const bracket of brackets) {
-              const gamesToCreate = Math.min(finalGamesPerMatch, finalGameSlots.length);
-
-              for (let i = 0; i < gamesToCreate; i++) {
+            // Create games for each slot × each bracket
+            for (const slot of finalGameSlots) {
+              for (const bracket of brackets) {
                 await prisma.game.create({
                   data: {
                     matchId: dbMatch.id,
-                    slot: finalGameSlots[i] as any,
-                    bracketId: bracket.id, // Associate game with bracket (makes unique with matchId+slot+bracketId)
+                    slot: slot as any,
+                    bracketId: bracket.id, // Makes unique with matchId+slot+bracketId
                     teamAScore: null,
                     teamBScore: null,
                     isComplete: false,
@@ -258,6 +257,7 @@ export async function POST(
             }
           } else {
             // For regular team tournaments, create games normally
+            // Use gamesPerMatch to limit how many slots to create
             const gamesToCreate = Math.min(finalGamesPerMatch, finalGameSlots.length);
 
             for (let i = 0; i < gamesToCreate; i++) {
