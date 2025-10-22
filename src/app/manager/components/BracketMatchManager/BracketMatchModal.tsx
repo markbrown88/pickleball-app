@@ -12,6 +12,8 @@ import { useState, useEffect } from 'react';
 interface Game {
   id: string;
   slot: string;
+  bracketId: string | null;
+  bracket?: { id: string; name: string } | null;
   teamAScore: number | null;
   teamBScore: number | null;
   isComplete: boolean;
@@ -261,18 +263,46 @@ export function BracketMatchModal({
           )}
 
           {/* Games */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <h4 className="text-sm font-semibold text-gray-400 uppercase">Game Scores</h4>
-            {match.games.map(game => (
-              <GameScoreEntry
-                key={game.id}
-                game={game}
-                teamAName={match.teamA!.name}
-                teamBName={match.teamB!.name}
-                onScoreUpdate={handleScoreUpdate}
-                disabled={isComplete}
-              />
-            ))}
+
+            {/* Group games by bracket */}
+            {(() => {
+              // Group games by bracket
+              const gamesByBracket: Record<string, Game[]> = {};
+
+              for (const game of match.games) {
+                const bracketKey = game.bracket?.name || 'Main';
+                if (!gamesByBracket[bracketKey]) {
+                  gamesByBracket[bracketKey] = [];
+                }
+                gamesByBracket[bracketKey].push(game);
+              }
+
+              // Render each bracket's games
+              return Object.entries(gamesByBracket).map(([bracketName, games]) => (
+                <div key={bracketName} className="space-y-2">
+                  {/* Only show bracket header if there are multiple brackets */}
+                  {Object.keys(gamesByBracket).length > 1 && (
+                    <h5 className="text-sm font-semibold text-blue-400 px-1">
+                      {bracketName} Bracket
+                    </h5>
+                  )}
+                  <div className="space-y-2">
+                    {games.map(game => (
+                      <GameScoreEntry
+                        key={game.id}
+                        game={game}
+                        teamAName={match.teamA!.name}
+                        teamBName={match.teamB!.name}
+                        onScoreUpdate={handleScoreUpdate}
+                        disabled={isComplete}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
 
           {/* Complete Match Button */}
@@ -324,8 +354,8 @@ function GameScoreEntry({
     switch (slot) {
       case 'MENS_DOUBLES': return "Men's Doubles";
       case 'WOMENS_DOUBLES': return "Women's Doubles";
-      case 'MIXED_1': return 'Mixed 1';
-      case 'MIXED_2': return 'Mixed 2';
+      case 'MIXED_1': return 'Mixed Doubles 1';
+      case 'MIXED_2': return 'Mixed Doubles 2';
       case 'TIEBREAKER': return 'Tiebreaker';
       default: return slot;
     }

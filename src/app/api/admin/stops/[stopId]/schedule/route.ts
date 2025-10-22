@@ -161,10 +161,20 @@ export async function GET(req: Request, ctx: Ctx) {
               },
             },
             games: {
-              orderBy: { slot: 'asc' },
+              orderBy: [
+                { bracket: { idx: 'asc' } },
+                { slot: 'asc' }
+              ],
               select: {
                 id: true,
                 slot: true,
+                bracketId: true,
+                bracket: {
+                  select: {
+                    id: true,
+                    name: true,
+                  }
+                },
                 teamAScore: true,
                 teamBScore: true,
                 courtNumber: true,
