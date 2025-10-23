@@ -256,11 +256,11 @@ function GameScoreEntry({
 
   const getGameTitle = (slot: string) => {
     switch (slot) {
-      case 'MENS_DOUBLES': return "MD";
-      case 'WOMENS_DOUBLES': return "WD";
-      case 'MIXED_1': return 'MX1';
-      case 'MIXED_2': return 'MX2';
-      case 'TIEBREAKER': return 'TB';
+      case 'MENS_DOUBLES': return "Men's Doubles";
+      case 'WOMENS_DOUBLES': return "Women's Doubles";
+      case 'MIXED_1': return 'Mixed Doubles 1';
+      case 'MIXED_2': return 'Mixed Doubles 2';
+      case 'TIEBREAKER': return 'Tiebreaker';
       default: return slot;
     }
   };
