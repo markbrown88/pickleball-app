@@ -198,7 +198,7 @@ export function BracketMatchModal({
         {/* Header */}
         <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold text-white">Score Match</h3>
+            <h3 className="text-xl font-bold text-white">Score Match v2.0</h3>
             <p className="text-gray-400 text-sm mt-1">
               {match.teamA.name} vs {match.teamB.name}
             </p>
