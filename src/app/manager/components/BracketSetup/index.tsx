@@ -47,10 +47,19 @@ export function BracketSetup({
   // Determine if this is a club-based tournament
   const isClubBased = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
 
-  const [selectedTeams, setSelectedTeams] = useState<BracketTeam[]>([]);
-  const [selectedClubs, setSelectedClubs] = useState<Array<{ id: string; name: string; seed: number }>>([]);
-  const [gamesPerMatch, setGamesPerMatch] = useState(3);
-  const [selectedGameSlots, setSelectedGameSlots] = useState<string[]>([
+  // Load saved bracket config from localStorage if available
+  const getSavedConfig = () => {
+    if (typeof window === 'undefined') return null;
+    const saved = localStorage.getItem(`bracket-config-${stopId}`);
+    return saved ? JSON.parse(saved) : null;
+  };
+
+  const savedConfig = getSavedConfig();
+
+  const [selectedTeams, setSelectedTeams] = useState<BracketTeam[]>(savedConfig?.selectedTeams || []);
+  const [selectedClubs, setSelectedClubs] = useState<Array<{ id: string; name: string; seed: number }>>>(savedConfig?.selectedClubs || []);
+  const [gamesPerMatch, setGamesPerMatch] = useState(savedConfig?.gamesPerMatch || 3);
+  const [selectedGameSlots, setSelectedGameSlots] = useState<string[]>(savedConfig?.selectedGameSlots || [
     'MENS_DOUBLES',
     'WOMENS_DOUBLES',
     'MIXED_1',
@@ -179,6 +188,16 @@ export function BracketSetup({
     setIsGenerating(true);
 
     try {
+      // Save config to localStorage for future resets
+      if (typeof window !== 'undefined' && stopId) {
+        localStorage.setItem(`bracket-config-${stopId}`, JSON.stringify({
+          selectedTeams,
+          selectedClubs,
+          gamesPerMatch,
+          selectedGameSlots,
+        }));
+      }
+
       const payload = {
         stopId,
         gamesPerMatch: isClubBased ? undefined : gamesPerMatch,
@@ -226,6 +245,11 @@ export function BracketSetup({
             ? 'Set club seeding order for the bracket tournament'
             : 'Add teams and set their seeding order for the bracket tournament'}
         </p>
+        {savedConfig && (
+          <div className="mt-2 px-3 py-2 bg-blue-900/30 border border-blue-500/50 rounded-md text-sm text-blue-300">
+            ℹ️ Previous bracket configuration restored
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
