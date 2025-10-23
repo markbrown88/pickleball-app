@@ -57,7 +57,7 @@ export function BracketSetup({
   const savedConfig = getSavedConfig();
 
   const [selectedTeams, setSelectedTeams] = useState<BracketTeam[]>(savedConfig?.selectedTeams || []);
-  const [selectedClubs, setSelectedClubs] = useState<Array<{ id: string; name: string; seed: number }>>>(savedConfig?.selectedClubs || []);
+  const [selectedClubs, setSelectedClubs] = useState<Array<{ id: string; name: string; seed: number }>>(savedConfig?.selectedClubs || []);
   const [gamesPerMatch, setGamesPerMatch] = useState(savedConfig?.gamesPerMatch || 3);
   const [selectedGameSlots, setSelectedGameSlots] = useState<string[]>(savedConfig?.selectedGameSlots || [
     'MENS_DOUBLES',
