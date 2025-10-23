@@ -208,18 +208,44 @@ export function BracketMatch({ match, onUpdate, onError, onInfo }: BracketMatchP
         )}
       </div>
 
-      {/* Games */}
-      <div className="space-y-2">
-        {match.games.map(game => (
-          <GameScoreEntry
-            key={game.id}
-            game={game}
-            teamAName={match.teamA!.name}
-            teamBName={match.teamB!.name}
-            onScoreUpdate={handleScoreUpdate}
-            disabled={isComplete}
-          />
-        ))}
+      {/* Games - Grouped by Bracket */}
+      <div className="space-y-3">
+        {(() => {
+          // Group games by bracket
+          const gamesByBracket: Record<string, typeof match.games> = {};
+
+          for (const game of match.games) {
+            const bracketKey = (game as any).bracket?.name || 'Main';
+            if (!gamesByBracket[bracketKey]) {
+              gamesByBracket[bracketKey] = [];
+            }
+            gamesByBracket[bracketKey].push(game);
+          }
+
+          // Render each bracket's games
+          return Object.entries(gamesByBracket).map(([bracketName, games]) => (
+            <div key={bracketName} className="space-y-2">
+              {/* Only show bracket header if there are multiple brackets */}
+              {Object.keys(gamesByBracket).length > 1 && (
+                <h4 className="text-sm font-semibold text-blue-400 px-1">
+                  {bracketName} Bracket
+                </h4>
+              )}
+              <div className="space-y-2">
+                {games.map(game => (
+                  <GameScoreEntry
+                    key={game.id}
+                    game={game}
+                    teamAName={match.teamA!.name}
+                    teamBName={match.teamB!.name}
+                    onScoreUpdate={handleScoreUpdate}
+                    disabled={isComplete}
+                  />
+                ))}
+              </div>
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Complete Match Button */}
