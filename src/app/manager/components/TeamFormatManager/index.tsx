@@ -1522,7 +1522,7 @@ export function TeamFormatManager({
                                                   return (
                                                     <div key={matchId} className="card">
                                                       {/* Match Header */}
-                                                      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-border-subtle">
+                                                      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4">
                                                         <div>
                                                           <h3 className="text-base font-semibold text-primary">
                                                             {(() => {
@@ -1545,19 +1545,9 @@ export function TeamFormatManager({
                                                         </div>
 
                                                         {/* Match Status Badge */}
-                                                        {match.forfeitTeam && (
-                                                          <div className="text-xs font-semibold px-2 py-1 bg-warning/20 text-warning rounded">
-                                                            ⚠ Forfeit – {match.forfeitTeam === 'A' ? (match.teamB?.name || 'Team B') : (match.teamA?.name || 'Team A')} wins
-                                                          </div>
-                                                        )}
-                                                      {!match.forfeitTeam && matchStatus === 'decided_points' && (
+                                                        {isDecided && (
                                                           <div className="text-xs font-semibold px-2 py-1 bg-success/20 text-success rounded">
-                                                            ✓ Decided by Total Points
-                                                          </div>
-                                                        )}
-                                                        {!match.forfeitTeam && matchStatus === 'decided_tiebreaker' && (
-                                                          <div className="text-xs font-semibold px-2 py-1 bg-success/20 text-success rounded">
-                                                            ✓ Decided by Tiebreaker
+                                                            ✓ Complete
                                                           </div>
                                                         )}
 
@@ -1581,7 +1571,7 @@ export function TeamFormatManager({
                                                               {resolvingMatch === match.id ? 'Creating...' : 'Add Tiebreaker'}
                                                             </button>
                                                           )}
-                                                      {!match.forfeitTeam && (
+                                                      {!match.forfeitTeam && !isDecided && (
                                                             <div className="flex gap-2 flex-1 sm:flex-none">
                                                               <button
                                                                 className="btn btn-xs btn-error flex-1 sm:flex-none"
@@ -1765,8 +1755,7 @@ export function TeamFormatManager({
                                                           lineups[match.id][match.teamB?.id || 'teamB']?.length === 4) ||
                                                           (games[match.id]?.some((g: any) => g.teamALineup && g.teamBLineup))) && (
                                                             <div className="space-y-5">
-                                                              <div className="border-t border-border-subtle pt-4">
-                                                                <h4 className="text-sm font-semibold text-primary mb-3 label-caps">Games</h4>
+                                                              <div className="pt-4">
                                                                 <div className="grid gap-4 lg:grid-cols-2">
                                                                   {games[match.id]
                                                                     ?.filter((game) => game.slot === 'MENS_DOUBLES' || game.slot === 'WOMENS_DOUBLES')
