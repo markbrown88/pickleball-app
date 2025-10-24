@@ -197,15 +197,8 @@ export function BracketMatchManager({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-white">Bracket Manager</h2>
-          <p className="text-gray-400 mt-1">
-            {tournament.tournamentName} - Manage bracket matches
-          </p>
-        </div>
-
+      {/* Header - Just controls, no title */}
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-3">
           {/* View Toggle */}
           <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700">
