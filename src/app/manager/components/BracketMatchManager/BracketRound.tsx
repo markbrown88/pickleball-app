@@ -7,6 +7,7 @@
  */
 
 import { BracketMatch } from './BracketMatch';
+import { PlayerLite } from '../shared/types';
 
 interface BracketRoundProps {
   round: {
@@ -16,20 +17,28 @@ interface BracketRoundProps {
     depth: number | null;
     matches: any[];
   };
+  stopId: string;
+  lineups: Record<string, Record<string, PlayerLite[]>>;
+  teamRosters: Record<string, PlayerLite[]>;
   isExpanded: boolean;
   onToggle: () => void;
   onMatchUpdate: () => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
+  onLineupSave: (matchId: string, lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
 }
 
 export function BracketRound({
   round,
+  stopId,
+  lineups,
+  teamRosters,
   isExpanded,
   onToggle,
   onMatchUpdate,
   onError,
   onInfo,
+  onLineupSave,
 }: BracketRoundProps) {
   const getRoundTitle = () => {
     const { bracketType, depth } = round;
@@ -91,9 +100,13 @@ export function BracketRound({
             <BracketMatch
               key={match.id}
               match={match}
+              stopId={stopId}
+              lineups={lineups}
+              teamRosters={teamRosters}
               onUpdate={onMatchUpdate}
               onError={onError}
               onInfo={onInfo}
+              onLineupSave={onLineupSave}
             />
           ))}
         </div>

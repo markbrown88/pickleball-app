@@ -7,6 +7,8 @@
  */
 
 import { useState } from 'react';
+import { InlineLineupEditor } from '../shared/InlineLineupEditor';
+import { PlayerLite } from '../shared/types';
 
 /**
  * Strip bracket level suffix from team/club name
@@ -52,14 +54,19 @@ interface BracketMatchProps {
       teamBLineup?: any[];
     }>;
   };
+  stopId: string;
+  lineups: Record<string, Record<string, PlayerLite[]>>;
+  teamRosters: Record<string, PlayerLite[]>;
   onUpdate: () => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
+  onLineupSave: (matchId: string, lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
 }
 
-export function BracketMatch({ match, onUpdate, onError, onInfo }: BracketMatchProps) {
+export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, onError, onInfo, onLineupSave }: BracketMatchProps) {
   const [updating, setUpdating] = useState(false);
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
+  const [isEditingLineup, setIsEditingLineup] = useState(false);
 
   const handleScoreUpdate = async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
     try {
@@ -383,59 +390,130 @@ export function BracketMatch({ match, onUpdate, onError, onInfo }: BracketMatchP
         </div>
       )}
 
-      {/* Games - Grouped by Bracket Level */}
-      <div className="space-y-6">
-        {(() => {
-          // Group games by bracket
-          const gamesByBracket: Record<string, typeof match.games> = {};
+      {/* Lineup Editor or Prompt */}
+      {(() => {
+        const teamALineup = lineups[match.id]?.[match.teamA.id] || [];
+        const teamBLineup = lineups[match.id]?.[match.teamB.id] || [];
+        const hasLineups = teamALineup.length === 4 && teamBLineup.length === 4;
+        const hasLineupsInGames = match.games.some(g => g.teamALineup && g.teamBLineup);
 
-          for (const game of match.games) {
-            const bracketKey = game.bracket?.name || 'Main';
-            if (!gamesByBracket[bracketKey]) {
-              gamesByBracket[bracketKey] = [];
-            }
-            gamesByBracket[bracketKey].push(game);
+        // Show lineup editor if editing
+        if (isEditingLineup) {
+          return (
+            <div className="mb-4">
+              <InlineLineupEditor
+                matchId={match.id}
+                stopId={stopId}
+                teamA={match.teamA}
+                teamB={match.teamB}
+                lineups={lineups}
+                teamRosters={teamRosters}
+                onSave={(savedLineups) => {
+                  onLineupSave(match.id, savedLineups);
+                  setIsEditingLineup(false);
+                }}
+                onCancel={() => setIsEditingLineup(false)}
+              />
+            </div>
+          );
+        }
+
+        // If no lineups set yet, show button to set them
+        if (!hasLineups && !hasLineupsInGames && !isDecided) {
+          return (
+            <div className="bg-surface-2 rounded-lg p-6 text-center mb-4">
+              <p className="text-muted mb-3">Lineups must be set before games can begin</p>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setIsEditingLineup(true)}
+              >
+                Set Lineups
+              </button>
+            </div>
+          );
+        }
+
+        // If lineups exist, show edit button
+        if ((hasLineups || hasLineupsInGames) && !isDecided) {
+          return (
+            <div className="flex justify-center mb-4">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setIsEditingLineup(true)}
+              >
+                Edit Lineups
+              </button>
+            </div>
+          );
+        }
+
+        return null;
+      })()}
+
+      {/* Games - Grouped by Bracket Level (only show if lineups are set) */}
+      {(() => {
+        const teamALineup = lineups[match.id]?.[match.teamA?.id || ''] || [];
+        const teamBLineup = lineups[match.id]?.[match.teamB?.id || ''] || [];
+        const hasLineups = teamALineup.length === 4 && teamBLineup.length === 4;
+        const hasLineupsInGames = match.games.some(g => g.teamALineup && g.teamBLineup);
+
+        if (!hasLineups && !hasLineupsInGames) {
+          return null; // Don't show games until lineups are set
+        }
+
+        // Group games by bracket
+        const gamesByBracket: Record<string, typeof match.games> = {};
+
+        for (const game of match.games) {
+          const bracketKey = game.bracket?.name || 'Main';
+          if (!gamesByBracket[bracketKey]) {
+            gamesByBracket[bracketKey] = [];
           }
+          gamesByBracket[bracketKey].push(game);
+        }
 
-          // Render each bracket's games
-          return Object.entries(gamesByBracket).map(([bracketName, games]) => {
-            // Calculate bracket winner
-            let teamAWins = 0;
-            let teamBWins = 0;
-            for (const game of games) {
-              if (game.isComplete && game.teamAScore !== null && game.teamBScore !== null) {
-                if (game.teamAScore > game.teamBScore) teamAWins++;
-                else if (game.teamBScore > game.teamAScore) teamBWins++;
+        // Render games grouped by bracket
+        return (
+          <div className="space-y-6">
+            {Object.entries(gamesByBracket).map(([bracketName, games]) => {
+              // Calculate bracket winner
+              let teamAWins = 0;
+              let teamBWins = 0;
+              for (const game of games) {
+                if (game.isComplete && game.teamAScore !== null && game.teamBScore !== null) {
+                  if (game.teamAScore > game.teamBScore) teamAWins++;
+                  else if (game.teamBScore > game.teamAScore) teamBWins++;
+                }
               }
-            }
 
-            return (
-              <div key={bracketName}>
-                {/* Bracket Header */}
-                {Object.keys(gamesByBracket).length > 1 && (
-                  <h4 className="text-sm font-semibold text-blue-400 mb-3">
-                    {bracketName} Bracket ({teamAWins} - {teamBWins})
-                  </h4>
-                )}
+              return (
+                <div key={bracketName}>
+                  {/* Bracket Header */}
+                  {Object.keys(gamesByBracket).length > 1 && (
+                    <h4 className="text-sm font-semibold text-blue-400 mb-3">
+                      {bracketName} Bracket ({teamAWins} - {teamBWins})
+                    </h4>
+                  )}
 
-                {/* Games in 2-column grid */}
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {games.map(game => (
-                    <GameScoreCard
-                      key={game.id}
-                      game={game}
-                      teamAName={match.teamA!.name}
-                      teamBName={match.teamB!.name}
-                      onScoreUpdate={handleScoreUpdate}
-                      disabled={isDecided}
-                    />
-                  ))}
+                  {/* Games in 2-column grid */}
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {games.map(game => (
+                      <GameScoreCard
+                        key={game.id}
+                        game={game}
+                        teamAName={match.teamA!.name}
+                        teamBName={match.teamB!.name}
+                        onScoreUpdate={handleScoreUpdate}
+                        disabled={isDecided}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          });
-        })()}
-      </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Complete Match Button */}
       {!isDecided && canCompleteMatch() && (

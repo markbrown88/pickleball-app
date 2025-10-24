@@ -11,7 +11,7 @@
 import { useState, useEffect } from 'react';
 import { BracketRound } from './BracketRound';
 import { BracketVisualization } from './BracketVisualization';
-import { EventManagerTournament } from '../shared/types';
+import { EventManagerTournament, PlayerLite } from '../shared/types';
 
 interface BracketMatchManagerProps {
   tournament: EventManagerTournament;
@@ -60,6 +60,8 @@ export function BracketMatchManager({
   const [viewMode, setViewMode] = useState<'list' | 'diagram'>('list');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [lineups, setLineups] = useState<Record<string, Record<string, PlayerLite[]>>>({});
+  const [teamRosters, setTeamRosters] = useState<Record<string, PlayerLite[]>>({});
 
   // Load bracket data
   useEffect(() => {
@@ -112,6 +114,25 @@ export function BracketMatchManager({
   const handleMatchUpdate = async () => {
     // Reload bracket data after match update
     await loadBracketData();
+  };
+
+  const handleLineupSave = (matchId: string, savedLineups: { teamA: PlayerLite[]; teamB: PlayerLite[]; }) => {
+    // Get team IDs from the match
+    const match = rounds.flatMap(r => r.matches).find(m => m.id === matchId);
+    if (!match || !match.teamA || !match.teamB) return;
+
+    // Update lineups state
+    setLineups(prev => ({
+      ...prev,
+      [matchId]: {
+        [match.teamA!.id]: savedLineups.teamA,
+        [match.teamB!.id]: savedLineups.teamB,
+      },
+    }));
+
+    onInfo('Lineups saved successfully!');
+    // Reload to get updated game data with lineups
+    loadBracketData();
   };
 
   const handleResetBracket = async () => {
@@ -272,11 +293,15 @@ export function BracketMatchManager({
                 <BracketRound
                   key={round.id}
                   round={round}
+                  stopId={stopId}
+                  lineups={lineups}
+                  teamRosters={teamRosters}
                   isExpanded={expandedRounds.has(round.id)}
                   onToggle={() => toggleRound(round.id)}
                   onMatchUpdate={handleMatchUpdate}
                   onError={onError}
                   onInfo={onInfo}
+                  onLineupSave={handleLineupSave}
                 />
               ))}
             </div>
@@ -293,11 +318,15 @@ export function BracketMatchManager({
                 <BracketRound
                   key={round.id}
                   round={round}
+                  stopId={stopId}
+                  lineups={lineups}
+                  teamRosters={teamRosters}
                   isExpanded={expandedRounds.has(round.id)}
                   onToggle={() => toggleRound(round.id)}
                   onMatchUpdate={handleMatchUpdate}
                   onError={onError}
                   onInfo={onInfo}
+                  onLineupSave={handleLineupSave}
                 />
               ))}
             </div>
@@ -314,11 +343,15 @@ export function BracketMatchManager({
                 <BracketRound
                   key={round.id}
                   round={round}
+                  stopId={stopId}
+                  lineups={lineups}
+                  teamRosters={teamRosters}
                   isExpanded={expandedRounds.has(round.id)}
                   onToggle={() => toggleRound(round.id)}
                   onMatchUpdate={handleMatchUpdate}
                   onError={onError}
                   onInfo={onInfo}
+                  onLineupSave={handleLineupSave}
                 />
               ))}
             </div>
