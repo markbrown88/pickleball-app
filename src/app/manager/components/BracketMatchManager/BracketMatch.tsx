@@ -8,6 +8,23 @@
 
 import { useState } from 'react';
 
+/**
+ * Strip bracket level suffix from team/club name
+ * E.g., "Pickleplex 2.5" → "Pickleplex"
+ */
+function stripBracketSuffix(name: string): string {
+  // Remove patterns like " 2.5", " 3.0", " Intermediate", " Advanced", etc.
+  return name.replace(/\s+[\d.]+$/, '').replace(/\s+(Intermediate|Advanced|Beginner)$/i, '');
+}
+
+/**
+ * Shorten a name for display in buttons
+ */
+function shortenLineupName(name?: string | null): string {
+  if (!name) return 'Team';
+  return name.length > 18 ? `${name.slice(0, 15)}…` : name;
+}
+
 interface BracketMatchProps {
   match: {
     id: string;
@@ -286,15 +303,18 @@ export function BracketMatch({ match, onUpdate, onError, onInfo }: BracketMatchP
     );
   }
 
+  const cleanTeamAName = stripBracketSuffix(match.teamA.name);
+  const cleanTeamBName = stripBracketSuffix(match.teamB.name);
+
   return (
-    <div className={`bg-gray-700 rounded-lg p-6 border ${isDecided ? 'border-green-500' : 'border-gray-600'}`}>
+    <div className="card">
       {/* Match Header - Club Names Only */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4">
         <div>
-          <h3 className="text-base font-semibold text-white">
-            {match.teamA.name} vs {match.teamB.name}
+          <h3 className="text-base font-semibold text-primary">
+            {cleanTeamAName} vs {cleanTeamBName}
           </h3>
-          <div className="text-xs text-gray-400 mt-1">
+          <div className="text-xs text-muted mt-1">
             {teamABracketWins} - {teamBBracketWins} (Brackets Won)
           </div>
         </div>
@@ -333,14 +353,14 @@ export function BracketMatch({ match, onUpdate, onError, onInfo }: BracketMatchP
                 disabled={resolvingAction === 'forfeitA'}
                 onClick={() => handleForfeit('A')}
               >
-                {resolvingAction === 'forfeitA' ? 'Processing...' : `Forfeit ${match.teamA.name}`}
+                {resolvingAction === 'forfeitA' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamAName)}`}
               </button>
               <button
                 className="btn btn-xs btn-error flex-1 sm:flex-none"
                 disabled={resolvingAction === 'forfeitB'}
                 onClick={() => handleForfeit('B')}
               >
-                {resolvingAction === 'forfeitB' ? 'Processing...' : `Forfeit ${match.teamB.name}`}
+                {resolvingAction === 'forfeitB' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamBName)}`}
               </button>
             </div>
           </div>
@@ -349,15 +369,15 @@ export function BracketMatch({ match, onUpdate, onError, onInfo }: BracketMatchP
 
       {/* Total Points Summary */}
       {match.totalPointsTeamA !== null && match.totalPointsTeamB !== null && matchStatus === 'tied' && (
-        <div className="bg-gray-600 rounded px-3 py-2 text-sm mb-4">
+        <div className="bg-surface-2 rounded px-3 py-2 text-sm mb-4">
           <div className="flex justify-between items-center gap-4">
             <div className="flex-1">
-              <div className="text-gray-300 text-xs mb-1">Total Points:</div>
-              <div className="font-semibold text-white">{match.teamA.name}: <span className="text-green-400">{match.totalPointsTeamA}</span></div>
+              <div className="text-muted text-xs mb-1">Total Points:</div>
+              <div className="font-semibold">{cleanTeamAName}: <span className="text-success">{match.totalPointsTeamA}</span></div>
             </div>
             <div className="flex-1 text-right">
-              <div className="text-gray-300 text-xs mb-1">Total Points:</div>
-              <div className="font-semibold text-white">{match.teamB.name}: <span className="text-green-400">{match.totalPointsTeamB}</span></div>
+              <div className="text-muted text-xs mb-1">Total Points:</div>
+              <div className="font-semibold">{cleanTeamBName}: <span className="text-success">{match.totalPointsTeamB}</span></div>
             </div>
           </div>
         </div>
@@ -446,9 +466,6 @@ function GameScoreCard({
   onScoreUpdate: (gameId: string, teamAScore: number | null, teamBScore: number | null) => void;
   disabled: boolean;
 }) {
-  const [teamAScore, setTeamAScore] = useState(game.teamAScore ?? '');
-  const [teamBScore, setTeamBScore] = useState(game.teamBScore ?? '');
-
   const getGameTitle = (slot: string) => {
     switch (slot) {
       case 'MENS_DOUBLES': return "Men's Doubles";
@@ -460,77 +477,148 @@ function GameScoreCard({
     }
   };
 
-  const handleScoreChange = (team: 'A' | 'B', value: string) => {
-    const score = value === '' ? null : parseInt(value, 10);
+  const getTeamALineup = () => {
+    if (game.teamALineup && Array.isArray(game.teamALineup)) {
+      const man1 = game.teamALineup[0];
+      const man2 = game.teamALineup[1];
+      const woman1 = game.teamALineup[2];
+      const woman2 = game.teamALineup[3];
 
-    if (team === 'A') {
-      setTeamAScore(value);
-      onScoreUpdate(game.id, score, teamBScore === '' ? null : parseInt(teamBScore, 10));
-    } else {
-      setTeamBScore(value);
-      onScoreUpdate(game.id, teamAScore === '' ? null : parseInt(teamAScore, 10), score);
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : stripBracketSuffix(teamAName);
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : stripBracketSuffix(teamAName);
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : stripBracketSuffix(teamAName);
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : stripBracketSuffix(teamAName);
+        case 'TIEBREAKER':
+          return stripBracketSuffix(teamAName);
+        default:
+          return stripBracketSuffix(teamAName);
+      }
     }
+    return stripBracketSuffix(teamAName);
   };
 
-  const teamAWon = game.isComplete && game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore;
-  const teamBWon = game.isComplete && game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore;
+  const getTeamBLineup = () => {
+    if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
+      const man1 = game.teamBLineup[0];
+      const man2 = game.teamBLineup[1];
+      const woman1 = game.teamBLineup[2];
+      const woman2 = game.teamBLineup[3];
+
+      switch (game.slot) {
+        case 'MENS_DOUBLES':
+          return man1 && man2 ? `${man1.name} &\n${man2.name}` : stripBracketSuffix(teamBName);
+        case 'WOMENS_DOUBLES':
+          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : stripBracketSuffix(teamBName);
+        case 'MIXED_1':
+          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : stripBracketSuffix(teamBName);
+        case 'MIXED_2':
+          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : stripBracketSuffix(teamBName);
+        case 'TIEBREAKER':
+          return stripBracketSuffix(teamBName);
+        default:
+          return stripBracketSuffix(teamBName);
+      }
+    }
+    return stripBracketSuffix(teamBName);
+  };
+
+  const teamAScore = game.teamAScore || 0;
+  const teamBScore = game.teamBScore || 0;
+  const teamAWon = teamAScore > teamBScore;
+  const teamBWon = teamBScore > teamAScore;
+  const isCompleted = game.isComplete;
 
   return (
-    <div className={`bg-gray-800 rounded-lg p-4 border ${game.isComplete ? 'border-green-500/50' : 'border-gray-600'}`}>
-      {/* Game Title */}
-      <div className="flex items-center justify-between mb-3">
-        <h5 className="text-sm font-semibold text-gray-200">{getGameTitle(game.slot)}</h5>
-        {game.isComplete && (
-          <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded">COMPLETE</span>
-        )}
-      </div>
-
-      {/* Team A Players & Score */}
-      <div className={`flex items-center justify-between p-3 rounded mb-2 ${teamAWon ? 'bg-green-600/20' : 'bg-gray-700'}`}>
-        <div className="flex-1">
-          <div className="text-sm font-semibold text-white mb-1">{teamAName}</div>
-          {game.teamALineup && game.teamALineup.length > 0 && (
-            <div className="text-xs text-gray-300">
-              {game.teamALineup.map((p: any, idx: number) => (
-                <div key={idx}>{p.name}</div>
-              ))}
-            </div>
+    <div className={`rounded-lg border-2 overflow-hidden ${
+      isCompleted ? 'border-border-subtle bg-surface-1' : 'border-border-medium bg-surface-2'
+    }`}>
+      {/* Game Header */}
+      <div className={`px-4 py-2 flex items-center justify-between ${
+        isCompleted ? 'bg-surface-2' : 'bg-surface-1'
+      }`}>
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-semibold text-primary">{getGameTitle(game.slot)}</h4>
+          {isCompleted && (
+            <span className="chip chip-success text-[10px] px-2 py-0.5">Complete</span>
           )}
         </div>
-        <input
-          type="number"
-          min="0"
-          max="99"
-          value={teamAScore}
-          onChange={(e) => handleScoreChange('A', e.target.value)}
-          disabled={disabled}
-          placeholder="-"
-          className="w-16 px-2 py-1 text-center rounded border bg-gray-700 border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ml-3"
-        />
       </div>
 
-      {/* Team B Players & Score */}
-      <div className={`flex items-center justify-between p-3 rounded ${teamBWon ? 'bg-green-600/20' : 'bg-gray-700'}`}>
-        <div className="flex-1">
-          <div className="text-sm font-semibold text-white mb-1">{teamBName}</div>
-          {game.teamBLineup && game.teamBLineup.length > 0 && (
-            <div className="text-xs text-gray-300">
-              {game.teamBLineup.map((p: any, idx: number) => (
-                <div key={idx}>{p.name}</div>
-              ))}
-            </div>
-          )}
+      {/* Game Body - Players and Scores */}
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+          {/* Team A Side */}
+          <div className={`text-sm ${
+            isCompleted && teamAWon ? 'text-success font-semibold' : 'text-secondary'
+          }`}>
+            <div className="whitespace-pre-line leading-relaxed">{getTeamALineup()}</div>
+          </div>
+
+          {/* Scores */}
+          <div className="flex items-center gap-3">
+            {isCompleted ? (
+              <>
+                <div className={`text-2xl font-bold tabular ${
+                  teamAWon ? 'text-success' : 'text-muted'
+                }`}>
+                  {teamAScore}
+                </div>
+                <div className="text-muted font-medium">-</div>
+                <div className={`text-2xl font-bold tabular ${
+                  teamBWon ? 'text-success' : 'text-muted'
+                }`}>
+                  {teamBScore}
+                </div>
+              </>
+            ) : (
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  className="w-16 px-2 py-2 text-xl font-bold border-2 border-border-medium rounded-lg text-center bg-surface-1 focus:border-secondary focus:outline-none tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={teamAScore || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                      onScoreUpdate(game.id, value ? parseInt(value) : null, teamBScore || null);
+                    }
+                  }}
+                  disabled={disabled}
+                  placeholder="0"
+                />
+                <div className="text-muted font-medium">-</div>
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  className="w-16 px-2 py-2 text-xl font-bold border-2 border-border-medium rounded-lg text-center bg-surface-1 focus:border-secondary focus:outline-none tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={teamBScore || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
+                      onScoreUpdate(game.id, teamAScore || null, value ? parseInt(value) : null);
+                    }
+                  }}
+                  disabled={disabled}
+                  placeholder="0"
+                />
+              </>
+            )}
+          </div>
+
+          {/* Team B Side */}
+          <div className={`text-sm text-right ${
+            isCompleted && teamBWon ? 'text-success font-semibold' : 'text-secondary'
+          }`}>
+            <div className="whitespace-pre-line leading-relaxed">{getTeamBLineup()}</div>
+          </div>
         </div>
-        <input
-          type="number"
-          min="0"
-          max="99"
-          value={teamBScore}
-          onChange={(e) => handleScoreChange('B', e.target.value)}
-          disabled={disabled}
-          placeholder="-"
-          className="w-16 px-2 py-1 text-center rounded border bg-gray-700 border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ml-3"
-        />
       </div>
     </div>
   );
