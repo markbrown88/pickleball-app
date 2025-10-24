@@ -24,6 +24,8 @@ interface Match {
 interface Game {
   id: string;
   slot: string;
+  bracketId?: string | null;
+  bracket?: { id: string; name: string } | null;
   teamAScore: number | null;
   teamBScore: number | null;
   isComplete: boolean;
@@ -44,23 +46,41 @@ interface BracketMatchNodeData {
 }
 
 /**
- * Calculate total wins for each team
+ * Calculate bracket wins for club tournaments (not individual game wins)
+ * For each bracket, determine which club won more games, then count bracket wins
  */
-function calculateWins(games: Game[]): { teamAWins: number; teamBWins: number } {
-  let teamAWins = 0;
-  let teamBWins = 0;
+function calculateBracketWins(games: Game[]): { teamABracketWins: number; teamBBracketWins: number } {
+  // Group games by bracket
+  const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
 
   games.forEach(game => {
-    if (game.teamAScore !== null && game.teamBScore !== null) {
-      if (game.teamAScore > game.teamBScore) {
-        teamAWins++;
-      } else if (game.teamBScore > game.teamAScore) {
-        teamBWins++;
-      }
+    if (!game.isComplete || game.teamAScore === null || game.teamBScore === null) return;
+
+    const bracketName = game.bracket?.name || 'Main';
+    if (!bracketsByName[bracketName]) {
+      bracketsByName[bracketName] = { teamAWins: 0, teamBWins: 0 };
+    }
+
+    if (game.teamAScore > game.teamBScore) {
+      bracketsByName[bracketName].teamAWins++;
+    } else if (game.teamBScore > game.teamAScore) {
+      bracketsByName[bracketName].teamBWins++;
     }
   });
 
-  return { teamAWins, teamBWins };
+  // Count how many brackets each club won
+  let teamABracketWins = 0;
+  let teamBBracketWins = 0;
+
+  Object.values(bracketsByName).forEach(bracket => {
+    if (bracket.teamAWins > bracket.teamBWins) {
+      teamABracketWins++;
+    } else if (bracket.teamBWins > bracket.teamAWins) {
+      teamBBracketWins++;
+    }
+  });
+
+  return { teamABracketWins, teamBBracketWins };
 }
 
 /**
@@ -92,7 +112,7 @@ function getRoundLabel(round: Round): string {
 
 export const BracketMatchNode = memo(({ data }: NodeProps<BracketMatchNodeData>) => {
   const { match, round, borderColor } = data;
-  const { teamAWins, teamBWins } = calculateWins(match.games);
+  const { teamABracketWins, teamBBracketWins } = calculateBracketWins(match.games);
   const roundLabel = getRoundLabel(round);
 
   const isComplete = match.winnerId !== null;
@@ -173,7 +193,7 @@ export const BracketMatchNode = memo(({ data }: NodeProps<BracketMatchNodeData>)
                     match.winnerId === match.teamA?.id ? 'text-green-400' : 'text-gray-400'
                   }`}
                 >
-                  {teamAWins}
+                  {teamABracketWins}
                 </span>
               )}
             </div>
@@ -209,7 +229,7 @@ export const BracketMatchNode = memo(({ data }: NodeProps<BracketMatchNodeData>)
                     match.winnerId === match.teamB?.id ? 'text-green-400' : 'text-gray-400'
                   }`}
                 >
-                  {teamBWins}
+                  {teamBBracketWins}
                 </span>
               )}
             </div>
