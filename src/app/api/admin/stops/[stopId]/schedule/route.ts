@@ -344,6 +344,8 @@ export async function GET(req: Request, ctx: Ctx) {
                 games: games.map((game) => ({
                   id: game.id,
                   slot: game.slot,
+                  bracketId: game.bracketId,
+                  bracket: game.bracket,
                   teamAScore: game.teamAScore,
                   teamBScore: game.teamBScore,
                   courtNumber: game.courtNumber,
