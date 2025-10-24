@@ -6,9 +6,10 @@
  * Displays a single DE/Club match with bracket-grouped games in 2-column layout
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { InlineLineupEditor } from '../shared/InlineLineupEditor';
 import { PlayerLite } from '../shared/types';
+import { GameScoreBox } from '../shared/GameScoreBox';
 
 /**
  * Strip bracket level suffix from team/club name
@@ -68,23 +69,58 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
   const [isEditingLineup, setIsEditingLineup] = useState(false);
 
-  const handleScoreUpdate = async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
+  // Game control functions for GameScoreBox
+  const startGame = useCallback(async (gameId: string) => {
+    try {
+      const response = await fetch(`/api/admin/games/${gameId}/start`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to start game');
+      onUpdate();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to start game');
+    }
+  }, [onUpdate, onError]);
+
+  const endGame = useCallback(async (gameId: string) => {
+    try {
+      const response = await fetch(`/api/admin/games/${gameId}/end`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to end game');
+      onUpdate();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to end game');
+    }
+  }, [onUpdate, onError]);
+
+  const updateGameScore = useCallback(async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
     try {
       const response = await fetch(`/api/admin/games/${gameId}/score`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamAScore, teamBScore }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update score');
-      }
-
+      if (!response.ok) throw new Error('Failed to update score');
       onUpdate();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to update score');
     }
-  };
+  }, [onUpdate, onError]);
+
+  const updateGameCourtNumber = useCallback(async (gameId: string, courtNumber: string) => {
+    try {
+      const response = await fetch(`/api/admin/games/${gameId}/court`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courtNumber }),
+      });
+      if (!response.ok) throw new Error('Failed to update court number');
+      onUpdate();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to update court number');
+    }
+  }, [onUpdate, onError]);
 
   const handleCompleteMatch = async () => {
     if (!canCompleteMatch()) {
@@ -498,13 +534,15 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
                   {/* Games in 2-column grid */}
                   <div className="grid gap-4 lg:grid-cols-2">
                     {games.map(game => (
-                      <GameScoreCard
+                      <GameScoreBox
                         key={game.id}
                         game={game}
-                        teamAName={match.teamA!.name}
-                        teamBName={match.teamB!.name}
-                        onScoreUpdate={handleScoreUpdate}
-                        disabled={isDecided}
+                        match={match}
+                        lineups={lineups}
+                        startGame={startGame}
+                        endGame={endGame}
+                        updateGameScore={updateGameScore}
+                        updateGameCourtNumber={updateGameCourtNumber}
                       />
                     ))}
                   </div>
@@ -527,177 +565,6 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function GameScoreCard({
-  game,
-  teamAName,
-  teamBName,
-  onScoreUpdate,
-  disabled,
-}: {
-  game: any;
-  teamAName: string;
-  teamBName: string;
-  onScoreUpdate: (gameId: string, teamAScore: number | null, teamBScore: number | null) => void;
-  disabled: boolean;
-}) {
-  const getGameTitle = (slot: string) => {
-    switch (slot) {
-      case 'MENS_DOUBLES': return "Men's Doubles";
-      case 'WOMENS_DOUBLES': return "Women's Doubles";
-      case 'MIXED_1': return 'Mixed Doubles 1';
-      case 'MIXED_2': return 'Mixed Doubles 2';
-      case 'TIEBREAKER': return 'Tiebreaker';
-      default: return slot;
-    }
-  };
-
-  const getTeamALineup = () => {
-    if (game.teamALineup && Array.isArray(game.teamALineup)) {
-      const man1 = game.teamALineup[0];
-      const man2 = game.teamALineup[1];
-      const woman1 = game.teamALineup[2];
-      const woman2 = game.teamALineup[3];
-
-      switch (game.slot) {
-        case 'MENS_DOUBLES':
-          return man1 && man2 ? `${man1.name} &\n${man2.name}` : stripBracketSuffix(teamAName);
-        case 'WOMENS_DOUBLES':
-          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : stripBracketSuffix(teamAName);
-        case 'MIXED_1':
-          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : stripBracketSuffix(teamAName);
-        case 'MIXED_2':
-          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : stripBracketSuffix(teamAName);
-        case 'TIEBREAKER':
-          return stripBracketSuffix(teamAName);
-        default:
-          return stripBracketSuffix(teamAName);
-      }
-    }
-    return stripBracketSuffix(teamAName);
-  };
-
-  const getTeamBLineup = () => {
-    if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
-      const man1 = game.teamBLineup[0];
-      const man2 = game.teamBLineup[1];
-      const woman1 = game.teamBLineup[2];
-      const woman2 = game.teamBLineup[3];
-
-      switch (game.slot) {
-        case 'MENS_DOUBLES':
-          return man1 && man2 ? `${man1.name} &\n${man2.name}` : stripBracketSuffix(teamBName);
-        case 'WOMENS_DOUBLES':
-          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : stripBracketSuffix(teamBName);
-        case 'MIXED_1':
-          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : stripBracketSuffix(teamBName);
-        case 'MIXED_2':
-          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : stripBracketSuffix(teamBName);
-        case 'TIEBREAKER':
-          return stripBracketSuffix(teamBName);
-        default:
-          return stripBracketSuffix(teamBName);
-      }
-    }
-    return stripBracketSuffix(teamBName);
-  };
-
-  const teamAScore = game.teamAScore || 0;
-  const teamBScore = game.teamBScore || 0;
-  const teamAWon = teamAScore > teamBScore;
-  const teamBWon = teamBScore > teamAScore;
-  const isCompleted = game.isComplete;
-
-  return (
-    <div className={`rounded-lg border-2 overflow-hidden ${
-      isCompleted ? 'border-border-subtle bg-surface-1' : 'border-border-medium bg-surface-2'
-    }`}>
-      {/* Game Header */}
-      <div className={`px-4 py-2 flex items-center justify-between ${
-        isCompleted ? 'bg-surface-2' : 'bg-surface-1'
-      }`}>
-        <div className="flex items-center gap-2">
-          <h4 className="text-sm font-semibold text-primary">{getGameTitle(game.slot)}</h4>
-          {isCompleted && (
-            <span className="chip chip-success text-[10px] px-2 py-0.5">Complete</span>
-          )}
-        </div>
-      </div>
-
-      {/* Game Body - Players and Scores */}
-      <div className="p-4 space-y-3">
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
-          {/* Team A Side */}
-          <div className={`text-sm ${
-            isCompleted && teamAWon ? 'text-success font-semibold' : 'text-secondary'
-          }`}>
-            <div className="whitespace-pre-line leading-relaxed">{getTeamALineup()}</div>
-          </div>
-
-          {/* Scores */}
-          <div className="flex items-center gap-3">
-            {isCompleted ? (
-              <>
-                <div className={`text-2xl font-bold tabular ${
-                  teamAWon ? 'text-success' : 'text-muted'
-                }`}>
-                  {teamAScore}
-                </div>
-                <div className="text-muted font-medium">-</div>
-                <div className={`text-2xl font-bold tabular ${
-                  teamBWon ? 'text-success' : 'text-muted'
-                }`}>
-                  {teamBScore}
-                </div>
-              </>
-            ) : (
-              <>
-                <input
-                  type="number"
-                  min="0"
-                  max="99"
-                  className="w-16 px-2 py-2 text-xl font-bold border-2 border-border-medium rounded-lg text-center bg-surface-1 focus:border-secondary focus:outline-none tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  value={teamAScore || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
-                      onScoreUpdate(game.id, value ? parseInt(value) : null, teamBScore || null);
-                    }
-                  }}
-                  disabled={disabled}
-                  placeholder="0"
-                />
-                <div className="text-muted font-medium">-</div>
-                <input
-                  type="number"
-                  min="0"
-                  max="99"
-                  className="w-16 px-2 py-2 text-xl font-bold border-2 border-border-medium rounded-lg text-center bg-surface-1 focus:border-secondary focus:outline-none tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  value={teamBScore || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 99)) {
-                      onScoreUpdate(game.id, teamAScore || null, value ? parseInt(value) : null);
-                    }
-                  }}
-                  disabled={disabled}
-                  placeholder="0"
-                />
-              </>
-            )}
-          </div>
-
-          {/* Team B Side */}
-          <div className={`text-sm text-right ${
-            isCompleted && teamBWon ? 'text-success font-semibold' : 'text-secondary'
-          }`}>
-            <div className="whitespace-pre-line leading-relaxed">{getTeamBLineup()}</div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
