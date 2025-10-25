@@ -6,10 +6,11 @@
  * Displays a single DE/Club match with bracket-grouped games in 2-column layout
  */
 
-import { useState, useCallback } from 'react';
-import { InlineLineupEditor } from '../shared/InlineLineupEditor';
+import { useState, useCallback, useEffect } from 'react';
+import { BracketLineupEditor } from './BracketLineupEditor';
 import { PlayerLite } from '../shared/types';
 import { GameScoreBox } from '../shared/GameScoreBox';
+import { useGameControls } from '../../hooks/useGameControls';
 
 /**
  * Strip bracket level suffix from team/club name
@@ -56,71 +57,105 @@ interface BracketMatchProps {
     }>;
   };
   stopId: string;
-  lineups: Record<string, Record<string, PlayerLite[]>>;
+  lineups: Record<string, Record<string, PlayerLite[]>>; // bracketId -> teamId -> players
   teamRosters: Record<string, PlayerLite[]>;
   onUpdate: () => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
-  onLineupSave: (matchId: string, lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
+  onLineupSave: (matchId: string, lineups: Record<string, Record<string, PlayerLite[]>>) => void; // bracketId -> teamId -> players
 }
 
 export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, onError, onInfo, onLineupSave }: BracketMatchProps) {
   const [updating, setUpdating] = useState(false);
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
   const [isEditingLineup, setIsEditingLineup] = useState(false);
+  const [localGames, setLocalGames] = useState(match.games);
+
+  // Sync localGames when match.games updates
+  useEffect(() => {
+    setLocalGames(match.games);
+  }, [match.games]);
+
+  // Use shared game controls hook
+  const gameControls = useGameControls({ onError, onUpdate });
 
   // Game control functions for GameScoreBox
   const startGame = useCallback(async (gameId: string) => {
     try {
-      const response = await fetch(`/api/admin/games/${gameId}/start`, {
-        method: 'POST',
-      });
-      if (!response.ok) throw new Error('Failed to start game');
-      onUpdate();
+      const updatedGame = await gameControls.startGame(gameId);
+
+      // Update local state optimistically
+      setLocalGames(prev => prev.map(g =>
+        g.id === gameId
+          ? { ...g, startedAt: new Date().toISOString(), isComplete: false }
+          : g
+      ));
     } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to start game');
+      // Error already handled by hook
     }
-  }, [onUpdate, onError]);
+  }, [gameControls]);
 
   const endGame = useCallback(async (gameId: string) => {
     try {
-      const response = await fetch(`/api/admin/games/${gameId}/end`, {
-        method: 'POST',
-      });
-      if (!response.ok) throw new Error('Failed to end game');
-      onUpdate();
+      const game = localGames.find(g => g.id === gameId);
+      if (!game) return;
+
+      const updatedGame = await gameControls.endGame(gameId, game.teamAScore || 0, game.teamBScore || 0);
+
+      if (updatedGame) {
+        // Update local state optimistically
+        setLocalGames(prev => prev.map(g =>
+          g.id === gameId
+            ? { ...g, isComplete: true, endedAt: new Date().toISOString() }
+            : g
+        ));
+      }
     } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to end game');
+      // Error already handled by hook
     }
-  }, [onUpdate, onError]);
+  }, [gameControls, localGames]);
+
+  const reopenGame = useCallback(async (gameId: string) => {
+    try {
+      const updatedGame = await gameControls.reopenGame(gameId);
+
+      if (updatedGame) {
+        // Update local state optimistically
+        setLocalGames(prev => prev.map(g =>
+          g.id === gameId
+            ? { ...g, isComplete: false, endedAt: null }
+            : g
+        ));
+      }
+    } catch (error) {
+      // Error already handled by hook
+    }
+  }, [gameControls]);
 
   const updateGameScore = useCallback(async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
-    try {
-      const response = await fetch(`/api/admin/games/${gameId}/score`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamAScore, teamBScore }),
-      });
-      if (!response.ok) throw new Error('Failed to update score');
-      onUpdate();
-    } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to update score');
-    }
-  }, [onUpdate, onError]);
+    // Update local state immediately (optimistic update)
+    setLocalGames(prev => prev.map(g =>
+      g.id === gameId
+        ? { ...g, teamAScore, teamBScore }
+        : g
+    ));
+
+    // Debounced API call handled by hook
+    await gameControls.updateScore(gameId, teamAScore, teamBScore);
+  }, [gameControls]);
 
   const updateGameCourtNumber = useCallback(async (gameId: string, courtNumber: string) => {
-    try {
-      const response = await fetch(`/api/admin/games/${gameId}/court`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courtNumber }),
-      });
-      if (!response.ok) throw new Error('Failed to update court number');
-      onUpdate();
-    } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to update court number');
-    }
-  }, [onUpdate, onError]);
+    const courtNum = courtNumber ? parseInt(courtNumber, 10) : null;
+
+    // Update local state immediately (optimistic update)
+    setLocalGames(prev => prev.map(g =>
+      g.id === gameId
+        ? { ...g, courtNumber: courtNum }
+        : g
+    ));
+
+    await gameControls.updateCourtNumber(gameId, courtNum);
+  }, [gameControls]);
 
   const handleCompleteMatch = async () => {
     if (!canCompleteMatch()) {
@@ -250,7 +285,7 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
     if (match.winnerId) return false;
 
     // For club tournaments, need at least 8 games completed (4 slots × 2 brackets)
-    const completedGames = match.games.filter(g => g.isComplete).length;
+    const completedGames = localGames.filter(g => g.isComplete).length;
     if (completedGames < 8) return false;
 
     // Check if there's a clear winner (more than 4 wins for one club)
@@ -263,7 +298,7 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
   const getBracketWins = () => {
     const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
 
-    for (const game of match.games) {
+    for (const game of localGames) {
       if (!game.isComplete) continue;
       if (game.teamAScore === null || game.teamBScore === null) continue;
 
@@ -392,14 +427,16 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
             )}
             <div className="flex gap-2 flex-1 sm:flex-none">
               <button
-                className="btn btn-xs btn-error flex-1 sm:flex-none"
+                className="btn btn-xs flex-1 sm:flex-none"
+                style={{ backgroundColor: '#dc2626', color: 'white' }}
                 disabled={resolvingAction === 'forfeitA'}
                 onClick={() => handleForfeit('A')}
               >
                 {resolvingAction === 'forfeitA' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamAName)}`}
               </button>
               <button
-                className="btn btn-xs btn-error flex-1 sm:flex-none"
+                className="btn btn-xs flex-1 sm:flex-none"
+                style={{ backgroundColor: '#dc2626', color: 'white' }}
                 disabled={resolvingAction === 'forfeitB'}
                 onClick={() => handleForfeit('B')}
               >
@@ -428,22 +465,46 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
 
       {/* Lineup Editor or Prompt */}
       {(() => {
-        const teamALineup = lineups[match.id]?.[match.teamA.id] || [];
-        const teamBLineup = lineups[match.id]?.[match.teamB.id] || [];
-        const hasLineups = teamALineup.length === 4 && teamBLineup.length === 4;
-        const hasLineupsInGames = match.games.some(g => g.teamALineup && g.teamBLineup);
+        // Extract brackets from games
+        const brackets = Array.from(
+          new Map(
+            localGames
+              .filter(g => g.bracket && g.bracketId)
+              .map(g => [g.bracketId!, { bracketId: g.bracketId!, bracketName: g.bracket!.name }])
+          ).values()
+        );
+
+        // Check if we have lineups for all brackets
+        const hasAllLineups = brackets.every(bracket => {
+          const bracketLineups = lineups[bracket.bracketId];
+          return (
+            bracketLineups &&
+            match.teamA &&
+            match.teamB &&
+            bracketLineups[match.teamA.id]?.length === 4 &&
+            bracketLineups[match.teamB.id]?.length === 4
+          );
+        });
+
+        const hasLineupsInGames = localGames.some(g => g.teamALineup && g.teamBLineup);
+
+        // Check if any game has started (in progress or completed)
+        const hasAnyGameStarted = localGames.some(g => g.startedAt || g.isComplete);
 
         // Show lineup editor if editing
-        if (isEditingLineup) {
+        if (isEditingLineup && match.teamA && match.teamB && brackets.length > 0) {
           return (
             <div className="mb-4">
-              <InlineLineupEditor
+              <BracketLineupEditor
                 matchId={match.id}
                 stopId={stopId}
-                teamA={match.teamA}
-                teamB={match.teamB}
-                lineups={lineups}
-                teamRosters={teamRosters}
+                brackets={brackets.map(bracket => ({
+                  bracketId: bracket.bracketId,
+                  bracketName: bracket.bracketName,
+                  teamA: match.teamA!,
+                  teamB: match.teamB!,
+                }))}
+                existingLineups={lineups}
                 onSave={(savedLineups) => {
                   onLineupSave(match.id, savedLineups);
                   setIsEditingLineup(false);
@@ -454,23 +515,23 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
           );
         }
 
-        // If no lineups set yet, show button to set them
-        if (!hasLineups && !hasLineupsInGames && !isDecided) {
+        // If no lineups set yet, show button to set them (only if no games started)
+        if (!hasAllLineups && !hasLineupsInGames && !isDecided && !hasAnyGameStarted) {
           return (
             <div className="bg-surface-2 rounded-lg p-6 text-center mb-4">
-              <p className="text-muted mb-3">Lineups must be set before games can begin</p>
+              <p className="text-muted mb-3">Lineups must be set for each bracket before games can begin</p>
               <button
                 className="btn btn-secondary"
                 onClick={() => setIsEditingLineup(true)}
               >
-                Set Lineups
+                Set Lineups for All Brackets
               </button>
             </div>
           );
         }
 
-        // If lineups exist, show edit button
-        if ((hasLineups || hasLineupsInGames) && !isDecided) {
+        // If lineups exist, show edit button (only if no games started and not decided)
+        if ((hasAllLineups || hasLineupsInGames) && !isDecided && !hasAnyGameStarted) {
           return (
             <div className="flex justify-center mb-4">
               <button
@@ -488,19 +549,37 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
 
       {/* Games - Grouped by Bracket Level (only show if lineups are set) */}
       {(() => {
-        const teamALineup = lineups[match.id]?.[match.teamA?.id || ''] || [];
-        const teamBLineup = lineups[match.id]?.[match.teamB?.id || ''] || [];
-        const hasLineups = teamALineup.length === 4 && teamBLineup.length === 4;
-        const hasLineupsInGames = match.games.some(g => g.teamALineup && g.teamBLineup);
+        // Check if any game has lineups set
+        const hasLineupsInGames = localGames.some(g => g.teamALineup && g.teamBLineup);
 
-        if (!hasLineups && !hasLineupsInGames) {
+        // Check if we have lineups in state for all brackets
+        const brackets = Array.from(
+          new Map(
+            localGames
+              .filter(g => g.bracket && g.bracketId)
+              .map(g => [g.bracketId!, { bracketId: g.bracketId! }])
+          ).values()
+        );
+
+        const hasAllLineupsInState = brackets.length > 0 && brackets.every(bracket => {
+          const bracketLineups = lineups[bracket.bracketId];
+          return (
+            bracketLineups &&
+            match.teamA &&
+            match.teamB &&
+            bracketLineups[match.teamA.id]?.length === 4 &&
+            bracketLineups[match.teamB.id]?.length === 4
+          );
+        });
+
+        if (!hasAllLineupsInState && !hasLineupsInGames) {
           return null; // Don't show games until lineups are set
         }
 
         // Group games by bracket
-        const gamesByBracket: Record<string, typeof match.games> = {};
+        const gamesByBracket: Record<string, typeof localGames> = {};
 
-        for (const game of match.games) {
+        for (const game of localGames) {
           const bracketKey = game.bracket?.name || 'Main';
           if (!gamesByBracket[bracketKey]) {
             gamesByBracket[bracketKey] = [];
@@ -541,6 +620,7 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
                         lineups={lineups}
                         startGame={startGame}
                         endGame={endGame}
+                        reopenGame={reopenGame}
                         updateGameScore={updateGameScore}
                         updateGameCourtNumber={updateGameCourtNumber}
                       />

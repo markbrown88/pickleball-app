@@ -25,7 +25,7 @@ interface BracketRoundProps {
   onMatchUpdate: () => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
-  onLineupSave: (matchId: string, lineups: { teamA: PlayerLite[]; teamB: PlayerLite[] }) => void;
+  onLineupSave: (matchId: string, lineups: Record<string, Record<string, PlayerLite[]>>) => void;
 }
 
 export function BracketRound({

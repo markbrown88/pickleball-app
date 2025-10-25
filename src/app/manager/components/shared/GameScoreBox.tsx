@@ -8,6 +8,7 @@ interface GameScoreBoxProps {
   lineups: Record<string, Record<string, any[]>>;
   startGame: (gameId: string) => Promise<void>;
   endGame: (gameId: string) => Promise<void>;
+  reopenGame: (gameId: string) => Promise<void>;
   updateGameScore: (gameId: string, teamAScore: number | null, teamBScore: number | null) => Promise<void>;
   updateGameCourtNumber: (gameId: string, courtNumber: string) => Promise<void>;
 }
@@ -18,6 +19,7 @@ export const GameScoreBox = memo(function GameScoreBox({
   lineups,
   startGame,
   endGame,
+  reopenGame,
   updateGameScore,
   updateGameCourtNumber,
 }: GameScoreBoxProps) {
@@ -44,7 +46,13 @@ export const GameScoreBox = memo(function GameScoreBox({
   };
 
   const getTeamALineup = () => {
-    if (game.teamALineup && Array.isArray(game.teamALineup)) {
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamA?.name || 'Team A';
+    }
+
+    // First, try to get lineup from the game object (DB-stored lineup)
+    if (game.teamALineup && Array.isArray(game.teamALineup) && game.teamALineup.length === 4) {
       // Lineup structure: [Man1, Man2, Woman1, Woman2]
       const man1 = game.teamALineup[0];
       const man2 = game.teamALineup[1];
@@ -60,45 +68,48 @@ export const GameScoreBox = memo(function GameScoreBox({
           return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
         case 'MIXED_2':
           return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
-        case 'TIEBREAKER':
-          return match?.teamA?.name || 'Team A';
         default:
           return 'Team A';
       }
     }
-    // For tiebreakers, show actual team names
-    if (game.slot === 'TIEBREAKER' && match) {
-      return match.teamA?.name || 'Team A';
-    }
-    // Generate lineup from team roster based on game slot and lineup positions
-    if (match && match.teamA && lineups[match.id]) {
-      const teamALineup = lineups[match.id][match.teamA.id] || [];
-      // Lineup structure: [Man1, Man2, Woman1, Woman2]
-      const man1 = teamALineup[0];
-      const man2 = teamALineup[1];
-      const woman1 = teamALineup[2];
-      const woman2 = teamALineup[3];
 
-      switch (game.slot) {
-        case 'MENS_DOUBLES':
-          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
-        case 'WOMENS_DOUBLES':
-          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
-        case 'MIXED_1':
-          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
-        case 'MIXED_2':
-          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
-        case 'TIEBREAKER':
-          return match.teamA?.name || 'Team A';
-        default:
-          return 'Team A';
+    // Second, try to get lineup from the lineups prop (state-stored lineup)
+    // lineups structure: bracketId -> teamId -> players
+    if (match && match.teamA && game.bracketId && lineups[game.bracketId]) {
+      const teamALineup = lineups[game.bracketId][match.teamA.id] || [];
+
+      if (teamALineup.length === 4) {
+        // Lineup structure: [Man1, Man2, Woman1, Woman2]
+        const man1 = teamALineup[0];
+        const man2 = teamALineup[1];
+        const woman1 = teamALineup[2];
+        const woman2 = teamALineup[3];
+
+        switch (game.slot) {
+          case 'MENS_DOUBLES':
+            return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+          case 'WOMENS_DOUBLES':
+            return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+          case 'MIXED_1':
+            return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+          case 'MIXED_2':
+            return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+          default:
+            return 'Team A';
+        }
       }
     }
     return 'Team A';
   };
 
   const getTeamBLineup = () => {
-    if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
+    // For tiebreakers, show actual team names
+    if (game.slot === 'TIEBREAKER' && match) {
+      return match.teamB?.name || 'Team B';
+    }
+
+    // First, try to get lineup from the game object (DB-stored lineup)
+    if (game.teamBLineup && Array.isArray(game.teamBLineup) && game.teamBLineup.length === 4) {
       // Lineup structure: [Man1, Man2, Woman1, Woman2]
       const man1 = game.teamBLineup[0];
       const man2 = game.teamBLineup[1];
@@ -114,38 +125,35 @@ export const GameScoreBox = memo(function GameScoreBox({
           return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
         case 'MIXED_2':
           return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
-        case 'TIEBREAKER':
-          return match?.teamB?.name || 'Team B';
         default:
           return 'Team B';
       }
     }
-    // For tiebreakers, show actual team names
-    if (game.slot === 'TIEBREAKER' && match) {
-      return match.teamB?.name || 'Team B';
-    }
-    // Generate lineup from team roster based on game slot and lineup positions
-    if (match && match.teamB && lineups[match.id]) {
-      const teamBLineup = lineups[match.id][match.teamB.id] || [];
-      // Lineup structure: [Man1, Man2, Woman1, Woman2]
-      const man1 = teamBLineup[0];
-      const man2 = teamBLineup[1];
-      const woman1 = teamBLineup[2];
-      const woman2 = teamBLineup[3];
 
-      switch (game.slot) {
-        case 'MENS_DOUBLES':
-          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team B';
-        case 'WOMENS_DOUBLES':
-          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team B';
-        case 'MIXED_1':
-          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
-        case 'MIXED_2':
-          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
-        case 'TIEBREAKER':
-          return match.teamB?.name || 'Team B';
-        default:
-          return 'Team B';
+    // Second, try to get lineup from the lineups prop (state-stored lineup)
+    // lineups structure: bracketId -> teamId -> players
+    if (match && match.teamB && game.bracketId && lineups[game.bracketId]) {
+      const teamBLineup = lineups[game.bracketId][match.teamB.id] || [];
+
+      if (teamBLineup.length === 4) {
+        // Lineup structure: [Man1, Man2, Woman1, Woman2]
+        const man1 = teamBLineup[0];
+        const man2 = teamBLineup[1];
+        const woman1 = teamBLineup[2];
+        const woman2 = teamBLineup[3];
+
+        switch (game.slot) {
+          case 'MENS_DOUBLES':
+            return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team B';
+          case 'WOMENS_DOUBLES':
+            return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team B';
+          case 'MIXED_1':
+            return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team B';
+          case 'MIXED_2':
+            return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team B';
+          default:
+            return 'Team B';
+        }
       }
     }
     return 'Team B';
@@ -194,22 +202,28 @@ export const GameScoreBox = memo(function GameScoreBox({
           {isCompleted && game.courtNumber && (
             <span className="text-xs text-muted">Court {game.courtNumber}</span>
           )}
-          {gameStatus !== 'completed' && (
+          {gameStatus === 'not_started' && (
             <button
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                gameStatus === 'not_started'
-                  ? 'bg-success hover:bg-success-hover text-white'
-                  : 'bg-error hover:bg-error-hover text-white'
-              }`}
-              onClick={() => {
-                if (gameStatus === 'not_started') {
-                  startGame(game.id);
-                } else if (gameStatus === 'in_progress') {
-                  endGame(game.id);
-                }
-              }}
+              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-success hover:bg-success-hover text-white"
+              onClick={() => startGame(game.id)}
             >
-              {gameStatus === 'not_started' ? 'Start' : 'Finish'}
+              Start
+            </button>
+          )}
+          {gameStatus === 'in_progress' && (
+            <button
+              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-error hover:bg-error-hover text-white"
+              onClick={() => endGame(game.id)}
+            >
+              Finish
+            </button>
+          )}
+          {gameStatus === 'completed' && (
+            <button
+              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-warning hover:bg-warning-hover text-white"
+              onClick={() => reopenGame(game.id)}
+            >
+              Reopen
             </button>
           )}
         </div>

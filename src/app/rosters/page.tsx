@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAdminUser } from '../admin/AdminContext';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
+import { saveSelectedTournament, getLastSelectedTournament } from '@/lib/tournamentStorage';
 
 type RosterTournament = {
   id: string;
@@ -104,8 +105,17 @@ export default function AdminRostersPage() {
         setListLoading(true);
         const items = await api<RosterTournament[]>('/api/admin/rosters/tournaments');
         setTournaments(items);
+
+        // Try to restore last selected tournament, otherwise use first tournament
         if (items.length) {
-          setSelectedId(items[0].id);
+          const lastSelectedId = getLastSelectedTournament();
+          const isLastSelectedAvailable = lastSelectedId && items.some(t => t.id === lastSelectedId);
+
+          if (isLastSelectedAvailable) {
+            setSelectedId(lastSelectedId);
+          } else {
+            setSelectedId(items[0].id);
+          }
         }
       } catch (e) {
         setErr((e as Error).message);
@@ -167,7 +177,11 @@ export default function AdminRostersPage() {
                 id="roster-tournament"
                 className="input min-w-[280px]"
                 value={selectedId}
-                onChange={(event) => setSelectedId(event.target.value)}
+                onChange={(event) => {
+                  const newId = event.target.value;
+                  setSelectedId(newId);
+                  saveSelectedTournament(newId);
+                }}
               >
                 {tournaments.map((t) => (
                   <option key={t.id} value={t.id}>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
+import { saveSelectedTournament, getLastSelectedTournament } from '@/lib/tournamentStorage';
 import dynamic from 'next/dynamic';
 
 // Dynamically import the ManagerRouter which routes to the correct manager type
@@ -75,9 +76,17 @@ export default function ManagerPage() {
         const data = await tournamentsRes.json();
         const items = data.items || [];
         setTournaments(items);
-        // Auto-select first tournament
+
+        // Try to restore last selected tournament, otherwise use first tournament
         if (items.length > 0) {
-          setSelectedTournamentId(items[0].tournamentId);
+          const lastSelectedId = getLastSelectedTournament();
+          const isLastSelectedAvailable = lastSelectedId && items.some((t: EventManagerTournament) => t.tournamentId === lastSelectedId);
+
+          if (isLastSelectedAvailable) {
+            setSelectedTournamentId(lastSelectedId);
+          } else {
+            setSelectedTournamentId(items[0].tournamentId);
+          }
         }
       } catch (error) {
         console.error('Error loading manager data:', error);
@@ -120,7 +129,11 @@ export default function ManagerPage() {
               id="manager-tournament"
               className="input min-w-[280px]"
               value={selectedTournamentId}
-              onChange={(e) => setSelectedTournamentId(e.target.value)}
+              onChange={(e) => {
+                const newId = e.target.value;
+                setSelectedTournamentId(newId);
+                saveSelectedTournament(newId);
+              }}
             >
               {tournaments.map((t) => (
                 <option key={t.tournamentId} value={t.tournamentId}>

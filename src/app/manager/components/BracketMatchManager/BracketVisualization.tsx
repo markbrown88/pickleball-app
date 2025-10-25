@@ -47,14 +47,19 @@ interface Match {
 interface Game {
   id: string;
   slot: string;
+  bracketId?: string | null;
+  bracket?: { id: string; name: string } | null;
   teamAScore: number | null;
   teamBScore: number | null;
   isComplete: boolean;
   startedAt: string | null;
+  teamALineup?: any[];
+  teamBLineup?: any[];
 }
 
 interface BracketVisualizationProps {
   rounds: Round[];
+  lineups: Record<string, Record<string, any[]>>; // bracketId -> teamId -> players
   onMatchUpdate?: () => void;
   onError?: (message: string) => void;
   onInfo?: (message: string) => void;
@@ -259,6 +264,7 @@ function convertRoundsToFlow(rounds: Round[]): { nodes: Node[]; edges: Edge[] } 
 
 export function BracketVisualization({
   rounds,
+  lineups,
   onMatchUpdate,
   onError,
   onInfo,
@@ -340,12 +346,10 @@ export function BracketVisualization({
           />
           <Controls
             style={{
-              button: {
-                backgroundColor: '#1f2937',
-                borderColor: '#374151',
-                color: '#fff',
-              },
-            }}
+              backgroundColor: '#1f2937',
+              borderColor: '#374151',
+              color: '#fff',
+            } as React.CSSProperties}
           />
         </ReactFlow>
       </div>
@@ -353,6 +357,7 @@ export function BracketVisualization({
       {/* Scoring Modal */}
       <BracketMatchModal
         match={selectedMatch}
+        lineups={lineups}
         onClose={handleModalClose}
         onUpdate={handleMatchUpdate}
         onError={onError || (() => {})}

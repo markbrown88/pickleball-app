@@ -183,6 +183,8 @@ export async function GET(req: Request, ctx: Ctx) {
                 endedAt: true,
                 createdAt: true,
                 lineupConfirmed: true,
+                teamALineup: true,
+                teamBLineup: true,
                 teamAScoreSubmitted: true,
                 teamBScoreSubmitted: true,
                 teamASubmittedScore: true,
@@ -323,8 +325,18 @@ export async function GET(req: Request, ctx: Ctx) {
 
               const teamALineupKey = resolved.teamAId ? `${r.id}-${resolved.teamAId}` : null;
               const teamBLineupKey = resolved.teamBId ? `${r.id}-${resolved.teamBId}` : null;
-              const teamALineup = teamALineupKey ? lineupMap.get(teamALineupKey) || null : null;
-              const teamBLineup = teamBLineupKey ? lineupMap.get(teamBLineupKey) || null : null;
+              const roundLevelTeamALineup = teamALineupKey ? lineupMap.get(teamALineupKey) || null : null;
+              const roundLevelTeamBLineup = teamBLineupKey ? lineupMap.get(teamBLineupKey) || null : null;
+
+              // For games with lineup data stored directly on them, use that instead of round-level lineups
+              // This is used for DE/Club tournaments
+              const firstGameWithLineup = games.find(g => g.teamALineup && g.teamBLineup);
+              const gameLevelTeamALineup = firstGameWithLineup?.teamALineup || null;
+              const gameLevelTeamBLineup = firstGameWithLineup?.teamBLineup || null;
+
+              // Prefer game-level lineups over round-level lineups (game-level is for DE, round-level is for Team)
+              const teamALineup = gameLevelTeamALineup || roundLevelTeamALineup;
+              const teamBLineup = gameLevelTeamBLineup || roundLevelTeamBLineup;
 
               return {
                 id: match.id,
@@ -352,8 +364,8 @@ export async function GET(req: Request, ctx: Ctx) {
                   isComplete: game.isComplete,
                   startedAt: game.startedAt,
                   endedAt: game.endedAt,
-                  teamALineup,
-                  teamBLineup,
+                  teamALineup: game.teamALineup || teamALineup,
+                  teamBLineup: game.teamBLineup || teamBLineup,
                   lineupConfirmed: game.lineupConfirmed,
                   createdAt: game.createdAt,
                   teamAScoreSubmitted: game.teamAScoreSubmitted,

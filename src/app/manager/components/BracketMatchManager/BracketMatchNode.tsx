@@ -39,11 +39,11 @@ interface Round {
   depth: number | null;
 }
 
-interface BracketMatchNodeData {
+type BracketMatchNodeData = {
   match: Match;
   round: Round;
   borderColor: string;
-}
+};
 
 /**
  * Calculate bracket wins for club tournaments (not individual game wins)
@@ -110,13 +110,22 @@ function getRoundLabel(round: Round): string {
   return `Round ${round.idx + 1}`;
 }
 
-export const BracketMatchNode = memo(({ data }: NodeProps<BracketMatchNodeData>) => {
-  const { match, round, borderColor } = data;
+export const BracketMatchNode = memo((props: { data: BracketMatchNodeData }) => {
+  const { match, round, borderColor } = props.data;
   const { teamABracketWins, teamBBracketWins } = calculateBracketWins(match.games);
   const roundLabel = getRoundLabel(round);
 
   const isComplete = match.winnerId !== null;
   const isPending = !match.teamA || !match.teamB || match.isBye;
+
+  // Strip bracket suffix from team names to show club name only
+  const stripBracketSuffix = (name: string | undefined) => {
+    if (!name) return '';
+    return name.replace(/\s+[\d.]+$/, '').replace(/\s+(Intermediate|Advanced|Beginner)$/i, '');
+  };
+
+  const clubNameA = stripBracketSuffix(match.teamA?.name);
+  const clubNameB = stripBracketSuffix(match.teamB?.name);
 
   return (
     <div
@@ -150,7 +159,7 @@ export const BracketMatchNode = memo(({ data }: NodeProps<BracketMatchNodeData>)
           <div className="text-center py-4">
             <p className="text-gray-400 text-sm">BYE</p>
             <p className="text-gray-500 text-xs mt-1">
-              {match.teamA?.name || 'TBD'}
+              {clubNameA || 'TBD'}
             </p>
           </div>
         ) : isPending ? (
@@ -182,9 +191,9 @@ export const BracketMatchNode = memo(({ data }: NodeProps<BracketMatchNodeData>)
                       ? 'text-white font-semibold'
                       : 'text-gray-300'
                   }`}
-                  title={match.teamA?.name}
+                  title={clubNameA || 'TBD'}
                 >
-                  {match.teamA?.name || 'TBD'}
+                  {clubNameA || 'TBD'}
                 </span>
               </div>
               {isComplete && (
@@ -218,9 +227,9 @@ export const BracketMatchNode = memo(({ data }: NodeProps<BracketMatchNodeData>)
                       ? 'text-white font-semibold'
                       : 'text-gray-300'
                   }`}
-                  title={match.teamB?.name}
+                  title={clubNameB || 'TBD'}
                 >
-                  {match.teamB?.name || 'TBD'}
+                  {clubNameB || 'TBD'}
                 </span>
               </div>
               {isComplete && (

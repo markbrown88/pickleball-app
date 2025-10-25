@@ -82,6 +82,28 @@ export function BracketMatchManager({
       const roundsData = Array.isArray(data) ? data : [];
       setRounds(roundsData);
 
+      // Extract lineups from games and populate the lineups state
+      // Structure: bracketId -> teamId -> players
+      const loadedLineups: Record<string, Record<string, PlayerLite[]>> = {};
+      for (const round of roundsData) {
+        for (const match of round.matches) {
+          if (!match.teamA || !match.teamB) continue;
+
+          // Group games by bracket and extract lineups
+          for (const game of match.games) {
+            if (game.bracketId && game.teamALineup && game.teamBLineup) {
+              if (!loadedLineups[game.bracketId]) {
+                loadedLineups[game.bracketId] = {};
+              }
+              // Store lineups by bracket -> team
+              loadedLineups[game.bracketId][match.teamA.id] = game.teamALineup;
+              loadedLineups[game.bracketId][match.teamB.id] = game.teamBLineup;
+            }
+          }
+        }
+      }
+      setLineups(loadedLineups);
+
       // Auto-expand incomplete rounds
       const incomplete = new Set<string>();
       for (const round of roundsData) {
@@ -116,23 +138,34 @@ export function BracketMatchManager({
     await loadBracketData();
   };
 
-  const handleLineupSave = (matchId: string, savedLineups: { teamA: PlayerLite[]; teamB: PlayerLite[]; }) => {
-    // Get team IDs from the match
-    const match = rounds.flatMap(r => r.matches).find(m => m.id === matchId);
-    if (!match || !match.teamA || !match.teamB) return;
+  const handleLineupSave = async (matchId: string, savedLineups: Record<string, Record<string, PlayerLite[]>>) => {
+    // savedLineups structure: bracketId -> teamId -> players
+    try {
+      // Save lineups for each bracket separately
+      const response = await fetch(`/api/admin/matches/${matchId}/bracket-lineups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lineupsByBracket: savedLineups,
+        }),
+      });
 
-    // Update lineups state
-    setLineups(prev => ({
-      ...prev,
-      [matchId]: {
-        [match.teamA!.id]: savedLineups.teamA,
-        [match.teamB!.id]: savedLineups.teamB,
-      },
-    }));
+      if (!response.ok) {
+        throw new Error('Failed to save lineups');
+      }
 
-    onInfo('Lineups saved successfully!');
-    // Reload to get updated game data with lineups
-    loadBracketData();
+      // Update lineups state (merge with existing)
+      setLineups(prev => ({
+        ...prev,
+        ...savedLineups,
+      }));
+
+      onInfo('Lineups saved successfully for all brackets!');
+      // Reload to get updated game data with lineups
+      await loadBracketData();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to save lineups');
+    }
   };
 
   const handleResetBracket = async () => {
@@ -269,6 +302,7 @@ export function BracketMatchManager({
       {viewMode === 'diagram' ? (
         <BracketVisualization
           rounds={rounds}
+          lineups={lineups}
           onMatchUpdate={handleMatchUpdate}
           onError={onError}
           onInfo={onInfo}

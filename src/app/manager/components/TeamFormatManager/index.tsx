@@ -699,7 +699,7 @@ export function TeamFormatManager({
 
       // Reload games for this specific match
       await loadGamesForMatch(parentMatchId, true);
-      
+
       // Also fetch the match to get updated tiebreaker status
       try {
         const matchResponse = await fetchWithActAs(`/api/admin/matches/${parentMatchId}`);
@@ -723,6 +723,77 @@ export function TeamFormatManager({
       }
     } catch (error) {
       onError(`Failed to end game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const reopenGame = async (gameId: string) => {
+    try {
+      let parentMatchId: string | null = null;
+      for (const [matchId, matchGames] of Object.entries(games)) {
+        const foundGame = matchGames?.find(game => game.id === gameId);
+        if (foundGame) {
+          parentMatchId = matchId;
+          break;
+        }
+      }
+
+      if (!parentMatchId) {
+        throw new Error('Game not found');
+      }
+
+      const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isComplete: false,
+          endedAt: null
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reopen game');
+      }
+
+      // Update local state
+      setGames(prev => {
+        const updated = { ...prev };
+        for (const matchId in updated) {
+          updated[matchId] = updated[matchId]?.map(g =>
+            g.id === gameId ? { ...g, isComplete: false, endedAt: null } : g
+          );
+        }
+        return updated;
+      });
+
+      // Give the server a moment to recalculate tiebreaker status
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Reload games for this specific match
+      await loadGamesForMatch(parentMatchId, true);
+
+      // Also fetch the match to get updated tiebreaker status
+      try {
+        const matchResponse = await fetchWithActAs(`/api/admin/matches/${parentMatchId}`);
+        if (matchResponse.ok) {
+          const matchData = await matchResponse.json();
+          // Update the schedule data with the new tiebreaker status
+          setScheduleData(prev => ({
+            ...prev,
+            [selectedStopId || '']: (prev[selectedStopId || ''] || []).map(round => ({
+              ...round,
+              matches: (round.matches || []).map((m: any) =>
+                m.id === parentMatchId
+                  ? { ...m, tiebreakerStatus: matchData.tiebreakerStatus, tiebreakerWinnerTeamId: matchData.tiebreakerWinnerTeamId }
+                  : m
+              )
+            }))
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch match status:', err);
+      }
+    } catch (error) {
+      onError(`Failed to reopen game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -1511,12 +1582,13 @@ export function TeamFormatManager({
                                                       const tiebreakerGame = matchGames.find((g: any) => g.slot === 'TIEBREAKER');
                                                       const isDecided = ['decided_points', 'decided_tiebreaker'].includes(matchStatus) || !!match.forfeitTeam;
                                                       const isTiePending = matchStatus === 'tied_requires_tiebreaker' || matchStatus === 'needs_decision' || matchStatus === 'tied_pending';
-                                                      const canEditLineups = !isDecided;
                                                   const teamALineup = match.teamA?.id ? (lineups[matchId]?.[match.teamA.id] ?? []) : [];
                                                   const teamBLineup = match.teamB?.id ? (lineups[matchId]?.[match.teamB.id] ?? []) : [];
                                                   const hasAnyGameStarted = matchGames.some((game: any) =>
                                                     getGameStatus(game) === 'in_progress' || getGameStatus(game) === 'completed'
                                                   );
+                                                  // Disable lineup editing once match is decided OR any game has started
+                                                  const canEditLineups = !isDecided && !hasAnyGameStarted;
                                                   const isEditingThisMatch = editingMatch === match.id;
 
                                                   return (
@@ -1767,6 +1839,7 @@ export function TeamFormatManager({
                                                                         lineups={lineups}
                                                                         startGame={startGame}
                                                                         endGame={endGame}
+                                                                        reopenGame={reopenGame}
                                                                         updateGameScore={updateGameScore}
                                                                         updateGameCourtNumber={updateGameCourtNumber}
                                                                       />
@@ -1785,6 +1858,7 @@ export function TeamFormatManager({
                                                                       lineups={lineups}
                                                                       startGame={startGame}
                                                                       endGame={endGame}
+                                                                      reopenGame={reopenGame}
                                                                       updateGameScore={updateGameScore}
                                                                       updateGameCourtNumber={updateGameCourtNumber}
                                                                     />
@@ -1817,6 +1891,7 @@ export function TeamFormatManager({
                                                                       lineups={lineups}
                                                                       startGame={startGame}
                                                                       endGame={endGame}
+                                                                      reopenGame={reopenGame}
                                                                       updateGameScore={updateGameScore}
                                                                       updateGameCourtNumber={updateGameCourtNumber}
                                                                     />
