@@ -35,6 +35,7 @@ type BracketRoster = {
 type ClubRoster = {
   clubId: string;
   clubName: string;
+  captainAccessToken: string | null;
   brackets: BracketRoster[];
 };
 
@@ -109,6 +110,7 @@ export async function GET(
         clubs: {
           select: {
             clubId: true,
+            captainAccessToken: true,
             club: { select: { name: true } },
           },
         },
@@ -204,6 +206,7 @@ export async function GET(
       return {
         clubId: link.clubId,
         clubName: link.club?.name ?? 'Club',
+        captainAccessToken: link.captainAccessToken ?? null,
         brackets,
       };
     });

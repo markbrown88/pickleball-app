@@ -44,6 +44,7 @@ type BracketRoster = {
 type ClubRoster = {
   clubId: string;
   clubName: string;
+  captainAccessToken: string | null;
   brackets: BracketRoster[];
 };
 
@@ -327,14 +328,29 @@ function RosterDetails({
               className="w-full px-6 py-4 flex items-center justify-between text-left bg-surface-2 hover:bg-surface-1 transition-colors"
               onClick={() => toggleClub(club.clubId)}
             >
-              <div className="flex items-center gap-3">
-                <div className={`transform transition-transform text-secondary ${openClubIds.has(club.clubId) ? 'rotate-90' : ''}`}>
-                  ▶
+              <div className="flex items-center justify-between gap-4 flex-1">
+                <div className="flex items-center gap-3">
+                  <div className={`transform transition-transform text-secondary ${openClubIds.has(club.clubId) ? 'rotate-90' : ''}`}>
+                    ▶
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-primary">{club.clubName}</h3>
+                    <p className="text-xs text-muted mt-0.5">{club.brackets.length} {club.brackets.length === 1 ? 'bracket' : 'brackets'}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-primary">{club.clubName}</h3>
-                  <p className="text-xs text-muted mt-0.5">{club.brackets.length} {club.brackets.length === 1 ? 'bracket' : 'brackets'}</p>
-                </div>
+                {club.captainAccessToken && (
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-xs text-muted">Captain Portal:</span>
+                    <a
+                      href={`/captain/${club.captainAccessToken}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 text-xs bg-surface-1 border border-border-medium rounded font-mono text-info hover:text-info-hover hover:border-info transition-colors"
+                    >
+                      {typeof window !== 'undefined' ? `${window.location.origin}/captain/${club.captainAccessToken}` : `/captain/${club.captainAccessToken}`}
+                    </a>
+                  </div>
+                )}
               </div>
             </button>
             {openClubIds.has(club.clubId) && (

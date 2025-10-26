@@ -57,13 +57,32 @@ export async function evaluateMatchTiebreaker(
     });
   }
 
-  const standardGames = match.games.filter(
-    (game) => game.slot && STANDARD_SLOTS.includes(game.slot),
-  );
-  // Only consider games that are marked as complete (finished), not just games with scores
-  const completedStandardGames = standardGames.filter(
-    (game) => game.isComplete === true,
-  );
+  // Determine if this is a DE Club tournament (has bracketId) or Team tournament (has slot)
+  const isDEClubTournament = match.games.some(g => g.bracketId !== null);
+
+  let standardGames, completedStandardGames, expectedGameCount;
+
+  if (isDEClubTournament) {
+    // For DE Club: standard games are those with a bracketId (not TIEBREAKER slot)
+    standardGames = match.games.filter(
+      (game) => game.bracketId !== null && game.slot !== 'TIEBREAKER',
+    );
+    completedStandardGames = standardGames.filter(
+      (game) => game.isComplete === true,
+    );
+    // Expected game count is based on number of unique brackets * 4 games per bracket
+    const uniqueBrackets = new Set(standardGames.map(g => g.bracketId).filter(Boolean));
+    expectedGameCount = uniqueBrackets.size * 4;
+  } else {
+    // For Team tournaments: standard games are those with standard slots
+    standardGames = match.games.filter(
+      (game) => game.slot && STANDARD_SLOTS.includes(game.slot),
+    );
+    completedStandardGames = standardGames.filter(
+      (game) => game.isComplete === true,
+    );
+    expectedGameCount = STANDARD_SLOTS.length; // Always 4 for Team tournaments
+  }
 
   // If match is already decided, preserve that decision
   if (DECIDED_STATUSES.includes(match.tiebreakerStatus)) {
@@ -89,7 +108,7 @@ export async function evaluateMatchTiebreaker(
 
   resetTiebreaker();
 
-  if (completedStandardGames.length === STANDARD_SLOTS.length) {
+  if (completedStandardGames.length === expectedGameCount) {
     const summary = completedStandardGames.reduce(
       (acc, game) => {
         const a = game.teamAScore ?? 0;
@@ -110,8 +129,20 @@ export async function evaluateMatchTiebreaker(
       // Match already decided via standard games, clear any tiebreaker data
       tiebreakerStatus = 'NONE';
       resetTiebreaker();
+
+      // Set the winner based on game wins
+      const teamAId = match.teamA?.id ?? match.teamAId ?? null;
+      const teamBId = match.teamB?.id ?? match.teamBId ?? null;
+      winnerTeamId = summary.winsA > summary.winsB ? teamAId : teamBId;
+
+      // Delete tiebreaker game if it exists (for reopened game scenarios)
+      if (tiebreakerGame && !tiebreakerGame.isComplete) {
+        await tx.game.delete({
+          where: { id: tiebreakerGame.id },
+        });
+      }
     } else {
-      // 2-2 situation – evaluate totals or tiebreaker game
+      // Games are tied (2-2 for Team, 4-4/8-8/etc for DE Club) – evaluate totals or tiebreaker game
       const teamAId = match.teamA?.id ?? match.teamAId ?? null;
       const teamBId = match.teamB?.id ?? match.teamBId ?? null;
 
@@ -139,7 +170,10 @@ export async function evaluateMatchTiebreaker(
             tiebreakerStatus = 'PENDING_TIEBREAKER';
           } else {
             // Points are unequal - user should decide by points instead
-            // Clear the tiebreaker game reference since we shouldn't use it
+            // Delete the tiebreaker game since it shouldn't exist
+            await tx.game.delete({
+              where: { id: tiebreakerGame.id },
+            });
             tiebreakerStatus = 'NEEDS_DECISION';
             tiebreakerGameId = null;
           }
@@ -185,12 +219,20 @@ export async function evaluateMatchTiebreaker(
     // Not all standard games complete – clear interim values
     tiebreakerStatus = 'NONE';
     resetTiebreaker();
+
+    // Delete tiebreaker game if it exists (game was reopened)
+    if (tiebreakerGame && !tiebreakerGame.isComplete) {
+      await tx.game.delete({
+        where: { id: tiebreakerGame.id },
+      });
+    }
   }
 
   // Persist changes when something differs
   const shouldUpdate =
     tiebreakerStatus !== match.tiebreakerStatus ||
     winnerTeamId !== (match.tiebreakerWinnerTeamId ?? null) ||
+    winnerTeamId !== (match.winnerId ?? null) ||
     tiebreakerGameId !== (match.tiebreakerGameId ?? null) ||
     (tiebreakerDecidedAt?.getTime() ?? null) !== (match.tiebreakerDecidedAt?.getTime() ?? null) ||
     totalPointsTeamA !== (match.totalPointsTeamA ?? null) ||
@@ -205,6 +247,7 @@ export async function evaluateMatchTiebreaker(
     data: {
       tiebreakerStatus,
       tiebreakerWinnerTeamId: winnerTeamId,
+      winnerId: winnerTeamId, // Set winnerId for bracket progression
       tiebreakerGameId,
       tiebreakerDecidedAt,
       totalPointsTeamA,

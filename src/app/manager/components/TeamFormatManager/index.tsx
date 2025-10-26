@@ -665,11 +665,6 @@ export function TeamFormatManager({
       const teamAScore = gameToCheck.teamAScore || 0;
       const teamBScore = gameToCheck.teamBScore || 0;
 
-      if (teamAScore === teamBScore) {
-        onError('Cannot end game with tied scores. One team must win.');
-        return;
-      }
-
       const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

@@ -74,9 +74,19 @@ export const GameScoreBox = memo(function GameScoreBox({
     }
 
     // Second, try to get lineup from the lineups prop (state-stored lineup)
-    // lineups structure: bracketId -> teamId -> players
-    if (match && match.teamA && game.bracketId && lineups[game.bracketId]) {
-      const teamALineup = lineups[game.bracketId][match.teamA.id] || [];
+    // lineups structure can be:
+    // - For DE Club: bracketId -> teamId -> players
+    // - For Team: matchId -> teamId -> players
+    if (match && match.teamA) {
+      // Try DE Club structure first (game.bracketId)
+      let teamALineup = game.bracketId && lineups[game.bracketId]
+        ? lineups[game.bracketId][match.teamA.id] || []
+        : [];
+
+      // Fall back to Team structure (match.id)
+      if (teamALineup.length === 0 && lineups[match.id]) {
+        teamALineup = lineups[match.id][match.teamA.id] || [];
+      }
 
       if (teamALineup.length === 4) {
         // Lineup structure: [Man1, Man2, Woman1, Woman2]
@@ -131,9 +141,19 @@ export const GameScoreBox = memo(function GameScoreBox({
     }
 
     // Second, try to get lineup from the lineups prop (state-stored lineup)
-    // lineups structure: bracketId -> teamId -> players
-    if (match && match.teamB && game.bracketId && lineups[game.bracketId]) {
-      const teamBLineup = lineups[game.bracketId][match.teamB.id] || [];
+    // lineups structure can be:
+    // - For DE Club: bracketId -> teamId -> players
+    // - For Team: matchId -> teamId -> players
+    if (match && match.teamB) {
+      // Try DE Club structure first (game.bracketId)
+      let teamBLineup = game.bracketId && lineups[game.bracketId]
+        ? lineups[game.bracketId][match.teamB.id] || []
+        : [];
+
+      // Fall back to Team structure (match.id)
+      if (teamBLineup.length === 0 && lineups[match.id]) {
+        teamBLineup = lineups[match.id][match.teamB.id] || [];
+      }
 
       if (teamBLineup.length === 4) {
         // Lineup structure: [Man1, Man2, Woman1, Woman2]

@@ -109,11 +109,17 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
             ? { ...g, isComplete: true, endedAt: new Date().toISOString() }
             : g
         ));
+
+        // Re-evaluate match after game completes - trigger server-side recalculation
+        // and check if tiebreaker should be deleted
+        setTimeout(() => {
+          onUpdate();
+        }, 600);
       }
     } catch (error) {
       // Error already handled by hook
     }
-  }, [gameControls, localGames]);
+  }, [gameControls, localGames, onUpdate]);
 
   const reopenGame = useCallback(async (gameId: string) => {
     try {
@@ -126,11 +132,17 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
             ? { ...g, isComplete: false, endedAt: null }
             : g
         ));
+
+        // Re-evaluate match after reopening - trigger server-side recalculation
+        // Server will delete tiebreaker if match is no longer tied
+        setTimeout(() => {
+          onUpdate();
+        }, 600);
       }
     } catch (error) {
       // Error already handled by hook
     }
-  }, [gameControls]);
+  }, [gameControls, onUpdate]);
 
   const updateGameScore = useCallback(async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
     // Update local state immediately (optimistic update)
@@ -156,34 +168,6 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
 
     await gameControls.updateCourtNumber(gameId, courtNum);
   }, [gameControls]);
-
-  const handleCompleteMatch = async () => {
-    if (!canCompleteMatch()) {
-      onError('Match cannot be completed yet');
-      return;
-    }
-
-    try {
-      setUpdating(true);
-
-      const response = await fetch(`/api/admin/matches/${match.id}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to complete match');
-      }
-
-      onInfo('Match completed successfully!');
-      onUpdate();
-    } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to complete match');
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const handleDecideByPoints = async () => {
     const confirmMessage = `Confirm using total points to decide ${match.teamA?.name} vs ${match.teamB?.name}?`;
@@ -280,21 +264,6 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
     }
   };
 
-  const canCompleteMatch = () => {
-    if (match.isBye) return false;
-    if (match.winnerId) return false;
-
-    // For club tournaments, need at least 8 games completed (4 slots × 2 brackets)
-    const completedGames = localGames.filter(g => g.isComplete).length;
-    if (completedGames < 8) return false;
-
-    // Check if there's a clear winner (more than 4 wins for one club)
-    const { teamABracketWins, teamBBracketWins } = getBracketWins();
-
-    // Need at least one club to win both brackets or decide via tiebreaker/points
-    return teamABracketWins >= 2 || teamBBracketWins >= 2 || match.tiebreakerWinnerTeamId !== null;
-  };
-
   const getBracketWins = () => {
     const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
 
@@ -333,12 +302,16 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
     if (match.winnerId) return 'decided';
     if (match.tiebreakerWinnerTeamId) return 'decided';
 
-    const { teamABracketWins, teamBBracketWins } = getBracketWins();
-    const completedGames = match.games.filter(g => g.isComplete).length;
+    const { teamABracketWins, teamBBracketWins, bracketsByName } = getBracketWins();
+    const bracketCount = Object.keys(bracketsByName).length;
+    const totalExpectedGames = bracketCount * 4;
+    const majority = Math.ceil(bracketCount / 2);
 
-    if (completedGames < 8) return 'in_progress';
+    const completedGames = localGames.filter(g => g.isComplete).length;
+
+    if (completedGames < totalExpectedGames) return 'in_progress';
     if (teamABracketWins === teamBBracketWins && teamABracketWins > 0) return 'tied';
-    if (teamABracketWins >= 2 || teamBBracketWins >= 2) return 'ready_to_complete';
+    if (teamABracketWins >= majority || teamBBracketWins >= majority) return 'ready_to_complete';
 
     return 'in_progress';
   };
@@ -407,24 +380,29 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
         {/* Manager Actions */}
         {!isDecided && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
-            {matchStatus === 'tied' && (
-              <>
-                <button
-                  className="btn btn-xs btn-secondary flex-1 sm:flex-none"
-                  disabled={resolvingAction === 'points'}
-                  onClick={handleDecideByPoints}
-                >
-                  {resolvingAction === 'points' ? 'Resolving...' : 'Decide by Points'}
-                </button>
-                <button
-                  className="btn btn-xs btn-primary flex-1 sm:flex-none"
-                  disabled={resolvingAction === 'tiebreaker'}
-                  onClick={handleScheduleTiebreaker}
-                >
-                  {resolvingAction === 'tiebreaker' ? 'Creating...' : 'Add Tiebreaker'}
-                </button>
-              </>
-            )}
+            {matchStatus === 'tied' && (() => {
+              const hasTiebreakerGame = localGames.some(g => g.slot === 'TIEBREAKER');
+              return (
+                <>
+                  <button
+                    className="btn btn-xs btn-secondary flex-1 sm:flex-none"
+                    disabled={resolvingAction === 'points'}
+                    onClick={handleDecideByPoints}
+                  >
+                    {resolvingAction === 'points' ? 'Resolving...' : 'Decide by Points'}
+                  </button>
+                  {!hasTiebreakerGame && (
+                    <button
+                      className="btn btn-xs btn-primary flex-1 sm:flex-none"
+                      disabled={resolvingAction === 'tiebreaker'}
+                      onClick={handleScheduleTiebreaker}
+                    >
+                      {resolvingAction === 'tiebreaker' ? 'Creating...' : 'Add Tiebreaker'}
+                    </button>
+                  )}
+                </>
+              );
+            })()}
             <div className="flex gap-2 flex-1 sm:flex-none">
               <button
                 className="btn btn-xs flex-1 sm:flex-none"
@@ -632,19 +610,6 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
           </div>
         );
       })()}
-
-      {/* Complete Match Button */}
-      {!isDecided && canCompleteMatch() && (
-        <div className="mt-4 pt-4">
-          <button
-            onClick={handleCompleteMatch}
-            disabled={updating}
-            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-md transition-colors"
-          >
-            {updating ? 'Completing...' : 'Complete Match & Advance Winner'}
-          </button>
-        </div>
-      )}
     </div>
   );
 }

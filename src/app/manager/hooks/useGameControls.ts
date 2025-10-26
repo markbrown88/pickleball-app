@@ -47,16 +47,11 @@ export function useGameControls(options: GameControlsOptions) {
 
   /**
    * End a game by setting endedAt timestamp and marking complete
-   * Validates that scores are not tied before allowing completion
    * NOTE: Does NOT call onUpdate() - relies on optimistic updates
+   * NOTE: Individual games cannot have tied scores - this is validated at the UI level
    */
   const endGame = useCallback(async (gameId: string, teamAScore: number, teamBScore: number) => {
     try {
-      if (teamAScore === teamBScore) {
-        onError('Cannot end game with tied scores. One team must win.');
-        return null;
-      }
-
       const response = await fetchWithActAs(`/api/admin/games/${gameId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
