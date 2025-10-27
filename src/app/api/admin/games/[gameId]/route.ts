@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
+import { invalidateCache, cacheKeys } from '@/lib/cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -64,6 +65,19 @@ export async function PATCH(
     // After updating game, recalculate match tiebreaker status
     if (updatedGame.matchId) {
       await evaluateMatchTiebreaker(prisma, updatedGame.matchId);
+    }
+
+    // Invalidate schedule cache for this stop
+    // Get the stopId from the match -> round -> stop relationship
+    const match = await prisma.match.findUnique({
+      where: { id: updatedGame.matchId! },
+      select: { round: { select: { stopId: true } } }
+    });
+
+    if (match?.round.stopId) {
+      // Invalidate all cached schedule variations for this stop
+      await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
+      console.log(`Cache invalidated for stop: ${match.round.stopId}`);
     }
 
     console.log('Game updated successfully:', updatedGame);

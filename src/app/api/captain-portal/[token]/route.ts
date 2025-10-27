@@ -134,25 +134,22 @@ export async function GET(request: Request, { params }: Params) {
         status = 'current';
       }
 
-      // Count games and check lineup completion
-      let totalGames = 0;
-      let gamesWithLineups = 0;
+      // Count games and check lineup completion using array methods (faster)
+      const allGames = stop.rounds.flatMap(round =>
+        round.matches.flatMap(match => ({
+          game: match.games,
+          isTeamA: teamIds.includes(match.teamAId || '')
+        }))
+      ).flatMap(({ game, isTeamA }) =>
+        game.map(g => ({
+          lineup: isTeamA ? g.teamALineup : g.teamBLineup
+        }))
+      );
 
-      for (const round of stop.rounds) {
-        for (const match of round.matches) {
-          for (const game of match.games) {
-            totalGames++;
-
-            // Check if this club's team has submitted lineup
-            const isTeamA = teamIds.includes(match.teamAId || '');
-            const lineup = isTeamA ? game.teamALineup : game.teamBLineup;
-
-            if (lineup && Array.isArray(lineup) && lineup.length > 0) {
-              gamesWithLineups++;
-            }
-          }
-        }
-      }
+      const totalGames = allGames.length;
+      const gamesWithLineups = allGames.filter(g =>
+        g.lineup && Array.isArray(g.lineup) && g.lineup.length > 0
+      ).length;
 
       const lineupsComplete = totalGames > 0 && totalGames === gamesWithLineups;
 

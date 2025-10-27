@@ -8,6 +8,7 @@ import { expectedGenderForIndex, LINEUP_SLOT_ORDER, LINEUP_SLOT_CONFIG } from '@
 import { GameScoreBox } from '../shared/GameScoreBox';
 import { DraggableTeam } from '../shared/DraggableTeam';
 import { InlineLineupEditor } from '../shared/InlineLineupEditor';
+import { ScheduleSkeleton } from '../shared/LoadingSkeleton';
 import { PlayerLite, EventManagerTournament, type Id } from '../shared/types';
 import {
   type MatchStatus,
@@ -189,31 +190,29 @@ export function TeamFormatManager({
       });
 
       if (teamIds.size > 0) {
-        const prefetchEntries = await Promise.all(
-          Array.from(teamIds).map(async (teamId) => {
-            try {
-              const rosterResp = await fetchWithActAs(`/api/admin/stops/${stopId}/teams/${teamId}/roster`);
-              if (!rosterResp.ok) {
-                return { teamId, roster: [] as PlayerLite[] };
-              }
-              const rosterJson = await rosterResp.json();
-              return { teamId, roster: (rosterJson.items || []) as PlayerLite[] };
-            } catch (err) {
-              console.error('Failed to prefetch roster for team', teamId, err);
-              return { teamId, roster: [] as PlayerLite[] };
-            }
-          })
-        );
+        // Use bulk roster endpoint - ONE query instead of N queries
+        try {
+          const teamIdsArray = Array.from(teamIds);
+          const rosterResp = await fetchWithActAs(`/api/admin/stops/${stopId}/rosters?teamIds=${teamIdsArray.join(',')}`);
 
-        setTeamRosters(prev => {
-          const updated = { ...prev };
-          prefetchEntries.forEach(({ teamId, roster }) => {
-            if (!updated[teamId] || updated[teamId].length === 0) {
-              updated[teamId] = roster;
-            }
-          });
-          return updated;
-        });
+          if (rosterResp.ok) {
+            const { rosters } = await rosterResp.json();
+            setTeamRosters(prev => {
+              const updated = { ...prev };
+              // Only update if we don't already have data for this team
+              for (const [teamId, roster] of Object.entries(rosters)) {
+                if (!updated[teamId] || updated[teamId].length === 0) {
+                  updated[teamId] = roster as PlayerLite[];
+                }
+              }
+              return updated;
+            });
+          } else {
+            console.error('Failed to prefetch rosters:', await rosterResp.text());
+          }
+        } catch (err) {
+          console.error('Failed to prefetch rosters:', err);
+        }
       }
 
       // Extract games from schedule data and populate games state
@@ -1338,7 +1337,9 @@ export function TeamFormatManager({
 
                     <div className="bg-surface-1">
                       {loading[stop.stopId] ? (
-                        <div className="text-center py-4 text-muted">Loading schedule...</div>
+                        <div className="p-6">
+                          <ScheduleSkeleton roundCount={3} />
+                        </div>
                       ) : stopSchedule.length === 0 ? (
                         <div className="text-center py-4 text-muted">
                           No matchups generated yet. Click "Regenerate Matchups" to create them.

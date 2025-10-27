@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
+import { invalidateCache, cacheKeys } from '@/lib/cache';
 
 type Params = { matchId: string };
 type Ctx = { params: Promise<Params> };
@@ -25,6 +26,22 @@ function bad(msg: string, status = 400) {
 function isValidScore(v: unknown) {
   // allow undefined (not provided), null (clear), or non-negative integers
   return v === undefined || v === null || (Number.isInteger(v) && Number(v) >= 0);
+}
+
+async function invalidateMatchCache(matchId: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: { round: { select: { stopId: true } } }
+    });
+
+    if (match?.round.stopId) {
+      await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
+      console.log(`[Cache] Invalidated schedule cache for stop: ${match.round.stopId}`);
+    }
+  } catch (err) {
+    console.warn('[Cache] Failed to invalidate match cache:', err);
+  }
 }
 
 async function updateMatchScores(matchId: string, body: PutBody) {
@@ -107,6 +124,9 @@ async function updateMatchScores(matchId: string, body: PutBody) {
         }
       },
     });
+
+    // Invalidate schedule cache
+    await invalidateMatchCache(matchId);
 
     return NextResponse.json({
       ok: true,
@@ -263,12 +283,15 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
       console.log(`[FORFEIT] Clearing forfeit for match ${matchId}`);
       await prisma.match.update({
         where: { id: matchId },
-        data: { 
+        data: {
           forfeitTeam: null,
           updatedAt: new Date() // Update the timestamp to current time
         }
       });
-      
+
+      // Invalidate schedule cache
+      await invalidateMatchCache(matchId);
+
       return NextResponse.json({ 
         ok: true, 
         matchId, 
@@ -339,8 +362,11 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
     });
 
     console.log(`[FORFEIT] Successfully processed forfeit for match ${matchId}`);
-    
+
     await evaluateMatchTiebreaker(prisma, matchId);
+
+    // Invalidate schedule cache
+    await invalidateMatchCache(matchId);
 
     return NextResponse.json({ 
       ok: true, 

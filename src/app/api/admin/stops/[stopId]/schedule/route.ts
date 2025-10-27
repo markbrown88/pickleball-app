@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { getActAsHeaderFromRequest, getEffectivePlayer } from '@/lib/actAs';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
+import { getCached, cacheKeys, CACHE_TTL } from '@/lib/cache';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
@@ -103,7 +104,16 @@ export async function GET(req: Request, ctx: Ctx) {
       }
     }
 
-    const roundsRaw = await prisma.round.findMany({
+    // Cache the schedule data (60 second TTL)
+    // Cache key includes bracketFilter to cache different bracket views separately
+    const cacheKey = bracketFilter
+      ? `${cacheKeys.stopSchedule(stopId)}:bracket:${bracketFilter}`
+      : cacheKeys.stopSchedule(stopId);
+
+    const filteredRounds = await getCached(
+      cacheKey,
+      async () => {
+        const roundsRaw = await prisma.round.findMany({
       where: { stopId },
       orderBy: { idx: 'asc' },
       include: {
@@ -384,8 +394,13 @@ export async function GET(req: Request, ctx: Ctx) {
         })
     );
 
-    const filteredRounds = rounds.filter(
-      (r) => r.matches.length > 0 || bracketFilter === undefined,
+        const filteredRounds = rounds.filter(
+          (r) => r.matches.length > 0 || bracketFilter === undefined,
+        );
+
+        return filteredRounds;
+      },
+      CACHE_TTL.SCHEDULE // 60 seconds
     );
 
     return NextResponse.json(filteredRounds);
