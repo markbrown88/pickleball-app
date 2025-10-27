@@ -154,10 +154,11 @@ export async function GET(request: Request, { params }: Params) {
 
     const refreshedMatch = await evaluateMatchTiebreaker(prisma, match.id) ?? match;
 
+    // Only fetch the captain's own team roster for lineup selection
     const stopTeamPlayers = await prisma.stopTeamPlayer.findMany({
       where: {
         stopId: stopId,
-        teamId: { in: [refreshedMatch.teamAId, refreshedMatch.teamBId].filter((id): id is string => id !== null) }
+        teamId: team.id  // Only this team's players
       },
       include: {
         player: {
@@ -173,15 +174,7 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     // Create roster for lineup selection (only this team's players)
-    const myTeamPlayers = stopTeamPlayers.filter(stp => stp.teamId === team.id);
-    const roster = myTeamPlayers.map(stp => ({
-      id: stp.player.id,
-      name: stp.player.name || `${stp.player.firstName || ''} ${stp.player.lastName || ''}`.trim(),
-      gender: stp.player.gender
-    }));
-
-    // Create full roster for display purposes (both teams' players)
-    const allPlayers = stopTeamPlayers.map(stp => ({
+    const roster = stopTeamPlayers.map(stp => ({
       id: stp.player.id,
       name: stp.player.name || `${stp.player.firstName || ''} ${stp.player.lastName || ''}`.trim(),
       gender: stp.player.gender
@@ -191,19 +184,10 @@ export async function GET(request: Request, { params }: Params) {
     const myTeamLineup = round.lineups.find(l => l.teamId === team.id);
     const opponentTeamLineup = round.lineups.find(l => l.teamId === (refreshedMatch.teamAId === team.id ? refreshedMatch.teamBId : refreshedMatch.teamAId));
 
+    // Create player lookup map for lineup extraction
     const playerLookup = new Map<string, PlayerLite>();
-    allPlayers.forEach(player => {
+    roster.forEach(player => {
       playerLookup.set(player.id, player);
-    });
-
-    myTeamPlayers.forEach(stp => {
-      if (!playerLookup.has(stp.player.id)) {
-        playerLookup.set(stp.player.id, {
-          id: stp.player.id,
-          name: stp.player.name || `${stp.player.firstName || ''} ${stp.player.lastName || ''}`.trim(),
-          gender: stp.player.gender
-        });
-      }
     });
 
     const extractCoreLineup = (lineup: { entries: any[] } | null | undefined): (PlayerLite | undefined)[] => {

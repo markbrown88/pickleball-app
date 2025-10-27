@@ -475,25 +475,20 @@ function GamesView({
 
   const effectiveRoster = useMemo(() => {
     const map = new Map<string, Player>();
+    // Add all roster players (only captain's own team)
     roster.forEach(player => {
       if (!map.has(player.id)) {
         map.set(player.id, player);
       }
     });
-    if (matchMeta?.opponentLineup && Array.isArray(matchMeta.opponentLineup)) {
-      matchMeta.opponentLineup.forEach((player: Player | null) => {
-        if (player && !map.has(player.id)) {
-          map.set(player.id, player);
-        }
-      });
-    }
+    // Add any already-selected players from derivedLineup (in case they were removed from roster)
     derivedLineup.forEach(player => {
       if (player && !map.has(player.id)) {
         map.set(player.id, player);
       }
     });
     return Array.from(map.values());
-  }, [roster, derivedLineup, matchMeta]);
+  }, [roster, derivedLineup]);
 
   // Initialize from existing lineups
   useEffect(() => {
