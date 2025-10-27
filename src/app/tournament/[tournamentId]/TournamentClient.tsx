@@ -367,18 +367,18 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     variant: 'in-progress' | 'completed';
   }) => {
     const roundLabel = round?.name ?? 'Round';
-    const divisionLabel = match.teamA?.name?.includes('Advanced') ? 'Advanced' : 'Intermediate';
     const winnerTeamId = outcome.winnerTeamId;
-    
-    // Extract club names and bracket name
-    const clubA = deriveClubKey(match.teamA?.name);
-    const clubB = deriveClubKey(match.teamB?.name);
-    const bracketName = match.teamA?.bracket?.name || divisionLabel;
+
+    // Extract club names and bracket name from match data
+    const clubA = match.teamA?.club?.name || match.teamA?.name || 'Team A';
+    const clubB = match.teamB?.club?.name || match.teamB?.name || 'Team B';
+    const bracketName = match.teamA?.bracket?.name || match.teamB?.bracket?.name;
 
     return (
       <div className="border border-subtle rounded p-3 bg-surface-2">
         <div className="text-sm font-medium text-muted mb-1 flex items-center">
-          {roundLabel} - {bracketName}:
+          {roundLabel}
+          {bracketName && ` - ${bracketName}`}:
           <span className={`ml-2 ${winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' ? 'font-bold text-success' : ''}`}>
             {winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' && (
               <span className="mr-1">🏆</span>
@@ -545,19 +545,15 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     }
   }, [tournament?.id, fetchTournamentStandings]);
 
-  const deriveClubKey = (teamName?: string | null) =>
-    (teamName ?? 'Unknown Team')
-      .replace(/\s+(Advanced|Intermediate)$/i, '')
-      .trim()
-      || 'Unknown Team';
-
   // Transform API data to match expected format
   console.log('Raw standings data:', standings);
   const transformedStandings = standings.map(standing => ({
     team: {
       id: standing.team_id,
       name: standing.team_name,
-      clubId: standing.clubId
+      bracketName: standing.bracket_name,
+      clubId: standing.clubId,
+      clubName: standing.clubName
     },
     points: standing.points,
     wins: standing.wins,
@@ -567,9 +563,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
   const combinedStandingsRaw = Array.from(
     transformedStandings.reduce((map, standing) => {
-      const teamName = standing.team?.name ?? 'Unknown Team';
-      const clubName = deriveClubKey(teamName);
-      const key = clubName.toLowerCase();
+      const clubName = standing.team?.clubName ?? 'Unknown Club';
+      const key = standing.team?.clubId ?? clubName.toLowerCase();
 
       if (!map.has(key)) {
         map.set(key, {
@@ -597,8 +592,18 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     return a.team.name.localeCompare(b.team.name);
   });
 
-  const advancedStandingsRaw = transformedStandings.filter(s => s.team.name.includes('Advanced'));
-  const intermediateStandingsRaw = transformedStandings.filter(s => s.team.name.includes('Intermediate'));
+  // Group standings by bracket dynamically
+  const bracketStandingsMap = new Map<string, typeof transformedStandings>();
+
+  transformedStandings.forEach((standing) => {
+    const bracketName = standing.team.bracketName || 'Default';
+    const existing = bracketStandingsMap.get(bracketName);
+    if (existing) {
+      existing.push(standing);
+    } else {
+      bracketStandingsMap.set(bracketName, [standing]);
+    }
+  });
 
   const attachPlaces = <T extends { points: number }>(entries: T[]) => {
     let previousPoints: number | null = null;
@@ -618,12 +623,22 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   };
 
   const combinedStandings = attachPlaces(combinedStandingsRaw);
-  const advancedStandings = attachPlaces(advancedStandingsRaw);
-  const intermediateStandings = attachPlaces(intermediateStandingsRaw);
-  
+
+  // Sort each bracket's standings and attach places
+  const bracketStandings = Array.from(bracketStandingsMap.entries())
+    .map(([bracketName, standings]) => ({
+      bracketName,
+      standings: attachPlaces(standings.sort((a, b) => {
+        if (b.points !== a.points) {
+          return b.points - a.points;
+        }
+        return a.team.name.localeCompare(b.team.name);
+      }))
+    }))
+    .sort((a, b) => a.bracketName.localeCompare(b.bracketName)); // Sort brackets alphabetically
+
   console.log('Combined standings:', combinedStandings);
-  console.log('Advanced standings:', advancedStandings);
-  console.log('Intermediate standings:', intermediateStandings);
+  console.log('Bracket standings:', bracketStandings);
 
   const formatStopDates = (stop: Stop) => {
     const cached = stopDataCache[stop.id];
@@ -769,43 +784,29 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </div>
                             </div>
 
-                <div className="mb-2 md:mb-6">
-                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Advanced</h3>
-                  {advancedStandings.length > 0 ? (
-                    <div className="bg-surface-2 rounded p-3 space-y-1">
-                      {advancedStandings.map((standing) => (
-                        <div key={standing.team.id} className="flex items-center justify-between py-1">
-                          <div className="flex items-center">
-                            <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
-                            <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
-                              </div>
-                          <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                                  </div>
-                                ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-3 text-muted text-sm">No Advanced teams</div>
-                  )}
-            </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Intermediate</h3>
-                  {intermediateStandings.length > 0 ? (
-                    <div className="bg-surface-2 rounded p-3 space-y-1">
-                      {intermediateStandings.map((standing) => (
-                        <div key={standing.team.id} className="flex items-center justify-between py-1">
-                          <div className="flex items-center">
-                            <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
-                            <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                {/* Dynamic bracket standings sections */}
+                {bracketStandings.map(({ bracketName, standings }) => (
+                  <div key={bracketName} className="mb-2 md:mb-6 last:mb-0">
+                    <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">
+                      {bracketName}
+                    </h3>
+                    {standings.length > 0 ? (
+                      <div className="bg-surface-2 rounded p-3 space-y-1">
+                        {standings.map((standing) => (
+                          <div key={standing.team.id} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted text-sm">No {bracketName} teams</div>
+                    )}
                   </div>
-                          <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
-                </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-3 text-muted text-sm">No Intermediate teams</div>
-                  )}
-                    </div>
+                ))}
               </div>
             </div>
           </div>

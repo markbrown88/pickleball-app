@@ -28,6 +28,13 @@ type Payload = {
   gameSlots?: string[]; // For bracket tournaments
   eventManagerId?: string | null; // tournament-level event manager
   tournamentAdminId?: string | null; // tournament admin
+  // Registration settings
+  registrationStatus?: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
+  registrationType?: 'FREE' | 'PAID';
+  registrationCost?: number | null; // in cents
+  maxPlayers?: number | null;
+  restrictionNotes?: string[];
+  isWaitlistEnabled?: boolean;
 };
 
 const TYPE_LABEL_TO_ENUM: Record<string, TournamentType> = {
@@ -85,6 +92,13 @@ export async function GET(_req: Request, ctx: CtxPromise) {
       type: true,
       maxTeamSize: true,
       gamesPerMatch: true,
+      // Registration settings
+      registrationStatus: true,
+      registrationType: true,
+      registrationCost: true,
+      maxPlayers: true,
+      restrictionNotes: true,
+      isWaitlistEnabled: true,
       admins: {
         take: 1,
         select: {
@@ -181,6 +195,13 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     maxTeamSize: t.maxTeamSize ?? null,
     gamesPerMatch: t.gamesPerMatch ?? null,
     hasCaptains: byClubCaptain.length > 0,
+    // Registration settings
+    registrationStatus: t.registrationStatus ?? 'CLOSED',
+    registrationType: t.registrationType ?? 'FREE',
+    registrationCost: t.registrationCost ?? null,
+    maxPlayers: t.maxPlayers ?? null,
+    restrictionNotes: t.restrictionNotes ?? [],
+    isWaitlistEnabled: t.isWaitlistEnabled ?? true,
     clubs: clubLinks.map((c) => ({
       clubId: c.clubId,
       club: c.club
@@ -245,6 +266,12 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     type: TournamentType;
     maxTeamSize: number | null;
     gamesPerMatch: number | null;
+    registrationStatus: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
+    registrationType: 'FREE' | 'PAID';
+    registrationCost: number | null;
+    maxPlayers: number | null;
+    restrictionNotes: string[];
+    isWaitlistEnabled: boolean;
   }> = {};
 
   if (typeof body.name === 'string') {
@@ -282,6 +309,83 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     } else {
       return NextResponse.json(
         { error: 'gamesPerMatch must be a positive integer between 1-4 or null' },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Registration Settings
+  if (Object.prototype.hasOwnProperty.call(body, 'registrationStatus')) {
+    const v = body.registrationStatus;
+    if (v === 'OPEN' || v === 'INVITE_ONLY' || v === 'CLOSED') {
+      updates.registrationStatus = v;
+    } else {
+      return NextResponse.json(
+        { error: 'registrationStatus must be OPEN, INVITE_ONLY, or CLOSED' },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'registrationType')) {
+    const v = body.registrationType;
+    if (v === 'FREE' || v === 'PAID') {
+      updates.registrationType = v;
+    } else {
+      return NextResponse.json(
+        { error: 'registrationType must be FREE or PAID' },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'registrationCost')) {
+    const v = body.registrationCost;
+    if (v === null || v === undefined) {
+      updates.registrationCost = null;
+    } else if (typeof v === 'number' && Number.isInteger(v) && v >= 0) {
+      updates.registrationCost = v;
+    } else {
+      return NextResponse.json(
+        { error: 'registrationCost must be a non-negative integer (in cents) or null' },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'maxPlayers')) {
+    const v = body.maxPlayers;
+    if (v === null || v === undefined) {
+      updates.maxPlayers = null;
+    } else if (typeof v === 'number' && Number.isInteger(v) && v > 0) {
+      updates.maxPlayers = v;
+    } else {
+      return NextResponse.json(
+        { error: 'maxPlayers must be a positive integer or null' },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'restrictionNotes')) {
+    const v = body.restrictionNotes;
+    if (Array.isArray(v) && v.every((item) => typeof item === 'string')) {
+      updates.restrictionNotes = v;
+    } else {
+      return NextResponse.json(
+        { error: 'restrictionNotes must be an array of strings' },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'isWaitlistEnabled')) {
+    const v = body.isWaitlistEnabled;
+    if (typeof v === 'boolean') {
+      updates.isWaitlistEnabled = v;
+    } else {
+      return NextResponse.json(
+        { error: 'isWaitlistEnabled must be a boolean' },
         { status: 400 }
       );
     }

@@ -22,6 +22,11 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           where: { tournamentId },
           include: {
             club: true,
+            bracket: {
+              select: {
+                name: true
+              }
+            },
             matchesA: {
               include: {
                 games: true
@@ -84,7 +89,9 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           return {
             team_id: team.id,
             team_name: team.name,
+            bracket_name: team.bracket?.name || null,
             clubId: team.clubId,
+            clubName: team.club?.name || null,
             tournamentId: team.tournamentId,
             matches_played: realMatches.length,
             wins,

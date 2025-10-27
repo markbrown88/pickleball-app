@@ -50,6 +50,15 @@ export async function GET(req: NextRequest) {
                 }
               },
               orderBy: { startAt: 'asc' }
+            },
+            _count: {
+              select: {
+                registrations: {
+                  where: {
+                    status: 'REGISTERED'
+                  }
+                }
+              }
             }
           }
         });
@@ -75,6 +84,14 @@ export async function GET(req: NextRequest) {
         startDate,
         endDate,
         location,
+        // Registration settings
+        registrationStatus: tournament.registrationStatus,
+        registrationType: tournament.registrationType,
+        registrationCost: tournament.registrationCost,
+        maxPlayers: tournament.maxPlayers,
+        restrictionNotes: tournament.restrictionNotes,
+        isWaitlistEnabled: tournament.isWaitlistEnabled,
+        registeredCount: tournament._count.registrations,
         brackets: tournament.brackets,
         stops: tournament.stops.map((stop: any) => ({
           id: stop.id,

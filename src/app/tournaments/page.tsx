@@ -191,6 +191,14 @@ type EditorRow = {
   tournamentAdmin: CaptainPick;
   tournamentAdminQuery: string;
   tournamentAdminOptions: Array<{ id: string; label: string }>;
+
+  // Registration Settings
+  registrationStatus: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
+  registrationType: 'FREE' | 'PAID';
+  registrationCost: string;
+  maxPlayers: string;
+  restrictionNotes: string[];
+  isWaitlistEnabled: boolean;
 };
 type EditorState = Record<Id, EditorRow>;
 
@@ -314,6 +322,13 @@ export default function AdminPage() {
         tournamentAdmin?: { id: string; name?: string } | null;
         // NEW: stops can carry their own event manager
         stops: Array<{ id: string; name: string; clubId?: string | null; startAt?: string | null; endAt?: string | null; eventManager?: { id: string; name?: string } | null }>;
+        // NEW: registration settings (will be added to backend API)
+        registrationStatus?: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
+        registrationType?: 'FREE' | 'PAID';
+        registrationCost?: number | null; // in cents
+        maxPlayers?: number | null;
+        restrictionNotes?: string[];
+        isWaitlistEnabled?: boolean;
       }>(`/api/admin/tournaments/${tId}/config`);
 
       const brackets = (cfg.levels || []).map(l => ({ id: l.id, name: l.name }));
@@ -395,6 +410,14 @@ export default function AdminPage() {
             tournamentAdmin: cfg.tournamentAdmin?.id ? { id: cfg.tournamentAdmin.id, label: cfg.tournamentAdmin.name || '' } : null,
             tournamentAdminQuery: '',
             tournamentAdminOptions: [],
+
+            // Registration Settings - Load from API (with defaults if not yet available)
+            registrationStatus: cfg.registrationStatus ?? 'CLOSED',
+            registrationType: cfg.registrationType ?? 'FREE',
+            registrationCost: cfg.registrationCost ? (cfg.registrationCost / 100).toFixed(2) : '',
+            maxPlayers: cfg.maxPlayers ? String(cfg.maxPlayers) : '',
+            restrictionNotes: cfg.restrictionNotes ?? [],
+            isWaitlistEnabled: cfg.isWaitlistEnabled ?? true,
           }
         };
       });
@@ -515,6 +538,29 @@ export default function AdminPage() {
         eventManagerId: s0.eventManager?.id ?? null,
       }];
     }
+
+    // Registration Settings - TODO: Backend API needs to be updated to accept these fields
+    payload.registrationStatus = editor.registrationStatus;
+    payload.registrationType = editor.registrationType;
+    // Convert registrationCost from string (e.g., "45.00") to cents (e.g., 4500)
+    if (editor.registrationType === 'PAID' && editor.registrationCost) {
+      const costFloat = parseFloat(editor.registrationCost);
+      if (!isNaN(costFloat)) {
+        payload.registrationCost = Math.round(costFloat * 100);
+      } else {
+        payload.registrationCost = null;
+      }
+    } else {
+      payload.registrationCost = null;
+    }
+    // Convert maxPlayers from string to number (or null if blank)
+    if (editor.maxPlayers && editor.maxPlayers.trim()) {
+      payload.maxPlayers = parseInt(editor.maxPlayers, 10);
+    } else {
+      payload.maxPlayers = null;
+    }
+    payload.restrictionNotes = editor.restrictionNotes;
+    payload.isWaitlistEnabled = editor.isWaitlistEnabled;
 
     await api(`/api/admin/tournaments/${tId}/config`, {
       method: 'PUT',
@@ -1336,6 +1382,14 @@ function TournamentsBlock(props: TournamentsBlockProps) {
               tournamentAdmin: cfg.tournamentAdmin?.id ? { id: cfg.tournamentAdmin.id, label: cfg.tournamentAdmin.name || '' } : null,
               tournamentAdminQuery: '',
               tournamentAdminOptions: [],
+
+              // Registration Settings - Defaults for legacy code
+              registrationStatus: 'CLOSED',
+              registrationType: 'FREE',
+              registrationCost: '',
+              maxPlayers: '',
+              restrictionNotes: [],
+              isWaitlistEnabled: true,
             }
           };
         });

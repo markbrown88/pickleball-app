@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { TournamentDetailsTab } from './tabs/TournamentDetailsTab';
+import { RegistrationSettingsTab, type EditorRowWithRegistration } from './tabs/RegistrationSettingsTab';
+import { RegistrationsTab } from './tabs/RegistrationsTab';
 import { StopsLocationsTab } from './tabs/StopsLocationsTab';
 import { ClubsCaptainsTab } from './tabs/ClubsCaptainsTab';
 import { BracketsTab } from './tabs/BracketsTab';
@@ -64,6 +66,13 @@ export type EditorRow = {
   tournamentAdmin: CaptainPick;
   tournamentAdminQuery: string;
   tournamentAdminOptions: Array<{ id: string; label: string }>;
+  // Registration Settings
+  registrationStatus: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
+  registrationType: 'FREE' | 'PAID';
+  registrationCost: string;
+  maxPlayers: string;
+  restrictionNotes: string[];
+  isWaitlistEnabled: boolean;
 };
 
 export type Club = {
@@ -76,7 +85,7 @@ export type Club = {
   phone?: string | null;
 };
 
-type Tab = 'details' | 'stops' | 'clubs' | 'brackets' | 'access';
+type Tab = 'details' | 'registration' | 'registrations' | 'stops' | 'clubs' | 'brackets' | 'access';
 
 type TournamentEditorProps = {
   tournamentId: Id;
@@ -114,6 +123,8 @@ export function TournamentEditor({
 
   const tabs = [
     { id: 'details' as const, label: 'Tournament Details' },
+    { id: 'registration' as const, label: 'Registration Settings' },
+    { id: 'registrations' as const, label: 'Registrations' },
     { id: 'stops' as const, label: 'Location(s) & Dates' },
     { id: 'clubs' as const, label: clubsTabLabel, hidden: !requiresClubs },
     { id: 'brackets' as const, label: 'Brackets', hidden: !editor.hasBrackets },
@@ -178,6 +189,17 @@ export function TournamentEditor({
             editor={editor}
             setEditor={setEditor}
           />
+        )}
+
+        {activeTab === 'registration' && (
+          <RegistrationSettingsTab
+            editor={editor as EditorRowWithRegistration}
+            setEditor={setEditor as (editor: EditorRowWithRegistration) => void}
+          />
+        )}
+
+        {activeTab === 'registrations' && (
+          <RegistrationsTab tournamentId={tournamentId} />
         )}
 
         {activeTab === 'stops' && (

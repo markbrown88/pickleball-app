@@ -78,6 +78,12 @@ model Player {
   TournamentCaptain      TournamentCaptain[]
   TournamentEventManager TournamentEventManager[]
   matchTiebreakerDecisions Match[] @relation("MatchTiebreakerDecider")
+  tournamentRegistrations TournamentRegistration[]
+  tournamentInvitesReceived TournamentInvite[]  @relation("TournamentInvitesReceived")
+  tournamentInvitesSent  TournamentInvite[]     @relation("TournamentInvitesSent")
+  inviteRequestsSent     InviteRequest[]        @relation("InviteRequestsSent")
+  inviteRequestsReviewed InviteRequest[]        @relation("ReviewedRequests")
+  tournamentWaitlist     TournamentWaitlist[]
 
   @@index([clubId])
   @@index([birthdayYear, birthdayMonth, birthdayDay], map: "Player_birthday_idx")
@@ -134,6 +140,15 @@ model Tournament {
   updatedAt              DateTime                 @default(now()) @updatedAt @db.Timestamptz(6)
   maxTeamSize            Int?
   gamesPerMatch          Int?                     // For bracket tournaments: number of games per match (null for team format)
+
+  // Registration Settings
+  registrationStatus     RegistrationStatus       @default(CLOSED)
+  registrationType       RegistrationType         @default(FREE)
+  registrationCost       Int?                     // in cents, null if free
+  maxPlayers             Int?                     // null = unlimited
+  restrictionNotes       String[]                 // Array of restriction messages
+  isWaitlistEnabled      Boolean                  @default(true)
+
   CaptainInvite          CaptainInvite[]
   stops                  Stop[]
   teams                  Team[]
@@ -143,6 +158,10 @@ model Tournament {
   TournamentCaptain      TournamentCaptain[]
   clubs                  TournamentClub[]
   TournamentEventManager TournamentEventManager[]
+  registrations          TournamentRegistration[]
+  invites                TournamentInvite[]
+  inviteRequests         InviteRequest[]
+  waitlist               TournamentWaitlist[]
 }
 
 model TournamentAdmin {
@@ -503,6 +522,154 @@ enum TournamentType {
   ROUND_ROBIN
   POOL_PLAY
   LADDER_TOURNAMENT
+}
+
+/// *
+/// * ---------- Tournament Registration System ----------
+
+model TournamentRegistration {
+  id                String                    @id @default(cuid())
+  tournamentId      String
+  playerId          String
+
+  status            RegistrationPlayerStatus  @default(REGISTERED)
+  registeredAt      DateTime                  @default(now())
+  withdrawnAt       DateTime?
+  rejectedAt        DateTime?
+  rejectedBy        String?                   // Player ID of admin who rejected
+  rejectionReason   String?                   // Required if rejected
+  notes             String?
+
+  // Payment
+  paymentStatus     PaymentStatus             @default(PENDING)
+  paymentId         String?                   // Stripe payment ID
+  refundId          String?                   // Stripe refund ID
+  amountPaid        Int?                      // in cents
+
+  tournament        Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player            Player                    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId])
+  @@index([tournamentId, status])
+  @@index([playerId])
+}
+
+model TournamentInvite {
+  id                String        @id @default(cuid())
+  tournamentId      String
+  playerId          String?       // null if inviting by email (not yet a player)
+
+  // For email invites (player doesn't exist yet)
+  inviteEmail       String?
+  inviteName        String?
+  inviteToken       String?       @unique // For signup link
+
+  status            InviteStatus  @default(PENDING)
+  invitedBy         String        // Player ID of admin who sent invite
+  createdAt         DateTime      @default(now())
+  expiresAt         DateTime      // Admin-selected expiry
+  respondedAt       DateTime?     // When invite was accepted/declined
+  notes             String?
+
+  acceptedAt        DateTime?
+  declinedAt        DateTime?
+  cancelledAt       DateTime?
+
+  tournament        Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player            Player?       @relation("TournamentInvitesReceived", fields: [playerId], references: [id], onDelete: Cascade)
+  invitedByPlayer   Player        @relation("TournamentInvitesSent", fields: [invitedBy], references: [id])
+
+  @@index([tournamentId, status])
+  @@index([playerId])
+  @@index([inviteEmail])
+  @@index([inviteToken])
+}
+
+model InviteRequest {
+  id                String              @id @default(cuid())
+  tournamentId      String
+  playerId          String
+
+  status            InviteRequestStatus @default(PENDING)
+  requestedAt       DateTime            @default(now())
+  reviewedAt        DateTime?
+  reviewedBy        String?             // Player ID of admin who reviewed
+  notes             String?
+
+  tournament        Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player            Player              @relation("InviteRequestsSent", fields: [playerId], references: [id], onDelete: Cascade)
+  reviewer          Player?             @relation("ReviewedRequests", fields: [reviewedBy], references: [id])
+
+  @@unique([tournamentId, playerId])
+  @@index([tournamentId, status])
+}
+
+model TournamentWaitlist {
+  id                    String          @id @default(cuid())
+  tournamentId          String
+  playerId              String
+
+  position              Int             // Auto-calculated based on joinedAt
+  joinedAt              DateTime        @default(now())
+
+  status                WaitlistStatus  @default(ACTIVE)
+  notifiedAt            DateTime?       // When spot-available email was sent
+  notificationExpiresAt DateTime?       // 24h after notifiedAt
+
+  movedToRegisteredAt   DateTime?
+  removedAt             DateTime?
+
+  tournament            Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player                Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId])
+  @@index([tournamentId, status, position])
+}
+
+enum RegistrationStatus {
+  OPEN
+  INVITE_ONLY
+  CLOSED
+}
+
+enum RegistrationType {
+  FREE
+  PAID
+}
+
+enum RegistrationPlayerStatus {
+  REGISTERED
+  CANCELLED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+}
+
+enum InviteRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum WaitlistStatus {
+  ACTIVE
+  NOTIFIED
+  EXPIRED
+  REGISTERED
+  REMOVED
 }
 
 /// *

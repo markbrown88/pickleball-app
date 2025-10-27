@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
 import { useAuth, useUser, SignInButton } from '@clerk/nextjs';
 import Link from 'next/link';
 
 import type { PlayerRegistration, Tournament, TournamentsResponse, UserProfile } from '@/types';
-
 import type { DashboardOverview, PlayerAssignment } from './types';
+import { TournamentCard, type TournamentCardData } from './components/TournamentCard';
 import { formatDateUTC } from '@/lib/utils';
 
 const PROFILE_ENDPOINT = '/api/auth/user';
@@ -17,7 +17,7 @@ const TOURNAMENTS_ENDPOINT = '/api/tournaments';
 type DashboardState = {
   overview: DashboardOverview | null;
   registrations: Record<string, PlayerRegistration>;
-  tournaments: Tournament[];
+  tournaments: TournamentCardData[];
   err: string | null;
   loading: boolean;
 };
@@ -29,7 +29,7 @@ type DashboardAction =
       payload: {
         overview: DashboardOverview | null;
         registrations: PlayerRegistration[];
-        tournaments: Tournament[];
+        tournaments: TournamentCardData[];
       };
     }
   | { type: 'load:error'; payload: string };
@@ -70,7 +70,7 @@ const initialState: DashboardState = {
 async function fetchDashboardData(): Promise<{
   overview: DashboardOverview | null;
   registrations: PlayerRegistration[];
-  tournaments: Tournament[];
+  tournaments: TournamentCardData[];
 }> {
   const profileResponse = await fetch(PROFILE_ENDPOINT);
   let overviewData: DashboardOverview | null = null;
@@ -99,13 +99,14 @@ async function fetchDashboardData(): Promise<{
   return {
     overview: overviewData,
     registrations: registrationsList,
-    tournaments: tournamentsJson.tournaments ?? [],
+    tournaments: (tournamentsJson.tournaments ?? []) as TournamentCardData[],
   };
 }
 
 export default function DashboardPage() {
   const { isSignedIn } = useAuth();
   const { isLoaded: userLoaded } = useUser();
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
 
   const [state, dispatch] = useReducer(dashboardReducer, initialState);
   const { overview, err, tournaments, registrations, loading } = state;
@@ -139,21 +140,110 @@ export default function DashboardPage() {
 
   const assignments = useMemo<PlayerAssignment[]>(() => overview?.assignments ?? [], [overview?.assignments]);
 
-  const registeredTournaments = useMemo(() => {
-    if (!tournaments.length) return [] as Tournament[];
-    return tournaments.filter((tournament) => {
-      if (registrations[tournament.id]) return true;
-      return assignments.some((assignment) => assignment.tournamentId === tournament.id);
-    });
-  }, [assignments, registrations, tournaments]);
+  // Filter tournaments by date
+  const { upcomingTournaments, pastTournaments } = useMemo(() => {
+    const now = new Date();
+    const upcoming: TournamentCardData[] = [];
+    const past: TournamentCardData[] = [];
 
-  const availableTournaments = useMemo(() => {
-    if (!tournaments.length) return [] as Tournament[];
-    return tournaments.filter((tournament) => {
-      if (registrations[tournament.id]) return false;
-      return !assignments.some((assignment) => assignment.tournamentId === tournament.id);
+    tournaments.forEach((tournament) => {
+      const endDate = tournament.endDate ? new Date(tournament.endDate) : null;
+      if (endDate && endDate < now) {
+        past.push(tournament);
+      } else {
+        upcoming.push(tournament);
+      }
     });
-  }, [assignments, registrations, tournaments]);
+
+    // Sort upcoming by start date (soonest first)
+    upcoming.sort((a, b) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+      return dateA - dateB;
+    });
+
+    // Sort past by end date (most recent first)
+    past.sort((a, b) => {
+      const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
+      const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    return { upcomingTournaments: upcoming, pastTournaments: past };
+  }, [tournaments]);
+
+  // Registration action handlers
+  const handleRegister = async (tournamentId: string) => {
+    try {
+      const response = await fetch(`/api/player/tournaments/${tournamentId}/register`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to register');
+        return;
+      }
+
+      alert(`Successfully registered for tournament!${data.registration.requiresPayment ? ' Please complete payment.' : ''}`);
+
+      // Reload dashboard data
+      const newData = await fetchDashboardData();
+      dispatch({ type: 'load:success', payload: newData });
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Failed to register for tournament');
+    }
+  };
+
+  const handleRequestInvite = async (tournamentId: string) => {
+    try {
+      const response = await fetch(`/api/player/tournaments/${tournamentId}/request-invite`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to request invite');
+        return;
+      }
+
+      alert('Invite request submitted! You will be notified when it is reviewed.');
+
+      // Reload dashboard data
+      const newData = await fetchDashboardData();
+      dispatch({ type: 'load:success', payload: newData });
+    } catch (error) {
+      console.error('Invite request error:', error);
+      alert('Failed to request invite');
+    }
+  };
+
+  const handleJoinWaitlist = async (tournamentId: string) => {
+    try {
+      const response = await fetch(`/api/player/tournaments/${tournamentId}/join-waitlist`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to join waitlist');
+        return;
+      }
+
+      alert(`Joined waitlist at position ${data.waitlist.position}!`);
+
+      // Reload dashboard data
+      const newData = await fetchDashboardData();
+      dispatch({ type: 'load:success', payload: newData });
+    } catch (error) {
+      console.error('Waitlist error:', error);
+      alert('Failed to join waitlist');
+    }
+  };
 
   if (!isSignedIn) {
     return (
@@ -177,11 +267,13 @@ export default function DashboardPage() {
     );
   }
 
+  const displayTournaments = activeTab === 'upcoming' ? upcomingTournaments : pastTournaments;
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-primary">Home</h1>
-        <p className="text-muted">View your active teams, upcoming stops, and register for new tournaments.</p>
+        <h1 className="text-3xl font-semibold text-primary">Dashboard</h1>
+        <p className="text-muted">View your teams, tournaments, and register for upcoming events.</p>
       </header>
 
       {err && <div className="alert alert-error">{err}</div>}
@@ -191,7 +283,7 @@ export default function DashboardPage() {
         {assignments.length === 0 ? (
           <div className="card text-center py-10 text-muted">
             <p>You are not currently assigned to any teams.</p>
-            <p className="text-sm mt-2">Check the available tournaments below to register.</p>
+            <p className="text-sm mt-2">Register for a tournament below to get started.</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
@@ -208,7 +300,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-sm text-muted space-y-1">
                   <div className="font-medium text-secondary">{assignment.teamName}</div>
-                  <div>Role: Player</div>
+                  <div>Role: {assignment.isCaptain ? 'Captain' : 'Player'}</div>
                 </div>
               </div>
             ))}
@@ -216,69 +308,46 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {/* Tournaments Section with Tabs */}
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Registered Tournaments</h2>
-        {registeredTournaments.length === 0 ? (
-          <p className="text-muted">You have not registered for any upcoming tournaments.</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {registeredTournaments.map((tournament) => (
-              <div key={tournament.id} className="card space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-primary">{tournament.name}</h3>
-                    <p className="text-sm text-muted">{tournament.type.replace('_', ' ')}</p>
-                  </div>
-                  <Link href={`/tournament/${tournament.id}`} className="btn btn-ghost btn-sm">
-                    View
-                  </Link>
-                </div>
-                <div className="text-sm text-muted space-y-1">
-                  {tournament.stops?.length ? (
-                    <div>
-                      Stops:
-                      <ul className="mt-1 space-y-0.5">
-                        {tournament.stops.map((stop) => (
-                          <li key={stop.id}>{stop.name} • {formatDateUTC(stop.startAt instanceof Date ? stop.startAt.toISOString() : stop.startAt)}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <div>No stops scheduled yet.</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Tournaments</h2>
+        </div>
 
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Available Tournaments</h2>
-        {availableTournaments.length === 0 ? (
-          <p className="text-muted">No tournaments available for registration right now. Check back soon!</p>
+        {/* Tabs */}
+        <div className="border-b border-border-subtle">
+          <nav className="flex gap-1 -mb-px" aria-label="Tournament tabs">
+            <button
+              className={`tab-button ${activeTab === 'upcoming' ? 'active' : ''}`}
+              onClick={() => setActiveTab('upcoming')}
+            >
+              Upcoming ({upcomingTournaments.length})
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'past' ? 'active' : ''}`}
+              onClick={() => setActiveTab('past')}
+            >
+              Past ({pastTournaments.length})
+            </button>
+          </nav>
+        </div>
+
+        {/* Tournament Cards */}
+        {displayTournaments.length === 0 ? (
+          <div className="card text-center py-10 text-muted">
+            <p>No {activeTab} tournaments found.</p>
+          </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {availableTournaments.map((tournament) => (
-              <div key={tournament.id} className="card space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-primary">{tournament.name}</h3>
-                    <p className="text-sm text-muted">{tournament.type.replace('_', ' ')}</p>
-                  </div>
-                  <Link href={`/tournament/${tournament.id}`} className="btn btn-primary btn-sm">
-                    Register
-                  </Link>
-                </div>
-                {tournament.stops?.length ? (
-                  <div className="text-sm text-muted">
-                    Next stop:{' '}
-                    {formatDateUTC(tournament.stops[0].startAt instanceof Date ? tournament.stops[0].startAt.toISOString() : tournament.stops[0].startAt)}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted">Schedule coming soon</div>
-                )}
-              </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {displayTournaments.map((tournament) => (
+              <TournamentCard
+                key={tournament.id}
+                tournament={tournament}
+                playerRegistrationStatus={registrations[tournament.id]?.status ?? null}
+                onRegister={handleRegister}
+                onRequestInvite={handleRequestInvite}
+                onJoinWaitlist={handleJoinWaitlist}
+              />
             ))}
           </div>
         )}
