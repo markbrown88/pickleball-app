@@ -294,6 +294,7 @@ model Game {
   id                    String    @id(map: "Game_new_pkey") @default(cuid())
   matchId               String
   slot                  GameSlot?
+  bracketId             String?   // For DOUBLE_ELIMINATION_CLUBS: which bracket this game belongs to
   teamAScore            Int?
   teamBScore            Int?
   teamALineup           Json?
@@ -310,11 +311,13 @@ model Game {
   teamASubmittedScore   Int? // Score submitted by Team A
   teamBSubmittedScore   Int? // Score submitted by Team B
   match                 Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
+  bracket               TournamentBracket? @relation(fields: [bracketId], references: [id], onDelete: SetNull)
   tiebreakerForMatch    Match?    @relation("MatchTiebreakerGame")
   scoreSubmissions      GameScoreSubmission[]
 
-  @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
+  @@unique([matchId, slot, bracketId], map: "Game_matchId_slot_bracketId_key")
   @@index([matchId])
+  @@index([bracketId]) // For querying games by bracket
   @@index([isComplete, startedAt]) // For filtering incomplete games
   @@index([courtNumber]) // For filtering by court
 }
@@ -394,6 +397,7 @@ model TournamentBracket {
   name         String
   idx          Int        @default(0)
   teams        Team[]
+  games        Game[]     // Games that belong to this bracket (for DOUBLE_ELIMINATION_CLUBS)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, name])
