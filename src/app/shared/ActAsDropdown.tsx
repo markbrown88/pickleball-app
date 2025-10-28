@@ -14,7 +14,7 @@ type ActAsDropdownProps = {
   currentUser: {
     id: string;
     name: string;
-    role: 'app-admin' | 'tournament-admin' | 'captain' | 'player';
+    role: 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
   };
   availableUsers?: UserOption[];
 };
