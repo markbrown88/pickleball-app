@@ -47,74 +47,53 @@ export async function GET(req: NextRequest) {
 
     // Fetch suggested tournaments
     const tournaments = await prisma.tournament.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        startDate: true,
-        endDate: true,
-        registrationDeadline: true,
-        registrationOpens: true,
-        status: true,
-        club: {
-          select: {
-            id: true,
-            name: true,
+      where: {
+        registrationStatus: { in: ['OPEN', 'INVITE_ONLY'] },
+        startDate: { gte: now },
+      },
+      include: {
+        stops: {
+          include: {
+            club: true,
           },
         },
         _count: {
           select: {
             registrations: true,
+            waitlist: true,
           },
         },
       },
-      orderBy: [
-        { startDate: 'asc' },
-        { createdAt: 'desc' },
-      ],
-      take: 10, // Limit to 10 suggestions
+      orderBy: [{ startDate: 'asc' }],
+      take: 20,
     });
 
     // Check if player has any pending invitations
     const pendingInvitations = await prisma.tournamentInvite.findMany({
       where: {
-        OR: [
-          { playerId: currentPlayer.id },
-          { inviteEmail: currentPlayer.email || undefined },
-        ],
+        playerId: currentPlayer.id,
         status: 'PENDING',
         expiresAt: { gte: now },
       },
-      select: {
-        id: true,
-        tournamentId: true,
-        tournament: {
+      include: {
+        invitedByPlayer: {
           select: {
             id: true,
             name: true,
-            startDate: true,
-            endDate: true,
-            club: {
-              select: {
-                id: true,
-                name: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        tournament: {
+          include: {
+            stops: {
+              include: {
+                club: true,
               },
             },
           },
         },
-        invitedByPlayer: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            name: true,
-          },
-        },
-        notes: true,
-        expiresAt: true,
       },
-      orderBy: { createdAt: 'desc' },
     });
 
     // Check which tournaments the player is already registered for
@@ -149,29 +128,29 @@ export async function GET(req: NextRequest) {
         startDate: tournament.startDate?.toISOString() || null,
         endDate: tournament.endDate?.toISOString() || null,
         registrationDeadline: tournament.registrationDeadline?.toISOString() || null,
-        registrationOpen,
-        registrationClosed,
-        clubName: tournament.club?.name || null,
+        status: tournament.registrationStatus,
+        type: tournament.type,
+        clubName: tournament.stops?.[0]?.club?.name || null,
         registrationCount: tournament._count.registrations,
+        isRegistered: registeredTournamentIds.has(tournament.id),
       };
     });
 
     const formattedInvitations = pendingInvitations.map((invite) => {
-      const inviterName =
+      const invitedBy =
         invite.invitedByPlayer.name ||
         `${invite.invitedByPlayer.firstName} ${invite.invitedByPlayer.lastName}`.trim() ||
-        'Tournament Admin';
+        'an Admin';
 
       return {
         id: invite.id,
+        invitedBy,
+        expiresAt: invite.expiresAt.toISOString(),
         tournamentId: invite.tournament.id,
         tournamentName: invite.tournament.name,
         tournamentStartDate: invite.tournament.startDate?.toISOString() || null,
         tournamentEndDate: invite.tournament.endDate?.toISOString() || null,
-        clubName: invite.tournament.club?.name || null,
-        invitedBy: inviterName,
-        notes: invite.notes,
-        expiresAt: invite.expiresAt.toISOString(),
+        clubName: invite.tournament.stops?.[0]?.club?.name || null,
       };
     });
 
