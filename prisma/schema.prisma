@@ -264,10 +264,17 @@ model Match {
   forfeitTeam     String?   // 'A' for teamA forfeit, 'B' for teamB forfeit, null for no forfeit
   createdAt       DateTime  @default(now()) @db.Timestamp(6)
   updatedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  winnerId        String?
+  sourceMatchAId  String?
+  sourceMatchBId  String?
   games           Game[]
   round           Round     @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
   teamA           Team?     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
   teamB           Team?     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
+  sourceMatchA    Match?    @relation("MatchProgressionA", fields: [sourceMatchAId], references: [id], onDelete: SetNull)
+  sourceMatchB    Match?    @relation("MatchProgressionB", fields: [sourceMatchBId], references: [id], onDelete: SetNull)
+  childMatchesFromA Match[] @relation("MatchProgressionA")
+  childMatchesFromB Match[] @relation("MatchProgressionB")
   tiebreakerStatus        MatchTiebreakerStatus @default(NONE)
   tiebreakerWinnerTeamId  String?
   tiebreakerGameId        String? @unique
@@ -276,7 +283,6 @@ model Match {
   tiebreakerDecisionNotes String?
   totalPointsTeamA        Int?
   totalPointsTeamB        Int?
-  winnerId                String?
   tiebreakerDecidedBy     Player?   @relation("MatchTiebreakerDecider", fields: [tiebreakerDecidedById], references: [id], onDelete: SetNull)
   tiebreakerGame          Game?     @relation("MatchTiebreakerGame", fields: [tiebreakerGameId], references: [id], onDelete: SetNull)
   tiebreakerWinnerTeam    Team?     @relation("MatchTiebreakerWinner", fields: [tiebreakerWinnerTeamId], references: [id], onDelete: SetNull)
@@ -289,6 +295,8 @@ model Match {
   @@index([winnerId])
   @@index([roundId, isBye]) // For filtering out bye matches
   @@index([tiebreakerStatus]) // For filtering matches needing tiebreakers
+  @@index([sourceMatchAId])
+  @@index([sourceMatchBId])
 }
 
 /// *
