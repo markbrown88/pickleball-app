@@ -82,6 +82,7 @@ export interface PlayerRegistration {
   teamId: string;
   teamName: string;
   bracket: string;
+  status: 'REGISTERED' | 'CANCELLED' | 'REJECTED' | 'WAITLIST' | 'INVITED' | string | null; // Allow string for future statuses
 }
 
 export interface RegistrationResponse {

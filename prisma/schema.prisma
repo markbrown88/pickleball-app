@@ -1,4 +1,3 @@
-// Force regeneration: 2025-10-21
 generator client {
   provider = "prisma-client-js"
 }
@@ -65,9 +64,6 @@ model Player {
   birthday               DateTime?                @db.Timestamptz(6)
   updatedAt              DateTime                 @default(now()) @db.Timestamptz(6)
   isAppAdmin             Boolean                  @default(false)
-  disabled               Boolean                  @default(false)
-  disabledAt             DateTime?
-  disabledBy             String?                  // Player ID of admin who disabled
   CaptainInvite          CaptainInvite[]
   lineupEntriesAsP1      LineupEntry[]            @relation("LineupPlayer1")
   lineupEntriesAsP2      LineupEntry[]            @relation("LineupPlayer2")
@@ -81,12 +77,6 @@ model Player {
   TournamentCaptain      TournamentCaptain[]
   TournamentEventManager TournamentEventManager[]
   matchTiebreakerDecisions Match[] @relation("MatchTiebreakerDecider")
-  tournamentRegistrations TournamentRegistration[]
-  tournamentInvitesReceived TournamentInvite[]  @relation("TournamentInvitesReceived")
-  tournamentInvitesSent  TournamentInvite[]     @relation("TournamentInvitesSent")
-  inviteRequestsSent     InviteRequest[]        @relation("InviteRequestsSent")
-  inviteRequestsReviewed InviteRequest[]        @relation("ReviewedRequests")
-  tournamentWaitlist     TournamentWaitlist[]
 
   @@index([clubId])
   @@index([birthdayYear, birthdayMonth, birthdayDay], map: "Player_birthday_idx")
@@ -104,7 +94,7 @@ model Team {
   tournamentId    String
   clubId          String
   captainId       String?
-  division        Division?          @default(INTERMEDIATE)
+  division        Division           @default(INTERMEDIATE)
   updatedAt       DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
   levelId         String?
   bracketId       String?
@@ -120,7 +110,6 @@ model Team {
   tournament      Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   playerLinks     TeamPlayer[]
   matchTiebreakerWins Match[] @relation("MatchTiebreakerWinner")
-  matchWins       Match[]            @relation("MatchWinner")
 
   @@unique([tournamentId, clubId, captainId])
   @@unique([tournamentId, clubId, bracketId])
@@ -142,16 +131,10 @@ model Tournament {
   type                   TournamentType           @default(TEAM_FORMAT)
   updatedAt              DateTime                 @default(now()) @updatedAt @db.Timestamptz(6)
   maxTeamSize            Int?
-  gamesPerMatch          Int?                     // For bracket tournaments: number of games per match (null for team format)
-
   // Registration Settings
   registrationStatus     RegistrationStatus       @default(CLOSED)
   registrationType       RegistrationType         @default(FREE)
   registrationCost       Int?                     // in cents, null if free
-  maxPlayers             Int?                     // null = unlimited
-  restrictionNotes       String[]                 // Array of restriction messages
-  isWaitlistEnabled      Boolean                  @default(true)
-
   CaptainInvite          CaptainInvite[]
   stops                  Stop[]
   teams                  Team[]
@@ -161,10 +144,6 @@ model Tournament {
   TournamentCaptain      TournamentCaptain[]
   clubs                  TournamentClub[]
   TournamentEventManager TournamentEventManager[]
-  registrations          TournamentRegistration[]
-  invites                TournamentInvite[]
-  inviteRequests         InviteRequest[]
-  waitlist               TournamentWaitlist[]
 }
 
 model TournamentAdmin {
@@ -259,70 +238,53 @@ model StopTeamPlayer {
 /// * Match: A matchup between two teams (or one team vs bye)
 /// * Game: Individual game slots within a match (Men's Doubles, Women's Doubles, Mixed 1, Mixed 2, Tiebreaker)
 model Round {
-  id          String   @id @default(cuid())
-  stopId      String
-  idx         Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @db.Timestamptz(6)
-  bracketType String?  // For bracket tournaments: 'WINNER' | 'LOSER' | 'FINALS' (null for team format)
-  depth       Int?     // For bracket tournaments: bracket depth (0=finals, 1=semis, 2=quarters, etc.)
-  lineups     Lineup[]
-  matches     Match[]
-  stop        Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  stopId    String
+  idx       Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  lineups   Lineup[]
+  matches   Match[]
+  stop      Stop     @relation(fields: [stopId], references: [id], onDelete: Cascade)
 
   @@unique([stopId, idx])
   @@index([stopId], map: "ix_round_stop")
-  @@index([stopId, bracketType]) // For filtering by bracket type
 }
 
 /// *
 /// * A matchup between two teams within a round.
 /// * This represents the logical "match" - two teams playing against each other.
 model Match {
-  id                      String                @id(map: "Match_new_pkey") @default(cuid())
-  roundId                 String
-  teamAId                 String?
-  teamBId                 String?
-  isBye                   Boolean               @default(false)
-  forfeitTeam             String?               // 'A' for teamA forfeit, 'B' for teamB forfeit, null for no forfeit
-  createdAt               DateTime              @default(now()) @db.Timestamp(6)
-  updatedAt               DateTime              @default(now()) @db.Timestamptz(6)
-  seedA                   Int?                  // For bracket tournaments: seed position of team A (1, 2, 3, etc.)
-  seedB                   Int?                  // For bracket tournaments: seed position of team B
-  sourceMatchAId          String?               // For bracket tournaments: match that feeds team A to this match
-  sourceMatchBId          String?               // For bracket tournaments: match that feeds team B to this match
-  bracketPosition         Int?                  // For bracket tournaments: position in bracket tree
-  winnerId                String?               // For bracket tournaments: winner of the match
-  games                   Game[]
-  round                   Round                 @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
-  teamA                   Team?                 @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
-  teamB                   Team?                 @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
-  sourceMatchA            Match?                @relation("MatchProgressionA", fields: [sourceMatchAId], references: [id], onDelete: SetNull)
-  sourceMatchB            Match?                @relation("MatchProgressionB", fields: [sourceMatchBId], references: [id], onDelete: SetNull)
-  childMatchesFromA       Match[]               @relation("MatchProgressionA")
-  childMatchesFromB       Match[]               @relation("MatchProgressionB")
+  id              String    @id(map: "Match_new_pkey") @default(cuid())
+  roundId         String
+  teamAId         String?
+  teamBId         String?
+  isBye           Boolean   @default(false)
+  forfeitTeam     String?   // 'A' for teamA forfeit, 'B' for teamB forfeit, null for no forfeit
+  createdAt       DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  games           Game[]
+  round           Round     @relation(fields: [roundId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Match_new_roundId_fkey")
+  teamA           Team?     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamAId_fkey")
+  teamB           Team?     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "Match_new_teamBId_fkey")
   tiebreakerStatus        MatchTiebreakerStatus @default(NONE)
   tiebreakerWinnerTeamId  String?
-  tiebreakerGameId        String?               @unique
-  tiebreakerDecidedAt     DateTime?             @db.Timestamptz(6)
+  tiebreakerGameId        String? @unique
+  tiebreakerDecidedAt     DateTime? @db.Timestamptz(6)
   tiebreakerDecidedById   String?
   tiebreakerDecisionNotes String?
   totalPointsTeamA        Int?
   totalPointsTeamB        Int?
-  tiebreakerDecidedBy     Player?               @relation("MatchTiebreakerDecider", fields: [tiebreakerDecidedById], references: [id], onDelete: SetNull)
-  tiebreakerGame          Game?                 @relation("MatchTiebreakerGame", fields: [tiebreakerGameId], references: [id], onDelete: SetNull)
-  tiebreakerWinnerTeam    Team?                 @relation("MatchTiebreakerWinner", fields: [tiebreakerWinnerTeamId], references: [id], onDelete: SetNull)
-  winner                  Team?                 @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  tiebreakerDecidedBy     Player?   @relation("MatchTiebreakerDecider", fields: [tiebreakerDecidedById], references: [id], onDelete: SetNull)
+  tiebreakerGame          Game?     @relation("MatchTiebreakerGame", fields: [tiebreakerGameId], references: [id], onDelete: SetNull)
+  tiebreakerWinnerTeam    Team?     @relation("MatchTiebreakerWinner", fields: [tiebreakerWinnerTeamId], references: [id], onDelete: SetNull)
 
   @@index([roundId])
   @@index([teamAId])
   @@index([teamBId])
   @@index([tiebreakerWinnerTeamId])
-  @@index([winnerId]) // For bracket winner queries
   @@index([roundId, isBye]) // For filtering out bye matches
   @@index([tiebreakerStatus]) // For filtering matches needing tiebreakers
-  @@index([sourceMatchAId]) // For bracket progression queries
-  @@index([sourceMatchBId]) // For bracket progression queries
 }
 
 /// *
@@ -332,7 +294,6 @@ model Game {
   id                    String    @id(map: "Game_new_pkey") @default(cuid())
   matchId               String
   slot                  GameSlot?
-  bracketId             String?   // For DOUBLE_ELIMINATION_CLUBS: which bracket this game belongs to
   teamAScore            Int?
   teamBScore            Int?
   teamALineup           Json?
@@ -349,13 +310,11 @@ model Game {
   teamASubmittedScore   Int? // Score submitted by Team A
   teamBSubmittedScore   Int? // Score submitted by Team B
   match                 Match     @relation(fields: [matchId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "Game_new_matchId_fkey")
-  bracket               TournamentBracket? @relation(fields: [bracketId], references: [id], onDelete: SetNull)
   tiebreakerForMatch    Match?    @relation("MatchTiebreakerGame")
   scoreSubmissions      GameScoreSubmission[]
 
-  @@unique([matchId, slot, bracketId], map: "Game_matchId_slot_bracketId_key")
+  @@unique([matchId, slot], map: "Game_new_matchId_slot_key")
   @@index([matchId])
-  @@index([bracketId]) // For querying games by bracket
   @@index([isComplete, startedAt]) // For filtering incomplete games
   @@index([courtNumber]) // For filtering by court
 }
@@ -435,7 +394,6 @@ model TournamentBracket {
   name         String
   idx          Int        @default(0)
   teams        Team[]
-  games        Game[]     // Games that belong to this bracket (for DOUBLE_ELIMINATION_CLUBS)
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, name])
@@ -521,114 +479,13 @@ enum TournamentType {
   TEAM_FORMAT
   SINGLE_ELIMINATION
   DOUBLE_ELIMINATION
-  DOUBLE_ELIMINATION_CLUBS  // Club-based double elimination with bracket teams
   ROUND_ROBIN
   POOL_PLAY
   LADDER_TOURNAMENT
 }
 
 /// *
-/// * ---------- Tournament Registration System ----------
-
-model TournamentRegistration {
-  id                String                    @id @default(cuid())
-  tournamentId      String
-  playerId          String
-
-  status            RegistrationPlayerStatus  @default(REGISTERED)
-  registeredAt      DateTime                  @default(now())
-  withdrawnAt       DateTime?
-  rejectedAt        DateTime?
-  rejectedBy        String?                   // Player ID of admin who rejected
-  rejectionReason   String?                   // Required if rejected
-  notes             String?
-
-  // Payment
-  paymentStatus     PaymentStatus             @default(PENDING)
-  paymentId         String?                   // Stripe payment ID
-  refundId          String?                   // Stripe refund ID
-  amountPaid        Int?                      // in cents
-
-  tournament        Tournament                @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player            Player                    @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@unique([tournamentId, playerId])
-  @@index([tournamentId, status])
-  @@index([playerId])
-}
-
-model TournamentInvite {
-  id                String        @id @default(cuid())
-  tournamentId      String
-  playerId          String?       // null if inviting by email (not yet a player)
-
-  // For email invites (player doesn't exist yet)
-  inviteEmail       String?
-  inviteName        String?
-  inviteToken       String?       @unique // For signup link
-
-  status            InviteStatus  @default(PENDING)
-  invitedBy         String        // Player ID of admin who sent invite
-  createdAt         DateTime      @default(now())
-  expiresAt         DateTime      // Admin-selected expiry
-  respondedAt       DateTime?     // When invite was accepted/declined
-  notes             String?
-
-  acceptedAt        DateTime?
-  declinedAt        DateTime?
-  cancelledAt       DateTime?
-
-  tournament        Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player            Player?       @relation("TournamentInvitesReceived", fields: [playerId], references: [id], onDelete: Cascade)
-  invitedByPlayer   Player        @relation("TournamentInvitesSent", fields: [invitedBy], references: [id])
-
-  @@index([tournamentId, status])
-  @@index([playerId])
-  @@index([inviteEmail])
-  @@index([inviteToken])
-}
-
-model InviteRequest {
-  id                String              @id @default(cuid())
-  tournamentId      String
-  playerId          String
-
-  status            InviteRequestStatus @default(PENDING)
-  requestedAt       DateTime            @default(now())
-  reviewedAt        DateTime?
-  reviewedBy        String?             // Player ID of admin who reviewed
-  notes             String?
-
-  tournament        Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player            Player              @relation("InviteRequestsSent", fields: [playerId], references: [id], onDelete: Cascade)
-  reviewer          Player?             @relation("ReviewedRequests", fields: [reviewedBy], references: [id])
-
-  @@unique([tournamentId, playerId])
-  @@index([tournamentId, status])
-}
-
-model TournamentWaitlist {
-  id                    String          @id @default(cuid())
-  tournamentId          String
-  playerId              String
-
-  position              Int             // Auto-calculated based on joinedAt
-  joinedAt              DateTime        @default(now())
-
-  status                WaitlistStatus  @default(ACTIVE)
-  notifiedAt            DateTime?       // When spot-available email was sent
-  notificationExpiresAt DateTime?       // 24h after notifiedAt
-
-  movedToRegisteredAt   DateTime?
-  removedAt             DateTime?
-
-  tournament            Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player                Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@unique([tournamentId, playerId])
-  @@index([tournamentId, status, position])
-}
-
+/// * Enums (keep mapping to existing PG types to avoid enum migration churn)
 enum RegistrationStatus {
   OPEN
   INVITE_ONLY
@@ -638,41 +495,6 @@ enum RegistrationStatus {
 enum RegistrationType {
   FREE
   PAID
-}
-
-enum RegistrationPlayerStatus {
-  REGISTERED
-  CANCELLED
-  REJECTED
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  REFUNDED
-  FAILED
-}
-
-enum InviteStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-  CANCELLED
-  EXPIRED
-}
-
-enum InviteRequestStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-}
-
-enum WaitlistStatus {
-  ACTIVE
-  NOTIFIED
-  EXPIRED
-  REGISTERED
-  REMOVED
 }
 
 /// *
