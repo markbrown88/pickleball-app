@@ -6,7 +6,7 @@ import { useActAs } from './ActAsContext';
 type UserOption = {
   id: string;
   name: string;
-  role: 'app-admin' | 'tournament-admin' | 'captain' | 'player';
+  role: 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
   email?: string;
 };
 
