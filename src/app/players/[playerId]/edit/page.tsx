@@ -16,7 +16,7 @@ export default function PlayerEditPage() {
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [player, setPlayer] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [clubs, setClubs] = useState<Array<{ id: string; name: string }>>([]);
 
   const notify = useCallback((message: string | null, type: 'error' | 'info') => {

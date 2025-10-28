@@ -63,6 +63,9 @@ export interface Tournament {
   name: string;
   type: 'TEAM_FORMAT' | 'SINGLE_ELIMINATION' | 'DOUBLE_ELIMINATION' | 'ROUND_ROBIN' | 'POOL_PLAY' | 'LADDER_TOURNAMENT';
   createdAt: Date;
+  startDate: string | null;
+  endDate: string | null;
+  location: string | null;
   brackets: TournamentBracket[];
   stops: TournamentStop[];
 }

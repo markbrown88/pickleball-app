@@ -96,10 +96,30 @@ async function fetchDashboardData(): Promise<{
     ? await tournamentsResponse.json()
     : { tournaments: [] };
 
+  // Map Tournament to TournamentCardData
+  const tournamentsData = (tournamentsJson.tournaments ?? []).map((t: any): TournamentCardData => {
+    return {
+      id: t.id,
+      name: t.name,
+      type: t.type,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      location: t.location,
+      registrationStatus: t.registrationStatus || 'CLOSED',
+      registrationType: t.registrationType || 'FREE',
+      registrationCost: t.registrationCost || null,
+      maxPlayers: t.maxPlayers || null,
+      restrictionNotes: t.restrictionNotes || [],
+      isWaitlistEnabled: t.isWaitlistEnabled || false,
+      registeredCount: t.registeredCount || 0,
+      stops: t.stops || [],
+    };
+  });
+
   return {
     overview: overviewData,
     registrations: registrationsList,
-    tournaments: (tournamentsJson.tournaments ?? []) as TournamentCardData[],
+    tournaments: tournamentsData,
   };
 }
 

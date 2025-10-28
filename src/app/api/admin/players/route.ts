@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
     const skip = parseInt(url.searchParams.get('skip') || '0');
     const sort = url.searchParams.get('sort') || 'lastName:asc';
     const search = url.searchParams.get('search') || '';
+    const showDisabled = url.searchParams.get('showDisabled') === 'true';
     let clubId = url.searchParams.get('clubId') || '';
 
     // Tournament Admins can only see players from their own club
@@ -114,7 +115,7 @@ export async function GET(req: NextRequest) {
 
     // Build where clause for search and club filter
     const where: any = {};
-    
+
     if (search) {
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
@@ -122,9 +123,14 @@ export async function GET(req: NextRequest) {
         { email: { contains: search, mode: 'insensitive' } }
       ];
     }
-    
+
     if (clubId) {
       where.clubId = clubId;
+    }
+
+    // Filter disabled players by default unless showDisabled is true
+    if (!showDisabled) {
+      where.disabled = false;
     }
 
     const [players, total] = await Promise.all([
@@ -146,6 +152,8 @@ export async function GET(req: NextRequest) {
           birthdayMonth: true,
           birthdayDay: true,
           isAppAdmin: true,
+          disabled: true,
+          disabledAt: true,
           createdAt: true,
           club: {
             select: {

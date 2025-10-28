@@ -37,6 +37,8 @@ type Player = {
   birthdayYear?: number | null;
   birthdayMonth?: number | null;
   birthdayDay?: number | null;
+  disabled?: boolean;
+  disabledAt?: Date | null;
 };
 
 type PlayersResponse = { items: Player[]; total: number } | Player[];
@@ -98,12 +100,12 @@ export default function PlayersPage() {
   const playersRequestRef = useRef(0);
   const playersListConfigRef = useRef({ take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter });
 
-  const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch) => {
+  const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch, showDisabled: boolean = showDisabledPlayers) => {
     const requestId = playersRequestRef.current + 1;
     playersRequestRef.current = requestId;
     try {
       const term = searchTerm.trim();
-      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}${term ? `&search=${encodeURIComponent(term)}` : ''}`;
+      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}${term ? `&search=${encodeURIComponent(term)}` : ''}${showDisabled ? '&showDisabled=true' : ''}`;
       const respRaw = await api<PlayersResponse>(query);
       const resp = normalizePlayersResponse(respRaw);
       if (requestId === playersRequestRef.current) {
@@ -115,7 +117,7 @@ export default function PlayersPage() {
         setErr((e as Error).message);
       }
     }
-  }, [playerSearch]);
+  }, [playerSearch, showDisabledPlayers]);
 
   const reloadClubs = useCallback(async () => {
     const data = await api<Club[]>('/api/admin/clubs?sort=name:asc');
@@ -287,6 +289,22 @@ export default function PlayersPage() {
     }
   }, [loadPlayersPage, playersPage.take, playersPage.skip, playerSort, playersClubFilter, playerSearch]);
 
+  const togglePlayerDisabled = useCallback(async (player: Player) => {
+    const action = player.disabled ? 'enable' : 'disable';
+    if (!confirm(`Are you sure you want to ${action} this player?`)) return;
+    try {
+      setErr(null);
+      await api(`/api/admin/players/${player.id}/toggle-disabled`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch, showDisabledPlayers);
+      setInfo(`Player ${action}d successfully`);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }, [loadPlayersPage, playersPage.take, playersPage.skip, playerSort, playersClubFilter, playerSearch, showDisabledPlayers]);
+
   const filteredClubs = useMemo(() => clubsAll, [clubsAll]);
 
   return (
@@ -355,6 +373,29 @@ export default function PlayersPage() {
               )}
             </div>
           </div>
+          {admin.isAppAdmin && (
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showDisabledPlayers}
+                  onChange={(e) => {
+                    setShowDisabledPlayers(e.target.checked);
+                    void loadPlayersPage(
+                      playersPage.take,
+                      0,
+                      `${playerSort.col}:${playerSort.dir}`,
+                      playersClubFilter,
+                      playerSearch,
+                      e.target.checked
+                    );
+                  }}
+                  className="w-4 h-4"
+                />
+                <span className="text-muted">Show disabled players</span>
+              </label>
+            </div>
+          )}
           <button type="submit" className="btn btn-secondary btn-sm">Apply</button>
         </form>
       </div>
@@ -382,8 +423,17 @@ export default function PlayersPage() {
                 <tr><td colSpan={11} className="py-8 text-center text-muted">No players yet.</td></tr>
               )}
               {(playersPage.items ?? []).map((p) => (
-                <tr key={p.id}>
-                  <td className="py-2 pr-4 text-muted">{p.firstName ?? '—'}</td>
+                <tr key={p.id} className={p.disabled ? 'opacity-50' : ''}>
+                  <td className="py-2 pr-4 text-muted">
+                    <div className="flex items-center gap-2">
+                      {p.firstName ?? '—'}
+                      {p.disabled && (
+                        <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                          Disabled
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-2 pr-4 text-muted">{p.lastName ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted">{p.gender === 'FEMALE' ? 'F' : 'M'}</td>
                   <td className="py-2 pr-4 text-muted">{p.club?.name ?? '—'}</td>
@@ -404,14 +454,24 @@ export default function PlayersPage() {
                         ✎
                       </button>
                       {admin.isAppAdmin && (
-                        <button
-                          aria-label="Delete player"
-                          onClick={() => removePlayer(p.id)}
-                          title="Delete"
-                          className="text-error hover:text-error-hover p-1"
-                        >
-                          <TrashIcon />
-                        </button>
+                        <>
+                          <button
+                            aria-label={p.disabled ? 'Enable player' : 'Disable player'}
+                            onClick={() => togglePlayerDisabled(p)}
+                            title={p.disabled ? 'Enable' : 'Disable'}
+                            className={p.disabled ? 'text-green-600 hover:text-green-700 p-1' : 'text-orange-600 hover:text-orange-700 p-1'}
+                          >
+                            {p.disabled ? '✓' : '⊘'}
+                          </button>
+                          <button
+                            aria-label="Delete player"
+                            onClick={() => removePlayer(p.id)}
+                            title="Delete"
+                            className="text-error hover:text-error-hover p-1"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
