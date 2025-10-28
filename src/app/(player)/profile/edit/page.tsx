@@ -76,14 +76,17 @@ export default function ProfileEditPage() {
 
   const saveUserProfile = useCallback(
     async (profileData: any): Promise<boolean> => {
-      if (!isSignedIn) return false;
+      if (!isSignedIn || !userProfile) return false;
 
       setProfileLoading(true);
       try {
         const response = await fetch(PROFILE_ENDPOINT, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(profileData),
+          body: JSON.stringify({
+            ...profileData,
+            playerId: userProfile.id,
+          }),
         });
 
         if (response.ok) {
@@ -102,7 +105,7 @@ export default function ProfileEditPage() {
         setProfileLoading(false);
       }
     },
-    [handleError, handleInfo, isSignedIn]
+    [handleError, handleInfo, isSignedIn, userProfile]
   );
 
   if (!userLoaded) {

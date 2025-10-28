@@ -65,6 +65,9 @@ model Player {
   birthday               DateTime?                @db.Timestamptz(6)
   updatedAt              DateTime                 @default(now()) @db.Timestamptz(6)
   isAppAdmin             Boolean                  @default(false)
+  disabled               Boolean                  @default(false)
+  disabledAt             DateTime?
+  disabledBy             String?                  // Player ID of admin who disabled
   CaptainInvite          CaptainInvite[]
   lineupEntriesAsP1      LineupEntry[]            @relation("LineupPlayer1")
   lineupEntriesAsP2      LineupEntry[]            @relation("LineupPlayer2")

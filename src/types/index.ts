@@ -9,11 +9,17 @@ export interface UserProfile {
   phone: string | null;
   gender: 'MALE' | 'FEMALE';
   dupr: number | null;
+  duprSingles: number | null;
+  duprDoubles: number | null;
+  clubRatingSingles: number | null;
+  clubRatingDoubles: number | null;
   age: number | null;
   birthday: Date | null;
   city: string | null;
   region: string | null;
   country: string | null;
+  displayAge: boolean;
+  displayLocation: boolean;
   isAppAdmin: boolean;
   isTournamentAdmin: boolean;
   club: {

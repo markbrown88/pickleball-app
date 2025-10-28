@@ -91,6 +91,7 @@ export default function PlayersPage() {
   }>({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', country: 'Canada', phone: '', email: '' });
 
   const [playersClubFilter, setPlayersClubFilter] = useState<string>('');
+  const [showDisabledPlayers, setShowDisabledPlayers] = useState(false);
   const [clubsAll, setClubsAll] = useState<Club[]>([]);
 
   const playerSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -396,7 +397,7 @@ export default function PlayersPage() {
                     <div className="flex items-center gap-2 justify-end">
                       <button
                         aria-label="Edit player"
-                        onClick={() => openSlideOutEditPlayer(p)}
+                        onClick={() => window.location.href = `/players/${p.id}/edit`}
                         title="Edit"
                         className="text-secondary hover:text-secondary-hover p-1"
                       >
