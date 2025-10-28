@@ -135,6 +135,7 @@ model Tournament {
   type                   TournamentType           @default(TEAM_FORMAT)
   updatedAt              DateTime                 @default(now()) @updatedAt @db.Timestamptz(6)
   maxTeamSize            Int?
+  gamesPerMatch          Int?
   // Registration Settings
   registrationStatus     RegistrationStatus       @default(CLOSED)
   registrationType       RegistrationType         @default(FREE)
