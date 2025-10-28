@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 type ActAsUser = {
   id: string;
   name: string;
-  role: 'app-admin' | 'tournament-admin' | 'captain' | 'player';
+  role: 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
 };
 
 type ActAsContextType = {
