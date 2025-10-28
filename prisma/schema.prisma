@@ -140,6 +140,9 @@ model Tournament {
   registrationStatus     RegistrationStatus       @default(CLOSED)
   registrationType       RegistrationType         @default(FREE)
   registrationCost       Int?                     // in cents, null if free
+  maxPlayers             Int?
+  restrictionNotes       String[]
+  isWaitlistEnabled      Boolean                  @default(true)
   CaptainInvite          CaptainInvite[]
   stops                  Stop[]
   teams                  Team[]
