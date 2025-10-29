@@ -31,14 +31,14 @@ export default function InvitationsPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/player/invitations');
+      const response = await fetch('/api/player/invites');
 
       if (!response.ok) {
         throw new Error('Failed to load invitations');
       }
 
       const data = await response.json();
-      setInvitations(data);
+      setInvitations(data.invites || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load invitations');
     } finally {
@@ -56,7 +56,7 @@ export default function InvitationsPage() {
       setError(null);
       setSuccess(null);
 
-      const response = await fetch(`/api/player/invitations/${inviteId}/accept`, {
+      const response = await fetch(`/api/player/invites/${inviteId}/accept`, {
         method: 'POST',
       });
 
@@ -88,7 +88,7 @@ export default function InvitationsPage() {
       setError(null);
       setSuccess(null);
 
-      const response = await fetch(`/api/player/invitations/${inviteId}/decline`, {
+      const response = await fetch(`/api/player/invites/${inviteId}/decline`, {
         method: 'POST',
       });
 

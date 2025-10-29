@@ -60,6 +60,19 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
     };
   } | null>(null);
   const [activeView, setActiveView] = useState<'registrations' | 'requests' | 'waitlist'>('registrations');
+  const [processing, setProcessing] = useState<string | null>(null);
+
+  // Manual registration modal
+  const [showManualRegisterModal, setShowManualRegisterModal] = useState(false);
+  const [playerSearchTerm, setPlayerSearchTerm] = useState('');
+  const [playerSearchResults, setPlayerSearchResults] = useState<{id: string; name: string}[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [registerNotes, setRegisterNotes] = useState('');
+
+  // Reject registration modal
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingRegistration, setRejectingRegistration] = useState<RegistrationData | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     loadData();
@@ -91,6 +104,159 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
       setData(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleInviteRequest(requestId: string, action: 'approve' | 'reject') {
+    try {
+      setProcessing(requestId);
+      const response = await fetch(
+        `/api/admin/tournaments/${tournamentId}/invite-requests/${requestId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to process request');
+        return;
+      }
+
+      const result = await response.json();
+      alert(result.message);
+      await loadData(); // Reload data
+    } catch (error) {
+      console.error('Error processing invite request:', error);
+      alert('Failed to process invite request');
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  async function handlePromoteFromWaitlist(entryId: string) {
+    try {
+      setProcessing(entryId);
+      const response = await fetch(
+        `/api/admin/tournaments/${tournamentId}/waitlist/${entryId}/promote`,
+        {
+          method: 'POST',
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to promote player');
+        return;
+      }
+
+      const result = await response.json();
+      alert(result.message);
+      await loadData(); // Reload data
+    } catch (error) {
+      console.error('Error promoting from waitlist:', error);
+      alert('Failed to promote player from waitlist');
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  async function searchPlayers(term: string) {
+    if (term.length < 3) {
+      setPlayerSearchResults([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/players/search?term=${encodeURIComponent(term)}`);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const results = (data.items || []).map((item: any) => ({
+        id: item.id,
+        name: item.name || `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Unknown',
+      }));
+      setPlayerSearchResults(results);
+    } catch (error) {
+      console.error('Error searching players:', error);
+    }
+  }
+
+  async function handleManualRegister() {
+    if (!selectedPlayerId) {
+      alert('Please select a player');
+      return;
+    }
+
+    try {
+      setProcessing('manual-register');
+      const response = await fetch(`/api/admin/tournaments/${tournamentId}/register-player`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: selectedPlayerId,
+          notes: registerNotes || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to register player');
+        return;
+      }
+
+      const result = await response.json();
+      alert(result.message);
+      setShowManualRegisterModal(false);
+      setPlayerSearchTerm('');
+      setPlayerSearchResults([]);
+      setSelectedPlayerId(null);
+      setRegisterNotes('');
+      await loadData();
+    } catch (error) {
+      console.error('Error registering player:', error);
+      alert('Failed to register player');
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  async function handleRejectRegistration() {
+    if (!rejectingRegistration || !rejectReason.trim()) {
+      alert('Please provide a rejection reason');
+      return;
+    }
+
+    try {
+      setProcessing('reject');
+      const response = await fetch(
+        `/api/admin/tournaments/${tournamentId}/registrations/${rejectingRegistration.id}/reject`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: rejectReason }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to reject registration');
+        return;
+      }
+
+      const result = await response.json();
+      alert(result.message);
+      setShowRejectModal(false);
+      setRejectingRegistration(null);
+      setRejectReason('');
+      await loadData();
+    } catch (error) {
+      console.error('Error rejecting registration:', error);
+      alert('Failed to reject registration');
+    } finally {
+      setProcessing(null);
     }
   }
 
@@ -151,6 +317,16 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
       {/* Content */}
       {activeView === 'registrations' && (
         <div className="space-y-2">
+          {/* Manual Register Button */}
+          <div className="flex justify-end">
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowManualRegisterModal(true)}
+            >
+              + Manual Register Player
+            </button>
+          </div>
+
           {data.registrations.length === 0 ? (
             <div className="card text-center py-8 text-muted">No registrations yet</div>
           ) : (
@@ -203,8 +379,18 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                       <td className="p-3 text-sm text-muted">
                         {new Date(reg.registeredAt).toLocaleDateString()}
                       </td>
-                      <td className="p-3 text-right">
-                        <button className="btn btn-ghost btn-sm">View</button>
+                      <td className="p-3 text-right space-x-2">
+                        {reg.status === 'REGISTERED' && (
+                          <button
+                            className="btn btn-error btn-sm"
+                            onClick={() => {
+                              setRejectingRegistration(reg);
+                              setShowRejectModal(true);
+                            }}
+                          >
+                            Reject
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -256,8 +442,20 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                       <td className="p-3 text-right space-x-2">
                         {req.status === 'PENDING' && (
                           <>
-                            <button className="btn btn-success btn-sm">Approve</button>
-                            <button className="btn btn-error btn-sm">Reject</button>
+                            <button
+                              className="btn btn-success btn-sm"
+                              onClick={() => handleInviteRequest(req.id, 'approve')}
+                              disabled={processing === req.id}
+                            >
+                              {processing === req.id ? 'Processing...' : 'Approve'}
+                            </button>
+                            <button
+                              className="btn btn-error btn-sm"
+                              onClick={() => handleInviteRequest(req.id, 'reject')}
+                              disabled={processing === req.id}
+                            >
+                              {processing === req.id ? 'Processing...' : 'Reject'}
+                            </button>
                           </>
                         )}
                       </td>
@@ -314,7 +512,13 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                       </td>
                       <td className="p-3 text-right">
                         {entry.status === 'ACTIVE' && (
-                          <button className="btn btn-primary btn-sm">Promote</button>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => handlePromoteFromWaitlist(entry.id)}
+                            disabled={processing === entry.id}
+                          >
+                            {processing === entry.id ? 'Processing...' : 'Promote'}
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -323,6 +527,134 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Manual Register Modal */}
+      {showManualRegisterModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="card max-w-lg w-full mx-4">
+            <h3 className="text-lg font-bold mb-4">Manual Register Player</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="label">Search Player</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Type name to search (min 3 chars)..."
+                  value={playerSearchTerm}
+                  onChange={(e) => {
+                    setPlayerSearchTerm(e.target.value);
+                    searchPlayers(e.target.value);
+                  }}
+                />
+              </div>
+
+              {playerSearchResults.length > 0 && (
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {playerSearchResults.map((p) => (
+                    <div
+                      key={p.id}
+                      className={`p-3 border rounded cursor-pointer hover:bg-surface-1 ${
+                        selectedPlayerId === p.id ? 'border-primary bg-primary/10' : 'border-border-subtle'
+                      }`}
+                      onClick={() => setSelectedPlayerId(p.id)}
+                    >
+                      {p.name}
+                      {selectedPlayerId === p.id && <span className="ml-2 chip chip-primary chip-sm">Selected</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedPlayerId && (
+                <div>
+                  <label className="label">Notes (optional)</label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    placeholder="Admin notes..."
+                    value={registerNotes}
+                    onChange={(e) => setRegisterNotes(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setShowManualRegisterModal(false);
+                    setPlayerSearchTerm('');
+                    setPlayerSearchResults([]);
+                    setSelectedPlayerId(null);
+                    setRegisterNotes('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleManualRegister}
+                  disabled={!selectedPlayerId || processing === 'manual-register'}
+                >
+                  {processing === 'manual-register' ? 'Registering...' : 'Register Player'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && rejectingRegistration && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="card max-w-lg w-full mx-4">
+            <h3 className="text-lg font-bold mb-4">Reject Registration</h3>
+
+            <div className="space-y-4">
+              <div className="p-3 bg-surface-1 rounded">
+                <div className="font-medium">{rejectingRegistration.player.name}</div>
+                <div className="text-sm text-muted">{rejectingRegistration.player.email}</div>
+              </div>
+
+              <div>
+                <label className="label">Rejection Reason *</label>
+                <textarea
+                  className="input"
+                  rows={4}
+                  placeholder="Please provide a reason for rejection..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  required
+                />
+                <div className="text-sm text-muted mt-1">
+                  This reason will be sent to the player via email.
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectingRegistration(null);
+                    setRejectReason('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-error"
+                  onClick={handleRejectRegistration}
+                  disabled={!rejectReason.trim() || processing === 'reject'}
+                >
+                  {processing === 'reject' ? 'Rejecting...' : 'Reject Registration'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
