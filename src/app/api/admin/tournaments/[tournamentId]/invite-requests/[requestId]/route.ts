@@ -2,20 +2,21 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-type CtxPromise = Promise<{ params: { tournamentId: string; requestId: string } }>;
-
 /**
  * PATCH /api/admin/tournaments/[tournamentId]/invite-requests/[requestId]
  * Approve or reject an invite request
  */
-export async function PATCH(req: Request, ctx: CtxPromise) {
+export async function PATCH(
+  req: Request,
+  props: { params: Promise<{ tournamentId: string; requestId: string }> }
+) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { tournamentId, requestId } = await ctx.params;
+    const { tournamentId, requestId } = await props.params;
     const body = await req.json();
     const { action } = body; // 'approve' or 'reject'
 
