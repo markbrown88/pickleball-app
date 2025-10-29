@@ -2,20 +2,21 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-type CtxPromise = Promise<{ params: { tournamentId: string } }>;
-
 /**
  * POST /api/player/tournaments/[tournamentId]/claim-waitlist-spot
  * Claim a waitlist spot and register for the tournament
  */
-export async function POST(req: Request, ctx: CtxPromise) {
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ tournamentId: string }> }
+) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { tournamentId } = await ctx.params;
+    const { tournamentId } = await props.params;
 
     // Get player profile
     const player = await prisma.player.findUnique({

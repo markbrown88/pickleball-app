@@ -3,21 +3,22 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { nanoid } from 'nanoid';
 
-type CtxPromise = Promise<{ params: { tournamentId: string } }>;
-
 /**
  * POST /api/admin/tournaments/[tournamentId]/invites
  * Send invites to players (existing players or by email)
  * Body: { playerIds?: string[], inviteEmail?: string, inviteName?: string, expiryDays: number, notes?: string }
  */
-export async function POST(req: Request, ctx: CtxPromise) {
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ tournamentId: string }> }
+) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { tournamentId } = await ctx.params;
+    const { tournamentId } = await props.params;
     const body = await req.json();
     const { playerIds, inviteEmail, inviteName, expiryDays = 7, notes } = body;
 

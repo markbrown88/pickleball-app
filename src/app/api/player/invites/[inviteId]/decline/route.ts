@@ -2,20 +2,21 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-type CtxPromise = Promise<{ params: { inviteId: string } }>;
-
 /**
  * POST /api/player/invites/[inviteId]/decline
  * Decline a tournament invite
  */
-export async function POST(req: Request, ctx: CtxPromise) {
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ inviteId: string }> }
+) {
   try {
-    const { userId } = await auth();
+    const { userId} = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { inviteId } = await ctx.params;
+    const { inviteId } = await props.params;
 
     // Get player profile
     const player = await prisma.player.findUnique({
