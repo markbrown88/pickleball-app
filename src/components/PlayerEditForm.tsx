@@ -99,7 +99,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
 
           <div>
             <label htmlFor="birthday" className="block text-sm font-medium text-secondary mb-2">
-              Birthday *
+              Birthday
             </label>
             <input
               type="date"
@@ -108,7 +108,6 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               value={formData.birthday}
               onChange={handleChange}
               className="input w-full"
-              required
             />
           </div>
         </div>
@@ -120,7 +119,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-secondary mb-2">
-              Email *
+              Email
             </label>
             <input
               type="email"
@@ -129,13 +128,12 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               value={formData.email}
               onChange={handleChange}
               className="input w-full"
-              required
             />
           </div>
 
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-secondary mb-2">
-              Phone *
+              Phone
             </label>
             <input
               type="tel"
@@ -144,13 +142,12 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               value={formData.phone}
               onChange={handleChange}
               className="input w-full"
-              required
             />
           </div>
 
           <div>
             <label htmlFor="city" className="block text-sm font-medium text-secondary mb-2">
-              City *
+              City
             </label>
             <input
               type="text"
@@ -159,13 +156,12 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               value={formData.city}
               onChange={handleChange}
               className="input w-full"
-              required
             />
           </div>
 
           <div>
             <label htmlFor="region" className="block text-sm font-medium text-secondary mb-2">
-              Province/State *
+              Province/State
             </label>
             <input
               type="text"
@@ -174,13 +170,12 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               value={formData.region}
               onChange={handleChange}
               className="input w-full"
-              required
             />
           </div>
 
           <div>
             <label htmlFor="country" className="block text-sm font-medium text-secondary mb-2">
-              Country *
+              Country
             </label>
             <select
               id="country"
@@ -188,7 +183,6 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               value={formData.country}
               onChange={handleChange}
               className="input w-full"
-              required
             >
               <option value="Canada">Canada</option>
               <option value="USA">United States</option>
