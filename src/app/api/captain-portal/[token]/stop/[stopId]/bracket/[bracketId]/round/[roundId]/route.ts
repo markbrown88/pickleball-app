@@ -74,7 +74,8 @@ export async function GET(request: Request, { params }: Params) {
                 teamAScoreSubmitted: true,
                 teamBScoreSubmitted: true,
                 isComplete: true,
-                startedAt: true
+                startedAt: true,
+                courtNumber: true
               }
             }
           }
@@ -298,7 +299,8 @@ export async function GET(request: Request, { params }: Params) {
         myScoreSubmitted: isTeamA ? game.teamAScoreSubmitted : game.teamBScoreSubmitted,
         opponentScoreSubmitted: isTeamA ? game.teamBScoreSubmitted : game.teamAScoreSubmitted,
         isComplete: game.isComplete,
-        startedAt: game.startedAt
+        startedAt: game.startedAt,
+        courtNumber: game.courtNumber
       };
     });
 

@@ -31,6 +31,7 @@ type Game = {
   opponentScoreSubmitted?: boolean;
   isComplete: boolean;
   startedAt: string | null;
+  courtNumber?: number | null;
 };
 
 type Player = {
@@ -245,10 +246,10 @@ export default function StopDetailPage({
       <div className="sticky top-0 bg-primary text-white py-3 px-4 z-50 shadow-lg">
         <div className="container mx-auto max-w-4xl">
           {/* Tournament Name - Always shown */}
-          <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-1 truncate">{tournamentName || 'Tournament'}</h1>
+          <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-1">{tournamentName || 'Tournament'}</h1>
 
           {/* Team Name - Always shown - Larger and bold */}
-          <p className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-2 truncate">
+          <p className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-2">
             {displayMyTeamName}
           </p>
 
@@ -256,7 +257,7 @@ export default function StopDetailPage({
           {view !== 'brackets' && (
             <div className="text-xs sm:text-sm opacity-80 space-y-1">
               {/* Stop and Bracket on same line */}
-              <div className="truncate">
+              <div>
                 Stop: {stopName}
                 {view !== 'rounds' && currentBracket && (
                   <span className="ml-4">Bracket: {bracketName || currentBracket.name}</span>
@@ -266,11 +267,11 @@ export default function StopDetailPage({
                 )}
               </div>
               {stopLocation && (
-                <div className="truncate text-xs opacity-70">📍 {stopLocation}</div>
+                <div className="text-xs opacity-70">📍 {stopLocation}</div>
               )}
 
               {view === 'games' && currentRound && (
-                <div className="truncate">
+                <div>
                   {roundName} vs. {displayOpponentTeamName}
                 </div>
               )}
@@ -1032,9 +1033,14 @@ function GamePreview({
       <div className="space-y-3">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-secondary">{title}</h4>
-          {game.isComplete && (
-            <span className="chip chip-success text-xs">Complete</span>
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-semibold text-secondary">{title}</h4>
+            {game.isComplete && (
+              <span className="chip chip-success text-xs">Complete</span>
+            )}
+          </div>
+          {game.courtNumber && (
+            <span className="text-xs text-muted">Court {game.courtNumber}</span>
           )}
         </div>
 
