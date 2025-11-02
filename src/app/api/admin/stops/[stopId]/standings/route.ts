@@ -205,7 +205,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
           for (const game of match.games) {
             const a = game.teamAScore;
             const b = game.teamBScore;
-            if (a != null && b != null) {
+            // Only count completed games
+            if (game.isComplete && a != null && b != null) {
               scoredSlots++;
               rowA.scoreFor += a;
               rowA.scoreAgainst += b;
