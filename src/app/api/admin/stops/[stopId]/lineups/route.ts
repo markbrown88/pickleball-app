@@ -92,48 +92,45 @@ export async function GET(
       } : undefined;
 
       // Process Team A lineup
+      // Only use MENS_DOUBLES and WOMENS_DOUBLES to build the [Man1, Man2, Woman1, Woman2] array
+      // MIXED_1 and MIXED_2 are derived from these and should not overwrite them
       if (teamALineupData) {
         const lineup = new Array(4).fill(undefined);
-        for (const entry of teamALineupData.entries) {
-          const p1 = entry.player1;
-          const p2 = entry.player2;
-          if (entry.slot === 'MENS_DOUBLES') {
-            if (p1) lineup[0] = formatPlayer(p1);
-            if (p2) lineup[1] = formatPlayer(p2);
-          } else if (entry.slot === 'WOMENS_DOUBLES') {
-            if (p1) lineup[2] = formatPlayer(p1);
-            if (p2) lineup[3] = formatPlayer(p2);
-          } else if (entry.slot === 'MIXED_1') {
-            if (p1) lineup[p1.gender === 'MALE' ? 0 : 2] = formatPlayer(p1);
-            if (p2) lineup[p2.gender === 'MALE' ? 0 : 2] = formatPlayer(p2);
-          } else if (entry.slot === 'MIXED_2') {
-            if (p1) lineup[p1.gender === 'MALE' ? 1 : 3] = formatPlayer(p1);
-            if (p2) lineup[p2.gender === 'MALE' ? 1 : 3] = formatPlayer(p2);
-          }
+
+        const mensDoubles = teamALineupData.entries.find(e => e.slot === 'MENS_DOUBLES');
+        const womensDoubles = teamALineupData.entries.find(e => e.slot === 'WOMENS_DOUBLES');
+
+        if (mensDoubles) {
+          if (mensDoubles.player1) lineup[0] = formatPlayer(mensDoubles.player1);
+          if (mensDoubles.player2) lineup[1] = formatPlayer(mensDoubles.player2);
         }
+
+        if (womensDoubles) {
+          if (womensDoubles.player1) lineup[2] = formatPlayer(womensDoubles.player1);
+          if (womensDoubles.player2) lineup[3] = formatPlayer(womensDoubles.player2);
+        }
+
         teamALineup.push(...lineup);
       }
 
       // Process Team B lineup
+      // Only use MENS_DOUBLES and WOMENS_DOUBLES to build the [Man1, Man2, Woman1, Woman2] array
       if (teamBLineupData) {
         const lineup = new Array(4).fill(undefined);
-        for (const entry of teamBLineupData.entries) {
-          const p1 = entry.player1;
-          const p2 = entry.player2;
-          if (entry.slot === 'MENS_DOUBLES') {
-            if (p1) lineup[0] = formatPlayer(p1);
-            if (p2) lineup[1] = formatPlayer(p2);
-          } else if (entry.slot === 'WOMENS_DOUBLES') {
-            if (p1) lineup[2] = formatPlayer(p1);
-            if (p2) lineup[3] = formatPlayer(p2);
-          } else if (entry.slot === 'MIXED_1') {
-            if (p1) lineup[p1.gender === 'MALE' ? 0 : 2] = formatPlayer(p1);
-            if (p2) lineup[p2.gender === 'MALE' ? 0 : 2] = formatPlayer(p2);
-          } else if (entry.slot === 'MIXED_2') {
-            if (p1) lineup[p1.gender === 'MALE' ? 1 : 3] = formatPlayer(p1);
-            if (p2) lineup[p2.gender === 'MALE' ? 1 : 3] = formatPlayer(p2);
-          }
+
+        const mensDoubles = teamBLineupData.entries.find(e => e.slot === 'MENS_DOUBLES');
+        const womensDoubles = teamBLineupData.entries.find(e => e.slot === 'WOMENS_DOUBLES');
+
+        if (mensDoubles) {
+          if (mensDoubles.player1) lineup[0] = formatPlayer(mensDoubles.player1);
+          if (mensDoubles.player2) lineup[1] = formatPlayer(mensDoubles.player2);
         }
+
+        if (womensDoubles) {
+          if (womensDoubles.player1) lineup[2] = formatPlayer(womensDoubles.player1);
+          if (womensDoubles.player2) lineup[3] = formatPlayer(womensDoubles.player2);
+        }
+
         teamBLineup.push(...lineup);
       }
 
