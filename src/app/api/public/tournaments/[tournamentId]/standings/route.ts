@@ -65,10 +65,13 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               let teamAScore = 0;
               let teamBScore = 0;
               match.games.forEach(game => {
-                if (game.teamAScore! > game.teamBScore!) {
-                  teamAScore++;
-                } else if (game.teamBScore! > game.teamAScore!) {
-                  teamBScore++;
+                // Only count completed games
+                if (game.isComplete && game.teamAScore != null && game.teamBScore != null) {
+                  if (game.teamAScore > game.teamBScore) {
+                    teamAScore++;
+                  } else if (game.teamBScore > game.teamAScore) {
+                    teamBScore++;
+                  }
                 }
               });
               if (teamAScore > teamBScore) winner = 'A';
