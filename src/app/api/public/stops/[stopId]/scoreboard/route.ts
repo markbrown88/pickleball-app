@@ -46,6 +46,32 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       where: { stopId },
       orderBy: { idx: 'asc' },
       include: {
+        lineups: {
+          include: {
+            entries: {
+              include: {
+                player1: {
+                  select: {
+                    id: true,
+                    name: true,
+                    firstName: true,
+                    lastName: true,
+                    gender: true
+                  }
+                },
+                player2: {
+                  select: {
+                    id: true,
+                    name: true,
+                    firstName: true,
+                    lastName: true,
+                    gender: true
+                  }
+                }
+              }
+            }
+          }
+        },
         matches: {
           orderBy: [
             { updatedAt: 'desc' }, // Most recently completed matches first
@@ -225,33 +251,74 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               })) || []
             } : null,
             games: match.games.map((game: any) => {
-              // Get the specific players for this game based on the game slot
-              const teamAPlayers = match.teamA?.stopRosterLinks?.map((link: any) => link.player) || [];
-              const teamBPlayers = match.teamB?.stopRosterLinks?.map((link: any) => link.player) || [];
-              
-              // Filter players based on game type
+              // Get lineup data: prefer game-level lineups, fallback to round-level lineups
               let teamALineup = [];
               let teamBLineup = [];
-              
-              if (game.slot === 'MENS_DOUBLES') {
-                teamALineup = teamAPlayers.filter((p: any) => p.gender === 'MALE').slice(0, 2);
-                teamBLineup = teamBPlayers.filter((p: any) => p.gender === 'MALE').slice(0, 2);
-              } else if (game.slot === 'WOMENS_DOUBLES') {
-                teamALineup = teamAPlayers.filter((p: any) => p.gender === 'FEMALE').slice(0, 2);
-                teamBLineup = teamBPlayers.filter((p: any) => p.gender === 'FEMALE').slice(0, 2);
-              } else if (game.slot === 'MIXED_1' || game.slot === 'MIXED_2') {
-                // Mixed doubles: 1 male + 1 female
-                const teamAMale = teamAPlayers.filter((p: any) => p.gender === 'MALE')[0];
-                const teamAFemale = teamAPlayers.filter((p: any) => p.gender === 'FEMALE')[0];
-                const teamBMale = teamBPlayers.filter((p: any) => p.gender === 'MALE')[0];
-                const teamBFemale = teamBPlayers.filter((p: any) => p.gender === 'FEMALE')[0];
-                
-                teamALineup = [teamAMale, teamAFemale].filter(Boolean);
-                teamBLineup = [teamBMale, teamBFemale].filter(Boolean);
-              } else if (game.slot === 'TIEBREAKER') {
-                // Tiebreaker: show team names, not specific players
-                teamALineup = [];
-                teamBLineup = [];
+
+              // First, try to get from game.teamALineup (stored on game itself)
+              if (game.teamALineup && Array.isArray(game.teamALineup) && game.teamALineup.length > 0) {
+                teamALineup = game.teamALineup;
+              } else {
+                // Fallback to round-level lineup (Lineup/LineupEntry system)
+                const teamALineupData = r.lineups?.find((l: any) => l.teamId === match.teamA?.id);
+                if (teamALineupData) {
+                  const mensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
+                  const womensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
+
+                  const lineup = new Array(4).fill(null);
+                  if (mensDoubles) {
+                    if (mensDoubles.player1) lineup[0] = mensDoubles.player1;
+                    if (mensDoubles.player2) lineup[1] = mensDoubles.player2;
+                  }
+                  if (womensDoubles) {
+                    if (womensDoubles.player1) lineup[2] = womensDoubles.player1;
+                    if (womensDoubles.player2) lineup[3] = womensDoubles.player2;
+                  }
+
+                  // Extract players for this game slot
+                  if (game.slot === 'MENS_DOUBLES') {
+                    teamALineup = [lineup[0], lineup[1]].filter(Boolean);
+                  } else if (game.slot === 'WOMENS_DOUBLES') {
+                    teamALineup = [lineup[2], lineup[3]].filter(Boolean);
+                  } else if (game.slot === 'MIXED_1') {
+                    teamALineup = [lineup[0], lineup[2]].filter(Boolean);
+                  } else if (game.slot === 'MIXED_2') {
+                    teamALineup = [lineup[1], lineup[3]].filter(Boolean);
+                  }
+                }
+              }
+
+              // Same for Team B
+              if (game.teamBLineup && Array.isArray(game.teamBLineup) && game.teamBLineup.length > 0) {
+                teamBLineup = game.teamBLineup;
+              } else {
+                // Fallback to round-level lineup
+                const teamBLineupData = r.lineups?.find((l: any) => l.teamId === match.teamB?.id);
+                if (teamBLineupData) {
+                  const mensDoubles = teamBLineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
+                  const womensDoubles = teamBLineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
+
+                  const lineup = new Array(4).fill(null);
+                  if (mensDoubles) {
+                    if (mensDoubles.player1) lineup[0] = mensDoubles.player1;
+                    if (mensDoubles.player2) lineup[1] = mensDoubles.player2;
+                  }
+                  if (womensDoubles) {
+                    if (womensDoubles.player1) lineup[2] = womensDoubles.player1;
+                    if (womensDoubles.player2) lineup[3] = womensDoubles.player2;
+                  }
+
+                  // Extract players for this game slot
+                  if (game.slot === 'MENS_DOUBLES') {
+                    teamBLineup = [lineup[0], lineup[1]].filter(Boolean);
+                  } else if (game.slot === 'WOMENS_DOUBLES') {
+                    teamBLineup = [lineup[2], lineup[3]].filter(Boolean);
+                  } else if (game.slot === 'MIXED_1') {
+                    teamBLineup = [lineup[0], lineup[2]].filter(Boolean);
+                  } else if (game.slot === 'MIXED_2') {
+                    teamBLineup = [lineup[1], lineup[3]].filter(Boolean);
+                  }
+                }
               }
 
               return {

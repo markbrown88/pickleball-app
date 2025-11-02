@@ -103,9 +103,12 @@ export default function StopDetailPage({
       setStopLocation(data.stop.club?.name || null);
 
       // Check if stop is closed (past end date)
+      // endAt is the last day of the stop, so it closes at the END of that day (23:59:59)
       if (data.stop.endAt) {
         const now = new Date();
         const endDate = new Date(data.stop.endAt);
+        // Set to end of day (23:59:59.999)
+        endDate.setHours(23, 59, 59, 999);
         setStopClosed(now > endDate);
       }
 
@@ -329,6 +332,7 @@ export default function StopDetailPage({
                 setSelectedRoundId(null);
               }}
             existingLineup={existingLineup}
+            stopClosed={stopClosed}
             matchMeta={matchMeta}
             lineupLockReason={lineupLockReason}
             />
@@ -423,6 +427,7 @@ function GamesView({
   existingLineup,
   matchMeta,
   lineupLockReason,
+  stopClosed,
 }: {
   games: Game[];
   roster: Player[];
@@ -438,6 +443,7 @@ function GamesView({
   existingLineup: Player[];
   matchMeta: MatchMeta | null;
   lineupLockReason: LineupLockReason;
+  stopClosed: boolean;
 }) {
   // State for the 4 lineup positions
   const [man1, setMan1] = useState<Player | null>(null);

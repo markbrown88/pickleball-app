@@ -127,6 +127,11 @@ export async function GET(request: Request, { params }: Params) {
       const stopStart = stop.startAt ? new Date(stop.startAt) : null;
       const stopEnd = stop.endAt ? new Date(stop.endAt) : null;
 
+      // endAt represents the last day of the stop, so it should close at END of that day (23:59:59)
+      if (stopEnd) {
+        stopEnd.setHours(23, 59, 59, 999);
+      }
+
       let status: 'completed' | 'upcoming' | 'current' = 'upcoming';
       if (stopEnd && now > stopEnd) {
         status = 'completed';

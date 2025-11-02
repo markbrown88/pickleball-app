@@ -99,13 +99,13 @@
 - [ ] Admin invite UI (invite existing/new players)
 - [ ] Manual registration by admin
 
-### Phase 4: Email Notifications (Not Implemented)
-- [ ] Registration confirmation emails
-- [ ] Invite request notifications to admins
+### Phase 4: Email Notifications (Partially Implemented)
+- [x] Registration confirmation emails
+- [x] Admin notification emails (registered, cancelled, requested_invite)
+- [x] Withdrawal confirmation emails
+- [x] Waitlist spot available emails (template created, not integrated)
 - [ ] Invite sent notifications
-- [ ] Waitlist promotion notifications (24hr expiry)
 - [ ] Payment reminders
-- [ ] Withdrawal confirmations
 
 ### Phase 5: Payment Integration (Not Implemented)
 - [ ] Stripe integration for PAID tournaments
