@@ -69,6 +69,7 @@ export default function StopDetailPage({
   const [stopName, setStopName] = useState('');
   const [stopDate, setStopDate] = useState<string | null>(null);
   const [stopLocation, setStopLocation] = useState<string | null>(null);
+  const [stopClosed, setStopClosed] = useState(false);
   const [brackets, setBrackets] = useState<Bracket[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [games, setGames] = useState<Game[]>([]);
@@ -100,6 +101,13 @@ export default function StopDetailPage({
         setStopDate(formatDateUTC(data.stop.startAt));
       }
       setStopLocation(data.stop.club?.name || null);
+
+      // Check if stop is closed (past end date)
+      if (data.stop.endAt) {
+        const now = new Date();
+        const endDate = new Date(data.stop.endAt);
+        setStopClosed(now > endDate);
+      }
 
       if (data.brackets.length > 0) {
         setMyTeamName(data.club?.name || data.brackets[0].teamName || '');
@@ -653,6 +661,12 @@ function GamesView({
 
   return (
     <div>
+      {stopClosed && (
+        <div className="mb-4 border border-info/40 bg-info/10 text-info-dark p-4 rounded-lg">
+          <strong>This stop has ended.</strong> Lineup editing is no longer available, but you can still view game results.
+        </div>
+      )}
+
       {lineupEditingEnabled ? (
         /* Before Deadline: Show Players Section Only */
         <div className="card p-4 md:p-6 bg-surface-1">

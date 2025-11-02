@@ -101,7 +101,9 @@ export async function GET(request: Request, { params }: Params) {
       stop: {
         id: stop.id,
         name: stop.name,
-        lineupDeadline: stop.lineupDeadline
+        lineupDeadline: stop.lineupDeadline,
+        startAt: stop.startAt,
+        endAt: stop.endAt
       },
       brackets: bracketsWithTeams
     });
