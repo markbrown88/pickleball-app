@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatDateUTC } from '@/lib/utils';
+import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
 
 type Stop = {
   id: string;
@@ -170,23 +170,7 @@ function StopCard({
 
   const getDateRange = () => {
     if (!stop.startAt) return null;
-
-    const startDate = formatDateUTC(stop.startAt);
-
-    // If there's no end date or it's the same day, just show start date
-    if (!stop.endAt) return startDate;
-
-    const start = new Date(stop.startAt);
-    const end = new Date(stop.endAt);
-
-    // Check if same day
-    if (start.toDateString() === end.toDateString()) {
-      return startDate;
-    }
-
-    // Multi-day event - show range
-    const endDate = formatDateUTC(stop.endAt);
-    return `${startDate} - ${endDate}`;
+    return formatDateRangeUTC(stop.startAt, stop.endAt);
   };
 
   const deadlineStatus = getDeadlineStatus();
