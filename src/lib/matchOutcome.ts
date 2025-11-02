@@ -146,7 +146,8 @@ export function buildMatchOutcome(match: Match | null | undefined): MatchOutcome
     let teamBWins = 0;
 
     standardGames.forEach((game) => {
-      if (game.teamAScore !== null && game.teamBScore !== null) {
+      // Only count completed games
+      if (isGameComplete(game) && game.teamAScore !== null && game.teamBScore !== null) {
         if (game.teamAScore > game.teamBScore) {
           teamAWins++;
         } else if (game.teamBScore > game.teamAScore) {
