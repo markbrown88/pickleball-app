@@ -162,6 +162,7 @@ export async function GET(request: Request, { params }: Params) {
         id: stop.id,
         name: stop.name,
         startAt: stop.startAt,
+        endAt: stop.endAt,
         lineupDeadline: stop.lineupDeadline,
         status,
         lineupsComplete,

@@ -8,6 +8,7 @@ type Stop = {
   id: string;
   name: string;
   startAt: string | null;
+  endAt: string | null;
   lineupDeadline: string | null;
   status: 'completed' | 'upcoming' | 'current';
   lineupsComplete: boolean;
@@ -148,12 +149,18 @@ function StopCard({
     if (!stop.lineupDeadline) return null;
     const deadline = new Date(stop.lineupDeadline);
     const now = new Date();
+    const stopStart = stop.startAt ? new Date(stop.startAt) : null;
+
+    // Don't show deadline status if stop has already started
+    if (stopStart && now >= stopStart) return null;
+
     const diff = deadline.getTime() - now.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(hours / 24);
 
     if (diff < 0) {
-      return { text: 'Deadline passed', color: 'text-error' };
+      // Show the actual deadline date when passed
+      return { text: formatDateUTC(stop.lineupDeadline), color: 'text-error' };
     } else if (hours < 24) {
       return { text: `${hours}h remaining`, color: 'text-warning' };
     } else {
@@ -161,7 +168,29 @@ function StopCard({
     }
   };
 
+  const getDateRange = () => {
+    if (!stop.startAt) return null;
+
+    const startDate = formatDateUTC(stop.startAt);
+
+    // If there's no end date or it's the same day, just show start date
+    if (!stop.endAt) return startDate;
+
+    const start = new Date(stop.startAt);
+    const end = new Date(stop.endAt);
+
+    // Check if same day
+    if (start.toDateString() === end.toDateString()) {
+      return startDate;
+    }
+
+    // Multi-day event - show range
+    const endDate = formatDateUTC(stop.endAt);
+    return `${startDate} - ${endDate}`;
+  };
+
   const deadlineStatus = getDeadlineStatus();
+  const dateRange = getDateRange();
 
   return (
     <button
@@ -177,9 +206,9 @@ function StopCard({
             <h3 className="text-base md:text-lg font-semibold text-primary truncate">
               {stop.name}{stop.club?.name && ` @ ${stop.club.name}`}
             </h3>
-            {stop.startAt && (
+            {dateRange && (
               <p className="text-sm text-muted mt-1">
-                {formatDateUTC(stop.startAt)}
+                {dateRange}
               </p>
             )}
           </div>
@@ -200,7 +229,7 @@ function StopCard({
         
         {deadlineStatus && !completed && (
           <p className={`text-sm font-medium ${deadlineStatus.color}`}>
-            Deadline: {deadlineStatus.text}
+            Lineup Deadline: {deadlineStatus.text}
           </p>
         )}
       </div>
