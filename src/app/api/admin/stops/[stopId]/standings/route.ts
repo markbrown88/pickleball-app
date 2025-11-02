@@ -110,6 +110,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
                 slot: true,
                 teamAScore: true,
                 teamBScore: true,
+                isComplete: true,
               },
             },
           },
