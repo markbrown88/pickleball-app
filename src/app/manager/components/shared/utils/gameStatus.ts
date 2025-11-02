@@ -88,12 +88,15 @@ export function isMatchComplete(match: any, games: Record<string, any[]>): boole
       return false;
     }
 
-    const a = game.teamAScore;
-    const b = game.teamBScore;
+    // Only count completed games
+    if (status === 'completed') {
+      const a = game.teamAScore;
+      const b = game.teamBScore;
 
-    if (a != null && b != null) {
-      if (a > b) teamAWins += 1;
-      else if (b > a) teamBWins += 1;
+      if (a != null && b != null) {
+        if (a > b) teamAWins += 1;
+        else if (b > a) teamBWins += 1;
+      }
     }
   }
 
