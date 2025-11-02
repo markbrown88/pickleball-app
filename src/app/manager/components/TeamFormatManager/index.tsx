@@ -215,19 +215,48 @@ export function TeamFormatManager({
         }
       }
 
-      // Extract games from schedule data and populate games state
+      // Extract games and lineups from schedule data
       const gamesMap: Record<string, any[]> = {};
+      const lineupsMap: Record<string, Record<string, PlayerLite[]>> = {};
 
       data.forEach((round: any) => {
         round.matches?.forEach((match: any) => {
           if (match.games && match.games.length > 0) {
             gamesMap[match.id] = match.games;
           }
+
+          // Extract lineups from schedule data
+          if (match.teamALineup && match.teamBLineup && match.teamA?.id && match.teamB?.id) {
+            if (!lineupsMap[match.id]) {
+              lineupsMap[match.id] = {};
+            }
+            lineupsMap[match.id][match.teamA.id] = match.teamALineup;
+            lineupsMap[match.id][match.teamB.id] = match.teamBLineup;
+          }
         });
       });
 
       setGames(prev => {
         const updated = { ...prev, ...gamesMap };
+        return updated;
+      });
+
+      // Populate lineups from schedule data
+      setLineups(prev => {
+        const updated = { ...prev };
+        // Merge in lineups from schedule, but don't overwrite existing ones
+        for (const matchId in lineupsMap) {
+          if (!updated[matchId]) {
+            updated[matchId] = lineupsMap[matchId];
+          } else {
+            // Merge team lineups
+            for (const teamId in lineupsMap[matchId]) {
+              if (!updated[matchId][teamId]) {
+                updated[matchId][teamId] = lineupsMap[matchId][teamId];
+              }
+            }
+          }
+        }
         return updated;
       });
 
@@ -1624,7 +1653,7 @@ export function TeamFormatManager({
                                                       {!match.forfeitTeam && !isDecided && (matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (
                                                             <button
                                                               className="btn btn-xs btn-secondary flex-1 sm:flex-none"
-                                                              disabled={resolvingMatch === match.id || !canEditLineups}
+                                                              disabled={resolvingMatch === match.id}
                                                               onClick={() => resolveMatchByPoints(match)}
                                                             >
                                                               {resolvingMatch === match.id ? 'Resolving...' : 'Decide by Points'}
