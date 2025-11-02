@@ -103,13 +103,19 @@ export default function StopDetailPage({
       setStopLocation(data.stop.club?.name || null);
 
       // Check if stop is closed (past end date)
-      // endAt is the last day of the stop, so it closes at the END of that day (23:59:59)
+      // Parse just the date part (YYYY-MM-DD) from ISO string, ignore timezone
       if (data.stop.endAt) {
         const now = new Date();
-        const endDate = new Date(data.stop.endAt);
-        // Set to end of day (23:59:59.999)
-        endDate.setHours(23, 59, 59, 999);
-        setStopClosed(now > endDate);
+        const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // Parse ISO date string to get just the date part
+        const endDateStr = data.stop.endAt.split('T')[0]; // "2025-11-02"
+        const [year, month, day] = endDateStr.split('-').map(Number);
+        const stopEndDate = new Date(year, month - 1, day); // month is 0-indexed
+        // Add one day to make endDate inclusive (stop is open through entire end date)
+        stopEndDate.setDate(stopEndDate.getDate() + 1);
+
+        setStopClosed(nowDate >= stopEndDate);
       }
 
       if (data.brackets.length > 0) {

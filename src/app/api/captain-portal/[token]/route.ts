@@ -124,19 +124,37 @@ export async function GET(request: Request, { params }: Params) {
     const now = new Date();
     const stopsWithStatus = stopsWithGames.map((stop) => {
       // Determine status
-      const stopStart = stop.startAt ? new Date(stop.startAt) : null;
-      const stopEnd = stop.endAt ? new Date(stop.endAt) : null;
-
-      // endAt represents the last day of the stop, so it should close at END of that day (23:59:59)
-      if (stopEnd) {
-        stopEnd.setHours(23, 59, 59, 999);
-      }
+      // Dates are stored as ISO strings but represent dates in local timezone
+      // We parse just the date part (YYYY-MM-DD) and ignore time/timezone
+      const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
       let status: 'completed' | 'upcoming' | 'current' = 'upcoming';
-      if (stopEnd && now > stopEnd) {
-        status = 'completed';
-      } else if (stopStart && now >= stopStart && (!stopEnd || now <= stopEnd)) {
-        status = 'current';
+
+      if (stop.endAt) {
+        // Parse ISO date string to get just the date part (YYYY-MM-DD)
+        const endDateStr = stop.endAt.toISOString().split('T')[0]; // "2025-11-02"
+        const [year, month, day] = endDateStr.split('-').map(Number);
+        const stopEndDate = new Date(year, month - 1, day); // month is 0-indexed
+        // Add one day to make it inclusive (stop is open through entire end date)
+        stopEndDate.setDate(stopEndDate.getDate() + 1);
+
+        if (nowDate >= stopEndDate) {
+          status = 'completed';
+        } else if (stop.startAt) {
+          const startDateStr = stop.startAt.toISOString().split('T')[0];
+          const [y, m, d] = startDateStr.split('-').map(Number);
+          const stopStartDate = new Date(y, m - 1, d);
+          if (nowDate >= stopStartDate) {
+            status = 'current';
+          }
+        }
+      } else if (stop.startAt) {
+        const startDateStr = stop.startAt.toISOString().split('T')[0];
+        const [y, m, d] = startDateStr.split('-').map(Number);
+        const stopStartDate = new Date(y, m - 1, d);
+        if (nowDate >= stopStartDate) {
+          status = 'current';
+        }
       }
 
       // Count games and check lineup completion using array methods (faster)
