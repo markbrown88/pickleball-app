@@ -96,6 +96,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openAccordion, setOpenAccordion] = useState<'standings' | 'inProgress' | 'completed'>('standings');
 
   // Find stop closest to today's date
   const findClosestStop = (stops: Stop[]) => {
@@ -680,8 +681,138 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
           </button>
         </div>
 
-        {/* Main Content Layout - Stops (2/3) and Standings (1/3) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 mb-20 md:mb-6">
+        {/* Mobile: Dropdown for stop selection */}
+        <div className="md:hidden mb-4">
+          <select
+            value={selectedStopId || ''}
+            onChange={(e) => {
+              const stopId = e.target.value;
+              setSelectedStopId(stopId);
+              loadStopData(stopId);
+            }}
+            className="w-full px-3 py-2 text-sm bg-surface-2 border border-subtle rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            {stops.map((stop) => (
+              <option key={stop.id} value={stop.id}>
+                {stop.name} {formatStopDates(stop) && `- ${formatStopDates(stop)}`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Mobile: Accordion Layout */}
+        <div className="md:hidden space-y-2 mb-20">
+          {/* Standings Accordion */}
+          <div className="card">
+            <button
+              onClick={() => setOpenAccordion(openAccordion === 'standings' ? null as any : 'standings')}
+              className="w-full px-4 py-3 flex items-center justify-between"
+            >
+              <div className="flex items-center">
+                <div className="w-2 h-2 bg-info rounded-full mr-2"></div>
+                <h2 className="text-sm font-semibold text-primary">Standings</h2>
+              </div>
+              <span className="text-primary">{openAccordion === 'standings' ? '▼' : '▶'}</span>
+            </button>
+            {openAccordion === 'standings' && (
+              <div className="px-4 pb-4 border-t border-subtle pt-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-primary mb-2">Combined</h3>
+                  <div className="bg-surface-2 rounded p-3">
+                    {combinedStandings.length > 0 ? (
+                      <div className="space-y-1">
+                        {combinedStandings.map((standing) => (
+                          <div key={standing.team.id} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted text-sm">No Combined teams</div>
+                    )}
+                  </div>
+                </div>
+                {bracketStandings.map(({ bracketName, standings }) => (
+                  <div key={bracketName} className="mb-4 last:mb-0">
+                    <h3 className="text-sm font-semibold text-primary mb-2">{bracketName}</h3>
+                    {standings.length > 0 ? (
+                      <div className="bg-surface-2 rounded p-3 space-y-1">
+                        {standings.map((standing) => (
+                          <div key={standing.team.id} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{standing.place}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{standing.team.name}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{standing.points} pts</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted text-sm">No {bracketName} teams</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* In Progress Accordion */}
+          <div className="card">
+            <button
+              onClick={() => setOpenAccordion(openAccordion === 'inProgress' ? null as any : 'inProgress')}
+              className="w-full px-4 py-3 flex items-center justify-between"
+            >
+              <div className="flex items-center">
+                <div className="w-2 h-2 bg-warning rounded-full mr-2"></div>
+                <h2 className="text-sm font-semibold text-primary">In Progress</h2>
+              </div>
+              <span className="text-primary">{openAccordion === 'inProgress' ? '▼' : '▶'}</span>
+            </button>
+            {openAccordion === 'inProgress' && (
+              <div className="px-2 pb-2">
+                <MatchList
+                  title=""
+                  iconColor="bg-warning"
+                  emptyMessage="No games started yet"
+                  matches={inProgressMatches}
+                  variant="in-progress"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Completed Accordion */}
+          <div className="card">
+            <button
+              onClick={() => setOpenAccordion(openAccordion === 'completed' ? null as any : 'completed')}
+              className="w-full px-4 py-3 flex items-center justify-between"
+            >
+              <div className="flex items-center">
+                <div className="w-2 h-2 bg-success rounded-full mr-2"></div>
+                <h2 className="text-sm font-semibold text-primary">Completed</h2>
+              </div>
+              <span className="text-primary">{openAccordion === 'completed' ? '▼' : '▶'}</span>
+            </button>
+            {openAccordion === 'completed' && (
+              <div className="px-2 pb-2">
+                <MatchList
+                  title=""
+                  iconColor="bg-success"
+                  emptyMessage="No completed games yet"
+                  matches={completedMatches}
+                  variant="completed"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Desktop: Main Content Layout - Stops (2/3) and Standings (1/3) */}
+        <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 mb-20 md:mb-6">
           {/* Left side - Games (2/3 width) */}
           <div className="col-span-1 md:col-span-2">
             {/* Combined Games Card */}
@@ -690,7 +821,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
               <div className="px-1 py-1 md:px-3 border-b border-subtle pb-2">
                 <h2 className="text-sm md:text-lg font-semibold text-primary mb-2">Matches & Games</h2>
                 {/* Desktop: Horizontal tabs */}
-                <nav className="hidden md:flex space-x-4" aria-label="Tabs">
+                <nav className="flex space-x-4" aria-label="Tabs">
                   {stops.map((stop) => (
                     <button
                       key={stop.id}
@@ -711,25 +842,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                     </button>
                   ))}
                 </nav>
-
-                {/* Mobile: Dropdown */}
-                <div className="md:hidden my-2">
-                  <select
-                    value={selectedStopId || ''}
-                    onChange={(e) => {
-                      const stopId = e.target.value;
-                      setSelectedStopId(stopId);
-                      loadStopData(stopId);
-                    }}
-                    className="w-full px-3 py-2 text-xs bg-surface-2 border border-subtle rounded-md text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                  >
-                    {stops.map((stop) => (
-                      <option key={stop.id} value={stop.id}>
-                        {stop.name} {formatStopDates(stop) && `- ${formatStopDates(stop)}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {/* Games Section */}
@@ -749,12 +861,12 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                   matches={completedMatches}
                   variant="completed"
                 />
-                            </div>
-                            </div>
-                          </div>
+              </div>
+            </div>
+          </div>
 
           {/* Right side - Standings (1/3 width) */}
-          <div className="col-span-1 md:col-span-1 block md:block">
+          <div className="col-span-1 md:col-span-1">
             <div className="card">
               <div className="px-1 py-1 md:px-4 md:py-3 border-b border-subtle pb-2">
                 <h2 className="text-sm md:text-lg font-semibold text-primary flex items-center mb-2">
