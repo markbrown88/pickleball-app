@@ -340,9 +340,6 @@ model Game {
   bracketId             String?   // For DOUBLE_ELIMINATION_CLUBS: which bracket this game belongs to
   teamAScore            Int?
   teamBScore            Int?
-  teamALineup           Json?
-  teamBLineup           Json?
-  lineupConfirmed       Boolean?  @default(false)
   courtNumber           String?
   isComplete            Boolean?  @default(false)
   startedAt             DateTime? @db.Timestamptz(6)
