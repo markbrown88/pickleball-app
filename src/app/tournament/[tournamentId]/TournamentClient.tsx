@@ -660,7 +660,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
       <div className="w-full px-1 py-2 md:px-4 md:py-6">
         <div className="flex items-center justify-between mb-2 md:mb-4">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-3xl font-bold text-primary truncate">{tournament.name}</h1>
+            <h1 className="text-xl md:text-3xl font-bold text-primary">{tournament.name}</h1>
             {tournament.description && (
               <p className="text-secondary mt-1 text-sm md:text-base line-clamp-2">{tournament.description}</p>
             )}
