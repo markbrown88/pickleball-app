@@ -26,7 +26,7 @@ declare module '@g-loot/react-tournament-brackets' {
   }
 
   export interface MatchClickArgs {
-    match: { id: string | number };
+    match: { id: string };
     topWon: boolean;
     bottomWon: boolean;
   }
