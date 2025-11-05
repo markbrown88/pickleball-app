@@ -155,24 +155,9 @@ export async function GET(request: Request, { params }: Params) {
         }
       }
 
-      // Count games and check lineup completion using array methods (faster)
-      const allGames = stop.rounds.flatMap(round =>
-        round.matches.flatMap(match => ({
-          game: match.games,
-          isTeamA: teamIds.includes(match.teamAId || '')
-        }))
-      ).flatMap(({ game, isTeamA }) =>
-        game.map(g => ({
-          lineup: isTeamA ? g.teamALineup : g.teamBLineup
-        }))
-      );
-
-      const totalGames = allGames.length;
-      const gamesWithLineups = allGames.filter(g =>
-        g.lineup && Array.isArray(g.lineup) && g.lineup.length > 0
-      ).length;
-
-      const lineupsComplete = totalGames > 0 && totalGames === gamesWithLineups;
+      // Note: Lineup completion checking removed as lineups are now in Lineup/LineupEntry tables
+      // This would require additional queries to check lineup completion
+      const lineupsComplete = false; // TODO: Implement lineup checking with new schema
 
       return {
         id: stop.id,
