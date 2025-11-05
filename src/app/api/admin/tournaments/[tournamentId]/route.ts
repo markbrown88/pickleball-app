@@ -27,17 +27,34 @@ export async function DELETE(
   _req: NextRequest,
   ctx: { params: Promise<{ tournamentId: string }> }
 ) {
-  // Use singleton prisma instance
-  const { tournamentId } = await ctx.params;
+  try {
+    // Use singleton prisma instance
+    const { tournamentId } = await ctx.params;
 
-  const exists = await prisma.tournament.findUnique({
-    where: { id: tournamentId },
-    select: { id: true },
-  });
-  if (!exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const exists = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true },
+    });
 
-  await prisma.tournament.delete({ where: { id: tournamentId } });
-  return new NextResponse(null, { status: 204 });
+    if (!exists) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Delete within a transaction with deferred constraints
+    await prisma.$transaction(async (tx) => {
+      // Defer constraint checks until the end of the transaction
+      await tx.$executeRaw`SET CONSTRAINTS ALL DEFERRED`;
+      // Delete the tournament - cascades will happen but constraint checks are deferred
+      await tx.$executeRawUnsafe(`DELETE FROM "Tournament" WHERE id = $1`, tournamentId);
+    });
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    console.error('Error deleting tournament:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete tournament' },
+      { status: 500 }
+    );
+  }
 }
 
 /**
