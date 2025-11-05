@@ -108,9 +108,7 @@ export async function GET(request: Request, { params }: Params) {
                 teamBId: true,
                 games: {
                   select: {
-                    id: true,
-                    teamALineup: true,
-                    teamBLineup: true
+                    id: true
                   }
                 }
               }
