@@ -25,10 +25,16 @@ declare module '@g-loot/react-tournament-brackets' {
     lower: Match[];
   }
 
+  export interface MatchClickArgs {
+    match: { id: string | number };
+    topWon: boolean;
+    bottomWon: boolean;
+  }
+
   export interface DoubleEliminationBracketProps {
     matches: DoubleEliminationMatches;
     matchComponent?: FC<any>;
-    onMatchClick?: (match: Match) => void;
+    onMatchClick?: (args: MatchClickArgs) => void;
     svgWrapper?: FC<{ width: number; height: number; children: React.ReactNode }>;
     theme?: any;
     options?: {
