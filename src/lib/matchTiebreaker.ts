@@ -187,9 +187,6 @@ export async function evaluateMatchTiebreaker(
               slot: 'TIEBREAKER',
               teamAScore: null,
               teamBScore: null,
-              lineupConfirmed: false,
-              teamALineup: undefined,
-              teamBLineup: undefined,
             },
           });
 
