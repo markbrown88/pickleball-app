@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
-    // Get all games for this match with any lineups/score submissions
+    // Get all games for this match with score submissions
     const [games, submissions] = await prisma.$transaction([
       prisma.game.findMany({
         where: { matchId },
@@ -31,40 +31,8 @@ export async function GET(
       })
     ]);
 
-    // Process lineup data to convert player IDs to player names
-    const allPlayerIds = new Set<string>();
-    games.forEach(game => {
-      if (game.teamALineup && Array.isArray(game.teamALineup)) {
-        game.teamALineup.forEach((entry: any) => {
-          if (entry.player1Id) allPlayerIds.add(entry.player1Id);
-          if (entry.player2Id) allPlayerIds.add(entry.player2Id);
-        });
-      }
-      if (game.teamBLineup && Array.isArray(game.teamBLineup)) {
-        game.teamBLineup.forEach((entry: any) => {
-          if (entry.player1Id) allPlayerIds.add(entry.player1Id);
-          if (entry.player2Id) allPlayerIds.add(entry.player2Id);
-        });
-      }
-    });
-
-    // Fetch player details
-    const players = await prisma.player.findMany({
-      where: { id: { in: Array.from(allPlayerIds) } },
-      select: {
-        id: true,
-        name: true,
-        firstName: true,
-        lastName: true
-      }
-    });
-
-    const playerMap = new Map(players.map(p => [p.id, {
-      id: p.id,
-      name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim()
-    }]));
-
-    // Process games to convert lineup data
+    // Process games to include submissions
+    // Note: Lineups are now managed via Lineup/LineupEntry tables, not JSON fields on Game
     const processedGames = games.map(game => {
       const gameSubmissions = submissions
         .filter(sub => sub.gameId === game.id)
@@ -76,23 +44,8 @@ export async function GET(
           submittedAt: sub.submittedAt,
         }));
 
-      const processLineup = (lineup: any) => {
-        if (!lineup || !Array.isArray(lineup)) return lineup;
-        return lineup.map((entry: any) => {
-          const player1 = entry.player1Id ? playerMap.get(entry.player1Id) : null;
-          const player2 = entry.player2Id ? playerMap.get(entry.player2Id) : null;
-          return {
-            player1Id: entry.player1Id,
-            player2Id: entry.player2Id,
-            name: player1 && player2 ? `${player1.name} & ${player2.name}` : 'Unknown Players'
-          };
-        });
-      };
-
       return {
         ...game,
-        teamALineup: processLineup(game.teamALineup),
-        teamBLineup: processLineup(game.teamBLineup),
         submissions: gameSubmissions
       };
     });
@@ -139,10 +92,7 @@ export async function POST(
             matchId,
             slot: 'TIEBREAKER',
             teamAScore: games[0].teamAScore || null,
-            teamBScore: games[0].teamBScore || null,
-            teamALineup: games[0].teamALineup || null,
-            teamBLineup: games[0].teamBLineup || null,
-            lineupConfirmed: games[0].lineupConfirmed || false
+            teamBScore: games[0].teamBScore || null
           }
         });
         
@@ -176,6 +126,7 @@ export async function POST(
       });
 
       // Create new games
+      // Note: Lineups are now managed via Lineup/LineupEntry tables, not JSON fields on Game
       const createdGames = await Promise.all(
         games.map((game: any) =>
           tx.game.create({
@@ -183,10 +134,7 @@ export async function POST(
               matchId,
               slot: game.slot,
               teamAScore: game.teamAScore || null,
-              teamBScore: game.teamBScore || null,
-              teamALineup: game.teamALineup || null,
-              teamBLineup: game.teamBLineup || null,
-              lineupConfirmed: game.lineupConfirmed || false
+              teamBScore: game.teamBScore || null
             }
           })
         )
