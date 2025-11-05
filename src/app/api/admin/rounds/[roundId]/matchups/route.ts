@@ -52,13 +52,10 @@ export async function GET(req: NextRequest, ctx: Ctx) {
             slot: true,
             teamAScore: true,
             teamBScore: true,
-            teamALineup: true,
-            teamBLineup: true,
-            lineupConfirmed: true,
             courtNumber: true,
             isComplete: true,
-            startedAt: true, // Added startedAt
-            endedAt: true, // Added endedAt
+            startedAt: true,
+            endedAt: true,
             createdAt: true,
             updatedAt: true
           }
