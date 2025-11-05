@@ -46,7 +46,20 @@ export async function GET(
 
     // Support Act As functionality
     const actAsPlayerId = getActAsHeaderFromRequest(req);
-    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    let effectivePlayer;
+    
+    try {
+      effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    } catch (actAsError) {
+      console.log('Manager tournaments API: Act As error, using real player:', actAsError);
+      // If Act As fails (e.g., invalid player ID), try to get the real player without Act As
+      try {
+        effectivePlayer = await getEffectivePlayer(null);
+      } catch (realPlayerError) {
+        console.error('Manager tournaments API: Failed to get real player:', realPlayerError);
+        return NextResponse.json({ error: 'Authentication failed' }, { status: 401 });
+      }
+    }
 
     // Use the effective player ID (either real or acting as)
     const targetPlayerId = effectivePlayer.targetPlayerId;
@@ -168,7 +181,13 @@ export async function GET(
 
     return NextResponse.json({ items });
   } catch (e) {
+    console.error('Error in /api/manager/[playerId]/tournaments:', e);
     const msg = e instanceof Error ? e.message : 'error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const stack = e instanceof Error ? e.stack : undefined;
+    return NextResponse.json({ 
+      error: msg, 
+      details: String(e),
+      stack: process.env.NODE_ENV === 'development' ? stack : undefined
+    }, { status: 500 });
   }
 }

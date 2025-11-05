@@ -81,6 +81,12 @@ export function BracketMatchModal({
   // Sync localGames when match updates
   useEffect(() => {
     if (match) {
+      console.log('BracketMatchModal: Match updated', {
+        matchId: match.id,
+        totalGames: match.games.length,
+        completedGames: match.games.filter(g => g.isComplete).length,
+        gamesWithNullScores: match.games.filter(g => g.isComplete && (g.teamAScore === null || g.teamBScore === null)).length,
+      });
       setLocalGames(match.games);
     }
   }, [match]);
@@ -109,13 +115,25 @@ export function BracketMatchModal({
       const game = localGames.find(g => g.id === gameId);
       if (!game) return;
 
-      const updatedGame = await gameControls.endGame(gameId, game.teamAScore || 0, game.teamBScore || 0);
+      // Ensure scores are saved before ending the game
+      // If scores are null, set them to 0 (likely a forfeit or incomplete data)
+      const teamAScore = game.teamAScore ?? 0;
+      const teamBScore = game.teamBScore ?? 0;
+      
+      // Save scores first if they're null
+      if (game.teamAScore === null || game.teamBScore === null) {
+        await gameControls.updateScore(gameId, teamAScore, teamBScore);
+        // Wait for score to be saved
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      const updatedGame = await gameControls.endGame(gameId, teamAScore, teamBScore);
 
       if (updatedGame) {
         // Update local state optimistically
         setLocalGames(prev => prev.map(g =>
           g.id === gameId
-            ? { ...g, isComplete: true, endedAt: new Date().toISOString() }
+            ? { ...g, isComplete: true, endedAt: new Date().toISOString(), teamAScore, teamBScore }
             : g
         ));
       }
@@ -307,49 +325,129 @@ export function BracketMatchModal({
   };
 
   const canCompleteMatch = () => {
-    if (match.isBye) return false;
-    if (match.winnerId) return false;
+    if (match.isBye) {
+      console.log('canCompleteMatch: Match is BYE');
+      return false;
+    }
+    if (match.winnerId) {
+      console.log('canCompleteMatch: Match already has winner', match.winnerId);
+      return false;
+    }
 
-    // For club tournaments, need at least 8 games completed (4 slots × 2 brackets)
+    // For club tournaments, need all games completed (e.g., 8 games for 2 brackets)
     const completedGames = localGames.filter(g => g.isComplete).length;
-    if (completedGames < 8) return false;
+    const bracketCount = new Set(localGames.filter(g => g.bracketId).map(g => g.bracketId)).size;
+    const totalExpectedGames = bracketCount * 4;
+    
+    console.log('canCompleteMatch check:', {
+      completedGames,
+      bracketCount,
+      totalExpectedGames,
+      totalGames: localGames.length,
+    });
+    
+    if (completedGames < totalExpectedGames) {
+      console.log('canCompleteMatch: Not all games completed');
+      return false;
+    }
 
-    // Check if there's a clear winner
-    const { teamABracketWins, teamBBracketWins } = getBracketWins();
-    return teamABracketWins >= 2 || teamBBracketWins >= 2 || match.tiebreakerWinnerTeamId !== null;
+    // Check if there's a clear winner (majority of games)
+    const { teamAGameWins, teamBGameWins } = getGameWins();
+    const majority = Math.ceil(totalExpectedGames / 2);
+    
+    console.log('canCompleteMatch winner check:', {
+      teamAGameWins,
+      teamBGameWins,
+      majority,
+      hasTiebreaker: match.tiebreakerWinnerTeamId !== null,
+      canComplete: teamAGameWins >= majority || teamBGameWins >= majority || match.tiebreakerWinnerTeamId !== null,
+    });
+    
+    return teamAGameWins >= majority || teamBGameWins >= majority || match.tiebreakerWinnerTeamId !== null;
   };
 
-  const getBracketWins = () => {
-    const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
+  const getGameWins = () => {
+    let teamAGameWins = 0;
+    let teamBGameWins = 0;
+
+    console.log('=== Calculating game wins (FIXED VERSION) ===');
+    console.log('Calculating game wins for match:', match.id);
+    console.log('Total games:', localGames.length);
+    console.log('Completed games:', localGames.filter(g => g.isComplete).length);
+    
+    // Log all games with their details
+    console.log('All games details:', localGames.map(g => ({
+      id: g.id,
+      slot: g.slot,
+      bracket: g.bracket?.name || 'Main',
+      isComplete: g.isComplete,
+      teamAScore: g.teamAScore,
+      teamBScore: g.teamBScore,
+      willBeCounted: g.isComplete && (g.teamAScore !== null || g.teamBScore !== null)
+    })));
 
     for (const game of localGames) {
+      if (!game.isComplete) {
+        console.log(`Game ${game.id} (${game.slot}) skipped: not complete`);
+        continue;
+      }
+      
+      // For completed games, treat null scores as 0
+      // This handles cases where a game was marked complete but scores weren't fully saved
+      const teamAScore = game.teamAScore ?? 0;
+      const teamBScore = game.teamBScore ?? 0;
+      
+      // If both original scores are null, skip (shouldn't happen for completed games, but handle gracefully)
+      if (game.teamAScore === null && game.teamBScore === null) {
+        console.log(`Game ${game.id} (${game.slot}) skipped: both scores are null`);
+        continue;
+      }
+
+      console.log(`Processing game ${game.id} (${game.slot}): original scores [${game.teamAScore}, ${game.teamBScore}], normalized [${teamAScore}, ${teamBScore}]`);
+      
+      // Alert if we have a null score that we're fixing
+      if (game.teamAScore === null || game.teamBScore === null) {
+        console.warn(`⚠️ Game ${game.id} (${game.slot}) has null score - treating as 0. Original: [${game.teamAScore}, ${game.teamBScore}], Using: [${teamAScore}, ${teamBScore}]`);
+      }
+
+      if (teamAScore > teamBScore) {
+        teamAGameWins++;
+        console.log(`✓ Game ${game.id} (${game.slot}): Team A wins ${teamAScore}-${teamBScore}`);
+      } else if (teamBScore > teamAScore) {
+        teamBGameWins++;
+        console.log(`✓ Game ${game.id} (${game.slot}): Team B wins ${teamBScore}-${teamAScore}`);
+      } else {
+        console.log(`Game ${game.id} (${game.slot}): Tie game ${teamAScore}-${teamBScore} (not counted)`);
+      }
+    }
+
+    console.log(`=== Final count: Team A: ${teamAGameWins}, Team B: ${teamBGameWins}, Total counted: ${teamAGameWins + teamBGameWins} ===`);
+    console.log(`Expected total: ${localGames.filter(g => g.isComplete).length} completed games`);
+
+    // Also track brackets for display purposes (games are grouped by bracket)
+    const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
+    for (const game of localGames) {
       if (!game.isComplete) continue;
-      if (game.teamAScore === null || game.teamBScore === null) continue;
+      
+      // Treat null scores as 0 for completed games
+      const teamAScore = game.teamAScore ?? 0;
+      const teamBScore = game.teamBScore ?? 0;
+      
+      if (teamAScore === null && teamBScore === null) continue;
 
       const bracketName = game.bracket?.name || 'Main';
       if (!bracketsByName[bracketName]) {
         bracketsByName[bracketName] = { teamAWins: 0, teamBWins: 0 };
       }
 
-      if (game.teamAScore > game.teamBScore) {
+      if (teamAScore > teamBScore) {
         bracketsByName[bracketName].teamAWins++;
-      } else if (game.teamBScore > game.teamAScore) {
+      } else if (teamBScore > teamAScore) {
         bracketsByName[bracketName].teamBWins++;
       }
     }
 
-    let teamABracketWins = 0;
-    let teamBBracketWins = 0;
-
-    for (const bracket of Object.values(bracketsByName)) {
-      if (bracket.teamAWins > bracket.teamBWins) {
-        teamABracketWins++;
-      } else if (bracket.teamBWins > bracket.teamAWins) {
-        teamBBracketWins++;
-      }
-    }
-
-    return { teamABracketWins, teamBBracketWins, bracketsByName };
+    return { teamAGameWins, teamBGameWins, bracketsByName };
   };
 
   const getMatchStatus = () => {
@@ -357,19 +455,32 @@ export function BracketMatchModal({
     if (match.winnerId) return 'decided';
     if (match.tiebreakerWinnerTeamId) return 'decided';
 
-    const { teamABracketWins, teamBBracketWins } = getBracketWins();
+    const { teamAGameWins, teamBGameWins, bracketsByName } = getGameWins();
+    const bracketCount = Object.keys(bracketsByName).length || 1;
+    const totalExpectedGames = bracketCount * 4;
     const completedGames = localGames.filter(g => g.isComplete).length;
 
-    if (completedGames < 8) return 'in_progress';
-    if (teamABracketWins === teamBBracketWins && teamABracketWins > 0) return 'tied';
-    if (teamABracketWins >= 2 || teamBBracketWins >= 2) return 'ready_to_complete';
+    if (completedGames < totalExpectedGames) return 'in_progress';
+    if (teamAGameWins === teamBGameWins && teamAGameWins > 0) return 'tied';
+    const majority = Math.ceil(totalExpectedGames / 2);
+    if (teamAGameWins >= majority || teamBGameWins >= majority) return 'ready_to_complete';
 
     return 'in_progress';
   };
 
-  const { teamABracketWins, teamBBracketWins } = getBracketWins();
+  const { teamAGameWins, teamBGameWins } = getGameWins();
   const matchStatus = getMatchStatus();
   const isDecided = matchStatus === 'decided';
+  
+  console.log('Button visibility check:', {
+    isDecided,
+    matchStatus,
+    canComplete: canCompleteMatch(),
+    winnerId: match.winnerId,
+    forfeitTeam: match.forfeitTeam,
+    tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
+    showButton: !isDecided && canCompleteMatch(),
+  });
 
   const cleanTeamAName = stripBracketSuffix(match.teamA?.name || '');
   const cleanTeamBName = stripBracketSuffix(match.teamB?.name || '');
@@ -432,7 +543,7 @@ export function BracketMatchModal({
                 {cleanTeamAName} vs {cleanTeamBName}
               </h3>
               <div className="text-sm text-gray-400 mt-1">
-                {teamABracketWins} - {teamBBracketWins} (Brackets Won)
+                {teamAGameWins} - {teamBGameWins} (Games Won)
               </div>
             </div>
             <button

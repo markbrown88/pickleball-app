@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { useAdminUser } from '../admin/AdminContext';
-import { fortyYearsAgoISO } from '../(player)/shared/useProfileData';
 
 const CA_PROVINCES = ['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'] as const;
 const US_STATES = [
@@ -70,27 +70,17 @@ function normalizePlayersResponse(value: PlayersResponse | undefined): { items: 
 }
 
 export default function PlayersPage() {
+  const router = useRouter();
   const admin = useAdminUser();
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [playersPage, setPlayersPage] = useState<{ items: Player[]; total: number; take: number; skip: number; sort: string }>(
     { items: [], total: 0, take: 25, skip: 0, sort: 'lastName:asc' }
   );
   const [playerSort, setPlayerSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'lastName', dir: 'asc' });
-  const [playerEditId, setPlayerEditId] = useState<Id | null>(null);
-  const [playerSlideOutOpen, setPlayerSlideOutOpen] = useState(false);
   const [playerSearch, setPlayerSearch] = useState('');
-  const [playerCountrySel, setPlayerCountrySel] = useState<'Canada' | 'USA' | 'Other'>('Canada');
-  const [playerCountryOther, setPlayerCountryOther] = useState('');
-  const [playerBirthday, setPlayerBirthday] = useState<string>('');
-  const [playerForm, setPlayerForm] = useState<{
-    firstName: string; lastName: string; gender: 'MALE' | 'FEMALE';
-    clubId: Id | '';
-    dupr: string;
-    city: string; region: string; country: string;
-    phone: string; email: string;
-  }>({ firstName: '', lastName: '', gender: 'MALE', clubId: '', dupr: '', city: '', region: '', country: 'Canada', phone: '', email: '' });
 
   const [playersClubFilter, setPlayersClubFilter] = useState<string>('');
   const [showDisabledPlayers, setShowDisabledPlayers] = useState(false);
@@ -132,12 +122,15 @@ export default function PlayersPage() {
     (async () => {
       try {
         setErr(null);
+        setLoading(true);
         await Promise.all([
           loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch),
           reloadClubs(),
         ]);
       } catch (e) {
         setErr((e as Error).message);
+      } finally {
+        setLoading(false);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,82 +194,6 @@ export default function PlayersPage() {
     void loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, clubId, playerSearch);
   }, [loadPlayersPage, playersPage.take, playerSort.col, playerSort.dir, playerSearch]);
 
-  const openSlideOutPlayer = useCallback(() => {
-    setPlayerSlideOutOpen(true);
-    setPlayerEditId(null);
-    setPlayerCountrySel('Canada');
-    setPlayerCountryOther('');
-    // Pre-fill clubId for Tournament Admins
-    const defaultClubId = admin.isTournamentAdmin && !admin.isAppAdmin ? admin.clubId : '';
-    setPlayerForm({ firstName: '', lastName: '', gender: 'MALE', clubId: defaultClubId, dupr: '', city: '', region: '', country: 'Canada', phone: '', email: '' });
-    setPlayerBirthday('');
-  }, [admin]);
-
-  const openSlideOutEditPlayer = useCallback((p: Player) => {
-    setPlayerSlideOutOpen(true);
-    setPlayerEditId(p.id);
-    const country = (p.country || 'Canada').trim();
-    if (country === 'Canada' || country === 'USA') {
-      setPlayerCountrySel(country as 'Canada' | 'USA');
-      setPlayerCountryOther('');
-    } else {
-      setPlayerCountrySel('Other');
-      setPlayerCountryOther(country);
-    }
-    const birth = [p.birthdayYear, p.birthdayMonth, p.birthdayDay];
-    if (birth.every(v => typeof v === 'number' && v)) {
-      const [y, m, d] = birth as number[];
-      const mm = String(m).padStart(2, '0');
-      const dd = String(d).padStart(2, '0');
-      setPlayerBirthday(`${y}-${mm}-${dd}`);
-    } else {
-      setPlayerBirthday('');
-    }
-    setPlayerForm({
-      firstName: (p.firstName || '').trim(),
-      lastName: (p.lastName || '').trim(),
-      gender: p.gender || 'MALE',
-      clubId: p.clubId ?? '',
-      dupr: p.dupr != null ? String(p.dupr) : '',
-      city: (p.city || '').trim(),
-      region: (p.region || '').trim(),
-      country: country,
-      phone: (p.phone || '').trim(),
-      email: (p.email || '').trim(),
-    });
-  }, []);
-
-  const savePlayer = useCallback(async () => {
-    try {
-      setErr(null);
-      const country = playerCountrySel === 'Other' ? (playerCountryOther || '') : playerCountrySel;
-      const payload = {
-        firstName: playerForm.firstName.trim(),
-        lastName: playerForm.lastName.trim(),
-        gender: playerForm.gender,
-        clubId: playerForm.clubId,
-        dupr: playerForm.dupr ? Number(playerForm.dupr) : null,
-        city: playerForm.city.trim(),
-        region: playerForm.region.trim(),
-        country,
-        phone: playerForm.phone.trim(),
-        email: playerForm.email.trim(),
-        birthday: playerBirthday || null,
-      };
-      if (playerEditId) {
-        await api(`/api/admin/players/${playerEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      } else {
-        await api('/api/admin/players', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      }
-      await loadPlayersPage(playersPage.take, playersPage.skip, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch);
-      setPlayerSlideOutOpen(false);
-      setPlayerEditId(null);
-      setInfo('Player saved');
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }, [playerCountrySel, playerCountryOther, playerForm, playerBirthday, playerEditId, loadPlayersPage, playersPage.take, playersPage.skip, playerSort, playersClubFilter, playerSearch]);
-
   const removePlayer = useCallback(async (id: Id) => {
     if (!confirm('Delete this player?')) return;
     try {
@@ -319,7 +236,7 @@ export default function PlayersPage() {
           </p>
         </div>
         {(admin.isAppAdmin || admin.isTournamentAdmin) && (
-          <button className="btn btn-primary" onClick={openSlideOutPlayer}>Add Player</button>
+          <button className="btn btn-primary" onClick={() => router.push('/players/new')}>Add Player</button>
         )}
       </header>
 
@@ -419,7 +336,10 @@ export default function PlayersPage() {
               </tr>
             </thead>
             <tbody>
-              {(playersPage.items?.length ?? 0) === 0 && (
+              {loading && (playersPage.items?.length ?? 0) === 0 && (
+                <tr><td colSpan={11} className="py-8 text-center text-muted">Loading players...</td></tr>
+              )}
+              {!loading && (playersPage.items?.length ?? 0) === 0 && (
                 <tr><td colSpan={11} className="py-8 text-center text-muted">No players yet.</td></tr>
               )}
               {(playersPage.items ?? []).map((p) => (
@@ -447,7 +367,7 @@ export default function PlayersPage() {
                     <div className="flex items-center gap-2 justify-end">
                       <button
                         aria-label="Edit player"
-                        onClick={() => window.location.href = `/players/${p.id}/edit`}
+                        onClick={() => router.push(`/players/${p.id}/edit`)}
                         title="Edit"
                         className="text-secondary hover:text-secondary-hover p-1"
                       >
@@ -501,24 +421,6 @@ export default function PlayersPage() {
           Next →
         </button>
       </div>
-
-      {playerSlideOutOpen && (
-        <PlayerSlideOut
-          title={playerEditId ? 'Edit Player' : 'Add Player'}
-          form={playerForm}
-          setForm={setPlayerForm}
-          countrySel={playerCountrySel}
-          setCountrySel={setPlayerCountrySel}
-          countryOther={playerCountryOther}
-          setCountryOther={setPlayerCountryOther}
-          birthday={playerBirthday}
-          setBirthday={setPlayerBirthday}
-          clubs={filteredClubs}
-          isClubFieldLocked={admin.isTournamentAdmin && !admin.isAppAdmin}
-          onSave={savePlayer}
-          onCancel={() => setPlayerSlideOutOpen(false)}
-        />
-      )}
     </section>
   );
 }
@@ -542,147 +444,6 @@ function TrashIcon() {
       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
-  );
-}
-
-function PlayerSlideOut({
-  title,
-  form,
-  setForm,
-  countrySel,
-  setCountrySel,
-  countryOther,
-  setCountryOther,
-  birthday,
-  setBirthday,
-  clubs,
-  isClubFieldLocked,
-  onSave,
-  onCancel,
-}: {
-  title: string;
-  form: {
-    firstName: string; lastName: string; gender: 'MALE' | 'FEMALE'; clubId: Id | ''; dupr: string;
-    city: string; region: string; country: string; phone: string; email: string;
-  };
-  setForm: React.Dispatch<React.SetStateAction<typeof form>>;
-  countrySel: 'Canada' | 'USA' | 'Other';
-  setCountrySel: React.Dispatch<React.SetStateAction<'Canada' | 'USA' | 'Other'>>;
-  countryOther: string;
-  setCountryOther: React.Dispatch<React.SetStateAction<string>>;
-  birthday: string;
-  setBirthday: React.Dispatch<React.SetStateAction<string>>;
-  clubs: Club[];
-  isClubFieldLocked: boolean;
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="absolute right-0 top-1/2 h-5/6 w-full max-w-4xl -translate-y-1/2 bg-surface-1 border-l border-subtle shadow-xl">
-        <div className="flex items-center justify-between p-4 border-b border-subtle">
-          <h3 className="text-lg font-semibold text-primary">{title}</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onCancel}>✕</button>
-        </div>
-        <div className="p-6 overflow-y-auto h-full pb-20">
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <LabeledInput label="First Name" value={form.firstName} onChange={(v) => setForm((prev) => ({ ...prev, firstName: v }))} />
-              <LabeledInput label="Last Name" value={form.lastName} onChange={(v) => setForm((prev) => ({ ...prev, lastName: v }))} />
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-1">Gender</label>
-                <select className="input" value={form.gender} onChange={(e) => setForm((prev) => ({ ...prev, gender: e.target.value as 'MALE' | 'FEMALE' }))}>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-1">Birthday</label>
-                <input
-                  className="input"
-                  type="date"
-                  value={birthday}
-                  onFocus={(e) => { if (!e.currentTarget.value) e.currentTarget.value = fortyYearsAgoISO(); }}
-                  onChange={(e) => setBirthday(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-1">Primary Club</label>
-                <select
-                  className="input"
-                  value={form.clubId}
-                  onChange={(e) => setForm((prev) => ({ ...prev, clubId: e.target.value as Id }))}
-                  disabled={isClubFieldLocked}
-                  style={isClubFieldLocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
-                >
-                  <option value="">Select Club…</option>
-                  {clubs.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}{c.city ? ` (${c.city})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-              <LabeledInput label="DUPR Rating" type="number" value={form.dupr} onChange={(v) => setForm((prev) => ({ ...prev, dupr: v }))} />
-            </div>
-            <div className="space-y-4">
-              <LabeledInput label="City" value={form.city} onChange={(v) => setForm((prev) => ({ ...prev, city: v }))} />
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-1">Country</label>
-                <select className="input" value={countrySel} onChange={(e) => setCountrySel(e.target.value as 'Canada' | 'USA' | 'Other')}>
-                  <option value="Canada">Canada</option>
-                  <option value="USA">USA</option>
-                  <option value="Other">Other</option>
-                </select>
-                {countrySel === 'Other' && (
-                  <input
-                    className="input mt-2"
-                    placeholder="Country"
-                    value={countryOther}
-                    onChange={(e) => {
-                      setCountryOther(e.target.value);
-                      setForm((prev) => ({ ...prev, country: e.target.value }));
-                    }}
-                  />
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-secondary mb-1">{countrySel === 'Canada' ? 'Province' : countrySel === 'USA' ? 'State' : 'Region/Province/State'}</label>
-                {countrySel === 'Canada' ? (
-                  <select className="input" value={form.region} onChange={(e) => setForm((prev) => ({ ...prev, region: e.target.value }))}>
-                    <option value="">Select Province…</option>
-                    {CA_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                ) : countrySel === 'USA' ? (
-                  <select className="input" value={form.region} onChange={(e) => setForm((prev) => ({ ...prev, region: e.target.value }))}>
-                    <option value="">Select State…</option>
-                    {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                ) : (
-                  <input className="input" placeholder="Region/Province/State" value={form.region} onChange={(e) => setForm((prev) => ({ ...prev, region: e.target.value }))} />
-                )}
-              </div>
-              <LabeledInput label="Phone" value={form.phone} onChange={(v) => setForm((prev) => ({ ...prev, phone: v }))} />
-              <LabeledInput label="Email" value={form.email} onChange={(v) => setForm((prev) => ({ ...prev, email: v }))} />
-            </div>
-          </div>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-subtle bg-surface-1">
-          <div className="flex gap-2">
-            <button className="btn btn-primary flex-1" onClick={onSave}>Save Player</button>
-            <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LabeledInput({ label, type = 'text', value, onChange }: { label: string; type?: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-secondary mb-1">{label}</label>
-      <input className="input" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
-    </div>
   );
 }
 

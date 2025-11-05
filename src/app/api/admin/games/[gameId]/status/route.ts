@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateCache, cacheKeys } from '@/lib/cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -36,8 +37,25 @@ export async function PATCH(
     
     const updatedGame = await prisma.game.update({
       where: { id: gameId },
-      data: updateData
+      data: updateData,
+      include: {
+        match: {
+          select: {
+            round: {
+              select: {
+                stopId: true
+              }
+            }
+          }
+        }
+      }
     });
+
+    // Invalidate schedule cache for this stop
+    if (updatedGame.match?.round?.stopId) {
+      await invalidateCache(`${cacheKeys.stopSchedule(updatedGame.match.round.stopId)}*`);
+      console.log(`Cache invalidated for stop: ${updatedGame.match.round.stopId}`);
+    }
 
     console.log('Game status updated successfully:', updatedGame);
     return NextResponse.json(updatedGame);

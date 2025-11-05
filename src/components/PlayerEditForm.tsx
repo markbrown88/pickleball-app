@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { UserProfile } from '@/types';
 
 interface PlayerEditFormProps {
@@ -30,6 +30,26 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
     displayLocation: profile.displayLocation ?? true,
   });
 
+  const [clubSearch, setClubSearch] = useState(profile.club?.name || '');
+  const [showClubDropdown, setShowClubDropdown] = useState(false);
+  const clubDropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredClubs = clubSearch.length >= 3
+    ? clubs.filter(club => club.name.toLowerCase().includes(clubSearch.toLowerCase()))
+    : [];
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (clubDropdownRef.current && !clubDropdownRef.current.contains(event.target as Node)) {
+        setShowClubDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onSave(formData);
@@ -43,14 +63,31 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
     }));
   };
 
+  const handleClubSearchChange = (value: string) => {
+    setClubSearch(value);
+    setShowClubDropdown(value.length >= 3);
+    // Clear clubId if user changes the search
+    if (value !== clubSearch) {
+      setFormData((prev) => ({ ...prev, clubId: '' }));
+    }
+  };
+
+  const selectClub = (club: { id: string; name: string }) => {
+    setFormData((prev) => ({ ...prev, clubId: club.id }));
+    setClubSearch(club.name);
+    setShowClubDropdown(false);
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Basic Information */}
-      <div className="card space-y-4">
-        <h2 className="text-xl font-semibold text-primary">Basic Information</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-secondary mb-2">
+    <form onSubmit={handleSubmit} className="flex gap-6 max-w-7xl">
+      {/* Left Column - Basic Information & Contact Information */}
+      <div className="flex-1 space-y-6">
+        {/* Basic Information */}
+        <div className="card space-y-4">
+          <h2 className="text-xl font-semibold text-primary">Basic Information</h2>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-1">
+            <label htmlFor="firstName" className="block text-sm font-medium text-secondary mb-1">
               First Name *
             </label>
             <input
@@ -64,8 +101,8 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
             />
           </div>
 
-          <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-secondary mb-2">
+          <div className="sm:col-span-1">
+            <label htmlFor="lastName" className="block text-sm font-medium text-secondary mb-1">
               Last Name *
             </label>
             <input
@@ -79,8 +116,8 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
             />
           </div>
 
-          <div>
-            <label htmlFor="gender" className="block text-sm font-medium text-secondary mb-2">
+          <div className="sm:col-span-1">
+            <label htmlFor="gender" className="block text-sm font-medium text-secondary mb-1">
               Gender *
             </label>
             <select
@@ -97,8 +134,8 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
             </select>
           </div>
 
-          <div>
-            <label htmlFor="birthday" className="block text-sm font-medium text-secondary mb-2">
+          <div className="sm:col-span-1">
+            <label htmlFor="birthday" className="block text-sm font-medium text-secondary mb-1">
               Birthday
             </label>
             <input
@@ -116,9 +153,9 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
       {/* Contact Information */}
       <div className="card space-y-4">
         <h2 className="text-xl font-semibold text-primary">Contact Information</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-secondary mb-2">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <label htmlFor="email" className="block text-sm font-medium text-secondary mb-1">
               Email
             </label>
             <input
@@ -132,7 +169,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-secondary mb-2">
+            <label htmlFor="phone" className="block text-sm font-medium text-secondary mb-1">
               Phone
             </label>
             <input
@@ -146,7 +183,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
           </div>
 
           <div>
-            <label htmlFor="city" className="block text-sm font-medium text-secondary mb-2">
+            <label htmlFor="city" className="block text-sm font-medium text-secondary mb-1">
               City
             </label>
             <input
@@ -160,7 +197,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
           </div>
 
           <div>
-            <label htmlFor="region" className="block text-sm font-medium text-secondary mb-2">
+            <label htmlFor="region" className="block text-sm font-medium text-secondary mb-1">
               Province/State
             </label>
             <input
@@ -174,7 +211,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
           </div>
 
           <div>
-            <label htmlFor="country" className="block text-sm font-medium text-secondary mb-2">
+            <label htmlFor="country" className="block text-sm font-medium text-secondary mb-1">
               Country
             </label>
             <select
@@ -190,137 +227,155 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
             </select>
           </div>
         </div>
-      </div>
+        </div>
 
-      {/* Club & Ratings */}
-      <div className="card space-y-4">
-        <h2 className="text-xl font-semibold text-primary">Club & Ratings</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label htmlFor="clubId" className="block text-sm font-medium text-secondary mb-2">
-              Club *
-            </label>
-            <select
-              id="clubId"
-              name="clubId"
-              value={formData.clubId}
-              onChange={handleChange}
-              className="input w-full"
-              required
-            >
-              <option value="">Select club...</option>
-              {clubs.map((club) => (
-                <option key={club.id} value={club.id}>
-                  {club.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Privacy Settings */}
+        <div className="card space-y-4">
+          <h2 className="text-xl font-semibold text-primary">Privacy Settings</h2>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="displayAge"
+                name="displayAge"
+                checked={formData.displayAge}
+                onChange={handleChange}
+                className="w-4 h-4"
+              />
+              <label htmlFor="displayAge" className="text-sm text-secondary">
+                Display age on profile
+              </label>
+            </div>
 
-          <div>
-            <label htmlFor="duprSingles" className="block text-sm font-medium text-secondary mb-2">
-              DUPR Singles
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              id="duprSingles"
-              name="duprSingles"
-              value={formData.duprSingles}
-              onChange={handleChange}
-              className="input w-full"
-              placeholder="e.g., 4.5"
-            />
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="displayLocation"
+                name="displayLocation"
+                checked={formData.displayLocation}
+                onChange={handleChange}
+                className="w-4 h-4"
+              />
+              <label htmlFor="displayLocation" className="text-sm text-secondary">
+                Display location on profile
+              </label>
+            </div>
           </div>
+        </div>
 
-          <div>
-            <label htmlFor="duprDoubles" className="block text-sm font-medium text-secondary mb-2">
-              DUPR Doubles
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              id="duprDoubles"
-              name="duprDoubles"
-              value={formData.duprDoubles}
-              onChange={handleChange}
-              className="input w-full"
-              placeholder="e.g., 5.0"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="clubRatingSingles" className="block text-sm font-medium text-secondary mb-2">
-              Club Rating Singles
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              id="clubRatingSingles"
-              name="clubRatingSingles"
-              value={formData.clubRatingSingles}
-              onChange={handleChange}
-              className="input w-full"
-              placeholder="e.g., 4.0"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="clubRatingDoubles" className="block text-sm font-medium text-secondary mb-2">
-              Club Rating Doubles
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              id="clubRatingDoubles"
-              name="clubRatingDoubles"
-              value={formData.clubRatingDoubles}
-              onChange={handleChange}
-              className="input w-full"
-              placeholder="e.g., 4.5"
-            />
-          </div>
+        <div className="flex justify-end gap-3">
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
         </div>
       </div>
 
-      {/* Privacy Settings */}
-      <div className="card space-y-4">
-        <h2 className="text-xl font-semibold text-primary">Privacy Settings</h2>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="displayAge"
-              name="displayAge"
-              checked={formData.displayAge}
-              onChange={handleChange}
-              className="w-4 h-4"
-            />
-            <label htmlFor="displayAge" className="text-sm text-secondary">
-              Display age on profile
-            </label>
-          </div>
+      {/* Right Column - Club & Ratings */}
+      <div className="w-80 flex-shrink-0">
+        <div className="card space-y-4 sticky top-6">
+          <h2 className="text-xl font-semibold text-primary">Club & Ratings</h2>
+          <div className="space-y-4">
+            <div className="relative" ref={clubDropdownRef}>
+              <label htmlFor="clubSearch" className="block text-sm font-medium text-secondary mb-1">
+                Club *
+              </label>
+              <input
+                type="text"
+                id="clubSearch"
+                value={clubSearch}
+                onChange={(e) => handleClubSearchChange(e.target.value)}
+                onFocus={() => clubSearch.length >= 3 && setShowClubDropdown(true)}
+                className="input w-full"
+                placeholder="Type 3+ characters to search..."
+                required
+              />
+              {showClubDropdown && filteredClubs.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-surface-1 border border-border-subtle rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {filteredClubs.map((club) => (
+                    <button
+                      key={club.id}
+                      type="button"
+                      onClick={() => selectClub(club)}
+                      className="w-full text-left px-3 py-2 hover:bg-surface-2 text-sm"
+                    >
+                      {club.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {clubSearch.length > 0 && clubSearch.length < 3 && (
+                <p className="text-xs text-muted mt-1">Type at least 3 characters</p>
+              )}
+              {!formData.clubId && clubSearch.length >= 3 && filteredClubs.length === 0 && (
+                <p className="text-xs text-error mt-1">No clubs found</p>
+              )}
+            </div>
 
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="displayLocation"
-              name="displayLocation"
-              checked={formData.displayLocation}
-              onChange={handleChange}
-              className="w-4 h-4"
-            />
-            <label htmlFor="displayLocation" className="text-sm text-secondary">
-              Display location on profile
-            </label>
+            <div>
+              <label htmlFor="duprSingles" className="block text-sm font-medium text-secondary mb-1">
+                DUPR Singles
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                id="duprSingles"
+                name="duprSingles"
+                value={formData.duprSingles}
+                onChange={handleChange}
+                className="input w-full"
+                placeholder="e.g., 4.5"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="duprDoubles" className="block text-sm font-medium text-secondary mb-1">
+                DUPR Doubles
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                id="duprDoubles"
+                name="duprDoubles"
+                value={formData.duprDoubles}
+                onChange={handleChange}
+                className="input w-full"
+                placeholder="e.g., 5.0"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="clubRatingSingles" className="block text-sm font-medium text-secondary mb-1">
+                Club Rating Singles
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                id="clubRatingSingles"
+                name="clubRatingSingles"
+                value={formData.clubRatingSingles}
+                onChange={handleChange}
+                className="input w-full"
+                placeholder="e.g., 4.0"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="clubRatingDoubles" className="block text-sm font-medium text-secondary mb-1">
+                Club Rating Doubles
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                id="clubRatingDoubles"
+                name="clubRatingDoubles"
+                value={formData.clubRatingDoubles}
+                onChange={handleChange}
+                className="input w-full"
+                placeholder="e.g., 4.5"
+              />
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="flex justify-end gap-3">
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? 'Saving...' : 'Save Changes'}
-        </button>
       </div>
     </form>
   );

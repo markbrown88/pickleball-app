@@ -264,37 +264,52 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
     }
   };
 
-  const getBracketWins = () => {
-    const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
+  const getGameWins = () => {
+    let teamAGameWins = 0;
+    let teamBGameWins = 0;
 
     for (const game of localGames) {
       if (!game.isComplete) continue;
-      if (game.teamAScore === null || game.teamBScore === null) continue;
+      
+      // For completed games, treat null scores as 0
+      // This handles cases where a game was marked complete but scores weren't fully saved
+      const teamAScore = game.teamAScore ?? 0;
+      const teamBScore = game.teamBScore ?? 0;
+      
+      // If both scores are null/0, skip (shouldn't happen for completed games, but handle gracefully)
+      if (teamAScore === null && teamBScore === null) continue;
+
+      if (teamAScore > teamBScore) {
+        teamAGameWins++;
+      } else if (teamBScore > teamAScore) {
+        teamBGameWins++;
+      }
+    }
+
+    // Also track brackets for display purposes (games are grouped by bracket)
+    const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
+    for (const game of localGames) {
+      if (!game.isComplete) continue;
+      
+      // Treat null scores as 0 for completed games
+      const teamAScore = game.teamAScore ?? 0;
+      const teamBScore = game.teamBScore ?? 0;
+      
+      if (teamAScore === null && teamBScore === null) continue;
 
       const bracketName = game.bracket?.name || 'Main';
       if (!bracketsByName[bracketName]) {
         bracketsByName[bracketName] = { teamAWins: 0, teamBWins: 0 };
       }
 
-      if (game.teamAScore > game.teamBScore) {
+      if (teamAScore > teamBScore) {
         bracketsByName[bracketName].teamAWins++;
-      } else if (game.teamBScore > game.teamAScore) {
+      } else if (teamBScore > teamAScore) {
         bracketsByName[bracketName].teamBWins++;
       }
     }
 
-    let teamABracketWins = 0;
-    let teamBBracketWins = 0;
-
-    for (const bracket of Object.values(bracketsByName)) {
-      if (bracket.teamAWins > bracket.teamBWins) {
-        teamABracketWins++;
-      } else if (bracket.teamBWins > bracket.teamAWins) {
-        teamBBracketWins++;
-      }
-    }
-
-    return { teamABracketWins, teamBBracketWins, bracketsByName };
+    return { teamAGameWins, teamBGameWins, bracketsByName };
   };
 
   const getMatchStatus = () => {
@@ -302,21 +317,21 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
     if (match.winnerId) return 'decided';
     if (match.tiebreakerWinnerTeamId) return 'decided';
 
-    const { teamABracketWins, teamBBracketWins, bracketsByName } = getBracketWins();
+    const { teamAGameWins, teamBGameWins, bracketsByName } = getGameWins();
     const bracketCount = Object.keys(bracketsByName).length;
     const totalExpectedGames = bracketCount * 4;
-    const majority = Math.ceil(bracketCount / 2);
+    const majority = Math.ceil(totalExpectedGames / 2);
 
     const completedGames = localGames.filter(g => g.isComplete).length;
 
     if (completedGames < totalExpectedGames) return 'in_progress';
-    if (teamABracketWins === teamBBracketWins && teamABracketWins > 0) return 'tied';
-    if (teamABracketWins >= majority || teamBBracketWins >= majority) return 'ready_to_complete';
+    if (teamAGameWins === teamBGameWins && teamAGameWins > 0) return 'tied';
+    if (teamAGameWins >= majority || teamBGameWins >= majority) return 'ready_to_complete';
 
     return 'in_progress';
   };
 
-  const { teamABracketWins, teamBBracketWins } = getBracketWins();
+  const { teamAGameWins, teamBGameWins } = getGameWins();
   const matchStatus = getMatchStatus();
   const isDecided = matchStatus === 'decided';
 
@@ -366,7 +381,7 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
             {cleanTeamAName} vs {cleanTeamBName}
           </h3>
           <div className="text-xs text-muted mt-1">
-            {teamABracketWins} - {teamBBracketWins} (Brackets Won)
+            {teamAGameWins} - {teamBGameWins} (Games Won)
           </div>
         </div>
 

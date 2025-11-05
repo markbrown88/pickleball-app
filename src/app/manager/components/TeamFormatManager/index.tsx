@@ -1328,30 +1328,40 @@ export function TeamFormatManager({
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs font-medium text-muted">Lineup Deadline</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="datetime-local"
-                              value={lineupDeadlines[stop.stopId] || ''}
-                              onChange={(e) => setLineupDeadlines(prev => ({ ...prev, [stop.stopId]: e.target.value }))}
-                              className="input input-sm text-xs"
-                              style={{ minWidth: '200px' }}
-                            />
-                            <button
-                              className="btn btn-sm btn-secondary disabled:opacity-50"
-                              onClick={() => saveLineupDeadline(stop.stopId)}
-                              disabled={loading[stop.stopId] || !lineupDeadlines[stop.stopId]}
-                            >
-                              Save Deadline
-                            </button>
+                        {stopHasAnyGameStarted ? (
+                          // After tournament has started: just show the deadline (non-editable)
+                          stop.lineupDeadline && (
+                            <div className="text-sm text-secondary">
+                              <span className="font-medium">Lineup Deadline:</span> {formatDeadline(stop.lineupDeadline)}
+                            </div>
+                          )
+                        ) : (
+                          // Before tournament starts: show editable deadline
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-medium text-muted">Lineup Deadline</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="datetime-local"
+                                value={lineupDeadlines[stop.stopId] || ''}
+                                onChange={(e) => setLineupDeadlines(prev => ({ ...prev, [stop.stopId]: e.target.value }))}
+                                className="input input-sm text-xs"
+                                style={{ minWidth: '200px' }}
+                              />
+                              <button
+                                className="btn btn-sm btn-secondary disabled:opacity-50"
+                                onClick={() => saveLineupDeadline(stop.stopId)}
+                                disabled={loading[stop.stopId] || !lineupDeadlines[stop.stopId]}
+                              >
+                                Save Deadline
+                              </button>
+                            </div>
+                            {stop.lineupDeadline && (
+                              <span className="text-xs text-muted">
+                                Current: {formatDeadline(stop.lineupDeadline)}
+                              </span>
+                            )}
                           </div>
-                          {stop.lineupDeadline && (
-                            <span className="text-xs text-muted">
-                              Current: {formatDeadline(stop.lineupDeadline)}
-                            </span>
-                          )}
-                        </div>
+                        )}
                         {!stopHasAnyGameStarted && (
                         <button
                           className="btn btn-primary disabled:opacity-50"
@@ -1379,7 +1389,10 @@ export function TeamFormatManager({
                             const previousRoundAvailable = roundIdx > 0 && !!stopSchedule[roundIdx - 1];
                             const isEditing = editingRounds.has(round.id);
                             const matches = getMatchesForRound(round, isEditing);
-                            const tiebreakerAlerts = gatherRoundTiebreakerAlerts(matches, deriveMatchStatus);
+                            const tiebreakerAlerts = gatherRoundTiebreakerAlerts(matches, deriveMatchStatus).filter(alert =>
+                              // Filter out "decided_points" and "tiebreaker played" alerts
+                              !alert.message.includes('decided via total points') && !alert.message.includes('tiebreaker played')
+                            );
                             const roundHasStarted = hasAnyMatchStarted(round);
                             const roundHasCompletedAllMatches = matches.length > 0 && matches.every((match: any) => {
                               const matchStatus = deriveMatchStatus(match);
@@ -1605,7 +1618,7 @@ export function TeamFormatManager({
                                                       const matchStatus = deriveMatchStatus(match);
                                                       const matchGames = games[matchId] ?? match.games ?? [];
                                                       const tiebreakerGame = matchGames.find((g: any) => g.slot === 'TIEBREAKER');
-                                                      const isDecided = ['decided_points', 'decided_tiebreaker'].includes(matchStatus) || !!match.forfeitTeam;
+                                                      const isDecided = ['completed', 'decided_points', 'decided_tiebreaker'].includes(matchStatus) || !!match.forfeitTeam;
                                                       const isTiePending = matchStatus === 'tied_requires_tiebreaker' || matchStatus === 'needs_decision' || matchStatus === 'tied_pending';
                                                   const teamALineup = match.teamA?.id ? (lineups[matchId]?.[match.teamA.id] ?? []) : [];
                                                   const teamBLineup = match.teamB?.id ? (lineups[matchId]?.[match.teamB.id] ?? []) : [];
@@ -1671,18 +1684,20 @@ export function TeamFormatManager({
                                                       {!match.forfeitTeam && !isDecided && (
                                                             <div className="flex gap-2 flex-1 sm:flex-none">
                                                               <button
-                                                                className="btn btn-xs btn-error flex-1 sm:flex-none"
+                                                                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error flex-1 sm:flex-none"
+                                                                style={{ fontSize: '0.675rem', whiteSpace: 'nowrap', overflow: 'visible' }}
                                                                 disabled={resolvingMatch === `${match.id}-forfeitA`}
                                                                 onClick={() => forfeitMatch(match, 'A')}
                                                               >
-                                                                {resolvingMatch === `${match.id}-forfeitA` ? 'Processing...' : `Forfeit ${shortenLineupName(match.teamA?.name)}`}
+                                                                {resolvingMatch === `${match.id}-forfeitA` ? 'Processing...' : `Forfeit ${match.teamA?.name || 'Team A'}`}
                                                               </button>
                                                               <button
-                                                                className="btn btn-xs btn-error flex-1 sm:flex-none"
+                                                                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error flex-1 sm:flex-none"
+                                                                style={{ fontSize: '0.675rem', whiteSpace: 'nowrap', overflow: 'visible' }}
                                                                 disabled={resolvingMatch === `${match.id}-forfeitB`}
                                                                 onClick={() => forfeitMatch(match, 'B')}
                                                               >
-                                                                {resolvingMatch === `${match.id}-forfeitB` ? 'Processing...' : `Forfeit ${shortenLineupName(match.teamB?.name)}`}
+                                                                {resolvingMatch === `${match.id}-forfeitB` ? 'Processing...' : `Forfeit ${match.teamB?.name || 'Team B'}`}
                                                               </button>
                                                             </div>
                                                           )}

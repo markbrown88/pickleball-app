@@ -71,20 +71,18 @@ export function BracketManager({ tournaments, onError, onInfo }: BracketManagerP
         setAvailableTeams(teams);
         setAvailableClubs(clubs);
 
-        // Check if bracket already exists by fetching the schedule
+        // Check if bracket already exists by using lightweight endpoint
         // Don't rely on tournament.stops because it may have stale data
         try {
-          const scheduleResponse = await fetch(`/api/admin/stops/${tournament.stops[0]?.stopId}/schedule`);
+          const scheduleResponse = await fetch(`/api/admin/stops/${tournament.stops[0]?.stopId}/has-bracket`);
           if (scheduleResponse.ok) {
-            const scheduleData = await scheduleResponse.json();
-            // scheduleData is an array of rounds, not an object with a rounds property
-            const hasRounds = Array.isArray(scheduleData) && scheduleData.length > 0;
-            setHasBracket(hasRounds);
+            const { hasBracket } = await scheduleResponse.json();
+            setHasBracket(hasBracket);
           } else {
             setHasBracket(false);
           }
         } catch (err) {
-          // If we can't fetch schedule, assume no bracket
+          // If we can't fetch, assume no bracket
           setHasBracket(false);
         }
       } catch (error) {

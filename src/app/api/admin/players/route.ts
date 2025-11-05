@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 function validEmail(input?: string | null): boolean {
@@ -28,8 +31,6 @@ function parseBirthdayStr(s?: string | null): { y: number | null; m: number | nu
   if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || da < 1 || da > 31) return { y: null, m: null, d: null };
   return { y, m: mo, d: da };
 }
-
-export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {

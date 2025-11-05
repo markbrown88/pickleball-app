@@ -278,8 +278,167 @@ export async function POST(
       createdRounds.push(dbRound);
     }
 
-    // TODO: Second pass to link matches via sourceMatchAId/sourceMatchBId
-    // This requires implementing the full progression logic
+    // Second pass: Link matches via sourceMatchAId/sourceMatchBId
+    // This creates the bracket progression tree
+    const allRounds = bracket.rounds;
+    const winnerRounds = allRounds.filter(r => r.bracketType === 'WINNER');
+    const loserRounds = allRounds.filter(r => r.bracketType === 'LOSER');
+    const finalsRounds = allRounds.filter(r => r.bracketType === 'FINALS');
+
+    // Link winner bracket matches: winners advance to next winner round
+    for (let roundIdx = 0; roundIdx < winnerRounds.length - 1; roundIdx++) {
+      const currentRound = winnerRounds[roundIdx];
+      const nextRound = winnerRounds[roundIdx + 1];
+
+      for (let matchIdx = 0; matchIdx < nextRound.matches.length; matchIdx++) {
+        const nextMatch = nextRound.matches[matchIdx];
+        const sourceAIdx = matchIdx * 2;
+        const sourceBIdx = matchIdx * 2 + 1;
+
+        if (sourceAIdx < currentRound.matches.length && sourceBIdx < currentRound.matches.length) {
+          const sourceA = currentRound.matches[sourceAIdx];
+          const sourceB = currentRound.matches[sourceBIdx];
+
+          const sourceAMatchId = matchIdMap.get(currentRound.idx * 1000 + sourceA.bracketPosition);
+          const sourceBMatchId = matchIdMap.get(currentRound.idx * 1000 + sourceB.bracketPosition);
+          const nextMatchId = matchIdMap.get(nextRound.idx * 1000 + nextMatch.bracketPosition);
+
+          if (sourceAMatchId && sourceBMatchId && nextMatchId) {
+            await prisma.match.update({
+              where: { id: nextMatchId },
+              data: {
+                sourceMatchAId: sourceAMatchId,
+                sourceMatchBId: sourceBMatchId,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    // Link loser bracket: losers from winner bracket drop to loser bracket
+    // Double elimination loser bracket pattern:
+    // - Round 0: Losers from winner bracket round 0 play each other (2 losers per match)
+    // - Round 1: Winners from loser round 0 play losers from winner bracket round 1
+    // - Round 2: Winners from loser round 1 play each other
+    // - Round 3: Winners from loser round 2 play losers from winner bracket round 2
+    // - etc.
+    
+    if (loserRounds.length > 0 && winnerRounds.length > 0) {
+      // First loser round: losers from first winner round
+      const firstLoserRound = loserRounds[0];
+      const firstWinnerRound = winnerRounds[0];
+      
+      let loserMatchIdx = 0;
+      for (let i = 0; i < firstWinnerRound.matches.length && loserMatchIdx < firstLoserRound.matches.length; i += 2) {
+        const matchA = firstWinnerRound.matches[i];
+        const matchB = firstWinnerRound.matches[i + 1] || null;
+
+        const sourceAMatchId = matchIdMap.get(firstWinnerRound.idx * 1000 + matchA.bracketPosition);
+        const sourceBMatchId = matchB ? matchIdMap.get(firstWinnerRound.idx * 1000 + matchB.bracketPosition) : null;
+        const loserMatchId = matchIdMap.get(firstLoserRound.idx * 1000 + loserMatchIdx);
+
+        if (sourceAMatchId && loserMatchId) {
+          await prisma.match.update({
+            where: { id: loserMatchId },
+            data: {
+              sourceMatchAId: sourceAMatchId,
+              sourceMatchBId: sourceBMatchId,
+            },
+          });
+        }
+        loserMatchIdx++;
+      }
+
+      // Subsequent loser rounds: alternate pattern
+      for (let loserRoundIdx = 1; loserRoundIdx < loserRounds.length; loserRoundIdx++) {
+        const loserRound = loserRounds[loserRoundIdx];
+        const prevLoserRound = loserRounds[loserRoundIdx - 1];
+        
+        // Determine which winner round this corresponds to
+        // Loser rounds alternate: even rounds are "drop" rounds, odd rounds are "advance" rounds
+        const isAdvanceRound = loserRoundIdx % 2 === 1;
+        const winnerRoundIdx = Math.floor((loserRoundIdx + 1) / 2);
+
+        if (isAdvanceRound && winnerRoundIdx < winnerRounds.length) {
+          // Advance round: winners from previous loser round vs losers from winner bracket
+          const winnerRound = winnerRounds[winnerRoundIdx];
+          
+          for (let matchIdx = 0; matchIdx < loserRound.matches.length && matchIdx < prevLoserRound.matches.length && matchIdx < winnerRound.matches.length; matchIdx++) {
+            const loserMatch = loserRound.matches[matchIdx];
+            const prevLoserMatch = prevLoserRound.matches[matchIdx];
+            const winnerMatch = winnerRound.matches[matchIdx];
+
+            const prevLoserMatchId = matchIdMap.get(prevLoserRound.idx * 1000 + prevLoserMatch.bracketPosition);
+            const winnerMatchId = matchIdMap.get(winnerRound.idx * 1000 + winnerMatch.bracketPosition);
+            const loserMatchId = matchIdMap.get(loserRound.idx * 1000 + loserMatch.bracketPosition);
+
+            if (prevLoserMatchId && winnerMatchId && loserMatchId) {
+              await prisma.match.update({
+                where: { id: loserMatchId },
+                data: {
+                  sourceMatchAId: prevLoserMatchId, // Winner from previous loser round
+                  sourceMatchBId: winnerMatchId, // Loser from winner bracket
+                },
+              });
+            }
+          }
+        } else {
+          // Drop round: winners from previous loser round advance
+          for (let matchIdx = 0; matchIdx < loserRound.matches.length; matchIdx += 1) {
+            const sourceAIdx = matchIdx * 2;
+            const sourceBIdx = matchIdx * 2 + 1;
+
+            if (sourceAIdx < prevLoserRound.matches.length && sourceBIdx < prevLoserRound.matches.length) {
+              const loserMatch = loserRound.matches[matchIdx];
+              const sourceA = prevLoserRound.matches[sourceAIdx];
+              const sourceB = prevLoserRound.matches[sourceBIdx];
+
+              const sourceAMatchId = matchIdMap.get(prevLoserRound.idx * 1000 + sourceA.bracketPosition);
+              const sourceBMatchId = matchIdMap.get(prevLoserRound.idx * 1000 + sourceB.bracketPosition);
+              const loserMatchId = matchIdMap.get(loserRound.idx * 1000 + loserMatch.bracketPosition);
+
+              if (sourceAMatchId && sourceBMatchId && loserMatchId) {
+                await prisma.match.update({
+                  where: { id: loserMatchId },
+                  data: {
+                    sourceMatchAId: sourceAMatchId,
+                    sourceMatchBId: sourceBMatchId,
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Link finals: winner bracket final winner and loser bracket final winner
+    if (finalsRounds.length > 0 && winnerRounds.length > 0 && loserRounds.length > 0) {
+      const finalsRound = finalsRounds[0];
+      const winnerFinalRound = winnerRounds[winnerRounds.length - 1];
+      const loserFinalRound = loserRounds[loserRounds.length - 1];
+
+      if (finalsRound.matches.length > 0 && winnerFinalRound.matches.length > 0 && loserFinalRound.matches.length > 0) {
+        const finalsMatch = finalsRound.matches[0];
+        const winnerFinalMatch = winnerFinalRound.matches[0];
+        const loserFinalMatch = loserFinalRound.matches[0];
+
+        const winnerFinalMatchId = matchIdMap.get(winnerFinalRound.idx * 1000 + winnerFinalMatch.bracketPosition);
+        const loserFinalMatchId = matchIdMap.get(loserFinalRound.idx * 1000 + loserFinalMatch.bracketPosition);
+        const finalsMatchId = matchIdMap.get(finalsRound.idx * 1000 + finalsMatch.bracketPosition);
+
+        if (winnerFinalMatchId && loserFinalMatchId && finalsMatchId) {
+          await prisma.match.update({
+            where: { id: finalsMatchId },
+            data: {
+              sourceMatchAId: winnerFinalMatchId, // Winner bracket winner
+              sourceMatchBId: loserFinalMatchId, // Loser bracket winner
+            },
+          });
+        }
+      }
+    }
 
     // Update tournament with gamesPerMatch setting (only for team-based tournaments)
     if (!isClubBased) {

@@ -57,13 +57,22 @@ export async function POST(
     let teamBWins = 0;
 
     for (const game of match.games) {
-      if (game.teamAScore === null || game.teamBScore === null) continue;
+      if (!game.isComplete) continue;
+      
+      // For completed games, treat null scores as 0
+      // This handles cases where a game was marked complete but scores weren't fully saved
+      const teamAScore = game.teamAScore ?? 0;
+      const teamBScore = game.teamBScore ?? 0;
+      
+      // If both scores are null/0, skip (shouldn't happen for completed games, but handle gracefully)
+      if (game.teamAScore === null && game.teamBScore === null) continue;
 
-      if (game.teamAScore > game.teamBScore) {
+      if (teamAScore > teamBScore) {
         teamAWins++;
-      } else if (game.teamBScore > game.teamAScore) {
+      } else if (teamBScore > teamAScore) {
         teamBWins++;
       }
+      // Ties are not counted (shouldn't happen in pickleball, but handle gracefully)
     }
 
     if (teamAWins === teamBWins) {
@@ -75,6 +84,9 @@ export async function POST(
 
     const winnerId = teamAWins > teamBWins ? match.teamAId : match.teamBId;
     const loserId = teamAWins > teamBWins ? match.teamBId : match.teamAId;
+
+    console.log(`[Complete Match] Match ${matchId}: Team A wins: ${teamAWins}, Team B wins: ${teamBWins}`);
+    console.log(`[Complete Match] Winner: ${winnerId}, Loser: ${loserId}`);
 
     if (!winnerId) {
       return NextResponse.json(
@@ -98,8 +110,11 @@ export async function POST(
       where: { sourceMatchBId: matchId },
     });
 
+    console.log(`[Complete Match] Found ${childMatchesA.length} child matches via sourceMatchAId, ${childMatchesB.length} via sourceMatchBId`);
+
     // Advance winner to child matches
     for (const childMatch of childMatchesA) {
+      console.log(`[Complete Match] Advancing winner ${winnerId} to child match ${childMatch.id} as Team A`);
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamAId: winnerId },
@@ -107,6 +122,7 @@ export async function POST(
     }
 
     for (const childMatch of childMatchesB) {
+      console.log(`[Complete Match] Advancing winner ${winnerId} to child match ${childMatch.id} as Team B`);
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamBId: winnerId },

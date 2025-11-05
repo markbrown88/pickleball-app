@@ -232,6 +232,7 @@ export default function AdminPage() {
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
   const [editingTournamentId, setEditingTournamentId] = useState<Id | null>(null);
@@ -261,6 +262,7 @@ export default function AdminPage() {
   useEffect(() => {
     (async () => {
       try {
+        setLoading(true);
         const { tournaments: ts, clubs: cs } = await fetchInitialData({
           take: 10,
           sort: 'name',
@@ -271,7 +273,9 @@ export default function AdminPage() {
         setClubsAll(cs);
       } catch (e) {
         setErr((e as Error).message);
-        }
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -655,6 +659,7 @@ export default function AdminPage() {
       {!editingTournamentId && (
         <TournamentsList
           tournaments={tournaments}
+          loading={loading}
           onEdit={handleEditTournament}
           onDelete={deleteTournament}
         />

@@ -77,11 +77,14 @@ export async function GET(req: Request, ctx: Ctx) {
     // Validate stop (nice 404 if wrong id)
     const stop = await prisma.stop.findUnique({
       where: { id: stopId },
-      select: { id: true, tournamentId: true },
+      select: { id: true, tournamentId: true, tournament: { select: { type: true } } },
     });
     if (!stop) {
       return NextResponse.json({ error: `Stop not found: ${stopId}` }, { status: 404 });
     }
+
+    // Check if this is a double elimination tournament (they use game-level lineups, not round-level)
+    const isDoubleElimination = stop.tournament?.type === 'DOUBLE_ELIMINATION' || stop.tournament?.type === 'DOUBLE_ELIMINATION_CLUBS';
 
     // Authorization: Check if user is admin or event manager for this stop
     if (!effectivePlayer.isAppAdmin) {
@@ -126,26 +129,17 @@ export async function GET(req: Request, ctx: Ctx) {
             roundId: true,
             teamAId: true,
             teamBId: true,
+            sourceMatchAId: true,
+            sourceMatchBId: true,
+            winnerId: true,
+            seedA: true,
+            seedB: true,
             teamA: {
               select: {
                 id: true,
                 name: true,
                 clubId: true,
                 bracket: { select: { id: true, name: true } },
-                playerLinks: {
-                  include: {
-                    player: {
-                      select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        name: true,
-                        gender: true,
-                        dupr: true
-                      }
-                    }
-                  }
-                }
               },
             },
             teamB: {
@@ -154,20 +148,6 @@ export async function GET(req: Request, ctx: Ctx) {
                 name: true,
                 clubId: true,
                 bracket: { select: { id: true, name: true } },
-                playerLinks: {
-                  include: {
-                    player: {
-                      select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        name: true,
-                        gender: true,
-                        dupr: true
-                      }
-                    }
-                  }
-                }
               },
             },
             games: {
@@ -206,7 +186,7 @@ export async function GET(req: Request, ctx: Ctx) {
             totalPointsTeamB: true,
           },
         },
-        lineups: {
+        lineups: isDoubleElimination ? undefined : {
           include: {
             entries: {
               include: {
@@ -235,57 +215,59 @@ export async function GET(req: Request, ctx: Ctx) {
       },
     });
 
-    // Build a map of lineups by roundId and teamId
+    // Build a map of lineups by roundId and teamId (only for non-DE tournaments)
     const lineupMap = new Map<string, any[]>();
-    roundsRaw.forEach((round) => {
-      round.lineups.forEach((lineup) => {
-        const key = `${round.id}-${lineup.teamId}`;
-        const players: any[] = [];
+    if (!isDoubleElimination && roundsRaw[0]?.lineups) {
+      roundsRaw.forEach((round) => {
+        round.lineups?.forEach((lineup: any) => {
+          const key = `${round.id}-${lineup.teamId}`;
+          const players: any[] = [];
 
-        // Extract players from lineup entries in order: [Man1, Man2, Woman1, Woman2]
-        const mensDoubles = lineup.entries.find(e => e.slot === 'MENS_DOUBLES');
-        const womensDoubles = lineup.entries.find(e => e.slot === 'WOMENS_DOUBLES');
+          // Extract players from lineup entries in order: [Man1, Man2, Woman1, Woman2]
+          const mensDoubles = lineup.entries?.find((e: any) => e.slot === 'MENS_DOUBLES');
+          const womensDoubles = lineup.entries?.find((e: any) => e.slot === 'WOMENS_DOUBLES');
 
-        if (mensDoubles) {
-          if (mensDoubles.player1) {
-            players[0] = {
-              id: mensDoubles.player1.id,
-              name: mensDoubles.player1.name || `${mensDoubles.player1.firstName || ''} ${mensDoubles.player1.lastName || ''}`.trim(),
-              gender: mensDoubles.player1.gender
-            };
+          if (mensDoubles) {
+            if (mensDoubles.player1) {
+              players[0] = {
+                id: mensDoubles.player1.id,
+                name: mensDoubles.player1.name || `${mensDoubles.player1.firstName || ''} ${mensDoubles.player1.lastName || ''}`.trim(),
+                gender: mensDoubles.player1.gender
+              };
+            }
+            if (mensDoubles.player2) {
+              players[1] = {
+                id: mensDoubles.player2.id,
+                name: mensDoubles.player2.name || `${mensDoubles.player2.firstName || ''} ${mensDoubles.player2.lastName || ''}`.trim(),
+                gender: mensDoubles.player2.gender
+              };
+            }
           }
-          if (mensDoubles.player2) {
-            players[1] = {
-              id: mensDoubles.player2.id,
-              name: mensDoubles.player2.name || `${mensDoubles.player2.firstName || ''} ${mensDoubles.player2.lastName || ''}`.trim(),
-              gender: mensDoubles.player2.gender
-            };
-          }
-        }
 
-        if (womensDoubles) {
-          if (womensDoubles.player1) {
-            players[2] = {
-              id: womensDoubles.player1.id,
-              name: womensDoubles.player1.name || `${womensDoubles.player1.firstName || ''} ${womensDoubles.player1.lastName || ''}`.trim(),
-              gender: womensDoubles.player1.gender
-            };
+          if (womensDoubles) {
+            if (womensDoubles.player1) {
+              players[2] = {
+                id: womensDoubles.player1.id,
+                name: womensDoubles.player1.name || `${womensDoubles.player1.firstName || ''} ${womensDoubles.player1.lastName || ''}`.trim(),
+                gender: womensDoubles.player1.gender
+              };
+            }
+            if (womensDoubles.player2) {
+              players[3] = {
+                id: womensDoubles.player2.id,
+                name: womensDoubles.player2.name || `${womensDoubles.player2.firstName || ''} ${womensDoubles.player2.lastName || ''}`.trim(),
+                gender: womensDoubles.player2.gender
+              };
+            }
           }
-          if (womensDoubles.player2) {
-            players[3] = {
-              id: womensDoubles.player2.id,
-              name: womensDoubles.player2.name || `${womensDoubles.player2.firstName || ''} ${womensDoubles.player2.lastName || ''}`.trim(),
-              gender: womensDoubles.player2.gender
-            };
-          }
-        }
 
-        // Only add to map if we have a complete lineup (4 players)
-        if (players[0] && players[1] && players[2] && players[3]) {
-          lineupMap.set(key, players);
-        }
+          // Only add to map if we have a complete lineup (4 players)
+          if (players[0] && players[1] && players[2] && players[3]) {
+            lineupMap.set(key, players);
+          }
+        });
       });
-    });
+    }
 
 
     const rounds = await Promise.all(
@@ -337,9 +319,10 @@ export async function GET(req: Request, ctx: Ctx) {
 
               // For games with lineup data stored directly on them, use that instead of round-level lineups
               // This is used for DE/Club tournaments
-              const firstGameWithLineup = games.find(g => g.teamALineup && g.teamBLineup);
-              const gameLevelTeamALineup = firstGameWithLineup?.teamALineup || null;
-              const gameLevelTeamBLineup = firstGameWithLineup?.teamBLineup || null;
+              // Note: Game-level lineups are stored as JSON fields and will be included automatically
+              const firstGameWithLineup = games.find((g: any) => (g as any).teamALineup && (g as any).teamBLineup);
+              const gameLevelTeamALineup = firstGameWithLineup ? (firstGameWithLineup as any).teamALineup : null;
+              const gameLevelTeamBLineup = firstGameWithLineup ? (firstGameWithLineup as any).teamBLineup : null;
 
               // Prefer game-level lineups over round-level lineups (game-level is for DE, round-level is for Team)
               const teamALineup = gameLevelTeamALineup || roundLevelTeamALineup;
@@ -351,6 +334,11 @@ export async function GET(req: Request, ctx: Ctx) {
                 teamB: match.teamB,
                 isBye: match.isBye,
                 forfeitTeam: match.forfeitTeam,
+                sourceMatchAId: match.sourceMatchAId,
+                sourceMatchBId: match.sourceMatchBId,
+                winnerId: match.winnerId,
+                seedA: match.seedA,
+                seedB: match.seedB,
                 bracketId: inferredBracketId,
                 bracketName: inferredBracketName,
                 tiebreakerStatus: resolved.tiebreakerStatus,
@@ -360,7 +348,7 @@ export async function GET(req: Request, ctx: Ctx) {
                 totalPointsTeamA: resolved.totalPointsTeamA,
                 totalPointsTeamB: resolved.totalPointsTeamB,
                 matchStatus,
-                games: games.map((game) => ({
+                games: games.map((game: any) => ({
                   id: game.id,
                   slot: game.slot,
                   bracketId: game.bracketId,
@@ -371,8 +359,8 @@ export async function GET(req: Request, ctx: Ctx) {
                   isComplete: game.isComplete,
                   startedAt: game.startedAt,
                   endedAt: game.endedAt,
-                  teamALineup: teamALineup,
-                  teamBLineup: teamBLineup,
+                  teamALineup: game.teamALineup || null,
+                  teamBLineup: game.teamBLineup || null,
                   createdAt: game.createdAt,
                   teamAScoreSubmitted: game.teamAScoreSubmitted,
                   teamBScoreSubmitted: game.teamBScoreSubmitted,

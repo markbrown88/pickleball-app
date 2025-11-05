@@ -17,20 +17,25 @@ type TournamentRow = {
 
 type TournamentsListProps = {
   tournaments: TournamentRow[];
+  loading?: boolean;
   onEdit: (tournamentId: Id) => void;
   onDelete: (tournamentId: Id) => void;
 };
 
-export function TournamentsList({ tournaments, onEdit, onDelete }: TournamentsListProps) {
+export function TournamentsList({ tournaments, loading, onEdit, onDelete }: TournamentsListProps) {
   if (tournaments.length === 0) {
     return (
       <div className="card p-8 text-center">
         <div className="max-w-md mx-auto space-y-3">
           <div className="text-5xl">🏆</div>
-          <h3 className="text-lg font-semibold text-secondary">No Tournaments Yet</h3>
-          <p className="text-muted">
-            Create your first tournament to get started with managing your pickleball events.
-          </p>
+          <h3 className="text-lg font-semibold text-secondary">
+            {loading ? 'Loading tournaments...' : 'No Tournaments Yet'}
+          </h3>
+          {!loading && (
+            <p className="text-muted">
+              Create your first tournament to get started with managing your pickleball events.
+            </p>
+          )}
         </div>
       </div>
     );

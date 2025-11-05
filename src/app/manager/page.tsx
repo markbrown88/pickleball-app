@@ -71,7 +71,9 @@ export default function ManagerPage() {
         // Get event manager tournaments
         const tournamentsRes = await fetchWithActAs(`/api/manager/${profile.id}/tournaments`);
         if (!tournamentsRes.ok) {
-          throw new Error('Failed to load tournaments');
+          const errorData = await tournamentsRes.json().catch(() => ({}));
+          console.error('Tournaments API error:', errorData);
+          throw new Error(errorData.error || `Failed to load tournaments: ${tournamentsRes.status} ${tournamentsRes.statusText}`);
         }
         const data = await tournamentsRes.json();
         const items = data.items || [];

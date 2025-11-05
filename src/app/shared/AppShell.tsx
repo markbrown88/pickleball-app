@@ -2,11 +2,17 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { UserButton } from '@clerk/nextjs';
+import dynamic from 'next/dynamic';
 
 import { Navigation, getNavigationItems, type UserRole } from './Navigation';
 import { ActAsProvider, useActAs } from './ActAsContext';
 import { ActAsDropdown } from './ActAsDropdown';
+
+// Dynamically import UserButton to avoid hydration mismatch
+const DynamicUserButton = dynamic(
+  () => import('@clerk/nextjs').then((mod) => mod.UserButton),
+  { ssr: false }
+);
 
 const ToolbarContext = createContext<(content: ReactNode | null) => void>(() => {});
 
@@ -165,7 +171,7 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
                       availableUsers={availableUsers}
                     />
                   )}
-                  <UserButton afterSignOutUrl="/" />
+                  <DynamicUserButton afterSignOutUrl="/" />
                 </div>
               </div>
             </header>
