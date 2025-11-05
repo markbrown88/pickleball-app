@@ -53,9 +53,7 @@ export async function GET(request: Request, { params }: Params) {
             teamB: { select: { id: true, name: true } },
             games: {
               select: {
-                id: true,
-                teamALineup: true,
-                teamBLineup: true
+                id: true
               }
             }
           }
@@ -69,13 +67,9 @@ export async function GET(request: Request, { params }: Params) {
       if (!match) return null;
 
       const opponentTeam = match.teamAId === team.id ? match.teamB : match.teamA;
-      const myLineupField = match.teamAId === team.id ? 'teamALineup' : 'teamBLineup';
 
-      // Check if all games have lineups for this team
-      const lineupsComplete = match.games.every(game => {
-        const lineup = game[myLineupField];
-        return lineup && Array.isArray(lineup) && lineup.length > 0;
-      });
+      // Note: Lineup completion checking removed as lineups are now in Lineup/LineupEntry tables
+      const lineupsComplete = false; // TODO: Implement lineup checking with new schema
 
       return {
         id: round.id,
