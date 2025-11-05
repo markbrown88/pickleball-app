@@ -147,7 +147,7 @@ export function CustomBracketMatch({
             Complete
           </div>
         )}
-        {match.state === 'PLAYED' && match.state !== 'SCORE_DONE' && (
+        {match.state === 'PLAYED' && (
           <div className="flex items-center justify-center text-xs text-yellow-400 pt-2 border-t border-gray-700">
             <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse mr-1"></span>
             In Progress
