@@ -5,9 +5,10 @@ declare module '@g-loot/react-tournament-brackets' {
     id: string | number;
     name?: string;
     nextMatchId?: string | number | null;
+    nextLooserMatchId?: string | number | null;
     tournamentRoundText?: string;
     startTime?: string;
-    state?: 'DONE' | 'SCORE_DONE' | 'WALK_OVER' | 'NO_SHOW' | 'NO_PARTY' | 'SCHEDULED';
+    state?: 'DONE' | 'SCORE_DONE' | 'WALK_OVER' | 'NO_SHOW' | 'NO_PARTY' | 'SCHEDULED' | 'PLAYED';
     participants: Participant[];
   }
 
@@ -19,9 +20,15 @@ declare module '@g-loot/react-tournament-brackets' {
     name?: string;
   }
 
+  export interface DoubleEliminationMatches {
+    upper: Match[];
+    lower: Match[];
+  }
+
   export interface DoubleEliminationBracketProps {
-    matches: Match[];
+    matches: DoubleEliminationMatches;
     matchComponent?: FC<any>;
+    onMatchClick?: (match: Match) => void;
     svgWrapper?: FC<{ width: number; height: number; children: React.ReactNode }>;
     theme?: any;
     options?: {
@@ -43,5 +50,6 @@ declare module '@g-loot/react-tournament-brackets' {
     NO_SHOW: 'NO_SHOW';
     NO_PARTY: 'NO_PARTY';
     SCHEDULED: 'SCHEDULED';
+    PLAYED: 'PLAYED';
   };
 }
