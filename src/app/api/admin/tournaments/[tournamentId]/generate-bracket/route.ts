@@ -554,6 +554,37 @@ export async function POST(
               }
             }
           }
+
+          // Special handling: If this is the LAST loser round (loser bracket final),
+          // it needs the loser from the winner bracket final as sourceMatchBId
+          const isLastLoserRound = loserRoundIdx === loserRounds.length - 1;
+          if (isLastLoserRound && loserRound.matches.length === 1) {
+            const loserFinalMatch = loserRound.matches[0];
+            const loserFinalMatchId = matchIdMap.get(loserRound.idx * 1000 + loserFinalMatch.bracketPosition);
+
+            // Get the winner bracket final
+            const winnerFinalRound = winnerRounds[winnerRounds.length - 1];
+            const winnerFinalMatch = winnerFinalRound.matches[0];
+            const winnerFinalMatchId = matchIdMap.get(winnerFinalRound.idx * 1000 + winnerFinalMatch.bracketPosition);
+
+            if (loserFinalMatchId && winnerFinalMatchId) {
+              // Update to set the winner bracket final as sourceMatchBId
+              const currentMatch = await prisma.match.findUnique({
+                where: { id: loserFinalMatchId },
+                select: { sourceMatchAId: true, sourceMatchBId: true },
+              });
+
+              if (currentMatch && !currentMatch.sourceMatchBId) {
+                await prisma.match.update({
+                  where: { id: loserFinalMatchId },
+                  data: {
+                    sourceMatchBId: winnerFinalMatchId, // Loser from winner bracket final
+                  },
+                });
+                console.log(`[Bracket Link] LB Final (Advance Round): Added Loser of WB Final as sourceMatchBId`);
+              }
+            }
+          }
         }
       }
     }
