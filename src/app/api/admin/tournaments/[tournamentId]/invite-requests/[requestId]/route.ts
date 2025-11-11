@@ -200,7 +200,31 @@ export async function PATCH(
         },
       });
 
-      // TODO: Send rejection email to player
+      // Send rejection email to player
+      if (inviteRequest.player.email) {
+        const playerName =
+          inviteRequest.player.name ||
+          (inviteRequest.player.firstName && inviteRequest.player.lastName
+            ? `${inviteRequest.player.firstName} ${inviteRequest.player.lastName}`
+            : inviteRequest.player.firstName || 'Player');
+
+        try {
+          const { sendRejectionEmail } = await import('@/server/email');
+          await sendRejectionEmail({
+            to: inviteRequest.player.email,
+            playerName,
+            tournamentName: inviteRequest.tournament.name,
+            tournamentId: tournamentId,
+            reason: 'Your invite request was declined by the tournament administrator.',
+            wasRefunded: false,
+            refundAmount: null,
+          });
+
+          console.log('Rejection email sent to player');
+        } catch (emailError) {
+          console.error('Failed to send rejection email:', emailError);
+        }
+      }
 
       return NextResponse.json({
         success: true,

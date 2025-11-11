@@ -8,18 +8,48 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail(options: SendEmailOptions) {
-  if (!process.env.RESEND_API_KEY) {
-    console.log('[DEV: email]', { to: options.to, subject: options.subject });
+  const hasResendKey = !!process.env.RESEND_API_KEY;
+  
+  // Determine from address - use env var, then option, then default to verified domain
+  const fromAddress = options.from || process.env.RESEND_FROM_ADDRESS || 'Klyng Cup Tournaments <no-reply@klyngcup.com>';
+  
+  if (!hasResendKey) {
+    console.log('[DEV: email] Email would be sent:', {
+      to: options.to,
+      subject: options.subject,
+      from: fromAddress,
+      note: 'RESEND_API_KEY not configured - email not actually sent. Set RESEND_API_KEY in .env.local to enable email sending.'
+    });
     return;
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  await resend.emails.send({
-    from: options.from || 'Tournaments <no-reply@your-domain>',
-    to: options.to,
-    subject: options.subject,
-    html: options.html
-  });
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const result = await resend.emails.send({
+      from: fromAddress,
+      to: options.to,
+      subject: options.subject,
+      html: options.html
+    });
+
+    console.log('[Email sent successfully]', {
+      to: options.to,
+      subject: options.subject,
+      from: fromAddress,
+      resendId: result.data?.id,
+    });
+
+    return result;
+  } catch (error) {
+    console.error('[Email send failed]', {
+      to: options.to,
+      subject: options.subject,
+      from: fromAddress,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      errorDetails: error,
+    });
+    throw error;
+  }
 }
 
 export async function sendCaptainInviteEmail(to: string, link: string) {
@@ -165,6 +195,21 @@ interface RegistrationConfirmationEmailParams {
   isPaid: boolean;
   amountPaid?: number | null; // in cents
   registrationDate: Date;
+  stops?: Array<{
+    id: string;
+    name: string;
+    startAt: Date | null;
+    endAt: Date | null;
+    bracketName?: string | null;
+    club?: {
+      name: string;
+      address1?: string | null;
+      city?: string | null;
+      region?: string | null;
+      postalCode?: string | null;
+    } | null;
+  }>;
+  clubName?: string | null;
 }
 
 export async function sendRegistrationConfirmationEmail(params: RegistrationConfirmationEmailParams) {
@@ -178,27 +223,133 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
     location,
     isPaid,
     amountPaid,
-    registrationDate
+    registrationDate,
+    stops,
+    clubName,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
-  const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
-
-  const formatDate = (date: Date | null | undefined) => {
-    if (!date) return 'TBD';
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  // Format date for email: Fri., Nov. 21 - Sat., Nov. 22, 2025
+  const formatEmailDate = (date: Date | null | undefined) => {
+    if (!date) return '';
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dayName = dayNames[date.getUTCDay()];
+    const month = monthNames[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    return `${dayName}., ${month}. ${day}, ${year}`;
   };
 
-  const dateRange = startDate && endDate
-    ? `${formatDate(startDate)} - ${formatDate(endDate)}`
-    : startDate
-      ? formatDate(startDate)
-      : 'Dates TBD';
+  const formatEmailDateRange = (start: Date | null | undefined, end: Date | null | undefined) => {
+    if (!start && !end) return '';
+    if (!start) return formatEmailDate(end);
+    if (!end) return formatEmailDate(start);
+    
+    const startFormatted = formatEmailDate(start);
+    const endFormatted = formatEmailDate(end);
+    
+    // If same day, return single date
+    if (start.toDateString() === end.toDateString()) {
+      return startFormatted;
+    }
+    
+    // Extract parts for formatting
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const startDayName = dayNames[start.getUTCDay()];
+    const startMonth = monthNames[start.getUTCMonth()];
+    const startDay = start.getUTCDate();
+    
+    const endDayName = dayNames[end.getUTCDay()];
+    const endMonth = monthNames[end.getUTCMonth()];
+    const endDay = end.getUTCDate();
+    const endYear = end.getUTCFullYear();
+    
+    // If same month, format: Fri., Nov. 21 - Sat., Nov. 22, 2025
+    if (start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()) {
+      return `${startDayName}., ${startMonth}. ${startDay} - ${endDayName}., ${endMonth}. ${endDay}, ${endYear}`;
+    }
+    
+    // Different months: Fri., Nov. 21 - Sat., Dec. 12, 2025
+    return `${startDayName}., ${startMonth}. ${startDay} - ${endDayName}., ${endMonth}. ${endDay}, ${endYear}`;
+  };
+
+  // Build Google Maps URL from address components
+  const buildGoogleMapsUrl = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+    if (!club) return '';
+    const parts = [
+      club.address1,
+      club.city,
+      club.region,
+      club.postalCode,
+      'Canada'
+    ].filter(Boolean);
+    if (parts.length === 0) return '';
+    const query = encodeURIComponent(parts.join(', '));
+    return `https://www.google.com/maps/search/?api=1&query=${query}`;
+  };
+
+  // Format full address
+  const formatFullAddress = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+    if (!club) return '';
+    const parts = [
+      club.address1,
+      club.city,
+      club.region,
+      club.postalCode
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3010';
+  const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
+  const dashboardLink = `${baseUrl}/dashboard`;
+
+  // Build stops list HTML if stops are provided
+  const stopsListHtml = stops && stops.length > 0
+    ? `
+      <div style="margin: 20px 0;">
+        <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">Your Tournament Selections:</h3>
+        ${clubName ? `
+          <div style="margin: 0 0 20px 0; font-size: 14px; color: #374151;">
+            <strong>Representing:</strong> ${clubName}
+          </div>
+        ` : ''}
+        ${stops.map((stop) => {
+          const fullAddress = stop.club ? formatFullAddress(stop.club) : '';
+          const mapsUrl = stop.club ? buildGoogleMapsUrl(stop.club) : '';
+          const locationDisplay = stop.club 
+            ? `${stop.club.name}${stop.club.city && stop.club.region ? `, ${stop.club.city}, ${stop.club.region}` : stop.club.city ? `, ${stop.club.city}` : ''}`
+            : '';
+          
+          return `
+            <div style="margin: 0 0 25px 0;">
+              <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 8px;">${stop.name}</div>
+              ${locationDisplay ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>📍 Location:</strong> ${mapsUrl ? `<a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>` : locationDisplay}
+                </div>
+              ` : ''}
+              ${fullAddress && mapsUrl ? `
+                <div style="margin: 4px 0; font-size: 13px; color: #6b7280;">
+                  <a href="${mapsUrl}" style="color: #6b7280; text-decoration: underline;">${fullAddress}</a>
+                </div>
+              ` : ''}
+              <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                <strong>📅 Dates:</strong> ${formatEmailDateRange(stop.startAt, stop.endAt)}
+              </div>
+              ${stop.bracketName ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>Bracket:</strong> ${stop.bracketName}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `
+    : '';
 
   const html = `
     <!DOCTYPE html>
@@ -235,19 +386,11 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
                     </p>
 
                     <div style="background-color: #ecfdf5; border-left: 4px solid: #10b981; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
-                      <h2 style="margin: 0 0 15px 0; font-size: 22px; color: #111827;">${tournamentName}</h2>
+                      <h2 style="margin: 0 0 20px 0; font-size: 22px; color: #111827;">${tournamentName}</h2>
 
-                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                        <strong>📅 Dates:</strong> ${dateRange}
-                      </div>
+                      ${stopsListHtml}
 
-                      ${location ? `
-                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>📍 Location:</strong> ${location}
-                        </div>
-                      ` : ''}
-
-                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                      <div style="margin: 20px 0 0 0; font-size: 14px; color: #374151;">
                         <strong>✓ Registered:</strong> ${registrationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                       </div>
 
@@ -261,19 +404,18 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
                     <div style="background-color: #f9fafb; border-radius: 4px; padding: 20px; margin: 0 0 30px 0;">
                       <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">What's Next?</h3>
                       <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #374151;">
-                        <li>Check your dashboard for tournament updates</li>
-                        <li>The tournament schedule will be posted closer to the event date</li>
+                        <li>Check your <a href="${dashboardLink}" style="color: #2563eb; text-decoration: none;">dashboard</a> for tournament updates</li>
                         <li>Bring your paddle and a positive attitude!</li>
-                        <li>You can view tournament details or cancel your registration from your dashboard</li>
+                        <li>You can view tournament scores or cancel your registration from your <a href="${dashboardLink}" style="color: #2563eb; text-decoration: none;">dashboard</a></li>
                       </ul>
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Details</a>
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Scores</a>
                     </div>
 
                     <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
-                      Need to make changes? You can cancel your registration from your dashboard anytime before the tournament starts.
+                      Need to make changes? You can cancel your registration from your <a href="${dashboardLink}" style="color: #2563eb; text-decoration: none;">dashboard</a> anytime before the tournament starts.
                     </p>
                   </td>
                 </tr>
@@ -301,7 +443,8 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
   await sendEmail({
     to,
     subject: `Registration Confirmed: ${tournamentName}`,
-    html
+    html,
+    from: 'Klyng Cup Tournaments <no-reply@klyngcup.com>'
   });
 }
 
@@ -964,6 +1107,740 @@ export async function sendRejectionEmail(params: RejectionEmailParams) {
   await sendEmail({
     to,
     subject: `Registration Not Approved: ${tournamentName}`,
+    html
+  });
+}
+
+/**
+ * Send payment receipt email
+ */
+interface PaymentReceiptEmailParams {
+  to: string;
+  playerName: string;
+  tournamentName: string;
+  tournamentId: string;
+  amountPaid: number; // in cents
+  paymentDate: Date;
+  transactionId?: string;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  location?: string | null;
+}
+
+export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams) {
+  const {
+    to,
+    playerName,
+    tournamentName,
+    tournamentId,
+    amountPaid,
+    paymentDate,
+    transactionId,
+    startDate,
+    endDate,
+    location,
+  } = params;
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
+
+  const formatDate = (date: Date | null | undefined) => {
+    if (!date) return 'TBD';
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const dateRange = startDate && endDate
+    ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+    : startDate
+      ? formatDate(startDate)
+      : 'Dates TBD';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Receipt</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">💳</div>
+                    <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Payment Confirmed!</h1>
+                    <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Your payment has been processed</p>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Hi <strong>${playerName}</strong>,
+                    </p>
+
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Your payment for <strong>${tournamentName}</strong> has been successfully processed.
+                    </p>
+
+                    <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
+                      <h2 style="margin: 0 0 15px 0; font-size: 22px; color: #111827;">${tournamentName}</h2>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>💰 Amount Paid:</strong> $${(amountPaid / 100).toFixed(2)}
+                      </div>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>📅 Dates:</strong> ${dateRange}
+                      </div>
+
+                      ${location ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>📍 Location:</strong> ${location}
+                        </div>
+                      ` : ''}
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>✓ Paid:</strong> ${paymentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${paymentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </div>
+
+                      ${transactionId ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>🔢 Transaction ID:</strong> ${transactionId}
+                        </div>
+                      ` : ''}
+                    </div>
+
+                    <div style="background-color: #f9fafb; border-radius: 4px; padding: 20px; margin: 0 0 30px 0;">
+                      <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">What's Next?</h3>
+                      <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #374151;">
+                        <li>Your registration is now confirmed</li>
+                        <li>Check your dashboard for tournament updates</li>
+                        <li>The tournament schedule will be posted closer to the event date</li>
+                        <li>Save this email as your payment receipt</li>
+                      </ul>
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Details</a>
+                    </div>
+
+                    <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                      This is your payment receipt. Please keep this email for your records.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #9ca3af;">
+                      See you on the court! 🏓
+                    </p>
+                    <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                      This receipt was sent to ${to}
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to,
+    subject: `Payment Receipt: ${tournamentName}`,
+    html
+  });
+}
+
+/**
+ * Send payment failed notification email
+ */
+interface PaymentFailedEmailParams {
+  to: string;
+  playerName: string;
+  tournamentName: string;
+  tournamentId: string;
+  amount: number; // in cents
+  failureReason?: string;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  location?: string | null;
+}
+
+export async function sendPaymentFailedEmail(params: PaymentFailedEmailParams) {
+  const {
+    to,
+    playerName,
+    tournamentName,
+    tournamentId,
+    amount,
+    failureReason,
+    startDate,
+    endDate,
+    location,
+  } = params;
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const tournamentLink = `${baseUrl}/register/${tournamentId}`;
+
+  const formatDate = (date: Date | null | undefined) => {
+    if (!date) return 'TBD';
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const dateRange = startDate && endDate
+    ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+    : startDate
+      ? formatDate(startDate)
+      : 'Dates TBD';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Failed</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+                    <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Payment Failed</h1>
+                    <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Action required</p>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Hi <strong>${playerName}</strong>,
+                    </p>
+
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Unfortunately, your payment for <strong>${tournamentName}</strong> could not be processed.
+                    </p>
+
+                    <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
+                      <h2 style="margin: 0 0 15px 0; font-size: 22px; color: #111827;">${tournamentName}</h2>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>💰 Amount:</strong> $${(amount / 100).toFixed(2)}
+                      </div>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>📅 Dates:</strong> ${dateRange}
+                      </div>
+
+                      ${location ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>📍 Location:</strong> ${location}
+                        </div>
+                      ` : ''}
+
+                      ${failureReason ? `
+                        <div style="margin: 15px 0 0 0; padding-top: 15px; border-top: 1px solid #fecaca;">
+                          <strong style="color: #991b1b;">Reason:</strong>
+                          <p style="margin: 5px 0 0 0; color: #991b1b; font-size: 14px;">${failureReason}</p>
+                        </div>
+                      ` : ''}
+                    </div>
+
+                    <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
+                      <h3 style="margin: 0 0 10px 0; font-size: 18px; color: #92400e;">⏰ Important</h3>
+                      <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #92400e;">
+                        Your registration is not confirmed until payment is successful. Please try again to secure your spot in the tournament.
+                      </p>
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Try Payment Again</a>
+                    </div>
+
+                    <div style="background-color: #f9fafb; border-radius: 4px; padding: 20px; margin: 0 0 20px 0;">
+                      <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">Common Payment Issues</h3>
+                      <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #374151;">
+                        <li>Insufficient funds in your account</li>
+                        <li>Card expired or incorrect card details</li>
+                        <li>Bank declined the transaction</li>
+                        <li>Network issues during payment processing</li>
+                      </ul>
+                    </div>
+
+                    <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                      If you continue to experience issues, please contact your bank or card issuer, or reach out to the tournament organizers for assistance.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                      This notification was sent to ${to}
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to,
+    subject: `Payment Failed: ${tournamentName}`,
+    html
+  });
+}
+
+/**
+ * Send refund confirmation email
+ */
+interface RefundConfirmationEmailParams {
+  to: string;
+  playerName: string;
+  tournamentName: string;
+  tournamentId: string;
+  refundAmount: number; // in cents
+  refundDate: Date;
+  transactionId?: string;
+  reason?: string;
+}
+
+export async function sendRefundConfirmationEmail(params: RefundConfirmationEmailParams) {
+  const {
+    to,
+    playerName,
+    tournamentName,
+    tournamentId,
+    refundAmount,
+    refundDate,
+    transactionId,
+    reason,
+  } = params;
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Refund Processed</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">💰</div>
+                    <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Refund Processed</h1>
+                    <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Your refund has been issued</p>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Hi <strong>${playerName}</strong>,
+                    </p>
+
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Your refund for <strong>${tournamentName}</strong> has been successfully processed.
+                    </p>
+
+                    <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
+                      <h2 style="margin: 0 0 15px 0; font-size: 22px; color: #111827;">Refund Details</h2>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>💰 Refund Amount:</strong> $${(refundAmount / 100).toFixed(2)}
+                      </div>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>📅 Processed:</strong> ${refundDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${refundDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </div>
+
+                      ${transactionId ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>🔢 Transaction ID:</strong> ${transactionId}
+                        </div>
+                      ` : ''}
+
+                      ${reason ? `
+                        <div style="margin: 15px 0 0 0; padding-top: 15px; border-top: 1px solid #a7f3d0;">
+                          <strong>Reason:</strong>
+                          <p style="margin: 5px 0 0 0; color: #374151; font-size: 14px;">${reason}</p>
+                        </div>
+                      ` : ''}
+                    </div>
+
+                    <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
+                      <h3 style="margin: 0 0 10px 0; font-size: 18px; color: #065f46;">⏰ Processing Time</h3>
+                      <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #065f46;">
+                        The refund has been issued to your original payment method. Please allow <strong>5-7 business days</strong> for the refund to appear in your account.
+                      </p>
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-right: 10px;">View Tournament</a>
+                      <a href="${baseUrl}/dashboard" style="display: inline-block; background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Tournaments</a>
+                    </div>
+
+                    <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                      If you have any questions about this refund, please contact the tournament organizers.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                      This confirmation was sent to ${to}
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to,
+    subject: `Refund Processed: ${tournamentName}`,
+    html
+  });
+}
+
+/**
+ * Send payment reminder email
+ */
+interface PaymentReminderEmailParams {
+  to: string;
+  playerName: string;
+  tournamentName: string;
+  tournamentId: string;
+  registrationId: string;
+  amount: number; // in cents
+  hoursRemaining: number; // hours until cancellation
+  startDate?: Date | null;
+  endDate?: Date | null;
+  location?: string | null;
+}
+
+export async function sendPaymentReminderEmail(params: PaymentReminderEmailParams) {
+  const {
+    to,
+    playerName,
+    tournamentName,
+    tournamentId,
+    registrationId,
+    amount,
+    hoursRemaining,
+    startDate,
+    endDate,
+    location,
+  } = params;
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const paymentLink = `${baseUrl}/register/${tournamentId}/payment/status/${registrationId}`;
+  const amountFormatted = `$${(amount / 100).toFixed(2)}`;
+
+  const formatDate = (date: Date | null | undefined) => {
+    if (!date) return 'TBD';
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const dateRange = startDate && endDate
+    ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+    : startDate
+      ? formatDate(startDate)
+      : 'Dates TBD';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Complete Your Payment</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">⏰</div>
+                    <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Complete Your Payment</h1>
+                    <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Your registration is waiting</p>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Hi <strong>${playerName}</strong>,
+                    </p>
+
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      You've registered for <strong>${tournamentName}</strong>, but your payment is still pending.
+                    </p>
+
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                      <p style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #92400e;">
+                        ⚠️ Important: Complete payment within ${hoursRemaining} hours
+                      </p>
+                      <p style="margin: 0; font-size: 14px; color: #78350f;">
+                        Your registration slot will be released if payment is not completed within ${hoursRemaining} hours.
+                      </p>
+                    </div>
+
+                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                      <div style="margin-bottom: 10px;">
+                        <span style="color: #6b7280; font-size: 14px;">Tournament:</span>
+                        <span style="font-weight: 600; color: #111827; margin-left: 10px;">${tournamentName}</span>
+                      </div>
+                      <div style="margin-bottom: 10px;">
+                        <span style="color: #6b7280; font-size: 14px;">Amount Due:</span>
+                        <span style="font-size: 20px; font-weight: 700; color: #111827; margin-left: 10px;">${amountFormatted}</span>
+                      </div>
+                      ${dateRange !== 'Dates TBD' ? `<div style="margin-bottom: 10px;"><span style="color: #6b7280; font-size: 14px;">Dates:</span> <span style="color: #111827;">${dateRange}</span></div>` : ''}
+                      ${location ? `<div><span style="color: #6b7280; font-size: 14px;">Location:</span> <span style="color: #111827;">${location}</span></div>` : ''}
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${paymentLink}" style="display: inline-block; background-color: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Complete Payment Now</a>
+                    </div>
+
+                    <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                      If you're having trouble completing payment, please contact our support team for assistance.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                      This is an automated reminder. Please do not reply.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to,
+    subject: `Complete Your Payment: ${tournamentName}`,
+    html
+  });
+}
+
+/**
+ * Send waitlist confirmation email
+ */
+interface WaitlistConfirmationEmailParams {
+  to: string;
+  playerName: string;
+  tournamentName: string;
+  tournamentId: string;
+  position: number;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  location?: string | null;
+}
+
+export async function sendWaitlistConfirmationEmail(params: WaitlistConfirmationEmailParams) {
+  const {
+    to,
+    playerName,
+    tournamentName,
+    tournamentId,
+    position,
+    startDate,
+    endDate,
+    location,
+  } = params;
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
+
+  const formatDate = (date: Date | null | undefined) => {
+    if (!date) return 'TBD';
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const dateRange = startDate && endDate
+    ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+    : startDate
+      ? formatDate(startDate)
+      : 'Dates TBD';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Waitlist Confirmation</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">📋</div>
+                    <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">You're on the Waitlist!</h1>
+                    <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Position #${position}</p>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      Hi <strong>${playerName}</strong>,
+                    </p>
+
+                    <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #374151;">
+                      You've been added to the waitlist for <strong>${tournamentName}</strong>.
+                    </p>
+
+                    <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
+                      <h2 style="margin: 0 0 15px 0; font-size: 22px; color: #111827;">${tournamentName}</h2>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>📋 Waitlist Position:</strong> #${position}
+                      </div>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>📅 Dates:</strong> ${dateRange}
+                      </div>
+
+                      ${location ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>📍 Location:</strong> ${location}
+                        </div>
+                      ` : ''}
+                    </div>
+
+                    <div style="background-color: #f9fafb; border-radius: 4px; padding: 20px; margin: 0 0 30px 0;">
+                      <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">What Happens Next?</h3>
+                      <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #374151;">
+                        <li>You'll receive an email notification if a spot becomes available</li>
+                        <li>You'll have 24 hours to claim your spot when notified</li>
+                        <li>We'll notify you in the order of your waitlist position</li>
+                        <li>You can check your position anytime from your dashboard</li>
+                      </ul>
+                    </div>
+
+                    <div style="background-color: #fef3c7; border-radius: 4px; padding: 15px; margin: 0 0 30px 0;">
+                      <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #92400e; text-align: center;">
+                        ⚠️ <strong>Important:</strong> Make sure to check your email regularly. If you don't respond within 24 hours of being notified, the spot will be offered to the next person on the waitlist.
+                      </p>
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Details</a>
+                    </div>
+
+                    <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                      We'll keep you updated on your waitlist status. Thank you for your interest in this tournament!
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #9ca3af;">
+                      See you on the court! 🏓
+                    </p>
+                    <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                      This confirmation was sent to ${to}
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to,
+    subject: `Waitlist Confirmation: ${tournamentName} (Position #${position})`,
     html
   });
 }

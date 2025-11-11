@@ -76,13 +76,21 @@ export interface TournamentsResponse {
 
 // Registration Types
 export interface PlayerRegistration {
+  id?: string; // Registration ID (for new registration system)
   tournamentId: string;
   tournamentName: string;
   tournamentType: string;
+  registrationType?: 'FREE' | 'PAID';
   teamId: string;
   teamName: string;
   bracket: string;
   status: 'REGISTERED' | 'WITHDRAWN' | 'REJECTED' | 'PENDING_INVITE' | 'WAITLISTED' | null;
+  paymentStatus?: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'COMPLETED';
+  amountPaid?: number | null; // in cents
+  paymentId?: string | null;
+  refundId?: string | null;
+  registeredAt: string;
+  withdrawnAt?: string | null;
 }
 
 export interface RegistrationResponse {

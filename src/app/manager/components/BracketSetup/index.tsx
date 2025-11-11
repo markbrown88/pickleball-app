@@ -10,7 +10,7 @@
  * 4. Generate the bracket structure
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { SortableTeamSlot } from './SortableTeamSlot';
@@ -56,8 +56,13 @@ export function BracketSetup({
 
   const savedConfig = getSavedConfig();
 
+  // For club-based tournaments, auto-populate all available clubs with seeds
+  const initialSelectedClubs = isClubBased && availableClubs.length > 0
+    ? availableClubs.map((club, idx) => ({ ...club, seed: idx + 1 }))
+    : (savedConfig?.selectedClubs || []);
+
   const [selectedTeams, setSelectedTeams] = useState<BracketTeam[]>(savedConfig?.selectedTeams || []);
-  const [selectedClubs, setSelectedClubs] = useState<Array<{ id: string; name: string; seed: number }>>(savedConfig?.selectedClubs || []);
+  const [selectedClubs, setSelectedClubs] = useState<Array<{ id: string; name: string; seed: number }>>(initialSelectedClubs);
   const [gamesPerMatch, setGamesPerMatch] = useState(savedConfig?.gamesPerMatch || 3);
   const [selectedGameSlots, setSelectedGameSlots] = useState<string[]>(savedConfig?.selectedGameSlots || [
     'MENS_DOUBLES',
@@ -66,6 +71,33 @@ export function BracketSetup({
     'MIXED_2',
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Update selectedClubs when availableClubs changes (for club-based tournaments)
+  // This ensures all participating clubs are automatically included
+  useEffect(() => {
+    if (isClubBased && availableClubs.length > 0) {
+      // Only update if clubs haven't been manually modified (i.e., if they match the available clubs)
+      const currentClubIds = new Set(selectedClubs.map(c => c.id));
+      const availableClubIds = new Set(availableClubs.map(c => c.id));
+      const areEqual = currentClubIds.size === availableClubIds.size && 
+        [...currentClubIds].every(id => availableClubIds.has(id));
+      
+      if (!areEqual) {
+        // Auto-populate with all available clubs, preserving existing seeds if possible
+        const newSelectedClubs = availableClubs.map((club, idx) => {
+          const existing = selectedClubs.find(c => c.id === club.id);
+          return {
+            ...club,
+            seed: existing?.seed ?? idx + 1,
+          };
+        });
+        // Sort by seed to maintain order
+        newSelectedClubs.sort((a, b) => a.seed - b.seed);
+        // Re-number seeds to be sequential
+        setSelectedClubs(newSelectedClubs.map((club, idx) => ({ ...club, seed: idx + 1 })));
+      }
+    }
+  }, [isClubBased, availableClubs]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -252,94 +284,77 @@ export function BracketSetup({
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column: Team/Club Selection */}
-        <div className="space-y-4">
-          {!isClubBased && (
-            <>
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-white mb-3">Add Teams</h3>
-                <TeamSelector
-                  availableTeams={availableTeamsForSelection}
-                  onSelectTeam={handleAddTeam}
+      <div className={isClubBased ? '' : 'grid grid-cols-1 lg:grid-cols-2 gap-6'}>
+        {!isClubBased && (
+          <div className="space-y-4">
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-white mb-3">Add Teams</h3>
+              <TeamSelector
+                availableTeams={availableTeamsForSelection}
+                onSelectTeam={handleAddTeam}
+                disabled={isGenerating}
+              />
+            </div>
+
+            {/* Tournament Settings */}
+            <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+              <h3 className="text-lg font-semibold text-white mb-3">Tournament Settings</h3>
+
+              {/* Games Per Match */}
+              <div>
+                <label htmlFor="gamesPerMatch" className="block text-sm font-medium text-gray-300 mb-2">
+                  Games Per Match
+                </label>
+                <input
+                  id="gamesPerMatch"
+                  type="number"
+                  min="1"
+                  max={selectedGameSlots.length}
+                  value={gamesPerMatch}
+                  onChange={(e) => setGamesPerMatch(parseInt(e.target.value, 10))}
                   disabled={isGenerating}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              {/* Tournament Settings */}
-              <div className="bg-gray-800 rounded-lg p-4 space-y-4">
-                <h3 className="text-lg font-semibold text-white mb-3">Tournament Settings</h3>
-
-                {/* Games Per Match */}
-                <div>
-                  <label htmlFor="gamesPerMatch" className="block text-sm font-medium text-gray-300 mb-2">
-                    Games Per Match
-                  </label>
-                  <input
-                    id="gamesPerMatch"
-                    type="number"
-                    min="1"
-                    max={selectedGameSlots.length}
-                    value={gamesPerMatch}
-                    onChange={(e) => setGamesPerMatch(parseInt(e.target.value, 10))}
-                    disabled={isGenerating}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Game Slots */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Game Slots
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      { value: 'MENS_DOUBLES', label: "Men's Doubles" },
-                      { value: 'WOMENS_DOUBLES', label: "Women's Doubles" },
-                      { value: 'MIXED_1', label: 'Mixed 1' },
-                      { value: 'MIXED_2', label: 'Mixed 2' },
-                    ].map(slot => (
-                      <label key={slot.value} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedGameSlots.includes(slot.value)}
-                          onChange={() => handleToggleGameSlot(slot.value)}
-                          disabled={isGenerating}
-                          className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-300">{slot.label}</span>
-                      </label>
-                    ))}
-                  </div>
+              {/* Game Slots */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Game Slots
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { value: 'MENS_DOUBLES', label: "Men's Doubles" },
+                    { value: 'WOMENS_DOUBLES', label: "Women's Doubles" },
+                    { value: 'MIXED_1', label: 'Mixed 1' },
+                    { value: 'MIXED_2', label: 'Mixed 2' },
+                  ].map(slot => (
+                    <label key={slot.value} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedGameSlots.includes(slot.value)}
+                        onChange={() => handleToggleGameSlot(slot.value)}
+                        disabled={isGenerating}
+                        className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-300">{slot.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
-            </>
-          )}
-
-          {isClubBased && (
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-white mb-3">Add Clubs</h3>
-              <TeamSelector
-                availableTeams={availableClubsForSelection}
-                onSelectTeam={handleAddClub}
-                disabled={isGenerating}
-              />
-              <p className="text-xs text-gray-400 mt-2">
-                Note: Teams for each club and bracket have already been created during tournament setup.
-              </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Right Column: Seeding Order */}
+        {/* Seeding Order */}
         <div className="bg-gray-800 rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold text-white">
               Seeding Order ({isClubBased ? selectedClubs.length : selectedTeams.length} {isClubBased ? 'clubs' : 'teams'})
             </h3>
-            {(isClubBased ? selectedClubs.length > 0 : selectedTeams.length > 0) && (
+            {(isClubBased ? false : selectedTeams.length > 0) && (
               <button
-                onClick={() => isClubBased ? setSelectedClubs([]) : setSelectedTeams([])}
+                onClick={() => setSelectedTeams([])}
                 disabled={isGenerating}
                 className="text-sm text-red-400 hover:text-red-300 disabled:opacity-50"
               >
@@ -350,8 +365,14 @@ export function BracketSetup({
 
           {(isClubBased ? selectedClubs.length === 0 : selectedTeams.length === 0) ? (
             <div className="text-center py-12 text-gray-500">
-              <p>No {isClubBased ? 'clubs' : 'teams'} added yet</p>
-              <p className="text-sm mt-1">Add {isClubBased ? 'clubs' : 'teams'} from the left panel</p>
+              {isClubBased ? (
+                <p>Loading participating clubs...</p>
+              ) : (
+                <>
+                  <p>No teams added yet</p>
+                  <p className="text-sm mt-1">Add teams from the left panel</p>
+                </>
+              )}
             </div>
           ) : (
             <DndContext
@@ -369,7 +390,7 @@ export function BracketSetup({
                         <SortableTeamSlot
                           key={club.id}
                           team={{ ...club, seed: club.seed }}
-                          onRemove={handleRemoveClub}
+                          onRemove={undefined} // Disable removal for club-based tournaments
                           disabled={isGenerating}
                         />
                       ))

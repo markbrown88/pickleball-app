@@ -72,19 +72,24 @@ export function CustomBracketMatch({
   return (
     <div
       onClick={handleClick}
-      className="bg-gray-800 rounded-lg border-2 border-gray-700 hover:border-blue-500 transition-colors cursor-pointer min-w-[200px]"
-      style={{ borderColor: topHovered || bottomHovered ? connectorColor : undefined }}
+      className="bg-gray-800 rounded-lg border-2 border-gray-700 hover:border-blue-500 transition-colors cursor-pointer"
+      style={{ 
+        borderColor: topHovered || bottomHovered ? connectorColor : undefined,
+        minWidth: '280px',
+        width: 'auto',
+        maxWidth: 'none',
+      }}
     >
       {/* Round Label */}
-      <div className="px-3 py-1 text-xs font-semibold text-gray-400 bg-gray-900 rounded-t-md border-b border-gray-700">
+      <div className="px-3 py-0.5 text-xs font-semibold text-gray-400 bg-gray-900 rounded-t-md border-b border-gray-700">
         {match.tournamentRoundText || 'Match'}
       </div>
 
       {/* Match Content */}
-      <div className="p-3 space-y-2">
+      <div className="p-2 space-y-1">
         {/* Top Team */}
         <div
-          className={`flex items-center justify-between p-2 rounded transition-colors ${
+          className={`flex items-center justify-between p-1.5 rounded transition-colors ${
             topWon
               ? 'bg-green-900/30 border border-green-500'
               : topHovered
@@ -92,9 +97,9 @@ export function CustomBracketMatch({
               : 'bg-gray-700/50'
           }`}
         >
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 break-words pr-2">
             <div
-              className={`text-sm truncate ${topWon ? 'text-white font-semibold' : 'text-gray-300'}`}
+              className={`text-sm whitespace-normal leading-tight ${topWon ? 'text-white font-semibold' : 'text-gray-300'}`}
               title={topParty.name || topText}
             >
               {topParty.name || topText}
@@ -102,7 +107,7 @@ export function CustomBracketMatch({
           </div>
           {topParty.resultText !== null && (
             <span
-              className={`text-sm font-bold ml-2 flex-shrink-0 ${
+              className={`text-xs font-bold flex-shrink-0 ${
                 topWon ? 'text-green-400' : 'text-gray-400'
               }`}
             >
@@ -113,7 +118,7 @@ export function CustomBracketMatch({
 
         {/* Bottom Team */}
         <div
-          className={`flex items-center justify-between p-2 rounded transition-colors ${
+          className={`flex items-center justify-between p-1.5 rounded transition-colors ${
             bottomWon
               ? 'bg-green-900/30 border border-green-500'
               : bottomHovered
@@ -121,9 +126,9 @@ export function CustomBracketMatch({
               : 'bg-gray-700/50'
           }`}
         >
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 break-words pr-2">
             <div
-              className={`text-sm truncate ${bottomWon ? 'text-white font-semibold' : 'text-gray-300'}`}
+              className={`text-sm whitespace-normal leading-tight ${bottomWon ? 'text-white font-semibold' : 'text-gray-300'}`}
               title={bottomParty.name || bottomText}
             >
               {bottomParty.name || bottomText}
@@ -131,7 +136,7 @@ export function CustomBracketMatch({
           </div>
           {bottomParty.resultText !== null && (
             <span
-              className={`text-sm font-bold ml-2 flex-shrink-0 ${
+              className={`text-xs font-bold flex-shrink-0 ${
                 bottomWon ? 'text-green-400' : 'text-gray-400'
               }`}
             >
@@ -142,14 +147,14 @@ export function CustomBracketMatch({
 
         {/* Status Indicator */}
         {match.state === 'SCORE_DONE' && (
-          <div className="flex items-center justify-center text-xs text-green-400 pt-2 border-t border-gray-700">
-            <span className="w-2 h-2 rounded-full bg-green-400 mr-1"></span>
+          <div className="flex items-center justify-center text-xs text-green-400 pt-1 pb-0 border-t border-gray-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 mr-1"></span>
             Complete
           </div>
         )}
         {match.state === 'PLAYED' && (
-          <div className="flex items-center justify-center text-xs text-yellow-400 pt-2 border-t border-gray-700">
-            <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse mr-1"></span>
+          <div className="flex items-center justify-center text-xs text-yellow-400 pt-1 pb-0 border-t border-gray-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse mr-1"></span>
             In Progress
           </div>
         )}

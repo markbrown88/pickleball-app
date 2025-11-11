@@ -9,6 +9,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateCache } from '@/lib/cache';
+import { cacheKeys } from '@/lib/cache';
 
 export async function POST(
   request: NextRequest,
@@ -41,6 +43,100 @@ export async function POST(
         { error: 'Match not found' },
         { status: 404 }
       );
+    }
+
+    // Handle BYE matches - automatically set winner to teamA
+    if (match.isBye) {
+      if (!match.teamAId) {
+        return NextResponse.json(
+          { error: 'BYE match must have teamA' },
+          { status: 400 }
+        );
+      }
+      
+      const winnerId = match.teamAId;
+      
+      // Update match with winner
+      await prisma.match.update({
+        where: { id: matchId },
+        data: { winnerId },
+      });
+
+      // Find child matches (matches that this match feeds into)
+      // Need to check bracket type to ensure winners only go to winner bracket
+      const childMatchesA = await prisma.match.findMany({
+        where: { sourceMatchAId: matchId },
+        include: {
+          round: {
+            select: {
+              bracketType: true,
+            },
+          },
+        },
+      });
+
+      const childMatchesB = await prisma.match.findMany({
+        where: { sourceMatchBId: matchId },
+        include: {
+          round: {
+            select: {
+              bracketType: true,
+            },
+          },
+        },
+      });
+
+      console.log(`[Complete BYE Match] Found ${childMatchesA.length} child matches via sourceMatchAId, ${childMatchesB.length} via sourceMatchBId`);
+      console.log(`[Complete BYE Match] BYE match bracket type: ${match.round?.bracketType}`);
+
+      // Filter child matches based on the BYE match's bracket type
+      // - Winner bracket BYE → advances to winner/finals bracket
+      // - Loser bracket BYE → advances to loser bracket
+      // - Finals bracket BYE → advances to finals bracket
+      let targetChildMatchesA: typeof childMatchesA = [];
+      let targetChildMatchesB: typeof childMatchesB = [];
+
+      if (match.round?.bracketType === 'LOSER') {
+        // Loser bracket BYE should advance to loser bracket
+        targetChildMatchesA = childMatchesA.filter(m => m.round?.bracketType === 'LOSER');
+        targetChildMatchesB = childMatchesB.filter(m => m.round?.bracketType === 'LOSER');
+      } else {
+        // Winner/Finals bracket BYE should advance to winner/finals bracket
+        targetChildMatchesA = childMatchesA.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
+        targetChildMatchesB = childMatchesB.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
+      }
+
+      console.log(`[Complete BYE Match] Target child matches (${match.round?.bracketType} bracket): ${targetChildMatchesA.length} via A, ${targetChildMatchesB.length} via B`);
+
+      // Advance winner to appropriate bracket child matches
+      for (const childMatch of targetChildMatchesA) {
+        console.log(`[Complete BYE Match] Advancing winner ${winnerId} to ${match.round?.bracketType} bracket child match ${childMatch.id} as Team A`);
+        await prisma.match.update({
+          where: { id: childMatch.id },
+          data: { teamAId: winnerId },
+        });
+      }
+
+      for (const childMatch of targetChildMatchesB) {
+        console.log(`[Complete BYE Match] Advancing winner ${winnerId} to ${match.round?.bracketType} bracket child match ${childMatch.id} as Team B`);
+        await prisma.match.update({
+          where: { id: childMatch.id },
+          data: { teamBId: winnerId },
+        });
+      }
+
+      // Invalidate schedule cache for this stop so bracket updates immediately
+      if (match.round?.stopId) {
+        await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
+        console.log(`[Complete BYE Match] Cache invalidated for stop: ${match.round.stopId}`);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'BYE match completed successfully',
+        winnerId,
+        advancedMatches: targetChildMatchesA.length + targetChildMatchesB.length,
+      });
     }
 
     // Verify all games are complete
@@ -101,45 +197,252 @@ export async function POST(
       data: { winnerId },
     });
 
+    // BRACKET RESET LOGIC: Check if this is Finals 1 in double elimination
+    if (match.round?.bracketType === 'FINALS' && match.round?.depth === 1) {
+      console.log(`[Complete Match] Finals 1 completed. Winner: ${winnerId}`);
+
+      // Determine if winner is from winner bracket or loser bracket
+      // The winner bracket champion is teamA (sourceMatchAId), loser bracket is teamB (sourceMatchBId)
+      const isLoserBracketChampionWinner = winnerId === match.teamBId;
+
+      if (isLoserBracketChampionWinner) {
+        // Loser bracket champion won Finals 1 → Trigger bracket reset (Finals 2)
+        console.log(`[Complete Match] Loser bracket champion won Finals 1. Triggering bracket reset (Finals 2).`);
+
+        // Find Finals 2 match (depth === 0, same stopId)
+        const finals2Match = await prisma.match.findFirst({
+          where: {
+            round: {
+              stopId: match.round.stopId,
+              bracketType: 'FINALS',
+              depth: 0,
+            },
+          },
+          include: {
+            round: true,
+          },
+        });
+
+        if (finals2Match) {
+          // Both teams from Finals 1 play again in Finals 2
+          // Winner bracket champion gets another chance (they've only lost once now)
+          await prisma.match.update({
+            where: { id: finals2Match.id },
+            data: {
+              teamAId: match.teamAId, // Winner bracket champion
+              teamBId: match.teamBId, // Loser bracket champion (who just won Finals 1)
+            },
+          });
+          console.log(`[Complete Match] Finals 2 set up: ${match.teamAId} vs ${match.teamBId}`);
+        } else {
+          console.error(`[Complete Match] Finals 2 match not found for bracket reset!`);
+        }
+      } else {
+        // Winner bracket champion won Finals 1 → Tournament over (no Finals 2)
+        console.log(`[Complete Match] Winner bracket champion won Finals 1. Tournament complete.`);
+      }
+    }
+
     // Find child matches (matches that this match feeds into)
+    // Need to check bracket type to ensure winners only go to winner bracket, losers only to loser bracket
     const childMatchesA = await prisma.match.findMany({
       where: { sourceMatchAId: matchId },
+      include: {
+        round: {
+          select: {
+            bracketType: true,
+          },
+        },
+      },
     });
 
     const childMatchesB = await prisma.match.findMany({
       where: { sourceMatchBId: matchId },
+      include: {
+        round: {
+          select: {
+            bracketType: true,
+          },
+        },
+      },
     });
 
     console.log(`[Complete Match] Found ${childMatchesA.length} child matches via sourceMatchAId, ${childMatchesB.length} via sourceMatchBId`);
+    console.log(`[Complete Match] Match bracket type: ${match.round?.bracketType}, Winner bracket type: WINNER`);
 
-    // Advance winner to child matches
-    for (const childMatch of childMatchesA) {
-      console.log(`[Complete Match] Advancing winner ${winnerId} to child match ${childMatch.id} as Team A`);
+    // Separate child matches by bracket type
+    const winnerBracketChildMatchesA = childMatchesA.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
+    const winnerBracketChildMatchesB = childMatchesB.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
+    const loserBracketChildMatchesA = childMatchesA.filter(m => m.round?.bracketType === 'LOSER');
+    const loserBracketChildMatchesB = childMatchesB.filter(m => m.round?.bracketType === 'LOSER');
+
+    console.log(`[Complete Match] Winner bracket children: ${winnerBracketChildMatchesA.length} via A, ${winnerBracketChildMatchesB.length} via B`);
+    console.log(`[Complete Match] Loser bracket children: ${loserBracketChildMatchesA.length} via A, ${loserBracketChildMatchesB.length} via B`);
+
+    // Advance winner to appropriate bracket matches
+    // - Winner bracket matches → winner advances to winner bracket
+    // - Loser bracket matches → winner advances to loser bracket
+    // - Finals matches → winner advances to winner bracket or finals
+
+    // Advance winner to winner bracket / finals matches
+    for (const childMatch of winnerBracketChildMatchesA) {
+      console.log(`[Complete Match] Advancing winner ${winnerId} to winner/finals bracket child match ${childMatch.id} as Team A`);
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamAId: winnerId },
       });
     }
 
-    for (const childMatch of childMatchesB) {
-      console.log(`[Complete Match] Advancing winner ${winnerId} to child match ${childMatch.id} as Team B`);
+    for (const childMatch of winnerBracketChildMatchesB) {
+      console.log(`[Complete Match] Advancing winner ${winnerId} to winner/finals bracket child match ${childMatch.id} as Team B`);
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamBId: winnerId },
       });
     }
 
+    // Advance winner to loser bracket or finals matches (for loser bracket match completions)
+    // Loser bracket winners can advance to either the next loser bracket round OR to finals
+    if (match.round?.bracketType === 'LOSER') {
+      // Advance to loser bracket children
+      for (const childMatch of loserBracketChildMatchesA) {
+        console.log(`[Complete Match] Advancing loser bracket winner ${winnerId} to next loser bracket match ${childMatch.id} as Team A`);
+        await prisma.match.update({
+          where: { id: childMatch.id },
+          data: { teamAId: winnerId },
+        });
+      }
+
+      for (const childMatch of loserBracketChildMatchesB) {
+        console.log(`[Complete Match] Advancing loser bracket winner ${winnerId} to next loser bracket match ${childMatch.id} as Team B`);
+        await prisma.match.update({
+          where: { id: childMatch.id },
+          data: { teamBId: winnerId },
+        });
+      }
+
+      // Also advance to finals bracket children (for loser bracket final → finals)
+      for (const childMatch of winnerBracketChildMatchesA) {
+        if (childMatch.round?.bracketType === 'FINALS') {
+          console.log(`[Complete Match] Advancing loser bracket champion ${winnerId} to finals match ${childMatch.id} as Team A`);
+          await prisma.match.update({
+            where: { id: childMatch.id },
+            data: { teamAId: winnerId },
+          });
+        }
+      }
+
+      for (const childMatch of winnerBracketChildMatchesB) {
+        if (childMatch.round?.bracketType === 'FINALS') {
+          console.log(`[Complete Match] Advancing loser bracket champion ${winnerId} to finals match ${childMatch.id} as Team B`);
+          await prisma.match.update({
+            where: { id: childMatch.id },
+            data: { teamBId: winnerId },
+          });
+        }
+      }
+    }
+
+    // Advance loser to loser bracket matches (only for winner bracket match completions)
+    if (match.round?.bracketType === 'WINNER' && loserId) {
+      for (const childMatch of loserBracketChildMatchesA) {
+        console.log(`[Complete Match] Advancing loser ${loserId} to loser bracket child match ${childMatch.id} as Team A`);
+        await prisma.match.update({
+          where: { id: childMatch.id },
+          data: { teamAId: loserId },
+        });
+      }
+
+      for (const childMatch of loserBracketChildMatchesB) {
+        console.log(`[Complete Match] Advancing loser ${loserId} to loser bracket child match ${childMatch.id} as Team B`);
+        await prisma.match.update({
+          where: { id: childMatch.id },
+          data: { teamBId: loserId },
+        });
+      }
+    }
+
+    // AUTO-COMPLETE BYE MATCHES: If we just placed a team into a BYE match, auto-complete it
+    const allChildMatches = [...winnerBracketChildMatchesA, ...winnerBracketChildMatchesB, ...loserBracketChildMatchesA, ...loserBracketChildMatchesB];
+    for (const childMatch of allChildMatches) {
+      // Check if this child match is a BYE and now has a team
+      const updatedChild = await prisma.match.findUnique({
+        where: { id: childMatch.id },
+        select: { id: true, isBye: true, teamAId: true, winnerId: true },
+      });
+
+      if (updatedChild?.isBye && updatedChild.teamAId && !updatedChild.winnerId) {
+        console.log(`[Complete Match] Auto-completing BYE match ${updatedChild.id}`);
+        // Auto-complete the BYE match by calling this endpoint recursively
+        try {
+          const byeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/admin/matches/${updatedChild.id}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (byeResponse.ok) {
+            console.log(`[Complete Match] ✓ BYE match ${updatedChild.id} auto-completed`);
+          } else {
+            console.error(`[Complete Match] Failed to auto-complete BYE match: ${await byeResponse.text()}`);
+          }
+        } catch (error) {
+          console.error(`[Complete Match] Error auto-completing BYE match:`, error);
+        }
+      }
+    }
+
+    // CRITICAL: Remove winner from any loser bracket matches they may have been incorrectly placed in
+    // This can happen if matches were completed before this fix was implemented
+    if (match.round?.bracketType === 'WINNER') {
+      for (const childMatch of loserBracketChildMatchesA) {
+        // If winner is incorrectly in this loser bracket match, remove them
+        const currentMatch = await prisma.match.findUnique({
+          where: { id: childMatch.id },
+          select: { teamAId: true, teamBId: true },
+        });
+        
+        if (currentMatch?.teamAId === winnerId) {
+          console.log(`[Complete Match] Removing winner ${winnerId} from loser bracket match ${childMatch.id} (Team A)`);
+          await prisma.match.update({
+            where: { id: childMatch.id },
+            data: { teamAId: null },
+          });
+        }
+      }
+
+      for (const childMatch of loserBracketChildMatchesB) {
+        const currentMatch = await prisma.match.findUnique({
+          where: { id: childMatch.id },
+          select: { teamAId: true, teamBId: true },
+        });
+        
+        if (currentMatch?.teamBId === winnerId) {
+          console.log(`[Complete Match] Removing winner ${winnerId} from loser bracket match ${childMatch.id} (Team B)`);
+          await prisma.match.update({
+            where: { id: childMatch.id },
+            data: { teamBId: null },
+          });
+        }
+      }
+    }
+
+    // Invalidate schedule cache for this stop so bracket updates immediately
+    if (match.round?.stopId) {
+      await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
+      console.log(`[Complete Match] Cache invalidated for stop: ${match.round.stopId}`);
+    }
+
     // For double elimination: Handle loser bracket drop
     // TODO: Implement loser bracket advancement logic
     // This requires knowing which matches in the loser bracket this match feeds into
 
-    return NextResponse.json({
-      success: true,
-      message: 'Match completed successfully',
-      winnerId,
-      loserId,
-      advancedMatches: childMatchesA.length + childMatchesB.length,
-    });
+      return NextResponse.json({
+        success: true,
+        message: 'Match completed successfully',
+        winnerId,
+        loserId,
+        advancedMatches: winnerBracketChildMatchesA.length + winnerBracketChildMatchesB.length,
+        advancedLoserMatches: loserBracketChildMatchesA.length + loserBracketChildMatchesB.length,
+      });
   } catch (error) {
     console.error('Complete match error:', error);
     return NextResponse.json(

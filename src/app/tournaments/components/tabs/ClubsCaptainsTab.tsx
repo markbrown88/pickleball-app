@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { EditorRow, Club, ClubWithCaptain, CaptainPick } from '../TournamentEditor';
 
 type ClubsCaptainsTabProps = {
@@ -12,29 +12,71 @@ type ClubsCaptainsTabProps = {
 
 export function ClubsCaptainsTab({ editor, setEditor, clubsAll, searchPlayers }: ClubsCaptainsTabProps) {
   const searchTimers = useRef<Record<string, number>>({});
+  const [globalClubQuery, setGlobalClubQueryState] = useState('');
+  const [globalClubOptions, setGlobalClubOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [editingClubIdx, setEditingClubIdx] = useState<number | null>(null);
 
-  const addClubRow = () => {
+  // Global club search
+  const runGlobalClubSearch = (query: string) => {
+    if (query.trim().length < 3) {
+      setGlobalClubOptions([]);
+      return;
+    }
+
+    const selectedClubIds = new Set(editor.clubs.map((c) => c.clubId).filter(Boolean) as string[]);
+    const available = clubsAll.filter((c) => !selectedClubIds.has(c.id));
+    const filtered = available
+      .filter((c) => {
+        const label = `${c.name} ${c.city || ''} ${c.region || ''}`.toLowerCase();
+        return label.includes(query.toLowerCase());
+      })
+      .map((c) => ({
+        id: c.id,
+        label: `${c.name}${c.city ? ` (${c.city})` : ''}`,
+      }));
+
+    setGlobalClubOptions(filtered);
+  };
+
+  const setGlobalClubQuery = (query: string) => {
+    setGlobalClubQueryState(query);
+    const key = 'global-club';
+    if (searchTimers.current[key]) clearTimeout(searchTimers.current[key]);
+    searchTimers.current[key] = window.setTimeout(() => runGlobalClubSearch(query), 300);
+  };
+
+  const addClubFromGlobalSearch = (pick: { id: string; label: string }) => {
+    // Check if club already exists
+    if (editor.clubs.some((c) => c.clubId === pick.id)) return;
+
+    const newClub: ClubWithCaptain = {
+      clubId: pick.id,
+      club: pick,
+      clubQuery: '',
+      clubOptions: [],
+      singleCaptain: null,
+      singleQuery: '',
+      singleOptions: [],
+    };
+
     setEditor({
       ...editor,
-      clubs: [
-        ...editor.clubs,
-        {
-          clubId: undefined,
-          singleCaptain: null,
-          singleQuery: '',
-          singleOptions: [],
-          club: null,
-          clubQuery: '',
-          clubOptions: [],
-        },
-      ],
+      clubs: [...editor.clubs, newClub],
     });
+
+    setGlobalClubQueryState('');
+    setGlobalClubOptions([]);
   };
 
   const removeClubRow = (index: number) => {
     const next = [...editor.clubs];
     next.splice(index, 1);
     setEditor({ ...editor, clubs: next });
+    if (editingClubIdx === index) {
+      setEditingClubIdx(null);
+    } else if (editingClubIdx !== null && editingClubIdx > index) {
+      setEditingClubIdx(editingClubIdx - 1);
+    }
   };
 
   const availableClubsForRow = (index: number) => {
@@ -81,18 +123,21 @@ export function ClubsCaptainsTab({ editor, setEditor, clubsAll, searchPlayers }:
       clubOptions: [],
     };
     setEditor({ ...editor, clubs: rows });
+    setEditingClubIdx(null);
   };
 
-  const removeClub = (index: number) => {
-    const rows = [...editor.clubs];
-    rows[index] = {
-      ...rows[index],
-      clubId: undefined,
-      club: null,
-      clubQuery: '',
-      clubOptions: [],
-    };
-    setEditor({ ...editor, clubs: rows });
+  const startEditingClub = (index: number) => {
+    const club = editor.clubs[index];
+    if (!club?.clubId) return;
+    setEditingClubIdx(index);
+    const clubLabel = club.club?.label || '';
+    if (clubLabel.length >= 2) {
+      setClubQuery(index, clubLabel);
+    }
+  };
+
+  const cancelEditingClub = () => {
+    setEditingClubIdx(null);
   };
 
   const setCaptainQuery = (index: number, query: string) => {
@@ -148,7 +193,7 @@ export function ClubsCaptainsTab({ editor, setEditor, clubsAll, searchPlayers }:
   const showCaptains = editor.hasCaptains;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-4 max-w-3xl">
       <div>
         <h3 className="text-lg font-semibold text-primary mb-2">
           {showCaptains ? 'Participating Clubs & Captains' : 'Participating Clubs'}
@@ -160,57 +205,80 @@ export function ClubsCaptainsTab({ editor, setEditor, clubsAll, searchPlayers }:
         </p>
       </div>
 
+      {/* Global club search input */}
+      <div className="relative">
+        <input
+          type="text"
+          className="input w-full"
+          placeholder="Type 3+ characters to search and add clubs…"
+          value={globalClubQuery}
+          onChange={(e) => setGlobalClubQuery(e.target.value)}
+        />
+        {globalClubOptions.length > 0 && (
+          <div className="absolute z-10 w-full mt-1 border border-subtle rounded bg-surface-1 max-h-48 overflow-auto shadow-lg">
+            {globalClubOptions.map((opt) => (
+              <button
+                key={opt.id}
+                className="block w-full text-left px-3 py-2 hover:bg-surface-2 text-sm"
+                onClick={() => addClubFromGlobalSearch(opt)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Selected clubs as chips */}
       {editor.clubs.length === 0 ? (
-        <div className="card p-8 text-center">
-          <div className="text-4xl mb-3">🏢</div>
-          <h4 className="font-semibold text-secondary mb-2">No Clubs Added</h4>
-          <p className="text-sm text-muted mb-4">
-            Add clubs to allow teams to participate in this tournament
-          </p>
-          <button className="btn btn-primary" onClick={addClubRow}>
-            + Add First Club
-          </button>
+        <div className="card p-6 text-center">
+          <p className="text-sm text-muted">No clubs added yet. Search above to add clubs.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {editor.clubs.map((club, index) => (
-            <div key={index} className="border-2 border-border-medium rounded-lg p-6 space-y-4 bg-surface-1">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-secondary">Club {index + 1}</h4>
-                <button
-                  className="text-error hover:text-error-hover text-sm"
-                  onClick={() => removeClubRow(index)}
-                >
-                  Remove Club
-                </button>
-              </div>
+        <div className="space-y-2">
+          {editor.clubs.map((club, index) => {
+            const isEditing = editingClubIdx === index;
 
-              <div>
-                {club.club ? (
-                  <div className="flex items-center gap-2">
-                    <span className="chip chip-info">{club.club.label}</span>
+            return (
+              <div key={index} className="flex flex-wrap items-start gap-2">
+                {/* Club chip */}
+                {!isEditing && club.club?.id ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-lg">
+                    <span className="text-sm font-medium text-primary">{club.club.label}</span>
+                    {showCaptains && club.singleCaptain?.id && (
+                      <span className="text-xs text-muted">• {club.singleCaptain.label}</span>
+                    )}
+                    <button
+                      className="ml-1 text-error hover:text-error-hover text-sm"
+                      onClick={() => startEditingClub(index)}
+                      title="Change club"
+                    >
+                      ✏️
+                    </button>
                     <button
                       className="text-error hover:text-error-hover text-sm"
-                      onClick={() => removeClub(index)}
+                      onClick={() => removeClubRow(index)}
+                      title="Remove club"
                     >
-                      Change
+                      ✕
                     </button>
                   </div>
-                ) : (
-                  <div className="relative">
+                ) : isEditing ? (
+                  <div className="relative flex-1 min-w-[200px]">
                     <input
                       type="text"
                       className="input w-full"
+                      placeholder="Type 2+ chars to search clubs…"
                       value={club.clubQuery || ''}
                       onChange={(e) => setClubQuery(index, e.target.value)}
-                      placeholder="Type 2+ characters to search clubs..."
+                      autoFocus
                     />
                     {club.clubOptions && club.clubOptions.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 border border-subtle rounded bg-surface-1 max-h-48 overflow-auto shadow-lg">
+                      <div className="absolute z-10 w-full mt-1 border border-subtle rounded bg-surface-1 max-h-40 overflow-auto shadow-lg">
                         {club.clubOptions.map((opt) => (
                           <button
                             key={opt.id}
-                            className="block w-full text-left px-3 py-2 hover:bg-surface-2 text-sm"
+                            className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-sm"
                             onClick={() => chooseClub(index, opt)}
                           >
                             {opt.label}
@@ -218,60 +286,70 @@ export function ClubsCaptainsTab({ editor, setEditor, clubsAll, searchPlayers }:
                         ))}
                       </div>
                     )}
+                    <button
+                      className="ml-2 text-sm text-muted hover:text-primary"
+                      onClick={cancelEditingClub}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-surface-2 border border-subtle rounded-lg">
+                    <span className="text-sm text-muted">Empty slot</span>
+                    <button
+                      className="text-error hover:text-error-hover text-sm"
+                      onClick={() => removeClubRow(index)}
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Captain assignment (inline when club is selected) */}
+                {showCaptains && club.clubId && !isEditing && (
+                  <div className="inline-flex items-center gap-2">
+                    {club.singleCaptain?.id ? (
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-surface-2 border border-subtle rounded text-sm">
+                        <span className="text-muted">Captain:</span>
+                        <span className="text-primary">{club.singleCaptain.label}</span>
+                        <button
+                          className="ml-1 text-error hover:text-error-hover text-xs"
+                          onClick={() => removeCaptain(index)}
+                          title="Remove captain"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative inline-block">
+                        <input
+                          type="text"
+                          className="input text-sm w-48"
+                          placeholder="Search captain…"
+                          value={club.singleQuery || ''}
+                          onChange={(e) => setCaptainQuery(index, e.target.value)}
+                        />
+                        {club.singleOptions && club.singleOptions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 border border-subtle rounded bg-surface-1 max-h-40 overflow-auto shadow-lg">
+                            {club.singleOptions.map((opt) => (
+                              <button
+                                key={opt.id}
+                                className="block w-full text-left px-2 py-1 hover:bg-surface-2 text-sm"
+                                onClick={() => chooseCaptain(index, opt)}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-
-              {showCaptains && (
-                <div>
-                  <label className="block text-sm font-semibold text-secondary mb-2">
-                    Team Captain
-                  </label>
-                  {club.singleCaptain ? (
-                    <div className="flex items-center gap-2">
-                      <span className="chip chip-success">{club.singleCaptain.label}</span>
-                      <button
-                        className="text-error hover:text-error-hover text-sm"
-                        onClick={() => removeCaptain(index)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        className="input w-full"
-                        value={club.singleQuery || ''}
-                        onChange={(e) => setCaptainQuery(index, e.target.value)}
-                        placeholder="Type 3+ characters to search players..."
-                      />
-                      {club.singleOptions && club.singleOptions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 border border-subtle rounded bg-surface-1 max-h-48 overflow-auto shadow-lg">
-                          {club.singleOptions.map((opt) => (
-                            <button
-                              key={opt.id}
-                              className="block w-full text-left px-3 py-2 hover:bg-surface-2 text-sm"
-                              onClick={() => chooseCaptain(index, opt)}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-xs text-muted mt-1">
-                    Captain can view and manage their club's roster for this tournament
-                  </p>
-                </div>
-              )}
-            </div>
-          ))}
-
-          <button className="btn btn-secondary" onClick={addClubRow}>
-            + Add Club
-          </button>
+            );
+          })}
         </div>
       )}
     </div>

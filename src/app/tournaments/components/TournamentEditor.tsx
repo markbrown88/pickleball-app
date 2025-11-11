@@ -9,6 +9,7 @@ import { StopsLocationsTab } from './tabs/StopsLocationsTab';
 import { ClubsCaptainsTab } from './tabs/ClubsCaptainsTab';
 import { BracketsTab } from './tabs/BracketsTab';
 import { AccessManagersTab } from './tabs/AccessManagersTab';
+import { AdvancedConfigTab } from './tabs/AdvancedConfigTab';
 
 type Id = string;
 
@@ -86,7 +87,7 @@ export type Club = {
   phone?: string | null;
 };
 
-type Tab = 'details' | 'registration' | 'registrations' | 'invitations' | 'stops' | 'clubs' | 'brackets' | 'access';
+type Tab = 'details' | 'registration' | 'registrations' | 'invitations' | 'stops' | 'clubs' | 'brackets' | 'access' | 'advanced';
 
 type TournamentEditorProps = {
   tournamentId: Id;
@@ -122,9 +123,19 @@ export function TournamentEditor({
   // Dynamic label based on whether captains are enabled
   const clubsTabLabel = editor.hasCaptains ? 'Clubs & Captains' : 'Clubs';
 
+  // Check if advanced config tab should be shown
+  const editorWithReg = editor as EditorRowWithRegistration;
+  const showAdvancedConfig =
+    editorWithReg.registrationType === 'PAID' &&
+    editorWithReg.pricingModel !== 'TOURNAMENT_WIDE';
+
+  // Check if tournament is team-based
+  const isTeamTournament = editor.type === 'Team Format';
+
   const tabs = [
     { id: 'details' as const, label: 'Tournament Details' },
     { id: 'registration' as const, label: 'Registration Settings' },
+    { id: 'advanced' as const, label: 'Advanced Configuration', hidden: !showAdvancedConfig },
     { id: 'registrations' as const, label: 'Registrations' },
     { id: 'invitations' as const, label: 'Invitations' },
     { id: 'stops' as const, label: 'Location(s) & Dates' },
@@ -197,6 +208,14 @@ export function TournamentEditor({
           <RegistrationSettingsTab
             editor={editor as EditorRowWithRegistration}
             setEditor={setEditor as (editor: EditorRowWithRegistration) => void}
+          />
+        )}
+
+        {activeTab === 'advanced' && (
+          <AdvancedConfigTab
+            tournamentId={tournamentId}
+            pricingModel={editorWithReg.pricingModel}
+            isTeamTournament={isTeamTournament}
           />
         )}
 

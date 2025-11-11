@@ -318,36 +318,84 @@ export async function POST(
 
     // Link loser bracket: losers from winner bracket drop to loser bracket
     // Double elimination loser bracket pattern:
-    // - Round 0: Losers from winner bracket round 0 play each other (2 losers per match)
-    // - Round 1: Winners from loser round 0 play losers from winner bracket round 1
-    // - Round 2: Winners from loser round 1 play each other
-    // - Round 3: Winners from loser round 2 play losers from winner bracket round 2
-    // - etc.
+    // 
+    // For 7 teams example:
+    // - Round 1 (WB): W1 (4vs5), W2 (3vs6), W3 (2vs7), S1 BYE
+    // - Losers Round 1: L1 (Loser W1 vs Loser W2), Loser W3 gets BYE
+    // - Losers Round 2: L2 (Winner L1 vs Loser W4), L3 (Loser W3 vs Loser W5)
+    // - Losers Round 3: L4 (Winner L2 vs Winner L3)
+    // - Losers Final: L5 (Winner L4 vs Loser W6)
+    //
+    // Pattern:
+    // - First loser round: Pair losers from WB Round 1 (skip BYE matches)
+    //   If odd number of losers, last one gets BYE in loser bracket
+    // - Subsequent rounds alternate:
+    //   - Odd loser rounds: Winners from prev LB round vs Losers from WB round N
+    //   - Even loser rounds: Winners from prev LB round advance (pair winners)
     
     if (loserRounds.length > 0 && winnerRounds.length > 0) {
       // First loser round: losers from first winner round
+      // SKIP BYE matches - they don't produce losers
       const firstLoserRound = loserRounds[0];
       const firstWinnerRound = winnerRounds[0];
       
+      // Collect non-BYE matches from first winner round
+      const nonByeMatches = firstWinnerRound.matches.filter(m => !m.isBye);
+      
+      console.log(`[Bracket Link] First loser round: ${nonByeMatches.length} non-BYE matches from ${firstWinnerRound.matches.length} total matches`);
+      
+      // Pair losers from non-BYE matches into loser round matches
+      // Check each loser match to see if it was already marked as BYE during generation
       let loserMatchIdx = 0;
-      for (let i = 0; i < firstWinnerRound.matches.length && loserMatchIdx < firstLoserRound.matches.length; i += 2) {
-        const matchA = firstWinnerRound.matches[i];
-        const matchB = firstWinnerRound.matches[i + 1] || null;
+      let winnerLoserIdx = 0;
 
-        const sourceAMatchId = matchIdMap.get(firstWinnerRound.idx * 1000 + matchA.bracketPosition);
-        const sourceBMatchId = matchB ? matchIdMap.get(firstWinnerRound.idx * 1000 + matchB.bracketPosition) : null;
-        const loserMatchId = matchIdMap.get(firstLoserRound.idx * 1000 + loserMatchIdx);
+      for (let i = 0; i < firstLoserRound.matches.length; i++) {
+        const loserMatch = firstLoserRound.matches[i];
+        const loserMatchId = matchIdMap.get(firstLoserRound.idx * 1000 + loserMatch.bracketPosition);
 
-        if (sourceAMatchId && loserMatchId) {
-          await prisma.match.update({
-            where: { id: loserMatchId },
-            data: {
-              sourceMatchAId: sourceAMatchId,
-              sourceMatchBId: sourceBMatchId,
-            },
-          });
+        if (!loserMatchId) continue;
+
+        // Check if this loser match was marked as BYE during generation
+        if (loserMatch.isBye) {
+          // BYE match - only assign one source (the team that gets the bye)
+          if (winnerLoserIdx < nonByeMatches.length) {
+            const sourceMatch = nonByeMatches[winnerLoserIdx];
+            const sourceMatchId = matchIdMap.get(firstWinnerRound.idx * 1000 + sourceMatch.bracketPosition);
+
+            if (sourceMatchId) {
+              await prisma.match.update({
+                where: { id: loserMatchId },
+                data: {
+                  sourceMatchAId: sourceMatchId,
+                  sourceMatchBId: null, // No opponent - BYE
+                },
+              });
+              console.log(`[Bracket Link] Loser Match ${i} (BYE): Loser of Match ${sourceMatch.bracketPosition} gets BYE`);
+            }
+            winnerLoserIdx++;
+          }
+        } else {
+          // Regular match - pair two losers
+          if (winnerLoserIdx < nonByeMatches.length - 1) {
+            const matchA = nonByeMatches[winnerLoserIdx];
+            const matchB = nonByeMatches[winnerLoserIdx + 1];
+
+            const sourceAMatchId = matchIdMap.get(firstWinnerRound.idx * 1000 + matchA.bracketPosition);
+            const sourceBMatchId = matchIdMap.get(firstWinnerRound.idx * 1000 + matchB.bracketPosition);
+
+            if (sourceAMatchId && sourceBMatchId) {
+              await prisma.match.update({
+                where: { id: loserMatchId },
+                data: {
+                  sourceMatchAId: sourceAMatchId,
+                  sourceMatchBId: sourceBMatchId,
+                },
+              });
+              console.log(`[Bracket Link] Loser Match ${i}: Loser of Match ${matchA.bracketPosition} vs Loser of Match ${matchB.bracketPosition}`);
+            }
+            winnerLoserIdx += 2;
+          }
         }
-        loserMatchIdx++;
       }
 
       // Subsequent loser rounds: alternate pattern
@@ -356,56 +404,153 @@ export async function POST(
         const prevLoserRound = loserRounds[loserRoundIdx - 1];
         
         // Determine which winner round this corresponds to
-        // Loser rounds alternate: even rounds are "drop" rounds, odd rounds are "advance" rounds
-        const isAdvanceRound = loserRoundIdx % 2 === 1;
+        // Loser rounds alternate: odd rounds (1, 3, 5...) are "drop" rounds (winners vs new losers)
+        // Even rounds (2, 4, 6...) are "advance" rounds (winners advance)
+        const isDropRound = loserRoundIdx % 2 === 1;
         const winnerRoundIdx = Math.floor((loserRoundIdx + 1) / 2);
 
-        if (isAdvanceRound && winnerRoundIdx < winnerRounds.length) {
-          // Advance round: winners from previous loser round vs losers from winner bracket
+        if (isDropRound && winnerRoundIdx < winnerRounds.length) {
+          // Drop round: winners from previous loser round vs losers from winner bracket
+          // Example: L2 = Winner L1 vs Loser W4, L3 = Loser W3 (BYE) vs Loser W5
+          // Special case: Last loser round gets loser from winner bracket FINAL
           const winnerRound = winnerRounds[winnerRoundIdx];
-          
-          for (let matchIdx = 0; matchIdx < loserRound.matches.length && matchIdx < prevLoserRound.matches.length && matchIdx < winnerRound.matches.length; matchIdx++) {
-            const loserMatch = loserRound.matches[matchIdx];
-            const prevLoserMatch = prevLoserRound.matches[matchIdx];
-            const winnerMatch = winnerRound.matches[matchIdx];
+          const isLastLoserRound = loserRoundIdx === loserRounds.length - 1;
+          const isLastWinnerRound = winnerRoundIdx === winnerRounds.length - 1;
 
-            const prevLoserMatchId = matchIdMap.get(prevLoserRound.idx * 1000 + prevLoserMatch.bracketPosition);
-            const winnerMatchId = matchIdMap.get(winnerRound.idx * 1000 + winnerMatch.bracketPosition);
+          console.log(`[Bracket Link] Loser Round ${loserRoundIdx} (Drop Round): Pairing winners from LB Round ${loserRoundIdx - 1} with losers from WB Round ${winnerRoundIdx}${isLastLoserRound ? ' (FINAL)' : ''}`);
+
+          // Special handling: Last winner round should ONLY drop to last loser round
+          // For intermediate loser rounds, they just get winners from previous loser round advancing
+          const shouldSkipWinnerDrops = isLastWinnerRound && !isLastLoserRound;
+          if (shouldSkipWinnerDrops) {
+            console.log(`[Bracket Link]   NOTE: Skipping WB drops (last WB round reserved for LB final) - only advancing LB winners`);
+          }
+
+          // We need to pair:
+          // 1. Winners from previous loser round (including BYE winners)
+          // 2. Losers from current winner round (excluding BYE matches) - UNLESS it's the last WB round and not the last LB round
+
+          // Get all matches from previous loser round (to preserve BYE positions)
+          const prevLoserMatches = prevLoserRound.matches;
+          // Get non-BYE matches from winner round (losers that drop)
+          const winnerLosers = shouldSkipWinnerDrops ? [] : winnerRound.matches.filter(m => !m.isBye);
+          
+          let winnerLoserIdx = 0;
+
+          // Iterate through loser round matches and pair them
+          // CROSS the pairings to prevent immediate rematches:
+          // Match at position 0 gets loser from LAST winner match
+          // Match at position 1 gets loser from FIRST winner match, etc.
+          for (let i = 0; i < loserRound.matches.length; i++) {
+            const loserMatch = loserRound.matches[i];
             const loserMatchId = matchIdMap.get(loserRound.idx * 1000 + loserMatch.bracketPosition);
 
-            if (prevLoserMatchId && winnerMatchId && loserMatchId) {
+            // Get corresponding match from previous loser round
+            const prevMatch = prevLoserMatches[i];
+            const prevMatchId = prevMatch ? matchIdMap.get(prevLoserRound.idx * 1000 + prevMatch.bracketPosition) : null;
+
+            // Get loser from winner bracket (if available)
+            let winnerLoserMatchId = null;
+            if (winnerLosers.length > 0 && winnerLoserIdx < winnerLosers.length) {
+              // CROSS: Get loser from winner bracket in reverse order to prevent rematches
+              const crossedIdx = (winnerLosers.length - 1) - (i % winnerLosers.length);
+              const winnerLoser = winnerLosers[crossedIdx];
+              winnerLoserMatchId = matchIdMap.get(winnerRound.idx * 1000 + winnerLoser.bracketPosition);
+              winnerLoserIdx++;
+            }
+
+            if (loserMatchId) {
               await prisma.match.update({
                 where: { id: loserMatchId },
                 data: {
-                  sourceMatchAId: prevLoserMatchId, // Winner from previous loser round
-                  sourceMatchBId: winnerMatchId, // Loser from winner bracket
+                  sourceMatchAId: prevMatchId || null, // Winner from previous loser round (or BYE)
+                  sourceMatchBId: winnerLoserMatchId || null, // Loser from winner bracket (if available)
                 },
               });
+
+              if (prevMatchId && winnerLoserMatchId) {
+                console.log(`[Bracket Link] Loser Match ${i}: Winner of LB Match ${prevMatch.bracketPosition}${prevMatch.isBye ? ' (BYE)' : ''} vs Loser of WB Match ${winnerLosers[winnerLoserIdx-1].bracketPosition} (crossed)`);
+              } else if (prevMatchId) {
+                console.log(`[Bracket Link] Loser Match ${i}: Winner of LB Match ${prevMatch.bracketPosition}${prevMatch.isBye ? ' (BYE)' : ''} advances (no WB opponent)`);
+              }
+            }
+          }
+          
+          // Special handling for last loser round: if there's only one match and it needs the loser from WB final
+          if (isLastLoserRound && loserRound.matches.length === 1 && winnerLoserIdx === 0) {
+            // This is the loser bracket final - it should get the loser from winner bracket final
+            const loserFinalMatch = loserRound.matches[0];
+            const loserFinalMatchId = matchIdMap.get(loserRound.idx * 1000 + loserFinalMatch.bracketPosition);
+            const prevMatch = prevLoserMatches[0];
+            const prevMatchId = prevMatch ? matchIdMap.get(prevLoserRound.idx * 1000 + prevMatch.bracketPosition) : null;
+            const winnerFinalMatch = winnerRound.matches[0];
+            const winnerFinalMatchId = matchIdMap.get(winnerRound.idx * 1000 + winnerFinalMatch.bracketPosition);
+            
+            if (prevMatchId && winnerFinalMatchId && loserFinalMatchId) {
+              await prisma.match.update({
+                where: { id: loserFinalMatchId },
+                data: {
+                  sourceMatchAId: prevMatchId, // Winner from previous loser round
+                  sourceMatchBId: winnerFinalMatchId, // Loser from winner bracket final
+                },
+              });
+              console.log(`[Bracket Link] LB Final: Winner of LB Match ${prevMatch.bracketPosition} vs Loser of WB Final`);
+            }
+          } else if (isLastLoserRound && loserRound.matches.length === 1) {
+            // Last loser round already has sourceMatchAId from the loop above
+            // But we need to ensure sourceMatchBId is set to the loser from WB final
+            const loserFinalMatch = loserRound.matches[0];
+            const loserFinalMatchId = matchIdMap.get(loserRound.idx * 1000 + loserFinalMatch.bracketPosition);
+            const winnerFinalMatch = winnerRound.matches[0];
+            const winnerFinalMatchId = matchIdMap.get(winnerRound.idx * 1000 + winnerFinalMatch.bracketPosition);
+            
+            // Check current state
+            const currentMatch = await prisma.match.findUnique({
+              where: { id: loserFinalMatchId },
+              select: { sourceMatchAId: true, sourceMatchBId: true },
+            });
+            
+            if (currentMatch && currentMatch.sourceMatchAId && !currentMatch.sourceMatchBId && winnerFinalMatchId) {
+              // Add loser from winner bracket final
+              await prisma.match.update({
+                where: { id: loserFinalMatchId },
+                data: {
+                  sourceMatchBId: winnerFinalMatchId, // Loser from winner bracket final
+                },
+              });
+              console.log(`[Bracket Link] LB Final: Added Loser of WB Final as sourceMatchBId`);
             }
           }
         } else {
-          // Drop round: winners from previous loser round advance
-          for (let matchIdx = 0; matchIdx < loserRound.matches.length; matchIdx += 1) {
+          // Advance round: winners from previous loser round advance (pair winners)
+          // Example: L4 = Winner L2 vs Winner L3
+          console.log(`[Bracket Link] Loser Round ${loserRoundIdx} (Advance Round): Pairing winners from LB Round ${loserRoundIdx - 1}`);
+          
+          const prevLoserWinners = prevLoserRound.matches.filter(m => !m.isBye);
+
+          for (let matchIdx = 0; matchIdx < loserRound.matches.length; matchIdx++) {
             const sourceAIdx = matchIdx * 2;
             const sourceBIdx = matchIdx * 2 + 1;
 
-            if (sourceAIdx < prevLoserRound.matches.length && sourceBIdx < prevLoserRound.matches.length) {
+            // Handle case where there's only one winner from previous round (e.g., L3->L4)
+            if (sourceAIdx < prevLoserWinners.length) {
               const loserMatch = loserRound.matches[matchIdx];
-              const sourceA = prevLoserRound.matches[sourceAIdx];
-              const sourceB = prevLoserRound.matches[sourceBIdx];
+              const sourceA = prevLoserWinners[sourceAIdx];
+              const sourceB = sourceBIdx < prevLoserWinners.length ? prevLoserWinners[sourceBIdx] : null;
 
               const sourceAMatchId = matchIdMap.get(prevLoserRound.idx * 1000 + sourceA.bracketPosition);
-              const sourceBMatchId = matchIdMap.get(prevLoserRound.idx * 1000 + sourceB.bracketPosition);
+              const sourceBMatchId = sourceB ? matchIdMap.get(prevLoserRound.idx * 1000 + sourceB.bracketPosition) : null;
               const loserMatchId = matchIdMap.get(loserRound.idx * 1000 + loserMatch.bracketPosition);
 
-              if (sourceAMatchId && sourceBMatchId && loserMatchId) {
+              if (sourceAMatchId && loserMatchId) {
                 await prisma.match.update({
                   where: { id: loserMatchId },
                   data: {
                     sourceMatchAId: sourceAMatchId,
-                    sourceMatchBId: sourceBMatchId,
+                    sourceMatchBId: sourceBMatchId, // Will be null if only one source
                   },
                 });
+                console.log(`[Bracket Link] Loser Match ${matchIdx}: Winner of LB Match ${sourceA.bracketPosition}${sourceB ? ` vs Winner of LB Match ${sourceB.bracketPosition}` : ' (advances)'}`);
               }
             }
           }
@@ -414,31 +559,59 @@ export async function POST(
     }
 
     // Link finals: winner bracket final winner and loser bracket final winner
+    // True double elimination has 2 finals rounds (bracket reset)
     if (finalsRounds.length > 0 && winnerRounds.length > 0 && loserRounds.length > 0) {
-      const finalsRound = finalsRounds[0];
+      // Sort finals rounds by depth (higher depth first = Finals 1 before Finals 2)
+      const sortedFinalsRounds = [...finalsRounds].sort((a, b) => b.depth - a.depth);
+      const finals1Round = sortedFinalsRounds[0]; // depth 1
+      const finals2Round = sortedFinalsRounds[1]; // depth 0 (may not exist for old brackets)
+
       const winnerFinalRound = winnerRounds[winnerRounds.length - 1];
       const loserFinalRound = loserRounds[loserRounds.length - 1];
 
-      if (finalsRound.matches.length > 0 && winnerFinalRound.matches.length > 0 && loserFinalRound.matches.length > 0) {
-        const finalsMatch = finalsRound.matches[0];
+      // Link Finals 1: WB champion vs LB champion
+      if (finals1Round.matches.length > 0 && winnerFinalRound.matches.length > 0 && loserFinalRound.matches.length > 0) {
+        const finals1Match = finals1Round.matches[0];
         const winnerFinalMatch = winnerFinalRound.matches[0];
         const loserFinalMatch = loserFinalRound.matches[0];
 
         const winnerFinalMatchId = matchIdMap.get(winnerFinalRound.idx * 1000 + winnerFinalMatch.bracketPosition);
         const loserFinalMatchId = matchIdMap.get(loserFinalRound.idx * 1000 + loserFinalMatch.bracketPosition);
-        const finalsMatchId = matchIdMap.get(finalsRound.idx * 1000 + finalsMatch.bracketPosition);
+        const finals1MatchId = matchIdMap.get(finals1Round.idx * 1000 + finals1Match.bracketPosition);
 
-        if (winnerFinalMatchId && loserFinalMatchId && finalsMatchId) {
+        if (winnerFinalMatchId && loserFinalMatchId && finals1MatchId) {
           await prisma.match.update({
-            where: { id: finalsMatchId },
+            where: { id: finals1MatchId },
             data: {
-              sourceMatchAId: winnerFinalMatchId, // Winner bracket winner
-              sourceMatchBId: loserFinalMatchId, // Loser bracket winner
+              sourceMatchAId: winnerFinalMatchId, // Winner bracket champion
+              sourceMatchBId: loserFinalMatchId, // Loser bracket champion
             },
           });
+          console.log(`[Bracket Link] Finals 1: Winner of WB Final vs Winner of LB Final`);
+        }
+      }
+
+      // Link Finals 2: Bracket reset (both teams from Finals 1)
+      if (finals2Round && finals2Round.matches.length > 0 && finals1Round.matches.length > 0) {
+        const finals1Match = finals1Round.matches[0];
+        const finals2Match = finals2Round.matches[0];
+
+        const finals1MatchId = matchIdMap.get(finals1Round.idx * 1000 + finals1Match.bracketPosition);
+        const finals2MatchId = matchIdMap.get(finals2Round.idx * 1000 + finals2Match.bracketPosition);
+
+        if (finals1MatchId && finals2MatchId) {
+          await prisma.match.update({
+            where: { id: finals2MatchId },
+            data: {
+              sourceMatchAId: finals1MatchId, // Both teams come from Finals 1
+              sourceMatchBId: null, // No second source
+            },
+          });
+          console.log(`[Bracket Link] Finals 2: Bracket reset from Finals 1`);
         }
       }
     }
+    
 
     // Update tournament with gamesPerMatch setting (only for team-based tournaments)
     if (!isClubBased) {

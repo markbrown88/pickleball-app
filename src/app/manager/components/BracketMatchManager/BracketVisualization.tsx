@@ -92,6 +92,12 @@ export function BracketVisualization({
         .find(m => m.id === selectedMatch.id);
       
       if (updatedMatch) {
+        console.log('BracketVisualization: Refreshing selectedMatch from rounds', {
+          matchId: updatedMatch.id,
+          teamA: updatedMatch.teamA?.name || 'TBD',
+          teamB: updatedMatch.teamB?.name || 'TBD',
+          gamesCount: updatedMatch.games?.length || 0,
+        });
         setSelectedMatch(updatedMatch);
       }
     }
@@ -209,25 +215,65 @@ export function BracketVisualization({
     [rounds]
   );
 
-  const handleModalClose = () => {
+  const handleModalClose = async () => {
+    // Close the modal
     setSelectedMatch(null);
+
+    // Refresh bracket data to ensure next time we open a match, we have fresh data
+    // This ensures game statuses and scores are up-to-date when reopening
+    if (onMatchUpdate) {
+      console.log('BracketVisualization: Refreshing data after modal close');
+      await onMatchUpdate();
+    }
   };
 
   const handleMatchUpdate = async () => {
     if (onMatchUpdate) {
+      console.log('BracketVisualization: handleMatchUpdate called');
+      // Store the currently selected match ID to keep modal open
+      const currentMatchId = selectedMatch?.id;
+      
       // Call parent's update handler which will reload bracket data
       await onMatchUpdate();
       
-      // If a match is selected, refresh it from the updated rounds
-      if (selectedMatch) {
+      // Wait for React state to update - the rounds prop will change
+      // We need to wait a bit longer for the state update to propagate
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      console.log('BracketVisualization: Checking for updated match, current rounds:', rounds.length);
+      
+      // The rounds prop should update after onMatchUpdate completes
+      // If a match was selected, refresh it from the updated rounds to keep modal open
+      if (currentMatchId) {
         const updatedMatch = rounds
           .flatMap(r => r.matches)
-          .find(m => m.id === selectedMatch.id);
+          .find(m => m.id === currentMatchId);
         
         if (updatedMatch) {
+          console.log('BracketVisualization: Refreshing selectedMatch after update', {
+            matchId: updatedMatch.id,
+            teamA: updatedMatch.teamA?.name || 'TBD',
+            teamB: updatedMatch.teamB?.name || 'TBD',
+            gamesCount: updatedMatch.games?.length || 0,
+          });
+          // Update the selected match with fresh data, keeping modal open
           setSelectedMatch(updatedMatch);
+        } else {
+          console.warn('BracketVisualization: Updated match not found in rounds:', currentMatchId);
         }
       }
+      
+      // Also log all matches to see if winners advanced
+      console.log('BracketVisualization: All matches after update:', 
+        rounds.flatMap(r => r.matches.map(m => ({
+          id: m.id,
+          teamA: m.teamA?.name || 'TBD',
+          teamB: m.teamB?.name || 'TBD',
+          winnerId: m.winnerId,
+        })))
+      );
+      
+      console.log('BracketVisualization: handleMatchUpdate complete');
     }
   };
 
@@ -261,16 +307,54 @@ export function BracketVisualization({
   // We need to ensure the bracket structure is valid before passing it to the library.
   
   // Step 1: Sanitize data - ensure all nextMatchId references point to existing matches
-  const allMatchIds = new Set([...bracketData.upper.map(m => m.id), ...bracketData.lower.map(m => m.id)]);
-  
+  // Early validation: Check if bracketData is valid
+  if (!bracketData || typeof bracketData !== 'object') {
+    console.error('[BracketVisualization] bracketData is invalid:', typeof bracketData);
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
+        <p className="text-gray-400">No bracket data available.</p>
+      </div>
+    );
+  }
+
+  if (!Array.isArray(bracketData.upper) || !Array.isArray(bracketData.lower)) {
+    console.error('[BracketVisualization] bracketData arrays are invalid:', {
+      upperType: typeof bracketData.upper,
+      lowerType: typeof bracketData.lower,
+      isUpperArray: Array.isArray(bracketData.upper),
+      isLowerArray: Array.isArray(bracketData.lower),
+    });
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
+        <p className="text-gray-400">Invalid bracket data structure.</p>
+      </div>
+    );
+  }
+
+  // First filter out any undefined/null matches
+  const cleanUpper = bracketData.upper.filter(m => m && m.id);
+  const cleanLower = bracketData.lower.filter(m => m && m.id);
+
+  // Check if we have any matches at all
+  if (cleanUpper.length === 0 && cleanLower.length === 0) {
+    console.warn('[BracketVisualization] No valid matches found in bracket data');
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
+        <p className="text-gray-400">No matches in bracket. Please generate a bracket first.</p>
+      </div>
+    );
+  }
+
+  const allMatchIds = new Set([...cleanUpper.map(m => m.id), ...cleanLower.map(m => m.id)]);
+
   const safeBracketData = {
-    upper: bracketData.upper.map(m => ({
+    upper: cleanUpper.map(m => ({
       ...m,
       // Ensure nextMatchId only points to existing matches
       nextMatchId: (m.nextMatchId && allMatchIds.has(m.nextMatchId)) ? m.nextMatchId : null,
       nextLooserMatchId: (m.nextLooserMatchId && allMatchIds.has(m.nextLooserMatchId)) ? m.nextLooserMatchId : undefined,
     })),
-    lower: bracketData.lower.map(m => ({
+    lower: cleanLower.map(m => ({
       ...m,
       // Ensure nextMatchId only points to existing matches
       nextMatchId: (m.nextMatchId && allMatchIds.has(m.nextMatchId)) ? m.nextMatchId : null,
@@ -334,34 +418,272 @@ export function BracketVisualization({
     );
   }
   
-  // Additional check: if lastUpper exists, ensure it has a nextMatchId (library accesses lastUpper.nextMatchId)
-  if (isFinalInLower && lastUpper && !lastUpper.nextMatchId) {
-    console.warn('Invalid bracket structure: lastUpper exists but has no nextMatchId', {
-      lastUpper: { id: lastUpper.id, nextMatchId: lastUpper.nextMatchId },
+  // Additional check: For double elimination, check if winner and loser finals both point to the Finals match
+  // The Finals match itself will have nextMatchId: null, which is correct
+  // We need to check if matches in upper and lower brackets point to the Finals match
+  if (isFinalInUpper && isFinalInLower && lastUpper) {
+    // Both brackets have finals - this is double elimination
+    // The lastUpper should be the Finals match (has no nextMatchId)
+
+    // Find matches in lower bracket that point to Finals
+    const lowerMatchesToFinals = safeBracketData.lower.filter(m => m && m.nextMatchId === lastUpper.id);
+
+    // Find matches in upper bracket that point to Finals
+    const upperMatchesToFinals = safeBracketData.upper.filter(m => m && m.nextMatchId === lastUpper.id);
+
+    console.log('[BracketVisualization] Double elimination Finals linking check:', {
+      finalsMatchId: lastUpper.id,
+      lowerMatchesToFinals: lowerMatchesToFinals.length,
+      upperMatchesToFinals: upperMatchesToFinals.length,
+      lowerMatches: safeBracketData.lower.filter(m => m && m.id).map(m => ({ id: m.id.slice(0, 8), nextMatchId: m.nextMatchId?.slice(0, 8) || null })),
+      hasUndefinedInLower: safeBracketData.lower.some(m => !m || !m.id),
+      hasUndefinedInUpper: safeBracketData.upper.some(m => !m || !m.id),
+    });
+
+    if (lowerMatchesToFinals.length === 0) {
+      console.warn('Invalid bracket structure: No loser bracket match points to Finals', {
+        finalsMatchId: lastUpper.id,
+        lowerMatchCount: safeBracketData.lower.length,
+      });
+      return (
+        <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
+          <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
+        </div>
+      );
+    }
+
+    if (upperMatchesToFinals.length === 0) {
+      console.warn('Invalid bracket structure: No winner bracket match points to Finals', {
+        finalsMatchId: lastUpper.id,
+        upperMatchCount: safeBracketData.upper.length,
+      });
+      return (
+        <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
+          <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
+        </div>
+      );
+    }
+
+    console.log('[BracketVisualization] Double elimination structure validated:', {
+      finalsMatchId: lastUpper.id,
+      winnerFinalPointsToFinals: upperMatchesToFinals.length > 0,
+      loserFinalPointsToFinals: lowerMatchesToFinals.length > 0,
+    });
+  }
+
+  // Final safety check: Ensure no undefined/null matches in arrays
+  console.log('[BracketVisualization] Final validation before render:', {
+    upperCount: safeBracketData.upper.length,
+    lowerCount: safeBracketData.lower.length,
+    sampleUpper: safeBracketData.upper[0] ? {
+      id: safeBracketData.upper[0].id?.slice(0, 8),
+      hasNextMatchId: 'nextMatchId' in safeBracketData.upper[0],
+      hasParticipants: !!safeBracketData.upper[0].participants,
+      hasState: !!safeBracketData.upper[0].state,
+    } : 'NONE',
+    sampleLower: safeBracketData.lower[0] ? {
+      id: safeBracketData.lower[0].id?.slice(0, 8),
+      hasNextMatchId: 'nextMatchId' in safeBracketData.lower[0],
+      hasParticipants: !!safeBracketData.lower[0].participants,
+      hasState: !!safeBracketData.lower[0].state,
+    } : 'NONE',
+  });
+
+  const hasInvalidUpper = safeBracketData.upper.some(m => {
+    if (!m || typeof m !== 'object') {
+      console.error('[BracketVisualization] Invalid upper match: not an object', m);
+      return true;
+    }
+    const matchObj = m as any;
+    if (!matchObj.id) {
+      console.error('[BracketVisualization] Invalid upper match: no id', matchObj);
+      return true;
+    }
+    if (!('nextMatchId' in matchObj)) {
+      console.error('[BracketVisualization] Invalid upper match: no nextMatchId property', matchObj.id);
+      return true;
+    }
+    if (!matchObj.participants || !Array.isArray(matchObj.participants)) {
+      console.error('[BracketVisualization] Invalid upper match: invalid participants', matchObj.id);
+      return true;
+    }
+    if (!matchObj.state) {
+      console.error('[BracketVisualization] Invalid upper match: no state', matchObj.id);
+      return true;
+    }
+    return false;
+  });
+
+  const hasInvalidLower = safeBracketData.lower.some(m => {
+    if (!m || typeof m !== 'object') {
+      console.error('[BracketVisualization] Invalid lower match: not an object', m);
+      return true;
+    }
+    const matchObj = m as any;
+    if (!matchObj.id) {
+      console.error('[BracketVisualization] Invalid lower match: no id', matchObj);
+      return true;
+    }
+    if (!('nextMatchId' in matchObj)) {
+      console.error('[BracketVisualization] Invalid lower match: no nextMatchId property', matchObj.id);
+      return true;
+    }
+    if (!matchObj.participants || !Array.isArray(matchObj.participants)) {
+      console.error('[BracketVisualization] Invalid lower match: invalid participants', matchObj.id);
+      return true;
+    }
+    if (!matchObj.state) {
+      console.error('[BracketVisualization] Invalid lower match: no state', matchObj.id);
+      return true;
+    }
+    return false;
+  });
+
+  if (hasInvalidUpper || hasInvalidLower) {
+    console.error('[BracketVisualization] Invalid match objects detected:', {
+      hasInvalidUpper,
+      hasInvalidLower,
+      upperCount: safeBracketData.upper.length,
+      lowerCount: safeBracketData.lower.length,
     });
     return (
       <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-        <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
+        <p className="text-gray-400">Bracket data is corrupted. Please regenerate the bracket.</p>
       </div>
     );
   }
-  
-  // Additional check: if lastLower exists, ensure it has a nextMatchId (library accesses lastLower.nextMatchId)
-  if (isFinalInUpper && lastLower && !lastLower.nextMatchId) {
-    console.warn('Invalid bracket structure: lastLower exists but has no nextMatchId', {
-      lastLower: { id: lastLower.id, nextMatchId: lastLower.nextMatchId },
+
+  console.log('[BracketVisualization] All validations passed, rendering bracket...');
+
+  // Fix SVG height after render to accommodate taller match boxes
+  useEffect(() => {
+    const fixSvgHeights = () => {
+      // Try multiple selectors - the library might use different class names
+      const svgs1 = document.querySelectorAll('.react-tournament-brackets svg');
+      const svgs2 = document.querySelectorAll('svg[viewBox*="110"]');
+      const svgs3 = document.querySelectorAll('svg[height="110"]');
+      const svgs = Array.from(new Set([...svgs1, ...svgs2, ...svgs3]));
+      
+      console.log(`Fixing SVG heights: Found ${svgs.length} SVGs (${svgs1.length} via .react-tournament-brackets, ${svgs2.length} via viewBox, ${svgs3.length} via height)`);
+      
+      svgs.forEach((svg, index) => {
+        const htmlSvg = svg as SVGElement;
+        const currentHeight = htmlSvg.getAttribute('height');
+        const viewBox = htmlSvg.getAttribute('viewBox');
+        
+        // Check if this SVG needs fixing (height is 110 or viewBox contains 110)
+        if (currentHeight === '110' || viewBox?.includes('110')) {
+          htmlSvg.setAttribute('height', '160');
+          if (viewBox) {
+            const parts = viewBox.split(' ');
+            if (parts.length === 4) {
+              const newViewBox = `${parts[0]} ${parts[1]} ${parts[2]} 160`;
+              htmlSvg.setAttribute('viewBox', newViewBox);
+              console.log(`Updated SVG ${index}: viewBox=${newViewBox}`);
+            }
+          }
+          const foreignObject = htmlSvg.querySelector('foreignObject');
+          if (foreignObject) {
+            foreignObject.setAttribute('height', '160');
+            foreignObject.setAttribute('y', '0'); // Ensure it starts at the top
+            console.log(`Updated foreignObject in SVG ${index}`);
+          }
+        }
+      });
+    };
+
+    // Run immediately
+    fixSvgHeights();
+    
+    // Set up MutationObserver to catch dynamically added SVGs
+    const observer = new MutationObserver((mutations) => {
+      let shouldFix = false;
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList' || mutation.type === 'attributes') {
+          shouldFix = true;
+        }
+      });
+      if (shouldFix) {
+        fixSvgHeights();
+      }
     });
-    return (
-      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-        <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
-      </div>
-    );
-  }
+    
+    // Observe the entire document body to catch SVGs wherever they're added
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['height', 'viewBox'],
+    });
+    
+    // Also run after delays as fallback
+    const timeout1 = setTimeout(fixSvgHeights, 100);
+    const timeout2 = setTimeout(fixSvgHeights, 500);
+    const timeout3 = setTimeout(fixSvgHeights, 1000);
+    const timeout4 = setTimeout(fixSvgHeights, 2000);
+    
+    return () => {
+      observer.disconnect();
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
+      clearTimeout(timeout4);
+    };
+  }, [safeBracketData]);
   
   return (
     <>
-      <div className="w-full bg-gray-900 rounded-lg border border-gray-700 p-4 overflow-x-auto overflow-y-visible">
-        <div style={{ width: finalWidth }}>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .react-tournament-brackets svg {
+            height: 160px !important;
+            min-height: 160px !important;
+          }
+          .react-tournament-brackets svg[height="110"] {
+            height: 160px !important;
+            min-height: 160px !important;
+          }
+          .react-tournament-brackets svg foreignObject {
+            height: 160px !important;
+            min-height: 160px !important;
+            overflow: visible !important;
+          }
+        `
+      }} />
+      <div className="w-full bg-gray-900 rounded-lg border border-gray-700 p-4 overflow-x-auto overflow-y-visible" style={{ minHeight: '400px' }}>
+        <div style={{ minWidth: finalWidth, width: 'max-content', padding: '20px 0' }}>
+          {(() => {
+            // Log all lower matches with their nextMatchId to debug
+            console.log('[BracketVisualization] All lower bracket matches:');
+            safeBracketData.lower.forEach((m, idx) => {
+              if (m && m.id) {
+                console.log(`  [${idx}] ${m.id} -> ${m.nextMatchId || 'NULL'}`);
+              } else {
+                console.log(`  [${idx}] UNDEFINED MATCH`);
+              }
+            });
+
+            console.log('[BracketVisualization] All upper bracket matches:');
+            safeBracketData.upper.forEach((m, idx) => {
+              if (m && m.id) {
+                console.log(`  [${idx}] ${m.id} -> ${m.nextMatchId || 'NULL'}`);
+              } else {
+                console.log(`  [${idx}] UNDEFINED MATCH`);
+              }
+            });
+
+            // Find all matches in lower that reference IDs in upper
+            const upperIds = new Set(safeBracketData.upper.filter(m => m && m.id).map(m => m.id));
+            const lowerMatchesPointingToUpper = safeBracketData.lower.filter(m => m && m.nextMatchId && upperIds.has(m.nextMatchId));
+            console.log(`[BracketVisualization] Lower matches pointing to upper bracket: ${lowerMatchesPointingToUpper.length}`);
+            lowerMatchesPointingToUpper.forEach(m => {
+              if (m && m.id && m.nextMatchId) {
+                console.log(`  ${m.id} -> ${m.nextMatchId}`);
+              }
+            });
+
+            return null;
+          })()}
           <DoubleEliminationBracket
             matches={safeBracketData}
             matchComponent={CustomBracketMatch}
@@ -381,14 +703,16 @@ export function BracketVisualization({
       </div>
 
       {/* Scoring Modal */}
-      <BracketMatchModal
-        match={selectedMatch}
-        lineups={lineups}
-        onClose={handleModalClose}
-        onUpdate={handleMatchUpdate}
-        onError={onError || (() => {})}
-        onInfo={onInfo || (() => {})}
-      />
+      {selectedMatch && (
+        <BracketMatchModal
+          match={selectedMatch}
+          lineups={lineups}
+          onClose={handleModalClose}
+          onUpdate={handleMatchUpdate}
+          onError={onError || (() => {})}
+          onInfo={onInfo || (() => {})}
+        />
+      )}
     </>
   );
 }

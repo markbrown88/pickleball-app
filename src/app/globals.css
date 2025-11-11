@@ -374,6 +374,17 @@ small, .text-muted {
   box-shadow: 0 0 0 2px var(--brand-secondary);
 }
 
+/* Registration form inputs - need better contrast on bg-surface-2 */
+.register-form .input {
+  background-color: var(--surface-1);
+  border-color: var(--border-medium);
+}
+
+.register-form .input:focus {
+  border-color: var(--brand-secondary);
+  box-shadow: 0 0 0 2px var(--brand-secondary);
+}
+
 /* Modal-specific input styling for better contrast on white backgrounds */
 .modal .input {
   background-color: #ffffff;

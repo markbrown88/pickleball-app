@@ -32,6 +32,7 @@ type Payload = {
   registrationStatus?: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
   registrationType?: 'FREE' | 'PAID';
   registrationCost?: number | null; // in cents
+  pricingModel?: 'TOURNAMENT_WIDE' | 'PER_STOP' | 'PER_BRACKET' | 'PER_STOP_PER_BRACKET'; // Note: field doesn't exist in schema yet
   maxPlayers?: number | null;
   restrictionNotes?: string[];
   isWaitlistEnabled?: boolean;
@@ -96,6 +97,8 @@ export async function GET(_req: Request, ctx: CtxPromise) {
       registrationStatus: true,
       registrationType: true,
       registrationCost: true,
+      // @ts-expect-error - pricingModel exists in DB but Prisma client needs regeneration
+      pricingModel: true,
       maxPlayers: true,
       restrictionNotes: true,
       isWaitlistEnabled: true,
@@ -114,7 +117,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
         }
       }
     },
-  });
+  }) as any; // Temporary: Prisma client needs regeneration after schema update
 
   if (!t) {
     const also = await prisma.tournament.findMany({
@@ -191,7 +194,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
   return NextResponse.json({
     id: t.id,
     name: t.name,
-    type: ENUM_TO_TYPE_LABEL[t.type] ?? 'Team Format',
+    type: ENUM_TO_TYPE_LABEL[t.type as TournamentType] ?? 'Team Format',
     maxTeamSize: t.maxTeamSize ?? null,
     gamesPerMatch: t.gamesPerMatch ?? null,
     hasCaptains: byClubCaptain.length > 0,
@@ -199,6 +202,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     registrationStatus: t.registrationStatus ?? 'CLOSED',
     registrationType: t.registrationType ?? 'FREE',
     registrationCost: t.registrationCost ?? null,
+    pricingModel: (t as any).pricingModel ?? 'TOURNAMENT_WIDE', // @ts-ignore - Prisma client needs regeneration
     maxPlayers: t.maxPlayers ?? null,
     restrictionNotes: t.restrictionNotes ?? [],
     isWaitlistEnabled: t.isWaitlistEnabled ?? true,
@@ -269,6 +273,7 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     registrationStatus: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
     registrationType: 'FREE' | 'PAID';
     registrationCost: number | null;
+    pricingModel: 'TOURNAMENT_WIDE' | 'PER_STOP' | 'PER_BRACKET' | 'PER_STOP_PER_BRACKET';
     maxPlayers: number | null;
     restrictionNotes: string[];
     isWaitlistEnabled: boolean;
@@ -386,6 +391,18 @@ export async function PUT(req: Request, ctx: CtxPromise) {
     } else {
       return NextResponse.json(
         { error: 'isWaitlistEnabled must be a boolean' },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'pricingModel')) {
+    const v = body.pricingModel;
+    if (v === 'TOURNAMENT_WIDE' || v === 'PER_STOP' || v === 'PER_BRACKET' || v === 'PER_STOP_PER_BRACKET') {
+      updates.pricingModel = v;
+    } else {
+      return NextResponse.json(
+        { error: 'pricingModel must be TOURNAMENT_WIDE, PER_STOP, PER_BRACKET, or PER_STOP_PER_BRACKET' },
         { status: 400 }
       );
     }

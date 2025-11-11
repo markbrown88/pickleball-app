@@ -19,6 +19,11 @@ type ForfeitBody = {
   forfeitTeam?: 'A' | 'B' | null;
 };
 
+type MatchUpdateBody = {
+  teamAId?: string | null;
+  teamBId?: string | null;
+};
+
 function bad(msg: string, status = 400) {
   return NextResponse.json({ error: msg }, { status });
 }
@@ -228,7 +233,12 @@ export async function PUT(req: Request, ctx: Ctx) {
 // ---------- PATCH /api/admin/matches/:matchId ----------
 export async function PATCH(req: Request, ctx: Ctx) {
   const { matchId } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as PutBody | ForfeitBody;
+  const body = (await req.json().catch(() => ({}))) as PutBody | ForfeitBody | MatchUpdateBody;
+  
+  // Check if this is a match team update (teamAId/teamBId)
+  if ('teamAId' in body || 'teamBId' in body) {
+    return updateMatchTeams(matchId, body as MatchUpdateBody);
+  }
   
   // Check if this is a forfeit request
   if ('forfeitTeam' in body) {
@@ -241,6 +251,45 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   // Otherwise, handle as score update
   return updateMatchScores(matchId, body as PutBody);
+}
+
+async function updateMatchTeams(matchId: string, body: MatchUpdateBody) {
+  try {
+    const updateData: { teamAId?: string | null; teamBId?: string | null } = {};
+    
+    if ('teamAId' in body) {
+      updateData.teamAId = body.teamAId === null ? null : body.teamAId;
+    }
+    
+    if ('teamBId' in body) {
+      updateData.teamBId = body.teamBId === null ? null : body.teamBId;
+    }
+    
+    const updated = await prisma.match.update({
+      where: { id: matchId },
+      data: updateData,
+      select: {
+        id: true,
+        teamAId: true,
+        teamBId: true,
+        teamA: { select: { id: true, name: true } },
+        teamB: { select: { id: true, name: true } },
+      },
+    });
+    
+    // Invalidate schedule cache
+    await invalidateMatchCache(matchId);
+    
+    return NextResponse.json({
+      ok: true,
+      match: updated,
+    });
+  } catch (e: any) {
+    if (e?.code === 'P2025' || /record to update not found/i.test(String(e?.message))) {
+      return bad('Match not found', 404);
+    }
+    return NextResponse.json({ error: e?.message ?? 'Failed to update match teams' }, { status: 500 });
+  }
 }
 
 async function handleForfeit(matchId: string, body: ForfeitBody) {

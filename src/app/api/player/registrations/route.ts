@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 
 /**
  * GET /api/player/registrations
- * Get current user's tournament registrations
+ * Get current user's tournament registrations (supports Act As)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -14,21 +15,61 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    // Get user's player profile
-    const player = await prisma.player.findUnique({
-      where: { clerkUserId: userId }
-    });
-
-    if (!player) {
-      return NextResponse.json(
-        { error: 'Player profile not found' },
-        { status: 404 }
-      );
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    let effectivePlayer;
+    
+    try {
+      effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    } catch (actAsError) {
+      console.log('Registrations API: Act As error, using real player:', actAsError);
+      // If Act As fails, get the real player
+      const realPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: { id: true }
+      });
+      
+      if (!realPlayer) {
+        return NextResponse.json(
+          { error: 'Player profile not found' },
+          { status: 404 }
+        );
+      }
+      
+      effectivePlayer = {
+        realUserId: userId,
+        realPlayerId: realPlayer.id,
+        isActingAs: false,
+        targetPlayerId: realPlayer.id,
+        isAppAdmin: false
+      };
     }
 
-    // Get player's team registrations
-    const registrations = await prisma.teamPlayer.findMany({
-      where: { playerId: player.id },
+    // Use the effective player ID (either real or acting as)
+    const playerId = effectivePlayer.targetPlayerId;
+
+    // Get player's tournament registrations (new registration system)
+    const tournamentRegistrations = await prisma.tournamentRegistration.findMany({
+      where: { playerId },
+      include: {
+        tournament: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            registrationType: true,
+            registrationCost: true,
+          }
+        }
+      },
+      orderBy: {
+        registeredAt: 'desc',
+      }
+    });
+
+    // Also get legacy team registrations for backwards compatibility
+    const teamRegistrations = await prisma.teamPlayer.findMany({
+      where: { playerId },
       include: {
         team: {
           select: {
@@ -51,16 +92,45 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    const formattedRegistrations = registrations.map(reg => ({
+    // Format new tournament registrations
+    const formattedTournamentRegs = tournamentRegistrations.map(reg => ({
+      id: reg.id, // Registration ID
       tournamentId: reg.tournamentId,
       tournamentName: reg.tournament.name,
       tournamentType: reg.tournament.type,
+      registrationType: reg.tournament.registrationType,
+      status: reg.status, // REGISTERED, WITHDRAWN, REJECTED
+      paymentStatus: reg.paymentStatus,
+      amountPaid: reg.amountPaid, // in cents
+      paymentId: reg.paymentId,
+      refundId: reg.refundId,
+      registeredAt: reg.registeredAt.toISOString(),
+      withdrawnAt: reg.withdrawnAt?.toISOString() || null,
+      teamId: '', // Not applicable for new registration system
+      teamName: '', // Not applicable for new registration system
+      bracket: '', // Not applicable for new registration system
+    }));
+
+    // Format legacy team registrations
+    const formattedTeamRegs = teamRegistrations.map(reg => ({
+      tournamentId: reg.tournamentId,
+      tournamentName: reg.tournament.name,
+      tournamentType: reg.tournament.type,
+      status: 'REGISTERED' as const,
       teamId: reg.team.id,
       teamName: reg.team.name,
       bracket: reg.team.bracket?.name || 'Unknown'
     }));
 
-    return NextResponse.json(formattedRegistrations);
+    // Combine both, prioritizing tournament registrations (new system)
+    const allRegistrations = [...formattedTournamentRegs, ...formattedTeamRegs];
+    
+    // Remove duplicates (if both exist, keep tournament registration)
+    const uniqueRegistrations = Array.from(
+      new Map(allRegistrations.map(reg => [reg.tournamentId, reg])).values()
+    );
+
+    return NextResponse.json(uniqueRegistrations);
   } catch (error) {
     console.error('Error fetching player registrations:', error);
     return NextResponse.json(

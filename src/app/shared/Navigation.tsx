@@ -62,6 +62,7 @@ export function getNavigationItems(): NavItem[] {
     { href: '/manager', label: 'Manage', roles: ['app-admin', 'event-manager'] },
     { href: '/clubs', label: 'Clubs', roles: ['app-admin', 'tournament-admin'] },
     { href: '/players', label: 'Players', roles: ['app-admin', 'tournament-admin'] },
+    { href: '/dashboard/payments', label: 'Payments', roles: ['app-admin'] },
     { href: '/results', label: 'Results', roles: ['app-admin', 'tournament-admin', 'event-manager', 'captain', 'player'], target: '_blank' },
   ];
 }

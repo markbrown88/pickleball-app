@@ -7,7 +7,7 @@
  * Now displays games in 2-column grid with player lineups, matching the list view.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { GameScoreBox } from '../shared/GameScoreBox';
 import { PlayerLite } from '../shared/types';
 import { useGameControls } from '../../hooks/useGameControls';
@@ -74,38 +74,78 @@ export function BracketMatchModal({
   onError,
   onInfo,
 }: BracketMatchModalProps) {
+  console.log('BracketMatchModal RENDERED - Version 2.0', {
+    matchId: match?.id,
+    hasMatch: !!match,
+    timestamp: new Date().toISOString(),
+  });
   const [updating, setUpdating] = useState(false);
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
-  const [localGames, setLocalGames] = useState<Game[]>(match?.games || []);
+  // Initialize localGames from match.games, but ensure we always have the latest
+  const [localGames, setLocalGames] = useState<Game[]>(() => {
+    const initialGames = match?.games || [];
+    console.log('BracketMatchModal: Initial state', {
+      matchId: match?.id,
+      hasMatch: !!match,
+      gamesFromMatch: match?.games?.length || 0,
+      initialGamesLength: initialGames.length,
+    });
+    return initialGames;
+  });
 
   // Sync localGames when match updates
+  // ALWAYS sync from server data to ensure we have the latest game states (scores, statuses, etc.)
   useEffect(() => {
-    if (match) {
-      console.log('BracketMatchModal: Match updated', {
-        matchId: match.id,
-        totalGames: match.games.length,
-        completedGames: match.games.filter(g => g.isComplete).length,
-        gamesWithNullScores: match.games.filter(g => g.isComplete && (g.teamAScore === null || g.teamBScore === null)).length,
-      });
-      setLocalGames(match.games);
+    if (!match) {
+      // Match is null/undefined, reset localGames
+      setLocalGames([]);
+      return;
     }
-  }, [match]);
+
+    const gamesArray = Array.isArray(match.games) ? match.games : [];
+
+    console.log('BracketMatchModal: Syncing localGames from match.games', {
+      matchId: match.id,
+      gamesCount: gamesArray.length,
+      serverData: gamesArray.map(g => ({
+        id: g.id,
+        isComplete: g.isComplete,
+        startedAt: g.startedAt,
+        teamAScore: g.teamAScore,
+        teamBScore: g.teamBScore,
+      })),
+    });
+
+    // Always sync from server to ensure we have latest data (scores, statuses, etc.)
+    // This fixes the issue where closing/reopening modal showed stale data
+    setLocalGames([...gamesArray]); // Create new array reference
+  }, [match]); // Depend on the entire match object to catch all changes
 
   // Use shared game controls hook
   const gameControls = useGameControls({ onError, onUpdate });
 
   // Game control functions
   const startGame = useCallback(async (gameId: string) => {
+    console.log('BracketMatchModal: Starting game', gameId);
     try {
       const updatedGame = await gameControls.startGame(gameId);
+      console.log('BracketMatchModal: Game started successfully', updatedGame);
 
-      // Update local state optimistically
-      setLocalGames(prev => prev.map(g =>
-        g.id === gameId
-          ? { ...g, startedAt: new Date().toISOString(), isComplete: false }
-          : g
-      ));
+      // Update local state optimistically - create new array reference to trigger re-render
+      setLocalGames(prev => {
+        const updated = prev.map(g =>
+          g.id === gameId
+            ? { ...g, startedAt: updatedGame.startedAt || new Date().toISOString(), isComplete: false }
+            : g
+        );
+        console.log('BracketMatchModal: Updated localGames after start', updated.find(g => g.id === gameId));
+        return [...updated]; // Force new array reference
+      });
+      
+      // Don't call onUpdate() here - optimistic updates are sufficient
+      // The modal should stay open and show the updated state immediately
     } catch (error) {
+      console.error('BracketMatchModal: Error starting game', error);
       // Error already handled by hook
     }
   }, [gameControls]);
@@ -130,12 +170,24 @@ export function BracketMatchModal({
       const updatedGame = await gameControls.endGame(gameId, teamAScore, teamBScore);
 
       if (updatedGame) {
-        // Update local state optimistically
-        setLocalGames(prev => prev.map(g =>
-          g.id === gameId
-            ? { ...g, isComplete: true, endedAt: new Date().toISOString(), teamAScore, teamBScore }
-            : g
-        ));
+        // Update local state optimistically - create new array reference to trigger re-render
+        setLocalGames(prev => {
+          const updated = prev.map(g =>
+            g.id === gameId
+              ? { ...g, isComplete: true, endedAt: updatedGame.endedAt || new Date().toISOString(), teamAScore, teamBScore }
+              : g
+          );
+          console.log('BracketMatchModal: Updated localGames after ending game', {
+            gameId,
+            updatedGame: updated.find(g => g.id === gameId),
+            totalGames: updated.length,
+            completedGames: updated.filter(g => g.isComplete).length,
+          });
+          return [...updated]; // Force new array reference
+        });
+        
+        // Don't call onUpdate here - it would overwrite localGames
+        // Instead, rely on handleModalClose to refresh when modal closes
       }
     } catch (error) {
       // Error already handled by hook
@@ -147,12 +199,17 @@ export function BracketMatchModal({
       const updatedGame = await gameControls.reopenGame(gameId);
 
       if (updatedGame) {
-        // Update local state optimistically
-        setLocalGames(prev => prev.map(g =>
-          g.id === gameId
-            ? { ...g, isComplete: false, endedAt: null }
-            : g
-        ));
+        // Update local state optimistically - create new array reference to trigger re-render
+        setLocalGames(prev => {
+          const updated = prev.map(g =>
+            g.id === gameId
+              ? { ...g, isComplete: false, endedAt: null }
+              : g
+          );
+          return [...updated]; // Force new array reference
+        });
+        
+        // Don't call onUpdate() here - optimistic updates are sufficient
       }
     } catch (error) {
       // Error already handled by hook
@@ -160,12 +217,22 @@ export function BracketMatchModal({
   }, [gameControls]);
 
   const updateGameScore = useCallback(async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
-    // Update local state immediately (optimistic update)
-    setLocalGames(prev => prev.map(g =>
-      g.id === gameId
-        ? { ...g, teamAScore, teamBScore }
-        : g
-    ));
+    console.log('BracketMatchModal: Updating score', { gameId, teamAScore, teamBScore });
+    
+    // Update local state immediately (optimistic update) - create new array and objects
+    setLocalGames(prev => {
+      const updated = prev.map(g =>
+        g.id === gameId
+          ? { ...g, teamAScore, teamBScore } // Create new object
+          : g
+      );
+      console.log('BracketMatchModal: Updated localGames after score update', {
+        gameId,
+        updatedGame: updated.find(g => g.id === gameId),
+        allGames: updated.map(g => ({ id: g.id, scoreA: g.teamAScore, scoreB: g.teamBScore })),
+      });
+      return [...updated]; // Force new array reference
+    });
 
     // Debounced API call handled by hook
     await gameControls.updateScore(gameId, teamAScore, teamBScore);
@@ -174,12 +241,15 @@ export function BracketMatchModal({
   const updateGameCourtNumber = useCallback(async (gameId: string, courtNumber: string) => {
     const courtNum = courtNumber ? parseInt(courtNumber, 10) : null;
 
-    // Update local state immediately (optimistic update)
-    setLocalGames(prev => prev.map(g =>
-      g.id === gameId
-        ? { ...g, courtNumber: courtNum }
-        : g
-    ));
+    // Update local state immediately (optimistic update) - create new array reference
+    setLocalGames(prev => {
+      const updated = prev.map(g =>
+        g.id === gameId
+          ? { ...g, courtNumber: courtNum }
+          : g
+      );
+      return [...updated]; // Force new array reference
+    });
 
     await gameControls.updateCourtNumber(gameId, courtNum);
   }, [gameControls]);
@@ -199,35 +269,20 @@ export function BracketMatchModal({
   }, [match, onClose]);
 
   if (!match) return null;
-
-  const handleCompleteMatch = async () => {
-    if (!canCompleteMatch()) {
-      onError('Match cannot be completed yet');
-      return;
-    }
-
-    try {
-      setUpdating(true);
-
-      const response = await fetch(`/api/admin/matches/${match.id}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to complete match');
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
       }
+    };
 
-      onInfo('Match completed successfully!');
-      onUpdate();
-      onClose();
-    } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to complete match');
-    } finally {
-      setUpdating(false);
+    if (match) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
     }
-  };
+  }, [match, onClose]);
+
+  if (!match) return null;
 
   const handleDecideByPoints = async () => {
     const confirmMessage = `Confirm using total points to decide ${match.teamA?.name} vs ${match.teamB?.name}?`;
@@ -250,7 +305,14 @@ export function BracketMatchModal({
       }
 
       onInfo('Match decided by total points');
-      onUpdate();
+      
+      // Refresh match data without closing modal
+      if (onUpdate) {
+        // Small delay to let the API update complete
+        setTimeout(() => {
+          onUpdate();
+        }, 200);
+      }
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to decide match by points');
     } finally {
@@ -284,7 +346,14 @@ export function BracketMatchModal({
       }
 
       onInfo('Tiebreaker game created');
-      onUpdate();
+      
+      // Refresh match data without closing modal
+      if (onUpdate) {
+        // Small delay to let the API update complete
+        setTimeout(() => {
+          onUpdate();
+        }, 200);
+      }
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to schedule tiebreaker');
     } finally {
@@ -316,7 +385,14 @@ export function BracketMatchModal({
       }
 
       onInfo(`${forfeitingTeamName} forfeited. ${winningTeamName} wins.`);
-      onUpdate();
+      
+      // Refresh match data without closing modal
+      if (onUpdate) {
+        // Small delay to let the API update complete
+        setTimeout(() => {
+          onUpdate();
+        }, 200);
+      }
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to forfeit match');
     } finally {
@@ -334,16 +410,19 @@ export function BracketMatchModal({
       return false;
     }
 
+    // Always use localGames as source of truth - it includes optimistic updates
+    const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+
     // For club tournaments, need all games completed (e.g., 8 games for 2 brackets)
-    const completedGames = localGames.filter(g => g.isComplete).length;
-    const bracketCount = new Set(localGames.filter(g => g.bracketId).map(g => g.bracketId)).size;
+    const completedGames = gamesToUse.filter(g => g.isComplete).length;
+    const bracketCount = new Set(gamesToUse.filter(g => g.bracketId).map(g => g.bracketId)).size;
     const totalExpectedGames = bracketCount * 4;
     
     console.log('canCompleteMatch check:', {
       completedGames,
       bracketCount,
       totalExpectedGames,
-      totalGames: localGames.length,
+      totalGames: gamesToUse.length,
     });
     
     if (completedGames < totalExpectedGames) {
@@ -367,16 +446,20 @@ export function BracketMatchModal({
   };
 
   const getGameWins = () => {
+    // Always use localGames as source of truth - it includes optimistic updates
+    // This ensures game wins update dynamically as games are completed
+    const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+    
     let teamAGameWins = 0;
     let teamBGameWins = 0;
 
     console.log('=== Calculating game wins (FIXED VERSION) ===');
-    console.log('Calculating game wins for match:', match.id);
-    console.log('Total games:', localGames.length);
-    console.log('Completed games:', localGames.filter(g => g.isComplete).length);
+    console.log('Calculating game wins for match:', match?.id);
+    console.log('Total games:', gamesToUse.length);
+    console.log('Completed games:', gamesToUse.filter(g => g.isComplete).length);
     
     // Log all games with their details
-    console.log('All games details:', localGames.map(g => ({
+    console.log('All games details:', gamesToUse.map(g => ({
       id: g.id,
       slot: g.slot,
       bracket: g.bracket?.name || 'Main',
@@ -386,7 +469,7 @@ export function BracketMatchModal({
       willBeCounted: g.isComplete && (g.teamAScore !== null || g.teamBScore !== null)
     })));
 
-    for (const game of localGames) {
+    for (const game of gamesToUse) {
       if (!game.isComplete) {
         console.log(`Game ${game.id} (${game.slot}) skipped: not complete`);
         continue;
@@ -422,11 +505,11 @@ export function BracketMatchModal({
     }
 
     console.log(`=== Final count: Team A: ${teamAGameWins}, Team B: ${teamBGameWins}, Total counted: ${teamAGameWins + teamBGameWins} ===`);
-    console.log(`Expected total: ${localGames.filter(g => g.isComplete).length} completed games`);
+    console.log(`Expected total: ${gamesToUse.filter(g => g.isComplete).length} completed games`);
 
     // Also track brackets for display purposes (games are grouped by bracket)
     const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
-    for (const game of localGames) {
+    for (const game of gamesToUse) {
       if (!game.isComplete) continue;
       
       // Treat null scores as 0 for completed games
@@ -450,27 +533,173 @@ export function BracketMatchModal({
     return { teamAGameWins, teamBGameWins, bracketsByName };
   };
 
+  // Handle match completion - moved here after getGameWins is defined
+  const handleCompleteMatch = useCallback(async () => {
+    if (!match) return;
+    if (match.isBye || match.winnerId) {
+      onError('Match cannot be completed');
+      return;
+    }
+
+    const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+    const completedGames = gamesToUse.filter(g => g.isComplete).length;
+    const bracketCount = new Set(gamesToUse.filter(g => g.bracketId).map(g => g.bracketId)).size;
+    const totalExpectedGames = bracketCount * 4 || gamesToUse.length;
+    
+    if (completedGames < totalExpectedGames) {
+      onError('Match cannot be completed yet');
+      return;
+    }
+
+    const { teamAGameWins, teamBGameWins } = getGameWins();
+    const majority = Math.ceil(totalExpectedGames / 2);
+    const hasClearWinner = teamAGameWins >= majority || teamBGameWins >= majority || match.tiebreakerWinnerTeamId !== null;
+    
+    if (!hasClearWinner) {
+      onError('Match cannot be completed - no clear winner');
+      return;
+    }
+
+    try {
+      setUpdating(true);
+
+      const response = await fetch(`/api/admin/matches/${match.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to complete match');
+      }
+
+      const result = await response.json();
+      console.log('Match completion result:', result);
+      
+      onInfo('Match completed successfully!');
+      // Refresh bracket data first to show winner progression, then close modal
+      if (onUpdate) {
+        console.log('Calling onUpdate to refresh bracket...');
+        await onUpdate();
+        console.log('Bracket refresh complete');
+      }
+      onClose();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to complete match');
+    } finally {
+      setUpdating(false);
+    }
+  }, [match, localGames, getGameWins, onError, onInfo, onUpdate, onClose]);
+
+  // Calculate game wins directly - don't use useMemo, just calculate on every render
+  // React will re-render when localGames changes (new array reference from setLocalGames)
+  // This ensures the display updates immediately when games are finished
+  const { teamAGameWins, teamBGameWins } = (() => {
+    const result = getGameWins();
+    console.log('CALCULATING GAME WINS ON RENDER:', { 
+      teamAGameWins: result.teamAGameWins, 
+      teamBGameWins: result.teamBGameWins, 
+      localGamesLength: localGames.length,
+      completedGames: localGames.filter(g => g.isComplete).length,
+      localGamesArray: localGames.map(g => ({ id: g.id, complete: g.isComplete, scoreA: g.teamAScore, scoreB: g.teamBScore })),
+    });
+    return result;
+  })();
+  
   const getMatchStatus = () => {
     if (match.forfeitTeam) return 'decided';
     if (match.winnerId) return 'decided';
     if (match.tiebreakerWinnerTeamId) return 'decided';
 
-    const { teamAGameWins, teamBGameWins, bracketsByName } = getGameWins();
+    // Always use localGames as source of truth - it includes optimistic updates
+    const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+
+    const { teamAGameWins: winsA, teamBGameWins: winsB, bracketsByName } = getGameWins();
     const bracketCount = Object.keys(bracketsByName).length || 1;
     const totalExpectedGames = bracketCount * 4;
-    const completedGames = localGames.filter(g => g.isComplete).length;
+    const completedGames = gamesToUse.filter(g => g.isComplete).length;
 
     if (completedGames < totalExpectedGames) return 'in_progress';
-    if (teamAGameWins === teamBGameWins && teamAGameWins > 0) return 'tied';
+    if (winsA === winsB && winsA > 0) return 'tied';
     const majority = Math.ceil(totalExpectedGames / 2);
-    if (teamAGameWins >= majority || teamBGameWins >= majority) return 'ready_to_complete';
+    if (winsA >= majority || winsB >= majority) return 'ready_to_complete';
 
     return 'in_progress';
   };
-
-  const { teamAGameWins, teamBGameWins } = getGameWins();
-  const matchStatus = getMatchStatus();
+  
+  const matchStatus = useMemo(() => getMatchStatus(), [localGames, match, teamAGameWins, teamBGameWins]);
   const isDecided = matchStatus === 'decided';
+  
+  // Auto-complete match when all games are finished and there's a clear winner
+  useEffect(() => {
+    console.log('Auto-complete useEffect triggered:', {
+      matchId: match?.id,
+      hasMatch: !!match,
+      winnerId: match?.winnerId,
+      isBye: match?.isBye,
+      forfeitTeam: match?.forfeitTeam,
+      localGamesLength: localGames.length,
+    });
+    
+    if (!match || match.winnerId || match.isBye || match.forfeitTeam) {
+      console.log('Auto-complete: Skipping - already completed or invalid');
+      return; // Already completed or can't complete
+    }
+
+    // Check if all games are complete
+    const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+    const bracketCount = new Set(gamesToUse.filter(g => g.bracketId).map(g => g.bracketId)).size;
+    const totalExpectedGames = bracketCount * 4 || gamesToUse.length;
+    const completedGames = gamesToUse.filter(g => g.isComplete).length;
+
+    console.log('Auto-complete: Checking completion status:', {
+      completedGames,
+      totalExpectedGames,
+      bracketCount,
+      gamesToUseLength: gamesToUse.length,
+    });
+
+    if (completedGames < totalExpectedGames) {
+      console.log('Auto-complete: Not all games complete yet');
+      return; // Not all games complete yet
+    }
+
+    // Check if there's a clear winner (not a tie)
+    const { teamAGameWins: winsA, teamBGameWins: winsB } = getGameWins();
+    const majority = Math.ceil(totalExpectedGames / 2);
+    const hasClearWinner = winsA >= majority || winsB >= majority;
+
+    console.log('Auto-complete: Checking winner:', {
+      winsA,
+      winsB,
+      majority,
+      hasClearWinner,
+    });
+
+    if (!hasClearWinner) {
+      console.log('Auto-complete: No clear winner yet');
+      return; // Tie or no clear winner yet
+    }
+
+    // Auto-complete the match
+    console.log('🔥 AUTO-COMPLETING MATCH:', {
+      matchId: match.id,
+      teamAGameWins: winsA,
+      teamBGameWins: winsB,
+      completedGames,
+      totalExpectedGames,
+    });
+
+    handleCompleteMatch();
+  }, [localGames, match?.id, match?.winnerId, match?.isBye, match?.forfeitTeam, handleCompleteMatch]);
+  
+  // Check if winner should advance to next round
+  const winnerId = match.winnerId || match.tiebreakerWinnerTeamId;
+  const winnerName = winnerId === match.teamA?.id 
+    ? match.teamA?.name 
+    : winnerId === match.teamB?.id 
+    ? match.teamB?.name 
+    : null;
   
   console.log('Button visibility check:', {
     isDecided,
@@ -480,6 +709,8 @@ export function BracketMatchModal({
     forfeitTeam: match.forfeitTeam,
     tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
     showButton: !isDecided && canCompleteMatch(),
+    winnerName,
+    winnerShouldAdvance: !!winnerId,
   });
 
   const cleanTeamAName = stripBracketSuffix(match.teamA?.name || '');
@@ -619,10 +850,37 @@ export function BracketMatchModal({
         {/* Content - Games by Bracket */}
         <div className="p-6 space-y-6">
           {(() => {
+            // Use localGames as the source of truth for rendering (includes optimistic updates)
+            // Fall back to match.games only if localGames is empty (initial state)
+            const gamesToRender = localGames.length > 0 ? localGames : (match?.games || []);
+            
+            console.log('BracketMatchModal: Rendering games', {
+              matchId: match?.id,
+              matchGamesLength: match?.games?.length || 0,
+              localGamesLength: localGames.length,
+              gamesToRenderLength: gamesToRender.length,
+              games: gamesToRender.map(g => ({
+                id: g.id,
+                slot: g.slot,
+                isComplete: g.isComplete,
+                startedAt: g.startedAt,
+                status: g.isComplete ? 'completed' : (g.startedAt ? 'in_progress' : 'not_started')
+              }))
+            });
+            
+            if (gamesToRender.length === 0) {
+              return (
+                <div className="text-center py-8 text-gray-400">
+                  <p>No games found for this match.</p>
+                  <p className="text-sm mt-2">Match ID: {match?.id}</p>
+                </div>
+              );
+            }
+            
             // Group games by bracket
             const gamesByBracket: Record<string, Game[]> = {};
 
-            for (const game of localGames) {
+            for (const game of gamesToRender) {
               const bracketKey = game.bracket?.name || 'Main';
               if (!gamesByBracket[bracketKey]) {
                 gamesByBracket[bracketKey] = [];

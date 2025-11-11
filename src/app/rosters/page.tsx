@@ -309,13 +309,31 @@ function RosterDetails({
           <div>
             <h2 className="text-xl font-bold text-primary">{roster.tournamentName}</h2>
             <div className="flex flex-wrap items-center gap-3 mt-2">
-              <span className="chip chip-info text-[10px] px-2 py-0.5">{roster.stops.length || '0'} Stops</span>
-              <span className="text-xs text-muted">
-                Roster Cap: <span className="font-semibold text-secondary">{roster.maxTeamSize ?? 'No limit'}</span>
-              </span>
-              <span className="text-xs text-muted">
-                <span className="font-semibold text-secondary">{roster.clubs.length}</span> {roster.clubs.length === 1 ? 'Club' : 'Clubs'}
-              </span>
+              {hasMultipleStops ? (
+                <>
+                  <span className="chip chip-info text-[10px] px-2 py-0.5">{roster.stops.length || '0'} Stops</span>
+                  <span className="text-xs text-muted">
+                    Roster Cap: <span className="font-semibold text-secondary">{roster.maxTeamSize ?? 'No Limit'}</span>
+                  </span>
+                  <span className="text-xs text-muted">
+                    <span className="font-semibold text-secondary">{roster.clubs.length}</span> {roster.clubs.length === 1 ? 'Club' : 'Clubs'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {roster.stops[0] && (
+                    <span className="text-sm text-primary">
+                      @ {roster.stops[0].locationName ?? 'Location TBD'} - {fmtDateDisplay(roster.stops[0].startAt)}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted">
+                    Roster Cap: <span className="font-semibold text-secondary">{roster.maxTeamSize ?? 'No Limit'}</span>
+                  </span>
+                  <span className="text-xs text-muted">
+                    <span className="font-semibold text-secondary">{roster.clubs.length}</span> {roster.clubs.length === 1 ? 'Club' : 'Clubs'}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -335,7 +353,6 @@ function RosterDetails({
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-primary">{club.clubName}</h3>
-                    <p className="text-xs text-muted mt-0.5">{club.brackets.length} {club.brackets.length === 1 ? 'bracket' : 'brackets'}</p>
                   </div>
                 </div>
                 {club.captainAccessToken && (
@@ -504,40 +521,9 @@ function ClubRosterEditor({
 
     return (
       <div className="space-y-4">
-        {/* Stop Info Header */}
-        <div className="flex items-center justify-between p-4 bg-surface-2 rounded-lg border border-border-subtle">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-info/20">
-              <span className="text-lg">📍</span>
-            </div>
-            <div>
-              <div className="font-semibold text-base text-primary">
-                {stop.locationName ?? 'Location TBD'}
-              </div>
-              <div className="text-sm text-muted">
-                {between(stop.startAt, stop.endAt)}
-              </div>
-            </div>
-            {maxTeamSize && maxTeamSize > 0 && (
-              <div className="flex items-center gap-2">
-                <div className="text-xs text-muted">
-                  <span className="font-semibold text-secondary">{completion.filled}</span> / {completion.total} players
-                </div>
-                <div className="w-24 h-2 bg-surface-1 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all ${
-                      completion.percentage >= 100 ? 'bg-success' :
-                      completion.percentage >= 50 ? 'bg-warning' :
-                      'bg-info'
-                    }`}
-                    style={{ width: `${Math.min(completion.percentage, 100)}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-muted">{completion.percentage}%</span>
-              </div>
-            )}
-          </div>
-          {previousStop && (
+        {/* Copy from Previous Button - only show for multiple stops */}
+        {hasMultipleStops && previousStop && (
+          <div className="flex justify-end">
             <button
               className="btn btn-secondary text-sm"
               type="button"
@@ -545,8 +531,8 @@ function ClubRosterEditor({
             >
               Copy from {previousStop.stopName || 'previous'}
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Bracket Rosters Grid */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -588,8 +574,9 @@ function ClubRosterEditor({
           <div className="border-b border-border-subtle mb-6">
             <nav className="flex gap-1 -mb-px" aria-label="Stop tabs">
               {stops.map((stop) => {
-                const completion = getRosterCompletion(stop.stopId);
                 const isActive = selectedStopId === stop.stopId;
+                const locationText = stop.locationName ? ` @ ${stop.locationName}` : '';
+                const dateText = fmtDateDisplay(stop.startAt);
 
                 return (
                   <button
@@ -597,16 +584,10 @@ function ClubRosterEditor({
                     onClick={() => setSelectedStopId(stop.stopId)}
                     className={`tab-button ${isActive ? 'active' : ''}`}
                   >
-                    <span>{stop.stopName || 'Stop'}</span>
-                    {maxTeamSize && maxTeamSize > 0 && (
-                      <span className={`chip text-[10px] px-2 py-0.5 ml-2 ${
-                        completion.percentage >= 100 ? 'chip-success' :
-                        completion.percentage >= 50 ? 'chip-warning' :
-                        'chip-info'
-                      }`}>
-                        {completion.filled}/{completion.total}
-                      </span>
-                    )}
+                    <div className="flex flex-col items-start">
+                      <span>{stop.stopName || 'Stop'}{locationText}</span>
+                      {dateText && <span className="text-xs opacity-75 mt-0.5">{dateText}</span>}
+                    </div>
                   </button>
                 );
               })}
@@ -813,7 +794,7 @@ function BracketRosterEditor({
           ))}
           {list.length === 0 && (
             <li className="text-sm text-muted p-4 text-center bg-surface-2/50 rounded-lg border-2 border-dashed border-border-medium italic">
-              No players assigned yet. Search above to add players.
+              No players assigned yet.
             </li>
           )}
         </ul>

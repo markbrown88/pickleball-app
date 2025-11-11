@@ -66,6 +66,51 @@ export const lineupSubmissionLimiter = redis
   : null;
 
 /**
+ * Rate limiter for payment checkout session creation
+ * Allows 5 requests per minute per user/IP
+ *
+ * Protects against payment spam and abuse
+ */
+export const paymentCheckoutLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(5, '1 m'),
+      analytics: true,
+      prefix: '@ratelimit/payment-checkout',
+    })
+  : null;
+
+/**
+ * Rate limiter for payment retry
+ * Allows 3 requests per 5 minutes per user/IP
+ *
+ * Prevents abuse of retry mechanism
+ */
+export const paymentRetryLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(3, '5 m'),
+      analytics: true,
+      prefix: '@ratelimit/payment-retry',
+    })
+  : null;
+
+/**
+ * Rate limiter for refund processing (admin)
+ * Allows 10 requests per minute per user
+ *
+ * Protects against accidental mass refunds
+ */
+export const refundLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, '1 m'),
+      analytics: true,
+      prefix: '@ratelimit/refund',
+    })
+  : null;
+
+/**
  * Helper to get client IP from request
  */
 export function getClientIp(request: Request): string {

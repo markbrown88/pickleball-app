@@ -185,7 +185,7 @@ export const GameScoreBox = memo(function GameScoreBox({
   const teamBWon = teamBScore > teamAScore;
 
   return (
-    <div className={`rounded-lg border-2 overflow-hidden ${
+    <div className={`rounded-lg border-2 overflow-visible ${
       isCompleted ? 'border-border-subtle bg-surface-1' :
       isInProgress ? 'border-warning bg-warning/5' :
       'border-border-medium bg-surface-2'
@@ -224,7 +224,7 @@ export const GameScoreBox = memo(function GameScoreBox({
           )}
           {gameStatus === 'not_started' && (
             <button
-              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-success hover:bg-success-hover text-white"
+              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-success hover:bg-success-hover text-white cursor-pointer"
               onClick={() => startGame(game.id)}
             >
               Start
@@ -232,7 +232,7 @@ export const GameScoreBox = memo(function GameScoreBox({
           )}
           {gameStatus === 'in_progress' && (
             <button
-              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-error hover:bg-error-hover text-white"
+              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-error hover:bg-error-hover text-white cursor-pointer"
               onClick={() => endGame(game.id)}
             >
               Finish
@@ -240,7 +240,7 @@ export const GameScoreBox = memo(function GameScoreBox({
           )}
           {gameStatus === 'completed' && (
             <button
-              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-warning hover:bg-warning-hover text-white"
+              className="px-3 py-1 rounded-lg text-xs font-semibold transition-all bg-warning hover:bg-warning-hover text-white cursor-pointer"
               onClick={() => reopenGame(game.id)}
             >
               Reopen
@@ -250,13 +250,13 @@ export const GameScoreBox = memo(function GameScoreBox({
       </div>
 
       {/* Game Body - Players and Scores */}
-      <div className="p-4 space-y-3">
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+      <div className="p-4 space-y-3 overflow-visible">
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center min-w-0">
           {/* Team A Side */}
-          <div className={`text-sm ${
+          <div className={`text-sm min-w-0 ${
             isCompleted && teamAWon ? 'text-success font-semibold' : 'text-secondary'
           }`}>
-            <div className="whitespace-pre-line leading-relaxed">{getTeamALineup()}</div>
+            <div className="whitespace-pre-line leading-relaxed break-words">{getTeamALineup()}</div>
           </div>
 
           {/* Scores */}
@@ -317,10 +317,10 @@ export const GameScoreBox = memo(function GameScoreBox({
           </div>
 
           {/* Team B Side */}
-          <div className={`text-sm text-right ${
+          <div className={`text-sm text-right min-w-0 ${
             isCompleted && teamBWon ? 'text-success font-semibold' : 'text-secondary'
           }`}>
-            <div className="whitespace-pre-line leading-relaxed">{getTeamBLineup()}</div>
+            <div className="whitespace-pre-line leading-relaxed break-words">{getTeamBLineup()}</div>
           </div>
         </div>
 

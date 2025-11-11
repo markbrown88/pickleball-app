@@ -133,7 +133,73 @@ export async function POST(req: Request, ctx: CtxPromise) {
       },
     });
 
-    // TODO: Send waitlist confirmation email
+    // Send waitlist confirmation email
+    const playerDetails = await prisma.player.findUnique({
+      where: { id: player.id },
+      select: {
+        email: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+      },
+    });
+
+    if (playerDetails?.email) {
+      try {
+        const playerName =
+          playerDetails.name ||
+          (playerDetails.firstName && playerDetails.lastName
+            ? `${playerDetails.firstName} ${playerDetails.lastName}`
+            : playerDetails.firstName || 'Player');
+
+        // Get tournament details for email
+        const tournamentDetails = await prisma.tournament.findUnique({
+          where: { id: tournamentId },
+          include: {
+            stops: {
+              take: 1,
+              orderBy: { startAt: 'asc' },
+              select: {
+                startAt: true,
+                endAt: true,
+                club: {
+                  select: {
+                    name: true,
+                    city: true,
+                    region: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (tournamentDetails) {
+          const firstStop = tournamentDetails.stops?.[0];
+          const location = firstStop?.club
+            ? [firstStop.club.name, firstStop.club.city, firstStop.club.region]
+                .filter(Boolean)
+                .join(', ')
+            : null;
+
+          const { sendWaitlistConfirmationEmail } = await import('@/server/email');
+          await sendWaitlistConfirmationEmail({
+            to: playerDetails.email,
+            playerName,
+            tournamentName: tournament.name,
+            tournamentId: tournamentId,
+            position: waitlistEntry.position,
+            startDate: firstStop?.startAt || null,
+            endDate: firstStop?.endAt || null,
+            location,
+          });
+
+          console.log('Waitlist confirmation email sent');
+        }
+      } catch (emailError) {
+        console.error('Failed to send waitlist confirmation email:', emailError);
+      }
+    }
 
     return NextResponse.json({
       success: true,

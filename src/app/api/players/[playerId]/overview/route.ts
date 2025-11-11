@@ -1,8 +1,10 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 
 function computeAge(y?: number | null, m?: number | null, d?: number | null): number | null {
   if (!y || !m || !d) return null;
@@ -15,14 +17,32 @@ function computeAge(y?: number | null, m?: number | null, d?: number | null): nu
   } catch { return null; }
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ playerId: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ playerId: string }> }) {
   try {
     // Use singleton prisma instance
     const { playerId } = await params;
 
+    // Support Act As functionality - if acting as, use that player ID instead
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    let effectivePlayerId = playerId;
+    
+    if (actAsPlayerId) {
+      try {
+        const { userId } = await auth();
+        if (userId) {
+          const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+          // If we're acting as someone, use their ID instead of the URL param
+          effectivePlayerId = effectivePlayer.targetPlayerId;
+        }
+      } catch (actAsError) {
+        // If Act As fails, continue with the playerId from URL
+        console.log('Overview API: Act As error, using URL playerId:', actAsError);
+      }
+    }
+
     // Basic profile + captain teams
     const player = await prisma.player.findUnique({
-      where: { id: playerId },
+      where: { id: effectivePlayerId },
       select: {
         id: true,
         firstName: true,
@@ -54,7 +74,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ playerI
 
     // All rostered stops for this player
     const rosterLinks = await prisma.stopTeamPlayer.findMany({
-      where: { playerId },
+      where: { playerId: effectivePlayerId },
       include: {
         stop: {
           include: {

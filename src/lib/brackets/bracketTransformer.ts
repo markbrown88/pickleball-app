@@ -81,23 +81,93 @@ function stripBracketSuffix(name: string | undefined | null): string {
 }
 
 /**
+ * Calculate match number globally across all brackets
+ * Returns sequential numbers like 1, 2, 3, 4...
+ */
+function getMatchNumber(
+  match: Match,
+  round: Round,
+  allRounds: Round[]
+): string {
+  // Sort all rounds by bracket type and idx to get consistent ordering
+  // Order: WINNER rounds, then LOSER rounds, then FINALS rounds
+  const sortedRounds = [...allRounds].sort((a, b) => {
+    // Define bracket order
+    const bracketOrder = { 'WINNER': 0, 'LOSER': 1, 'FINALS': 2 };
+    const orderA = bracketOrder[a.bracketType as keyof typeof bracketOrder] ?? 99;
+    const orderB = bracketOrder[b.bracketType as keyof typeof bracketOrder] ?? 99;
+
+    if (orderA !== orderB) return orderA - orderB;
+    return a.idx - b.idx;
+  });
+
+  // Calculate global match number by counting all matches before this one
+  let matchNumber = 1;
+  for (const r of sortedRounds) {
+    if (r.id === round.id) {
+      // Found current round, add position within this round
+      const matchIndex = r.matches.findIndex(m => m.id === match.id);
+      matchNumber += matchIndex;
+      break;
+    } else {
+      // Add all matches from previous rounds
+      matchNumber += r.matches.length;
+    }
+  }
+
+  return `Match ${matchNumber}`;
+}
+
+/**
+ * Get source match label for TBD teams
+ * Returns labels like "W Match 3" or "L Match 7" or "BYE"
+ */
+function getSourceMatchLabel(
+  sourceMatchId: string | null | undefined,
+  isWinnerSlot: boolean,
+  allMatches: Map<string, Match>,
+  matchToRoundMap: Map<string, Round>,
+  allRounds: Round[]
+): string {
+  if (!sourceMatchId) return 'TBD';
+
+  const sourceMatch = allMatches.get(sourceMatchId);
+  const sourceRound = matchToRoundMap.get(sourceMatchId);
+
+  if (!sourceMatch || !sourceRound) return 'TBD';
+
+  // Get the source match number (e.g., "Match 3")
+  const sourceMatchNumber = getMatchNumber(sourceMatch, sourceRound, allRounds);
+
+  // Determine if it's a winner or loser advancing
+  const prefix = isWinnerSlot ? 'W' : 'L';
+
+  return `${prefix} ${sourceMatchNumber}`;
+}
+
+/**
  * Convert a match to tournament bracket format
  */
 function convertMatch(
   match: Match,
   round: Round,
   allMatches: Map<string, Match>,
-  matchToRoundMap: Map<string, Round>
+  matchToRoundMap: Map<string, Round>,
+  allRounds: Round[]
 ): TournamentBracketMatch | null {
   if (!match || !match.id || !round) {
     return null;
   }
-  const roundLabel = getRoundLabel(round);
+  const matchNumber = getMatchNumber(match, round, allRounds);
   
   // Determine match state
   let state: TournamentBracketMatch['state'] = 'NO_PARTY';
-  if (match.isBye) {
+  if (match.isBye && match.teamA) {
+    // BYE match with team assigned - show as completed with walkover
     state = 'WALK_OVER';
+  } else if (match.isBye && !match.teamA) {
+    // BYE match waiting for source match to complete - show as pending
+    state = 'NO_PARTY';
   } else if (match.winnerId) {
     state = 'SCORE_DONE';
   } else if (match.teamA && match.teamB) {
@@ -112,10 +182,13 @@ function convertMatch(
   // Find matches that reference this match as their source
   for (const [matchId, m] of allMatches.entries()) {
     if (!m || !match.id) continue;
-    
+
     if (m.sourceMatchAId === match.id || m.sourceMatchBId === match.id) {
       const targetRound = matchToRoundMap.get(matchId);
-      if (!targetRound) continue;
+      if (!targetRound) {
+        console.warn(`[BracketTransformer] Match ${match.id.slice(0,8)} has child match ${matchId.slice(0,8)} but no round found!`);
+        continue;
+      }
 
       if (round.bracketType === 'WINNER' && targetRound.bracketType === 'WINNER') {
         nextMatchId = matchId;
@@ -124,9 +197,20 @@ function convertMatch(
       } else if (round.bracketType === 'LOSER' && targetRound.bracketType === 'LOSER') {
         nextMatchId = matchId;
       } else if (round.bracketType === 'LOSER' && targetRound.bracketType === 'FINALS') {
+        console.log(`[BracketTransformer] LOSER match ${match.id.slice(0,8)} -> FINALS match ${matchId.slice(0,8)}`);
         nextMatchId = matchId;
       } else if (round.bracketType === 'WINNER' && targetRound.bracketType === 'FINALS') {
+        console.log(`[BracketTransformer] WINNER match ${match.id.slice(0,8)} -> FINALS match ${matchId.slice(0,8)}`);
         nextMatchId = matchId;
+      } else if (round.bracketType === 'FINALS' && targetRound.bracketType === 'FINALS') {
+        // Finals 1 -> Finals 2 (bracket reset)
+        // Only show this link if Finals 2 has teams assigned (bracket reset triggered)
+        if (m.teamA && m.teamB) {
+          console.log(`[BracketTransformer] FINALS match ${match.id.slice(0,8)} -> FINALS 2 match ${matchId.slice(0,8)} (bracket reset)`);
+          nextMatchId = matchId;
+        } else {
+          console.log(`[BracketTransformer] FINALS 2 exists but no teams yet - not showing as next match`);
+        }
       }
     }
   }
@@ -135,7 +219,7 @@ function convertMatch(
   const participants: TournamentBracketMatch['participants'] = [];
 
   if (match.isBye && match.teamA) {
-    // Bye match - only teamA advances
+    // BYE match with team assigned - show team advancing with bye
     participants.push({
       id: match.teamA.id,
       resultText: 'WON',
@@ -143,44 +227,82 @@ function convertMatch(
       status: 'WALK_OVER',
       name: stripBracketSuffix(match.teamA.name),
     });
-  } else if (match.teamA && match.teamB) {
-    const { teamAGameWins, teamBGameWins } = calculateGameWins(match.games);
-    const teamAIsWinner = match.winnerId === match.teamA.id;
-    const teamBIsWinner = match.winnerId === match.teamB.id;
-
-    // Team A
+    // Add BYE as second participant (not TBD) - no status/text to avoid showing "WO"
     participants.push({
-      id: match.teamA.id,
-      resultText: teamAIsWinner ? `${teamAGameWins}` : (teamBIsWinner ? `${teamAGameWins}` : null),
-      isWinner: teamAIsWinner,
-      status: match.winnerId ? 'PLAYED' : null,
-      name: stripBracketSuffix(match.teamA.name),
+      id: 'bye',
+      resultText: null,
+      isWinner: false,
+      status: null, // Set to null instead of 'WALK_OVER' to prevent "WO" from showing
+      name: 'BYE',
     });
-
-    // Team B
+  } else if (match.isBye && !match.teamA) {
+    // BYE match waiting for source match to complete - show source vs BYE
+    // For loser bracket BYE matches, the team is a loser; for winner bracket, they're a winner
+    const isLoserBracket = round.bracketType === 'LOSER';
+    const teamALabel = getSourceMatchLabel(match.sourceMatchAId, !isLoserBracket, allMatches, matchToRoundMap, allRounds);
     participants.push({
-      id: match.teamB.id,
-      resultText: teamBIsWinner ? `${teamBGameWins}` : (teamAIsWinner ? `${teamBGameWins}` : null),
-      isWinner: teamBIsWinner,
-      status: match.winnerId ? 'PLAYED' : null,
-      name: stripBracketSuffix(match.teamB.name),
+      id: 'tbd-bye-team',
+      resultText: null,
+      isWinner: false,
+      status: null,
+      name: teamALabel,
+    });
+    participants.push({
+      id: 'bye',
+      resultText: null,
+      isWinner: false,
+      status: null,
+      name: 'BYE',
     });
   } else {
-    // TBD - no teams assigned yet
-    participants.push({
-      id: 'tbd-1',
-      resultText: null,
-      isWinner: false,
-      status: null,
-      name: 'TBD',
-    });
-    participants.push({
-      id: 'tbd-2',
-      resultText: null,
-      isWinner: false,
-      status: null,
-      name: 'TBD',
-    });
+    // Handle partial team assignments (when winners advance)
+    const { teamAGameWins, teamBGameWins } = calculateGameWins(match.games);
+
+    // Determine if teams are winners or losers advancing
+    // For loser bracket, the source is a loser; for others, it's a winner
+    const isLoserBracket = round.bracketType === 'LOSER';
+
+    // Team A (or source match label if not set)
+    if (match.teamA) {
+      const teamAIsWinner = match.winnerId === match.teamA.id;
+      participants.push({
+        id: match.teamA.id,
+        resultText: teamAIsWinner ? `${teamAGameWins}` : (match.teamB && match.winnerId === match.teamB.id ? `${teamAGameWins}` : null),
+        isWinner: teamAIsWinner,
+        status: match.winnerId ? 'PLAYED' : null,
+        name: stripBracketSuffix(match.teamA.name),
+      });
+    } else {
+      const teamALabel = getSourceMatchLabel(match.sourceMatchAId, !isLoserBracket, allMatches, matchToRoundMap, allRounds);
+      participants.push({
+        id: 'tbd-1',
+        resultText: null,
+        isWinner: false,
+        status: null,
+        name: teamALabel,
+      });
+    }
+
+    // Team B (or source match label if not set)
+    if (match.teamB) {
+      const teamBIsWinner = match.winnerId === match.teamB.id;
+      participants.push({
+        id: match.teamB.id,
+        resultText: teamBIsWinner ? `${teamBGameWins}` : (match.teamA && match.winnerId === match.teamA.id ? `${teamBGameWins}` : null),
+        isWinner: teamBIsWinner,
+        status: match.winnerId ? 'PLAYED' : null,
+        name: stripBracketSuffix(match.teamB.name),
+      });
+    } else {
+      const teamBLabel = getSourceMatchLabel(match.sourceMatchBId, !isLoserBracket, allMatches, matchToRoundMap, allRounds);
+      participants.push({
+        id: 'tbd-2',
+        resultText: null,
+        isWinner: false,
+        status: null,
+        name: teamBLabel,
+      });
+    }
   }
 
   // Ensure we always have at least 2 participants (library requirement)
@@ -200,7 +322,7 @@ function convertMatch(
     nextMatchId: nextMatchId ?? null,
     nextLooserMatchId: nextLooserMatchId ?? null,
     startTime: '', // Required by library, empty string if not available
-    tournamentRoundText: roundLabel,
+    tournamentRoundText: matchNumber,
     state,
     participants,
   };
@@ -210,11 +332,14 @@ function convertMatch(
  * Get round label based on bracket type and depth
  */
 function getRoundLabel(round: Round): string {
+  const depth = round.depth ?? 0;
+
   if (round.bracketType === 'FINALS') {
+    // True double elimination has 2 finals matches
+    if (depth === 1) return 'Finals 1';
+    if (depth === 0) return 'Finals 2';
     return 'Finals';
   }
-
-  const depth = round.depth ?? 0;
 
   if (round.bracketType === 'WINNER') {
     if (depth === 0) return 'W Finals';
@@ -259,29 +384,26 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   const loserRounds = rounds.filter(r => r && r.bracketType === 'LOSER');
   const finalsRounds = rounds.filter(r => r && r.bracketType === 'FINALS');
 
+  console.log(`[BracketTransformer] Processing ${rounds.length} total rounds:`);
+  console.log(`  Winner rounds: ${winnerRounds.length}`);
+  console.log(`  Loser rounds: ${loserRounds.length}`);
+  console.log(`  Finals rounds: ${finalsRounds.length}`);
+
   // Convert matches
   const upperMatches: TournamentBracketMatch[] = [];
   const lowerMatches: TournamentBracketMatch[] = [];
 
   // Winner bracket (upper)
-  winnerRounds.forEach(round => {
+  winnerRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
+    console.log(`BracketTransformer: Processing winner round ${idx + 1} (depth ${round.depth}) with ${round.matches.length} matches`);
     round.matches.forEach(match => {
       if (match && match.id) {
-        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap);
-        if (converted) {
-          upperMatches.push(converted);
-        }
-      }
-    });
-  });
-
-  // Finals goes to upper bracket
-  finalsRounds.forEach(round => {
-    if (!round || !round.matches) return;
-    round.matches.forEach(match => {
-      if (match && match.id) {
-        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap);
+        console.log(`BracketTransformer: Converting winner match ${match.id}:`, {
+          teamA: match.teamA?.name || 'TBD',
+          teamB: match.teamB?.name || 'TBD',
+        });
+        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
           upperMatches.push(converted);
         }
@@ -290,13 +412,49 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   });
 
   // Loser bracket (lower)
-  loserRounds.forEach(round => {
+  loserRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
+    console.log(`BracketTransformer: Processing loser round ${idx} (depth ${round.depth}) with ${round.matches.length} matches`);
     round.matches.forEach(match => {
       if (match && match.id) {
-        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap);
+        console.log(`BracketTransformer: Converting loser match ${match.id.slice(0, 8)}:`, {
+          teamA: match.teamA?.name || 'TBD',
+          teamB: match.teamB?.name || 'TBD',
+        });
+        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
+          console.log(`  -> nextMatchId: ${converted.nextMatchId?.slice(0, 8) || 'NULL'}`);
           lowerMatches.push(converted);
+        }
+      }
+    });
+  });
+
+  // Finals matches (go in upper bracket)
+  // Sort by depth (higher depth = earlier finals, e.g., Finals 1 before Finals 2)
+  const sortedFinalsRounds = [...finalsRounds].sort((a, b) => (b.depth ?? 0) - (a.depth ?? 0));
+
+  sortedFinalsRounds.forEach((round, idx) => {
+    if (!round || !round.matches) return;
+    console.log(`BracketTransformer: Processing finals round ${idx + 1} (depth ${round.depth}) with ${round.matches.length} matches`);
+    round.matches.forEach(match => {
+      if (match && match.id) {
+        // For bracket reset: Only show Finals 2 (depth 0) if teams are assigned
+        const isFinals2 = round.depth === 0;
+        const shouldShowFinals2 = !isFinals2 || (match.teamA && match.teamB);
+
+        if (shouldShowFinals2) {
+          console.log(`BracketTransformer: Converting finals match ${match.id.slice(0, 8)}:`, {
+            depth: round.depth,
+            teamA: match.teamA?.name || 'TBD',
+            teamB: match.teamB?.name || 'TBD',
+          });
+          const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
+          if (converted) {
+            upperMatches.push(converted);
+          }
+        } else {
+          console.log(`BracketTransformer: Skipping Finals 2 (no teams assigned yet)`);
         }
       }
     });
@@ -329,9 +487,31 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
     return match;
   });
 
+  // Ensure no undefined/null matches slip through - library crashes on undefined
+  // Also ensure all required properties exist with proper types
+  const finalUpper = validatedUpper.filter((m): m is TournamentBracketMatch => {
+    if (!m || typeof m !== 'object') return false;
+    if (!('id' in m) || !m.id) return false;
+    if (!('nextMatchId' in m)) return false; // Must have property even if null
+    if (!('participants' in m) || !Array.isArray(m.participants)) return false;
+    if (!('state' in m)) return false;
+    return true;
+  });
+
+  const finalLower = validatedLower.filter((m): m is TournamentBracketMatch => {
+    if (!m || typeof m !== 'object') return false;
+    if (!('id' in m) || !m.id) return false;
+    if (!('nextMatchId' in m)) return false; // Must have property even if null
+    if (!('participants' in m) || !Array.isArray(m.participants)) return false;
+    if (!('state' in m)) return false;
+    return true;
+  });
+
+  console.log(`[BracketTransformer] Final counts - Upper: ${finalUpper.length}, Lower: ${finalLower.length}`);
+
   return {
-    upper: validatedUpper.filter(m => m && m.id),
-    lower: validatedLower.filter(m => m && m.id),
+    upper: finalUpper,
+    lower: finalLower,
   };
 }
 

@@ -156,6 +156,7 @@ model Tournament {
   maxPlayers             Int?                     // null = unlimited
   restrictionNotes       String[]                 // Array of restriction messages
   isWaitlistEnabled      Boolean                  @default(true)
+  pricingModel           PricingModel             @default(TOURNAMENT_WIDE)
 
   CaptainInvite          CaptainInvite[]
   stops                  Stop[]
@@ -681,6 +682,13 @@ enum WaitlistStatus {
   EXPIRED
   REGISTERED
   REMOVED
+}
+
+enum PricingModel {
+  TOURNAMENT_WIDE
+  PER_STOP
+  PER_BRACKET
+  PER_STOP_PER_BRACKET
 }
 
 /// *

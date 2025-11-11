@@ -8,7 +8,7 @@
  * Handles score entry and match completion.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BracketRound } from './BracketRound';
 import { BracketVisualization } from './BracketVisualization';
 import { EventManagerTournament, PlayerLite } from '../shared/types';
@@ -62,6 +62,8 @@ export function BracketMatchManager({
   const [resetting, setResetting] = useState(false);
   const [lineups, setLineups] = useState<Record<string, Record<string, PlayerLite[]>>>({});
   const [teamRosters, setTeamRosters] = useState<Record<string, PlayerLite[]>>({});
+  const cleanupAttemptedRef = useRef(false); // Prevent repeated cleanup attempts - use ref to persist across renders
+  const advancementCheckedRef = useRef(false); // Prevent repeated advancement checks - use ref to persist across renders
 
   // Load bracket data
   useEffect(() => {
@@ -71,8 +73,14 @@ export function BracketMatchManager({
   async function loadBracketData() {
     try {
       setLoading(true);
+      console.log('BracketManager: Loading bracket data for stop:', stopId);
+      console.log('📍 [CLEANUP START] Starting bracket data load and cleanup check...');
 
-      const response = await fetch(`/api/admin/stops/${stopId}/schedule`);
+      // Add cache-busting timestamp to force fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/admin/stops/${stopId}/schedule?t=${timestamp}`, {
+        cache: 'no-store',
+      });
       if (!response.ok) {
         throw new Error('Failed to load bracket data');
       }
@@ -80,7 +88,184 @@ export function BracketMatchManager({
       const data = await response.json();
       // data is an array of rounds, not an object with a rounds property
       const roundsData = Array.isArray(data) ? data : [];
+      console.log('BracketManager: Loaded rounds:', roundsData.length, 'rounds');
+      console.log('📍 [CLEANUP CHECK] Loaded', roundsData.length, 'rounds, starting cleanup check...');
+      
+      // Log ALL matches to verify winner progression
+      roundsData.forEach((round: any, idx: number) => {
+        console.log(`=== Round ${idx + 1} (${round.matches.length} matches, bracketType: ${round.bracketType}, depth: ${round.depth}) ===`);
+        round.matches.forEach((match: any) => {
+          console.log(`Round ${idx + 1} Match ${match.id}:`, {
+            teamA: match.teamA?.name || 'TBD',
+            teamB: match.teamB?.name || 'TBD',
+            winnerId: match.winnerId,
+            sourceMatchAId: match.sourceMatchAId,
+            sourceMatchBId: match.sourceMatchBId,
+            gamesComplete: match.games?.filter((g: any) => g.isComplete).length || 0,
+            totalGames: match.games?.length || 0,
+          });
+        });
+      });
+      
       setRounds(roundsData);
+
+      // FIRST: Cleanup - Remove winners from loser bracket matches
+      // This fixes existing incorrect data from before the bracket type filtering was added
+      // Only attempt cleanup once to prevent infinite loops when API is unavailable
+      if (!cleanupAttemptedRef.current) {
+        console.warn('🔍 [CLEANUP] ========== STARTING CLEANUP CHECK ==========');
+        console.warn(`🔍 [CLEANUP] Total rounds: ${roundsData.length}, Loser rounds: ${roundsData.filter(r => r.bracketType === 'LOSER').length}`);
+
+        cleanupAttemptedRef.current = true; // Mark as attempted IMMEDIATELY to prevent repeated tries
+
+        // Call the fix-bracket API endpoint to remove winners from loser bracket
+        try {
+          console.warn(`🔍 [CLEANUP] Calling fix-bracket API for stop: ${stopId}`);
+          const fixResponse = await fetch(`/api/admin/stops/${stopId}/fix-bracket`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          console.warn(`🔍 [CLEANUP] Fix-bracket API response status: ${fixResponse.status}`);
+
+          if (fixResponse.ok) {
+            const fixResult = await fixResponse.json();
+            console.warn(`✅ [CLEANUP] Fixed ${fixResult.fixes || 0} incorrect loser bracket placements`, fixResult);
+            if (fixResult.fixes > 0) {
+              console.warn('🔄 [CLEANUP] Reloading bracket data after cleanup...');
+              // Reload bracket data after cleanup
+              setTimeout(() => {
+                loadBracketData();
+              }, 500);
+              return; // Exit early to let the reload happen
+            }
+          } else {
+            const errorText = await fixResponse.text();
+            console.error('❌ [CLEANUP] Failed to fix bracket:', fixResponse.status, errorText);
+            console.error('⚠️  [CLEANUP] Skipping cleanup - will not retry automatically');
+          }
+        } catch (err) {
+          console.error('❌ [CLEANUP] Error calling fix-bracket API:', err);
+          console.error('⚠️  [CLEANUP] Skipping cleanup - will not retry automatically');
+        }
+
+        console.warn('✅ [CLEANUP] ========== CLEANUP CHECK COMPLETE ==========');
+      }
+
+      // After loading, check for matches that have winners but haven't advanced yet
+      // This handles cases where matches completed before auto-complete was implemented
+      // Only check once to prevent infinite loops
+      if (!advancementCheckedRef.current) {
+        console.log('Checking for matches that need winner advancement...');
+        advancementCheckedRef.current = true; // Mark as checked IMMEDIATELY to prevent repeated checks
+        let matchesNeedingAdvancement = 0;
+
+        for (const round of roundsData) {
+          for (const match of round.matches) {
+          const hasWinner = !!match.winnerId;
+          const hasSourceLinks = !!(match.sourceMatchAId || match.sourceMatchBId);
+          
+          console.log(`Match ${match.id}:`, {
+            hasWinner,
+            winnerId: match.winnerId,
+            hasSourceLinks,
+            sourceMatchAId: match.sourceMatchAId,
+            sourceMatchBId: match.sourceMatchBId,
+            isBye: match.isBye,
+            teamA: match.teamA?.name || 'TBD',
+            teamB: match.teamB?.name || 'TBD',
+          });
+          
+          // Handle BYE matches: automatically complete them if they haven't been completed yet
+          if (match.isBye && match.teamA && !match.winnerId) {
+            console.log(`🔄 BYE match ${match.id}: Auto-completing with winner ${match.teamA.id}`);
+            matchesNeedingAdvancement++;
+            fetch(`/api/admin/matches/${match.id}/complete`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+            })
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error('Failed to complete BYE match');
+                }
+                return response.json();
+              })
+              .then(result => {
+                console.log(`✅ BYE match ${match.id} completion result:`, result);
+                // Reload bracket data after a short delay to show updated teams
+                setTimeout(() => {
+                  loadBracketData();
+                }, 500);
+              })
+              .catch(err => {
+                console.error('Failed to complete BYE match:', err);
+                // DO NOT reload on error - this causes infinite loop when API returns 404
+              });
+          }
+          
+          // Check if match (including BYE matches) has winner but hasn't advanced yet
+          if (match.winnerId && (match.sourceMatchAId || match.sourceMatchBId)) {
+            // Check if child matches still have TBD
+            const childMatches = roundsData
+              .flatMap(r => r.matches)
+              .filter(m => 
+                m.sourceMatchAId === match.id || m.sourceMatchBId === match.id
+              );
+            
+            console.log(`Match ${match.id} (isBye: ${match.isBye}) has ${childMatches.length} child matches`, {
+              winnerId: match.winnerId,
+              winnerName: match.teamA?.id === match.winnerId ? match.teamA?.name : match.teamB?.name,
+              sourceMatchAId: match.sourceMatchAId,
+              sourceMatchBId: match.sourceMatchBId,
+              childMatches: childMatches.map(c => ({
+                id: c.id,
+                teamA: c.teamA?.name || 'TBD',
+                teamB: c.teamB?.name || 'TBD',
+                sourceMatchAId: c.sourceMatchAId,
+                sourceMatchBId: c.sourceMatchBId,
+              })),
+            });
+            
+            const needsAdvancement = childMatches.some(child => {
+              const needsTeamA = child.sourceMatchAId === match.id && (!child.teamA || child.teamA.name === 'TBD');
+              const needsTeamB = child.sourceMatchBId === match.id && (!child.teamB || child.teamB.name === 'TBD');
+              return needsTeamA || needsTeamB;
+            });
+
+            if (needsAdvancement) {
+              matchesNeedingAdvancement++;
+              console.log(`⚠️ Match ${match.id} (isBye: ${match.isBye}) has winner ${match.winnerId} but children haven't advanced. Triggering completion...`);
+              // Trigger match completion to advance winner
+              fetch(`/api/admin/matches/${match.id}/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              })
+                .then(response => {
+                  if (!response.ok) {
+                    return response.text().then(text => {
+                      throw new Error(`Failed to complete match: ${text}`);
+                    });
+                  }
+                  return response.json();
+                })
+                .then(result => {
+                  console.log(`✅ Match ${match.id} completion result:`, result);
+                  // Reload bracket data after a short delay to show updated teams
+                  setTimeout(() => {
+                    loadBracketData();
+                  }, 500);
+                })
+                .catch(err => {
+                  console.error(`❌ Failed to complete match ${match.id}:`, err);
+                  // DO NOT reload on error - this causes infinite loop when API returns 404
+                });
+            }
+          }
+        }
+        }
+
+        console.log(`Found ${matchesNeedingAdvancement} matches that need winner advancement`);
+      }
 
       // Extract lineups from games and populate the lineups state
       // Structure: bracketId -> teamId -> players
@@ -165,6 +350,31 @@ export function BracketMatchManager({
       await loadBracketData();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to save lineups');
+    }
+  };
+
+  const handleFixBracket = async () => {
+    try {
+      console.warn('🔧 [MANUAL FIX] User clicked Fix Bracket button');
+      const response = await fetch(`/api/admin/stops/${stopId}/fix-bracket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.warn(`✅ [MANUAL FIX] Fixed ${result.fixes || 0} incorrect loser bracket placements`, result);
+        onInfo(`Fixed ${result.fixes || 0} incorrect bracket placements`);
+        // Reload bracket data
+        await loadBracketData();
+      } else {
+        const errorText = await response.text();
+        console.error('❌ [MANUAL FIX] Failed to fix bracket:', response.status, errorText);
+        onError(`Failed to fix bracket: ${errorText}`);
+      }
+    } catch (err) {
+      console.error('❌ [MANUAL FIX] Error:', err);
+      onError(`Failed to fix bracket: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -263,6 +473,14 @@ export function BracketMatchManager({
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             🔄 Reset Bracket
+          </button>
+          
+          {/* Fix Bracket Button */}
+          <button
+            onClick={handleFixBracket}
+            className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            🔧 Fix Bracket (Remove Winners from Loser Bracket)
           </button>
         </div>
       </div>

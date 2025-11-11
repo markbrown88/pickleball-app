@@ -1,17 +1,18 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 
 type CtxPromise = { params: Promise<{ tournamentId: string }> };
 
 /**
  * POST /api/player/tournaments/[tournamentId]/register
- * Register the current player for a tournament
+ * Register the current player for a tournament (supports Act As)
  */
-export async function POST(req: Request, ctx: CtxPromise) {
+export async function POST(req: NextRequest, ctx: CtxPromise) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -20,15 +21,35 @@ export async function POST(req: Request, ctx: CtxPromise) {
 
     const { tournamentId } = await ctx.params;
 
-    // Get player profile
-    const player = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: { id: true },
-    });
-
-    if (!player) {
-      return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    let effectivePlayer;
+    
+    try {
+      effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    } catch (actAsError) {
+      console.log('Register API: Act As error, using real player:', actAsError);
+      // If Act As fails, get the real player
+      const realPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: { id: true }
+      });
+      
+      if (!realPlayer) {
+        return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
+      }
+      
+      effectivePlayer = {
+        realUserId: userId,
+        realPlayerId: realPlayer.id,
+        isActingAs: false,
+        targetPlayerId: realPlayer.id,
+        isAppAdmin: false
+      };
     }
+
+    // Use the effective player ID (either real or acting as)
+    const playerId = effectivePlayer.targetPlayerId;
 
     // Get tournament with registration settings
     const tournament = await prisma.tournament.findUnique({
@@ -70,7 +91,7 @@ export async function POST(req: Request, ctx: CtxPromise) {
       where: {
         tournamentId_playerId: {
           tournamentId: tournament.id,
-          playerId: player.id,
+          playerId,
         },
       },
     });
@@ -97,25 +118,31 @@ export async function POST(req: Request, ctx: CtxPromise) {
     }
 
     // Create registration
-    const registration = await prisma.tournamentRegistration.create({
-      data: {
-        tournamentId: tournament.id,
-        playerId: player.id,
-        status: 'REGISTERED',
-        paymentStatus: tournament.registrationType === 'FREE' ? 'PAID' : 'PENDING',
-        amountPaid: tournament.registrationType === 'FREE' ? 0 : null,
-      },
-      select: {
-        id: true,
-        status: true,
-        paymentStatus: true,
-        registeredAt: true,
-      },
-    });
+    let registration;
+    try {
+      registration = await prisma.tournamentRegistration.create({
+        data: {
+          tournamentId: tournament.id,
+          playerId,
+          status: 'REGISTERED',
+          paymentStatus: tournament.registrationType === 'FREE' ? 'PAID' : 'PENDING',
+          amountPaid: tournament.registrationType === 'FREE' ? 0 : null,
+        },
+        select: {
+          id: true,
+          status: true,
+          paymentStatus: true,
+          registeredAt: true,
+        },
+      });
+    } catch (dbError) {
+      console.error('Database error creating registration:', dbError);
+      throw dbError;
+    }
 
     // Get player details for email
     const playerDetails = await prisma.player.findUnique({
-      where: { id: player.id },
+      where: { id: playerId },
       select: {
         email: true,
         name: true,
@@ -144,24 +171,31 @@ export async function POST(req: Request, ctx: CtxPromise) {
           },
         },
       },
-    });
+    }).catch(() => null);
 
-    // Send confirmation email to player
+    // Send confirmation email to player (non-blocking)
     if (playerDetails?.email && tournamentDetails) {
-      const playerName =
-        playerDetails.name ||
-        (playerDetails.firstName && playerDetails.lastName
-          ? `${playerDetails.firstName} ${playerDetails.lastName}`
-          : playerDetails.firstName || 'Player');
-
-      const firstStop = tournamentDetails.stops[0];
-      const location = firstStop?.club
-        ? [firstStop.club.name, firstStop.club.city, firstStop.club.region]
-            .filter(Boolean)
-            .join(', ')
-        : null;
-
       try {
+        console.log('[Registration] Attempting to send confirmation email', {
+          playerEmail: playerDetails.email,
+          playerName: playerDetails.name || `${playerDetails.firstName} ${playerDetails.lastName}`,
+          tournamentName: tournament.name,
+          hasResendKey: !!process.env.RESEND_API_KEY,
+        });
+
+        const playerName =
+          playerDetails.name ||
+          (playerDetails.firstName && playerDetails.lastName
+            ? `${playerDetails.firstName} ${playerDetails.lastName}`
+            : playerDetails.firstName || 'Player');
+
+        const firstStop = tournamentDetails.stops?.[0];
+        const location = firstStop?.club
+          ? [firstStop.club.name, firstStop.club.city, firstStop.club.region]
+              .filter(Boolean)
+              .join(', ')
+          : null;
+
         const { sendRegistrationConfirmationEmail } = await import('@/server/email');
         await sendRegistrationConfirmationEmail({
           to: playerDetails.email,
@@ -171,14 +205,22 @@ export async function POST(req: Request, ctx: CtxPromise) {
           startDate: firstStop?.startAt || null,
           endDate: firstStop?.endAt || null,
           location,
-          isPaid: tournament.registrationType === 'FREE',
-          amountPaid: tournament.registrationType === 'FREE' ? 0 : null,
+          isPaid: tournament.registrationType === 'PAID',
+          amountPaid: tournament.registrationType === 'PAID' ? tournament.registrationCost : 0,
           registrationDate: registration.registeredAt,
         });
+
+        console.log('[Registration] Confirmation email sent successfully');
       } catch (emailError) {
-        console.error('Failed to send confirmation email:', emailError);
+        console.error('[Registration] Failed to send confirmation email:', emailError);
         // Don't fail the registration if email fails
       }
+    } else {
+      console.log('[Registration] Skipping email - missing data', {
+        hasPlayerEmail: !!playerDetails?.email,
+        hasTournamentDetails: !!tournamentDetails,
+        playerEmail: playerDetails?.email || 'N/A',
+      });
     }
 
     // Send notification email to tournament admins
@@ -223,8 +265,8 @@ export async function POST(req: Request, ctx: CtxPromise) {
               tournamentName: tournament.name,
               tournamentId: tournament.id,
               action: 'registered',
-              isPaid: tournament.registrationType === 'FREE',
-              amountPaid: tournament.registrationType === 'FREE' ? 0 : null,
+              isPaid: tournament.registrationType === 'PAID',
+              amountPaid: tournament.registrationType === 'PAID' ? tournament.registrationCost : 0,
             });
           } catch (adminEmailError) {
             console.error(`Failed to send admin notification to ${admin.player.email}:`, adminEmailError);
@@ -253,18 +295,53 @@ export async function POST(req: Request, ctx: CtxPromise) {
     });
   } catch (error) {
     console.error('Error registering for tournament:', error);
-    return NextResponse.json(
-      { error: 'Failed to register for tournament' },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorName = error instanceof Error ? error.name : 'Unknown';
+    
+    // Log full error details
+    console.error('Error details:', { 
+      errorName,
+      errorMessage, 
+      errorStack,
+      error: error instanceof Error ? error.toString() : String(error)
+    });
+    
+    // Log Prisma-specific error details
+    if (error instanceof Error && 'code' in error) {
+      console.error('Prisma error code:', (error as any).code);
+      console.error('Prisma error meta:', (error as any).meta);
+    }
+    
+    // Ensure we always return valid JSON
+    try {
+      return NextResponse.json(
+        { 
+          error: 'Failed to register for tournament',
+          details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+          errorName: process.env.NODE_ENV === 'development' ? errorName : undefined,
+        },
+        { status: 500 }
+      );
+    } catch (jsonError) {
+      // Fallback if JSON.stringify fails
+      console.error('Failed to create error response:', jsonError);
+      return new NextResponse(
+        JSON.stringify({ error: 'Failed to register for tournament' }),
+        { 
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
   }
 }
 
 /**
  * DELETE /api/player/tournaments/[tournamentId]/register
- * Withdraw from a tournament
+ * Withdraw from a tournament (supports Act As)
  */
-export async function DELETE(req: Request, ctx: CtxPromise) {
+export async function DELETE(req: NextRequest, ctx: CtxPromise) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -273,9 +350,39 @@ export async function DELETE(req: Request, ctx: CtxPromise) {
 
     const { tournamentId } = await ctx.params;
 
-    // Get player profile
+    // Support Act As functionality
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    let effectivePlayer;
+    
+    try {
+      effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    } catch (actAsError) {
+      console.log('Withdraw API: Act As error, using real player:', actAsError);
+      // If Act As fails, get the real player
+      const realPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: { id: true, email: true, name: true, firstName: true, lastName: true }
+      });
+      
+      if (!realPlayer) {
+        return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
+      }
+      
+      effectivePlayer = {
+        realUserId: userId,
+        realPlayerId: realPlayer.id,
+        isActingAs: false,
+        targetPlayerId: realPlayer.id,
+        isAppAdmin: false
+      };
+    }
+
+    // Use the effective player ID (either real or acting as)
+    const playerId = effectivePlayer.targetPlayerId;
+
+    // Get player details for email
     const player = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
+      where: { id: playerId },
       select: {
         id: true,
         email: true,
@@ -294,7 +401,7 @@ export async function DELETE(req: Request, ctx: CtxPromise) {
       where: {
         tournamentId_playerId: {
           tournamentId,
-          playerId: player.id,
+          playerId,
         },
       },
       include: {

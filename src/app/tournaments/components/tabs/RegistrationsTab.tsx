@@ -10,7 +10,7 @@ type RegistrationData = {
     email: string | null;
   };
   status: 'REGISTERED' | 'WITHDRAWN' | 'REJECTED';
-  paymentStatus: 'PENDING' | 'COMPLETED' | 'REFUNDED' | 'FAILED';
+  paymentStatus: 'PENDING' | 'PAID' | 'COMPLETED' | 'REFUNDED' | 'FAILED';
   amountPaid: number | null;
   registeredAt: string;
   withdrawnAt: string | null;
@@ -49,6 +49,7 @@ type RegistrationsTabProps = {
 
 export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
   const [loading, setLoading] = useState(true);
+  const [tournamentRegistrationType, setTournamentRegistrationType] = useState<'FREE' | 'PAID'>('FREE');
   const [data, setData] = useState<{
     registrations: RegistrationData[];
     inviteRequests: InviteRequestData[];
@@ -96,6 +97,11 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
         console.error('Invalid response structure:', json);
         setData(null);
         return;
+      }
+
+      // Store tournament registration type
+      if (json.tournament?.registrationType) {
+        setTournamentRegistrationType(json.tournament.registrationType);
       }
 
       setData(json);
@@ -362,34 +368,74 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                         </span>
                       </td>
                       <td className="p-3">
-                        <span
-                          className={`chip ${
-                            reg.paymentStatus === 'COMPLETED'
-                              ? 'chip-success'
-                              : reg.paymentStatus === 'PENDING'
-                              ? 'chip-warning'
-                              : reg.paymentStatus === 'REFUNDED'
-                              ? 'chip-info'
-                              : 'chip-error'
-                          }`}
-                        >
-                          {reg.paymentStatus}
-                        </span>
+                        {tournamentRegistrationType === 'FREE' ? (
+                          <span className="chip chip-success">
+                            Free
+                          </span>
+                        ) : (
+                          <span
+                            className={`chip ${
+                              reg.paymentStatus === 'PAID' || reg.paymentStatus === 'COMPLETED'
+                                ? 'chip-success'
+                                : reg.paymentStatus === 'PENDING'
+                                ? 'chip-warning'
+                                : reg.paymentStatus === 'REFUNDED'
+                                ? 'chip-info'
+                                : 'chip-error'
+                            }`}
+                          >
+                            {reg.paymentStatus === 'PAID' || reg.paymentStatus === 'COMPLETED' ? 'Paid' : reg.paymentStatus}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 text-sm text-muted">
                         {new Date(reg.registeredAt).toLocaleDateString()}
                       </td>
                       <td className="p-3 text-right space-x-2">
-                        {reg.status === 'REGISTERED' && (
-                          <button
-                            className="btn btn-error btn-sm"
-                            onClick={() => {
-                              setRejectingRegistration(reg);
-                              setShowRejectModal(true);
-                            }}
-                          >
-                            Reject
-                          </button>
+                        {(reg.status === 'REGISTERED' || reg.status === 'REJECTED' || reg.status === 'WITHDRAWN') && (
+                          <>
+                            {reg.status === 'REGISTERED' && (
+                              <button
+                                className="btn btn-error btn-sm"
+                                onClick={() => {
+                                  setRejectingRegistration(reg);
+                                  setShowRejectModal(true);
+                                }}
+                              >
+                                Reject
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-ghost btn-sm text-error"
+                              onClick={async () => {
+                                if (!confirm(`Delete registration for ${reg.player.name}? This cannot be undone.`)) {
+                                  return;
+                                }
+                                try {
+                                  setProcessing(reg.id);
+                                  const response = await fetch(
+                                    `/api/admin/tournaments/${tournamentId}/registrations/${reg.id}`,
+                                    { method: 'DELETE' }
+                                  );
+                                  if (!response.ok) {
+                                    const error = await response.json();
+                                    alert(error.error || 'Failed to delete registration');
+                                    return;
+                                  }
+                                  await loadData();
+                                  alert('Registration deleted successfully');
+                                } catch (error) {
+                                  console.error('Error deleting registration:', error);
+                                  alert('Failed to delete registration');
+                                } finally {
+                                  setProcessing(null);
+                                }
+                              }}
+                              disabled={processing === reg.id}
+                            >
+                              Delete
+                            </button>
+                          </>
                         )}
                       </td>
                     </tr>

@@ -239,7 +239,7 @@ export async function evaluateMatchTiebreaker(
     return match;
   }
 
-  return tx.match.update({
+  const updatedMatch = await tx.match.update({
     where: { id: matchId },
     data: {
       tiebreakerStatus,
@@ -256,6 +256,28 @@ export async function evaluateMatchTiebreaker(
       teamB: { select: { id: true } },
     },
   });
+
+  // TRIGGER MATCH COMPLETION: If we just set a winner, trigger the /complete endpoint
+  // This will advance teams to child matches
+  if (winnerTeamId && !match.winnerId) {
+    console.log(`[Match Tiebreaker] Match ${matchId} winner determined: ${winnerTeamId}. Triggering completion...`);
+
+    // Trigger async without awaiting to avoid blocking
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/admin/matches/${matchId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }).then(res => {
+      if (res.ok) {
+        console.log(`[Match Tiebreaker] ✓ Match ${matchId} completion triggered successfully`);
+      } else {
+        console.error(`[Match Tiebreaker] Failed to trigger match completion: ${res.status}`);
+      }
+    }).catch(err => {
+      console.error(`[Match Tiebreaker] Error triggering match completion:`, err);
+    });
+  }
+
+  return updatedMatch;
 }
 
 export function determineWinnerFromTotals(

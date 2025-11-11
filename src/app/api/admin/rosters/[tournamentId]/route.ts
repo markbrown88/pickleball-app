@@ -132,6 +132,101 @@ export async function GET(
     }
 
     if (!tournament.clubs.length) {
+      // For tournaments without clubs linked, we still need to fetch teams
+      // and group them by their clubId
+      const tournamentStopIds = tournament.stops.map((stop) => stop.id);
+
+      const allTeams = await prisma.team.findMany({
+        where: { tournamentId },
+        select: {
+          id: true,
+          name: true,
+          bracket: { select: { id: true, name: true } },
+          clubId: true,
+          club: { select: { id: true, name: true } },
+          playerLinks: {
+            select: { player: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+        orderBy: [{ bracket: { idx: 'asc' } }, { name: 'asc' }],
+      });
+
+      if (allTeams.length === 0) {
+        return NextResponse.json({
+          tournamentId,
+          tournamentName: tournament.name,
+          maxTeamSize: tournament.maxTeamSize ?? null,
+          stops: tournament.stops.map((stop) => ({
+            stopId: stop.id,
+            stopName: stop.name,
+            locationName: stop.club?.name ?? null,
+            startAt: toDateStr(stop.startAt),
+            endAt: toDateStr(stop.endAt ?? stop.startAt),
+          })),
+          clubs: [] as ClubRoster[],
+        } satisfies TournamentRosterPayload);
+      }
+
+      const stopTeamPlayers = await prisma.stopTeamPlayer.findMany({
+        where: { stopId: { in: tournamentStopIds }, teamId: { in: allTeams.map((t) => t.id) } },
+        select: {
+          stopId: true,
+          teamId: true,
+          player: true,
+        },
+        orderBy: [{ stopId: 'asc' }, { createdAt: 'asc' }],
+      });
+
+      const stopRosterMap = new Map<string, PlayerLite[]>();
+      for (const entry of stopTeamPlayers) {
+        const key = `${entry.teamId}:${entry.stopId}`;
+        const current = stopRosterMap.get(key) ?? [];
+        current.push(toPlayerLite(entry.player));
+        stopRosterMap.set(key, current);
+      }
+
+      // Group teams by clubId
+      const clubsMap = new Map<string, { clubId: string; clubName: string; teams: typeof allTeams }>();
+      for (const team of allTeams) {
+        if (!team.clubId) continue; // Skip teams without clubId
+        
+        const clubId = team.clubId;
+        const clubName = team.club?.name ?? 'Unknown Club';
+        
+        if (!clubsMap.has(clubId)) {
+          clubsMap.set(clubId, { clubId, clubName, teams: [] });
+        }
+        clubsMap.get(clubId)!.teams.push(team);
+      }
+
+      // Filter clubs based on user role
+      const allowedClubs = Array.from(clubsMap.values()).filter((club) => {
+        // App admins and tournament admins see all clubs
+        if (isAppAdmin || isTournamentAdmin) return true;
+        // Captains only see their clubs
+        return captainClubIds.has(club.clubId);
+      });
+
+      const clubs: ClubRoster[] = allowedClubs.map((club) => {
+        const brackets: BracketRoster[] = club.teams.map((team) => ({
+          teamId: team.id,
+          bracketName: team.bracket?.name ?? null,
+          roster: team.playerLinks.map((link) => toPlayerLite(link.player)),
+          stops: tournament.stops.map((stop) => ({
+            stopId: stop.id,
+            stopRoster: stopRosterMap.get(`${team.id}:${stop.id}`) ?? [],
+          })),
+        }));
+
+        return {
+          clubId: club.clubId,
+          clubName: club.clubName,
+          captainAccessToken: null, // No TournamentClub link, so no access token
+          brackets,
+        };
+      });
+
       return NextResponse.json({
         tournamentId,
         tournamentName: tournament.name,
@@ -143,7 +238,7 @@ export async function GET(
           startAt: toDateStr(stop.startAt),
           endAt: toDateStr(stop.endAt ?? stop.startAt),
         })),
-        clubs: [] as ClubRoster[],
+        clubs,
       } satisfies TournamentRosterPayload);
     }
 
@@ -227,8 +322,12 @@ export async function GET(
 
     return NextResponse.json(payload);
   } catch (e: any) {
+    console.error('[Rosters API] Error loading roster data:', e);
     const message = e?.message ?? 'Failed to load roster data';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ 
+      error: message,
+      details: process.env.NODE_ENV === 'development' ? String(e) : undefined
+    }, { status: 500 });
   }
 }
 
