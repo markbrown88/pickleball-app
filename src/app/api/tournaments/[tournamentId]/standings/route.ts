@@ -41,8 +41,36 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       losses: Number(standing.losses),
       points: Number(standing.points)
     }));
-    
-    return NextResponse.json(serializedStandings);
+
+    // SPECIAL CASE: Pickleplex Belleville gets 0 points for "KLYNG CUP - pickleplex" tournament
+    // This is a one-time exception for this specific tournament only
+    const KLYNG_CUP_PICKLEPLEX_ID = 'cmh7qeb1t0000ju04udwe7w8w';
+    const PICKLEPLEX_BELLEVILLE_CLUB_ID = 'cmfwjxyqn0001rdxtr8v9fmdj';
+
+    const adjustedStandings = serializedStandings.map((standing: any) => {
+      // If this is the Klyng Cup Pickleplex tournament and the team is from Pickleplex Belleville
+      if (
+        standing.tournamentId === KLYNG_CUP_PICKLEPLEX_ID &&
+        standing.clubId === PICKLEPLEX_BELLEVILLE_CLUB_ID
+      ) {
+        // Set their points to 0 for standings display
+        return {
+          ...standing,
+          points: 0,
+          wins: 0,
+          losses: standing.matches_played
+        };
+      }
+      return standing;
+    });
+
+    // Re-sort after adjustment to put Belleville at the bottom
+    adjustedStandings.sort((a: any, b: any) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return a.team_name.localeCompare(b.team_name);
+    });
+
+    return NextResponse.json(adjustedStandings);
   } catch (error) {
     console.error('API: Error fetching tournament standings:', error);
     return NextResponse.json(
