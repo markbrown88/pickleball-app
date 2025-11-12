@@ -56,7 +56,6 @@ export async function POST(request: NextRequest) {
             name: true,
             registrationCost: true,
             type: true,
-            // @ts-expect-error - pricingModel exists in DB but Prisma client needs regeneration
             pricingModel: true,
             brackets: {
               select: {
