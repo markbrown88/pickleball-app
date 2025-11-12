@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
             }
             
             // Check for overlap between existing stops and new stops
-            const overlappingStops = selectedStopIds.filter(stopId => existingStopIds.includes(stopId));
+            const overlappingStops = selectedStopIds.filter((stopId: string) => existingStopIds.includes(stopId));
             
             if (overlappingStops.length > 0) {
               // Get stop names for better error message
