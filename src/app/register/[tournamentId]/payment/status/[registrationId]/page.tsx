@@ -72,13 +72,15 @@ export default async function PaymentStatusPage({ params }: PageProps) {
 
   if (paymentIntentId) {
     try {
-      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ['charges'],
+      });
       stripePayment = {
         status: paymentIntent.status,
         amount: paymentIntent.amount,
         currency: paymentIntent.currency,
         created: paymentIntent.created,
-        receipt_url: paymentIntent.charges?.data[0]?.receipt_url || undefined,
+        receipt_url: (paymentIntent.charges as any)?.data?.[0]?.receipt_url || undefined,
       };
     } catch (e) {
       console.error('Failed to fetch payment intent from Stripe:', e);
