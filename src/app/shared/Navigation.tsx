@@ -16,8 +16,8 @@ export type NavItem = {
 export type UserRole = 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
 
 function navLinkClasses(active: boolean, isSubItem: boolean = false) {
-  const baseClasses = `block px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-    isSubItem ? 'pl-8' : ''
+  const baseClasses = `block px-4 text-sm font-medium rounded-md transition-colors ${
+    isSubItem ? 'pl-10 py-1.5' : 'py-2'
   }`;
 
   if (active) {
@@ -99,7 +99,7 @@ export function Navigation({ items, userRole, onMobileNavClose }: { items: NavIt
 
                 {/* Children (sub-items) */}
                 {isExpanded && (
-                  <ul className="mt-1 space-y-1">
+                  <ul className="mt-0.5 space-y-0.5">
                     {visibleChildren.map((child) => {
                       const active = child.href
                         ? (child.exact ? pathname === child.href : pathname.startsWith(child.href))
@@ -108,7 +108,7 @@ export function Navigation({ items, userRole, onMobileNavClose }: { items: NavIt
                       return (
                         <li key={child.href || child.label} className="relative">
                           {/* Bullet indicator */}
-                          <span className="absolute left-6 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-muted" />
+                          <span className="absolute left-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-brand-secondary/60" />
                           <Link
                             href={child.href || '#'}
                             className={navLinkClasses(active, true)}
