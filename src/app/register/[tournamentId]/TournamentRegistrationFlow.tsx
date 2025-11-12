@@ -85,6 +85,32 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: To
     }
   };
 
+  // Use centralized tournament type configuration
+  const tournamentIsTeam = isTeamTournament(tournament.type);
+  const tournamentRequiresStopSelection = requiresStopSelection(tournament.type);
+  const tournamentRequiresBracketSelection = requiresBracketSelection(tournament.type);
+
+  // Build dynamic steps based on tournament type
+  const steps = useMemo(() => {
+    const stepList: Array<{ id: Step; label: string; description: string }> = [
+      { id: 'info', label: 'Your Information', description: '' },
+    ];
+
+    // Add stop selection step only if required
+    if (tournamentRequiresStopSelection) {
+      stepList.push({ id: 'stops', label: 'Select Stops', description: '' });
+    }
+
+    // Add bracket selection step only if required
+    if (tournamentRequiresBracketSelection) {
+      stepList.push({ id: 'brackets', label: 'Select Brackets', description: '' });
+    }
+
+    stepList.push({ id: 'review', label: 'Review & Pay', description: '' });
+
+    return stepList;
+  }, [tournamentRequiresStopSelection, tournamentRequiresBracketSelection]);
+
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
   const goToStep = (step: Step | string) => {
@@ -122,32 +148,6 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: To
   ) => {
     setRegistrationData((prev) => ({ ...prev, selectedBrackets: brackets }));
   };
-
-  // Use centralized tournament type configuration
-  const tournamentIsTeam = isTeamTournament(tournament.type);
-  const tournamentRequiresStopSelection = requiresStopSelection(tournament.type);
-  const tournamentRequiresBracketSelection = requiresBracketSelection(tournament.type);
-
-  // Build dynamic steps based on tournament type
-  const steps = useMemo(() => {
-    const stepList: Array<{ id: Step; label: string; description: string }> = [
-      { id: 'info', label: 'Your Information', description: '' },
-    ];
-
-    // Add stop selection step only if required
-    if (tournamentRequiresStopSelection) {
-      stepList.push({ id: 'stops', label: 'Select Stops', description: '' });
-    }
-
-    // Add bracket selection step only if required
-    if (tournamentRequiresBracketSelection) {
-      stepList.push({ id: 'brackets', label: 'Select Brackets', description: '' });
-    }
-
-    stepList.push({ id: 'review', label: 'Review & Pay', description: '' });
-
-    return stepList;
-  }, [tournamentRequiresStopSelection, tournamentRequiresBracketSelection]);
 
   // Initialize with default stop if stops are not required
   useEffect(() => {
