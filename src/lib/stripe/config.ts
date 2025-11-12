@@ -66,15 +66,7 @@ export const STRIPE_CONFIG = {
 };
 
 /**
- * Helper to format amount for Stripe (cents)
+ * Re-export helper functions from helpers.ts for backward compatibility
+ * These can be safely imported in client components from @/lib/stripe/helpers
  */
-export function formatAmountForStripe(amount: number): number {
-  return Math.round(amount * 100);
-}
-
-/**
- * Helper to format amount from Stripe (dollars)
- */
-export function formatAmountFromStripe(amount: number): number {
-  return amount / 100;
-}
+export { formatAmountForStripe, formatAmountFromStripe } from './helpers';

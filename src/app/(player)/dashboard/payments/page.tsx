@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { formatAmountFromStripe } from '@/lib/stripe/config';
+import { formatAmountFromStripe } from '@/lib/stripe/helpers';
 import { PaymentAnalyticsClient } from './PaymentAnalyticsClient';
 
 type PageProps = {};

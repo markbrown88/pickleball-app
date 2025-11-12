@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { formatAmountFromStripe } from '@/lib/stripe/config';
+import { formatAmountFromStripe } from '@/lib/stripe/helpers';
 
 type PaymentAnalyticsClientProps = {
   stats: {
