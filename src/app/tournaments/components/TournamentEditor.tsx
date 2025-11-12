@@ -69,10 +69,15 @@ export type EditorRow = {
   tournamentAdmin: CaptainPick;
   tournamentAdminQuery: string;
   tournamentAdminOptions: Array<{ id: string; label: string }>;
+  // Global club search for chip-based UI
+  globalClubQuery: string;
+  globalClubOptions: Array<{ id: string; label: string }>;
+  editingClubIdx: number | null;
   // Registration Settings
   registrationStatus: 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
   registrationType: 'FREE' | 'PAID';
   registrationCost: string;
+  pricingModel: 'TOURNAMENT_WIDE' | 'PER_STOP' | 'PER_BRACKET' | 'PER_STOP_PER_BRACKET';
   maxPlayers: string;
   restrictionNotes: string[];
   isWaitlistEnabled: boolean;
