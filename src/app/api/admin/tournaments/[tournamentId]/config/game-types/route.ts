@@ -3,9 +3,17 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { GameType } from '@prisma/client';
 
 type CtxPromise = { params: Promise<{ tournamentId: string }> };
+
+type GameType =
+  | 'MENS_DOUBLES'
+  | 'WOMENS_DOUBLES'
+  | 'MIXED_DOUBLES'
+  | 'MIXED_DOUBLES_1'
+  | 'MIXED_DOUBLES_2'
+  | 'MENS_SINGLES'
+  | 'WOMENS_SINGLES';
 
 type GameTypeConfigPayload = {
   config: Array<{
