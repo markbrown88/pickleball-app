@@ -97,7 +97,6 @@ export async function GET(_req: Request, ctx: CtxPromise) {
       registrationStatus: true,
       registrationType: true,
       registrationCost: true,
-      // @ts-expect-error - pricingModel exists in DB but Prisma client needs regeneration
       pricingModel: true,
       maxPlayers: true,
       restrictionNotes: true,
