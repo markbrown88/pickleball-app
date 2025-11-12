@@ -98,22 +98,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if registration is eligible for refund
-    if (registration.paymentStatus !== 'PAID' && registration.paymentStatus !== 'COMPLETED') {
+    if (registration.paymentStatus === 'REFUNDED') {
       return NextResponse.json(
-        { 
-          error: 'Registration not paid',
-          details: 'This registration has not been paid and cannot be refunded.',
+        {
+          error: 'Already refunded',
+          details: 'This registration has already been refunded.',
           registrationId: registrationId,
         },
         { status: 400 }
       );
     }
 
-    if (registration.paymentStatus === 'REFUNDED') {
+    if (registration.paymentStatus !== 'PAID' && registration.paymentStatus !== 'COMPLETED') {
       return NextResponse.json(
-        { 
-          error: 'Already refunded',
-          details: 'This registration has already been refunded.',
+        {
+          error: 'Registration not paid',
+          details: 'This registration has not been paid and cannot be refunded.',
           registrationId: registrationId,
         },
         { status: 400 }
