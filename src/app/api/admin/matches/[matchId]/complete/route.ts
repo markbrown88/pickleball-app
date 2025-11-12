@@ -139,6 +139,14 @@ export async function POST(
       });
     }
 
+    // Verify match has games
+    if (match.games.length === 0) {
+      return NextResponse.json(
+        { error: 'Match has no games - cannot determine winner' },
+        { status: 400 }
+      );
+    }
+
     // Verify all games are complete
     const allGamesComplete = match.games.every(g => g.isComplete);
     if (!allGamesComplete) {
