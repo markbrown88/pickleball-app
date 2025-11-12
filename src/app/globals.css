@@ -461,6 +461,21 @@ small, .text-muted {
   color: var(--brand-primary-text);
 }
 
+/* Active nav link with brand-secondary background */
+.nav-link.active,
+[class*="hover:!text-primary"]:hover,
+[class*="!text-primary"][class*="bg-primary/10"] {
+  background: var(--brand-secondary) !important;
+}
+
+/* Bullet color changes on hover/active */
+.group:hover > span[class*="border-brand-secondary"],
+li:has(.nav-link.active) > span[class*="border-brand-secondary"],
+.group:hover span[class*="border-brand-secondary"] {
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+
 /* Tabs */
 .tab-button {
   padding: 0.75rem 1.5rem;
@@ -489,6 +504,14 @@ small, .text-muted {
 .text-primary { color: var(--text-primary); }
 .text-secondary { color: var(--text-secondary); }
 .text-muted { color: var(--text-muted); }
+
+/* Custom hover utility override */
+.hover\:\!text-primary:hover {
+    @media (hover: hover) {
+        color: var(--primary) !important;
+        background: var(--brand-secondary);
+    }
+}
 .text-error { color: var(--status-error); }
 .text-error-hover { color: var(--status-error-hover); }
 .text-success { color: var(--status-success); }

@@ -41,6 +41,38 @@ function parseIntValue(value: string | undefined): number | null {
   return isNaN(parsed) ? null : parsed;
 }
 
+type CSVRecord = {
+  ID?: string;
+  'First Name'?: string;
+  'Last Name'?: string;
+  'Full Name'?: string;
+  Email?: string;
+  Phone?: string;
+  Gender?: string;
+  'Club ID'?: string;
+  'Club Name'?: string;
+  City?: string;
+  Region?: string;
+  Country?: string;
+  Age?: string;
+  Birthday?: string;
+  'DUPR Overall'?: string;
+  'DUPR Singles'?: string;
+  'DUPR Doubles'?: string;
+  'Club Rating Singles'?: string;
+  'Club Rating Doubles'?: string;
+  'Display Age'?: string;
+  'Display Location'?: string;
+  'Clerk User ID'?: string;
+  'Is App Admin'?: string;
+  Disabled?: string;
+  'Disabled At'?: string;
+  'Disabled By'?: string;
+  'Created At'?: string;
+  'Updated At'?: string;
+  Status?: string;
+};
+
 async function addNewPlayers() {
   try {
     console.log('Reading CSV file...\n');
@@ -49,7 +81,7 @@ async function addNewPlayers() {
     const records = parse(csvContent, {
       columns: true,
       skip_empty_lines: true,
-    });
+    }) as CSVRecord[];
 
     console.log(`Found ${records.length} new player(s) in CSV\n`);
 

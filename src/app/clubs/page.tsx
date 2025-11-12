@@ -46,26 +46,57 @@ type ClubsResponse = Club[];
 
 function extractErrorMessage(body: unknown, status: number): string {
   if (typeof body === 'string') return body;
-  if (body && typeof body === 'object' && 'error' in body && typeof (body as { error?: unknown }).error === 'string') {
-    return (body as { error: string }).error;
+  if (body && typeof body === 'object') {
+    // Handle empty object
+    if (Object.keys(body).length === 0) {
+      return `HTTP ${status}: Empty response`;
+    }
+    // Handle error property
+    if ('error' in body && typeof (body as { error?: unknown }).error === 'string') {
+      return (body as { error: string }).error;
+    }
+    // Try to stringify the object for debugging
+    try {
+      return `HTTP ${status}: ${JSON.stringify(body)}`;
+    } catch {
+      return `HTTP ${status}: Invalid response format`;
+    }
   }
   return `HTTP ${status}`;
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  const isJson = res.headers.get('content-type')?.includes('application/json');
-  const body = isJson ? await res.json() : await res.text();
-  if (!res.ok) {
-    console.error('API Error:', {
-      url,
-      status: res.status,
-      statusText: res.statusText,
-      body
-    });
-    throw new Error(extractErrorMessage(body, res.status));
+  try {
+    const res = await fetch(url, init);
+    const contentType = res.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+    
+    let body: unknown;
+    try {
+      body = isJson ? await res.json() : await res.text();
+    } catch (parseError) {
+      console.error('Failed to parse response body:', parseError);
+      body = await res.text().catch(() => 'Unable to read response');
+    }
+    
+    if (!res.ok) {
+      console.error('API Error:', {
+        url,
+        status: res.status,
+        statusText: res.statusText,
+        contentType,
+        body: body || 'Empty response body'
+      });
+      throw new Error(extractErrorMessage(body, res.status));
+    }
+    return body as T;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    console.error('Unexpected API error:', error);
+    throw new Error(`API request failed: ${String(error)}`);
   }
-  return body as T;
 }
 
 export default function AdminClubsPage() {
@@ -105,11 +136,14 @@ export default function AdminClubsPage() {
 
   async function loadPlayers() {
     try {
-      const data = await api<{ items: Player[] }>('/api/admin/players');
+      const data = await api<{ items: Player[] }>('/api/admin/players?take=100');
       const players = Array.isArray(data?.items) ? data.items : [];
       setPlayers(players);
     } catch (e) {
       console.error('Error loading players:', e);
+      // Don't show error to user for players loading failure - it's not critical
+      // The modal will still work, just without player suggestions
+      setPlayers([]);
     }
   }
 

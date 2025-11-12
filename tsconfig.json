@@ -23,5 +23,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "check-*.ts", "find-*.ts", "restore-*.ts", "extract-*.ts", "compare-*.ts", "debug-*.ts", "list-*.ts", "test-*.ts", "fix-*.ts", "update-*.ts"]
+  "exclude": ["node_modules", "scripts/**/*", "check-*.ts", "find-*.ts", "restore-*.ts", "extract-*.ts", "compare-*.ts", "debug-*.ts", "list-*.ts", "test-*.ts", "fix-*.ts", "update-*.ts"]
 }
