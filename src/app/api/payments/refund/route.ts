@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe/config';
 import { formatAmountFromStripe } from '@/lib/stripe/config';
 import { refundLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
+import type Stripe from 'stripe';
 
 /**
  * POST /api/payments/refund
