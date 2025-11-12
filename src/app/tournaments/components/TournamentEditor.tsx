@@ -9,8 +9,8 @@ import { StopsLocationsTab } from './tabs/StopsLocationsTab';
 import { ClubsCaptainsTab } from './tabs/ClubsCaptainsTab';
 import { BracketsTab } from './tabs/BracketsTab';
 import { AccessManagersTab } from './tabs/AccessManagersTab';
-// import { AdvancedConfigTab } from './tabs/AdvancedConfigTab'; // Temporarily disabled - requires database migration
-import { requiresClubs, showsStops, showsBrackets } from '@/lib/tournamentTypeConfig'; // isTeamTournament unused - for advanced config
+import { AdvancedConfigTab } from './tabs/AdvancedConfigTab';
+import { requiresClubs, showsStops, showsBrackets, isTeamTournament } from '@/lib/tournamentTypeConfig';
 
 type Id = string;
 
@@ -88,7 +88,7 @@ export type Club = {
   phone?: string | null;
 };
 
-type Tab = 'details' | 'registration' | 'registrations' | 'invitations' | 'stops' | 'clubs' | 'brackets' | 'access'; // | 'advanced' - temporarily disabled
+type Tab = 'details' | 'registration' | 'registrations' | 'invitations' | 'stops' | 'clubs' | 'brackets' | 'access' | 'advanced';
 
 type TournamentEditorProps = {
   tournamentId: Id;
@@ -119,22 +119,21 @@ export function TournamentEditor({
   const tournamentRequiresClubs = requiresClubs(editor.type);
   const tournamentShowsStops = showsStops(editor.type);
   const tournamentShowsBrackets = showsBrackets(editor.type);
-  // const tournamentIsTeam = isTeamTournament(editor.type); // Unused - for advanced config
+  const tournamentIsTeam = isTeamTournament(editor.type);
 
   // Dynamic label based on whether captains are enabled
   const clubsTabLabel = editor.hasCaptains ? 'Clubs & Captains' : 'Clubs';
 
   // Check if advanced config tab should be shown
-  // Temporarily disabled - requires database migration
-  // const editorWithReg = editor as EditorRowWithRegistration;
-  // const showAdvancedConfig =
-  //   editorWithReg.registrationType === 'PAID' &&
-  //   editorWithReg.pricingModel !== 'TOURNAMENT_WIDE';
+  const editorWithReg = editor as EditorRowWithRegistration;
+  const showAdvancedConfig =
+    editorWithReg.registrationType === 'PAID' &&
+    editorWithReg.pricingModel !== 'TOURNAMENT_WIDE';
 
   const tabs = [
     { id: 'details' as const, label: 'Tournament Details' },
     { id: 'registration' as const, label: 'Registration Settings' },
-    // { id: 'advanced' as const, label: 'Advanced Configuration', hidden: !showAdvancedConfig }, // Temporarily disabled
+    { id: 'advanced' as const, label: 'Advanced Configuration', hidden: !showAdvancedConfig },
     { id: 'registrations' as const, label: 'Registrations' },
     { id: 'invitations' as const, label: 'Invitations' },
     { id: 'stops' as const, label: 'Location(s) & Dates', hidden: !tournamentShowsStops },
@@ -210,7 +209,6 @@ export function TournamentEditor({
           />
         )}
 
-        {/* Temporarily disabled - requires database migration
         {activeTab === 'advanced' && (
           <AdvancedConfigTab
             tournamentId={tournamentId}
@@ -218,7 +216,6 @@ export function TournamentEditor({
             isTeamTournament={tournamentIsTeam}
           />
         )}
-        */}
 
         {activeTab === 'registrations' && (
           <RegistrationsTab tournamentId={tournamentId} />
