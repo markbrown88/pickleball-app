@@ -157,7 +157,16 @@ h2 { font-size: 2rem; font-weight: 600; }
 h3 { font-size: 1.5rem; font-weight: 600; }
 h4 { font-size: 1.25rem; font-weight: 500; }
 
-p, span, div, a, button, input, textarea, select, label {
+/* Apply typography to app elements, but exclude third-party components like Clerk */
+p:not([class*='cl-']),
+span:not([class*='cl-']),
+div:not([class*='cl-']),
+a:not([class*='cl-']),
+button:not([class*='cl-']),
+input:not([class*='cl-']),
+textarea:not([class*='cl-']),
+select:not([class*='cl-']),
+label:not([class*='cl-']) {
   font-family: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;
   color: var(--text-secondary);
 }
