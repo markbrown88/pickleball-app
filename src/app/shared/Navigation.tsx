@@ -16,14 +16,14 @@ export type NavItem = {
 export type UserRole = 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
 
 function navLinkClasses(active: boolean, isSubItem: boolean = false) {
-  const baseClasses = `block px-4 text-sm font-medium rounded-md transition-colors ${
+  const baseClasses = `nav-link block px-4 text-sm font-medium rounded-md transition-colors ${
     isSubItem ? 'pl-10 py-1.5' : 'py-2'
   }`;
 
   if (active) {
-    return `${baseClasses} text-primary bg-primary/10 border-r-2 border-primary`;
+    return `${baseClasses} !text-primary bg-primary/10 border-r-2 border-primary`;
   }
-  return `${baseClasses} text-muted border-transparent hover:text-primary hover:bg-surface-2`;
+  return `${baseClasses} !text-muted hover:!text-primary hover:bg-surface-2`;
 }
 
 function navHeadingClasses(hasActiveChild: boolean) {
@@ -106,9 +106,13 @@ export function Navigation({ items, userRole, onMobileNavClose }: { items: NavIt
                         : false;
 
                       return (
-                        <li key={child.href || child.label} className="relative">
+                        <li key={child.href || child.label} className="relative group">
                           {/* Bullet indicator */}
-                          <span className="absolute left-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-brand-secondary/60" />
+                          <span className={`absolute left-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 transition-colors ${
+                            active
+                              ? 'border-brand-secondary bg-brand-secondary/30'
+                              : 'border-brand-secondary/40 group-hover:border-brand-secondary/80'
+                          }`} />
                           <Link
                             href={child.href || '#'}
                             className={navLinkClasses(active, true)}
