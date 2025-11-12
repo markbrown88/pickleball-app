@@ -80,7 +80,7 @@ export default async function PaymentStatusPage({ params }: PageProps) {
         amount: paymentIntent.amount,
         currency: paymentIntent.currency,
         created: paymentIntent.created,
-        receipt_url: (paymentIntent.charges as any)?.data?.[0]?.receipt_url || undefined,
+        receipt_url: (paymentIntent as any).charges?.data?.[0]?.receipt_url || undefined,
       };
     } catch (e) {
       console.error('Failed to fetch payment intent from Stripe:', e);
