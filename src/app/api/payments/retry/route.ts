@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
       ...registrationDetails,
       stripeSessionId: session.id,
       paymentIntentId: session.payment_intent as string | undefined,
-      retryAttempts: (registrationDetails.retryAttempts || 0) + 1,
+      retryAttempts: ((registrationDetails as any).retryAttempts || 0) + 1,
       lastRetryAt: new Date().toISOString(),
     };
 
