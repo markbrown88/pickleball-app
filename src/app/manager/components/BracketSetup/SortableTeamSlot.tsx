@@ -12,7 +12,7 @@ import { BracketTeam } from './index';
 
 interface SortableTeamSlotProps {
   team: BracketTeam;
-  onRemove: (teamId: string) => void;
+  onRemove?: (teamId: string) => void;
   disabled?: boolean;
 }
 
@@ -71,27 +71,29 @@ export function SortableTeamSlot({ team, onRemove, disabled }: SortableTeamSlotP
         {team.name}
       </div>
 
-      {/* Remove Button */}
-      <button
-        onClick={() => onRemove(team.id)}
-        disabled={disabled}
-        className="text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Remove team"
-      >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      {/* Remove Button - only show if onRemove is provided */}
+      {onRemove && (
+        <button
+          onClick={() => onRemove(team.id)}
+          disabled={disabled}
+          className="text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Remove team"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-      </button>
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
