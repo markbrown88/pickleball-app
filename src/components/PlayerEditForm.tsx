@@ -34,8 +34,19 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
   const [showClubDropdown, setShowClubDropdown] = useState(false);
   const clubDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Debug: Log clubs when they change
+  useEffect(() => {
+    if (clubs.length > 0) {
+      console.log(`PlayerEditForm: Loaded ${clubs.length} clubs`);
+    }
+  }, [clubs]);
+
   const filteredClubs = clubSearch.length >= 3
-    ? clubs.filter(club => club.name.toLowerCase().includes(clubSearch.toLowerCase()))
+    ? clubs.filter(club => {
+        const clubName = club.name?.toLowerCase() || '';
+        const searchTerm = clubSearch.toLowerCase();
+        return clubName.includes(searchTerm);
+      })
     : [];
 
   // Close dropdown when clicking outside
@@ -306,8 +317,11 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               {clubSearch.length > 0 && clubSearch.length < 3 && (
                 <p className="text-xs text-muted mt-1">Type at least 3 characters</p>
               )}
-              {!formData.clubId && clubSearch.length >= 3 && filteredClubs.length === 0 && (
-                <p className="text-xs text-error mt-1">No clubs found</p>
+              {!formData.clubId && clubSearch.length >= 3 && filteredClubs.length === 0 && clubs.length > 0 && (
+                <p className="text-xs text-error mt-1">No clubs found matching "{clubSearch}"</p>
+              )}
+              {!formData.clubId && clubSearch.length >= 3 && filteredClubs.length === 0 && clubs.length === 0 && (
+                <p className="text-xs text-warning mt-1">No clubs loaded. Please refresh the page.</p>
               )}
             </div>
 

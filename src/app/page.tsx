@@ -12,6 +12,7 @@ type Tournament = {
   endDate?: string;
   location?: string;
   status?: string;
+  registrationStatus?: string;
   createdAt: string;
 };
 
@@ -40,8 +41,12 @@ export default function Home() {
       const data = await response.json();
       
       if (data.tournaments && Array.isArray(data.tournaments)) {
+        // Filter to only show OPEN tournaments
+        const openTournaments = data.tournaments.filter((t: Tournament) => 
+          t.registrationStatus === 'OPEN'
+        );
         // Sort by start date, nearest first
-        const sorted = data.tournaments.sort((a: Tournament, b: Tournament) => {
+        const sorted = openTournaments.sort((a: Tournament, b: Tournament) => {
           const dateA = a.startDate ? new Date(a.startDate).getTime() : new Date(a.createdAt).getTime();
           const dateB = b.startDate ? new Date(b.startDate).getTime() : new Date(b.createdAt).getTime();
           return dateA - dateB;
@@ -185,15 +190,9 @@ export default function Home() {
           <SignedOut>
             <SignUpButton mode="modal">
               <button className="btn btn-secondary text-lg py-4 px-8">
-                      Register as a Player
+                      Register to Play!
               </button>
             </SignUpButton>
-                  <Link 
-                    href="/clubs/register"
-                    className="btn btn-ghost text-lg py-4 px-8 border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
-                  >
-                    Register Your Club
-                  </Link>
           </SignedOut>
                 <SignedIn>
                   <Link 
@@ -517,7 +516,7 @@ export default function Home() {
                       href={`/tournament/${tournament.id}`}
                       className="btn btn-primary flex-1"
                     >
-                      View Details
+                      View Results
                     </Link>
                     <SignedOut>
                       <SignUpButton mode="modal">
@@ -565,7 +564,7 @@ export default function Home() {
                     1
                   </div>
                   <div>
-                    <h4 className="font-semibold text-primary mb-2">Register as a Player</h4>
+                    <h4 className="font-semibold text-primary mb-2">Register to Play!</h4>
                     <p className="text-muted">Create your Klyng Cup account and select your primary club affiliation to be eligible for any Klyng Cup tournament.</p>
                   </div>
                 </div>
@@ -608,8 +607,8 @@ export default function Home() {
                     1
                   </div>
                   <div>
-                    <h4 className="font-semibold text-primary mb-2">Register Your Club</h4>
-                    <p className="text-muted">Register your club to participate in any Klyng Cup tournament series, anywhere in the world.</p>
+                    <h4 className="font-semibold text-primary mb-2">Create Custom Tournaments</h4>
+                    <p className="text-muted">Design tournaments with custom brackets, skill divisions, and stop schedules that work for your community.</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4 group">
@@ -617,22 +616,13 @@ export default function Home() {
                     2
                   </div>
                   <div>
-                    <h4 className="font-semibold text-primary mb-2">Create Custom Tournaments</h4>
-                    <p className="text-muted">Design tournaments with custom brackets, skill divisions, and stop schedules that work for your community.</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-4 group">
-                  <div className="bg-gradient-to-br from-status-success to-brand-accent text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                    3
-                  </div>
-                  <div>
                     <h4 className="font-semibold text-primary mb-2">Manage Teams & Captains</h4>
                     <p className="text-muted">Assign team captains, build rosters, and manage your club's participation in Klyng Cup tournaments.</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4 group">
-                  <div className="bg-gradient-to-br from-brand-primary to-status-warning text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                    4
+                  <div className="bg-gradient-to-br from-status-success to-brand-accent text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                    3
                   </div>
                   <div>
                     <h4 className="font-semibold text-primary mb-2">Track Performance</h4>
@@ -751,15 +741,9 @@ export default function Home() {
             <SignedOut>
               <SignUpButton mode="modal">
                 <button className="btn btn-secondary text-lg py-4 px-8 shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300">
-                  Register as a Player
+                  Register to Play!
                 </button>
               </SignUpButton>
-              <Link 
-                href="/clubs/register"
-                className="btn btn-ghost text-lg py-4 px-8 border-white text-white hover:bg-white hover:text-brand-primary shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
-              >
-                Register Your Club
-              </Link>
             </SignedOut>
             <SignedIn>
               <Link 

@@ -16,8 +16,8 @@ export type NavItem = {
 export type UserRole = 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
 
 function navLinkClasses(active: boolean, isSubItem: boolean = false) {
-  const baseClasses = `nav-link block px-4 text-sm font-medium rounded-md transition-colors ${
-    isSubItem ? 'pl-10 py-1.5' : 'py-2'
+  const baseClasses = `block text-sm font-medium rounded-md transition-colors ${
+    isSubItem ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2'
   }`;
 
   if (active) {

@@ -33,10 +33,19 @@ export default function PlayerNewPage() {
   useEffect(() => {
     async function loadClubs() {
       try {
-        const response = await fetch(CLUBS_ENDPOINT);
-        if (!response.ok) return;
+        // Request more clubs (up to 50) to ensure we get all clubs
+        const response = await fetch(`${CLUBS_ENDPOINT}&take=50`);
+        if (!response.ok) {
+          console.error('Failed to load clubs:', response.status, response.statusText);
+          return;
+        }
         const data = await response.json();
-        setClubs(Array.isArray(data) ? data : []);
+        // Map the response to ensure we have id and name fields
+        const clubsList = Array.isArray(data) 
+          ? data.map((club: any) => ({ id: club.id, name: club.name }))
+          : [];
+        console.log(`Loaded ${clubsList.length} clubs`);
+        setClubs(clubsList);
       } catch (error) {
         console.error('Error loading clubs:', error);
       }
