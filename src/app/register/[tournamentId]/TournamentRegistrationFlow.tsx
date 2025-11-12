@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { RegistrationStepper } from './components/RegistrationStepper';
@@ -8,6 +8,7 @@ import { PlayerInfoStep } from './components/PlayerInfoStep';
 import { StopSelectionStep } from './components/StopSelectionStep';
 import { BracketSelectionStep } from './components/BracketSelectionStep';
 import { ReviewStep } from './components/ReviewStep';
+import { requiresStopSelection, requiresBracketSelection, isTeamTournament } from '@/lib/tournamentTypeConfig';
 
 type Step = 'info' | 'stops' | 'brackets' | 'review';
 
@@ -84,13 +85,6 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: To
     }
   };
 
-  const steps: Array<{ id: Step; label: string; description: string }> = [
-    { id: 'info', label: 'Your Information', description: '' },
-    { id: 'stops', label: 'Select Stops', description: '' },
-    { id: 'brackets', label: 'Select Brackets', description: '' },
-    { id: 'review', label: 'Review & Pay', description: '' },
-  ];
-
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
   const goToStep = (step: Step | string) => {
@@ -129,7 +123,42 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: To
     setRegistrationData((prev) => ({ ...prev, selectedBrackets: brackets }));
   };
 
-  const isTeamTournament = tournament.type === 'TEAM_FORMAT';
+  // Use centralized tournament type configuration
+  const tournamentIsTeam = isTeamTournament(tournament.type);
+  const tournamentRequiresStopSelection = requiresStopSelection(tournament.type);
+  const tournamentRequiresBracketSelection = requiresBracketSelection(tournament.type);
+
+  // Build dynamic steps based on tournament type
+  const steps = useMemo(() => {
+    const stepList: Array<{ id: Step; label: string; description: string }> = [
+      { id: 'info', label: 'Your Information', description: '' },
+    ];
+
+    // Add stop selection step only if required
+    if (tournamentRequiresStopSelection) {
+      stepList.push({ id: 'stops', label: 'Select Stops', description: '' });
+    }
+
+    // Add bracket selection step only if required
+    if (tournamentRequiresBracketSelection) {
+      stepList.push({ id: 'brackets', label: 'Select Brackets', description: '' });
+    }
+
+    stepList.push({ id: 'review', label: 'Review & Pay', description: '' });
+
+    return stepList;
+  }, [tournamentRequiresStopSelection, tournamentRequiresBracketSelection]);
+
+  // Initialize with default stop if stops are not required
+  useEffect(() => {
+    if (!tournamentRequiresStopSelection && tournament.stops.length > 0 && registrationData.selectedStopIds.length === 0) {
+      // Auto-select the default stop (should be the only one)
+      setRegistrationData((prev) => ({
+        ...prev,
+        selectedStopIds: [tournament.stops[0].id],
+      }));
+    }
+  }, [tournamentRequiresStopSelection, tournament.stops, registrationData.selectedStopIds.length]);
 
   return (
     <ErrorBoundary>
@@ -160,7 +189,7 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: To
               />
             )}
 
-            {currentStep === 'stops' && (
+            {currentStep === 'stops' && tournamentRequiresStopSelection && (
               <StopSelectionStep
                 stops={tournament.stops}
                 selectedStopIds={registrationData.selectedStopIds}
@@ -168,25 +197,26 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: To
                 onNext={goToNextStep}
                 onBack={goToPreviousStep}
                 onCancel={handleCancel}
-                isTeamTournament={isTeamTournament}
+                isTeamTournament={tournamentIsTeam}
                 clubs={tournament.clubs}
                 selectedClubId={registrationData.selectedClubId}
                 onClubUpdate={updateSelectedClub}
               />
             )}
 
-            {currentStep === 'brackets' && (
+            {currentStep === 'brackets' && tournamentRequiresBracketSelection && (
               <BracketSelectionStep
                 brackets={tournament.brackets}
-                stops={tournament.stops.filter((s) =>
-                  registrationData.selectedStopIds.includes(s.id)
-                )}
+                stops={tournamentRequiresStopSelection 
+                  ? tournament.stops.filter((s) => registrationData.selectedStopIds.includes(s.id))
+                  : tournament.stops // Use all stops if stop selection was skipped
+                }
                 selectedBrackets={registrationData.selectedBrackets}
                 onUpdate={updateSelectedBrackets}
                 onNext={goToNextStep}
                 onBack={goToPreviousStep}
                 onCancel={handleCancel}
-                isTeamTournament={isTeamTournament}
+                isTeamTournament={tournamentIsTeam}
               />
             )}
 

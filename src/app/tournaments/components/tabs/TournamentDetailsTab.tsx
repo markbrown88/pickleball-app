@@ -1,6 +1,7 @@
 'use client';
 
 import type { EditorRow, TournamentTypeLabel } from '../TournamentEditor';
+import { allowsMultipleStops } from '@/lib/tournamentTypeConfig';
 
 type TournamentDetailsTabProps = {
   editor: EditorRow;
@@ -80,8 +81,8 @@ export function TournamentDetailsTab({ editor, setEditor }: TournamentDetailsTab
         <h3 className="text-lg font-semibold text-primary mb-4">Configuration Options</h3>
 
         <div className="space-y-3">
-          {/* Hide Multiple Stops for bracket tournaments (they only have 1 stop) */}
-          {editor.type !== 'Double Elimination' && editor.type !== 'Double Elimination Clubs' && (
+          {/* Hide Multiple Stops for tournaments that don't allow multiple stops */}
+          {allowsMultipleStops(editor.type) && (
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"

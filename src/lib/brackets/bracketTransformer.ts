@@ -124,7 +124,7 @@ function getMatchNumber(
  */
 function getSourceMatchLabel(
   sourceMatchId: string | null | undefined,
-  isWinnerSlot: boolean,
+  currentRound: Round,
   allMatches: Map<string, Match>,
   matchToRoundMap: Map<string, Round>,
   allRounds: Round[]
@@ -140,7 +140,11 @@ function getSourceMatchLabel(
   const sourceMatchNumber = getMatchNumber(sourceMatch, sourceRound, allRounds);
 
   // Determine if it's a winner or loser advancing
-  const prefix = isWinnerSlot ? 'W' : 'L';
+  // Logic:
+  // - If source is WINNER bracket and current is LOSER bracket → L (loser drops down)
+  // - Otherwise → W (winner advances)
+  const isLoserDropping = sourceRound.bracketType === 'WINNER' && currentRound.bracketType === 'LOSER';
+  const prefix = isLoserDropping ? 'L' : 'W';
 
   return `${prefix} ${sourceMatchNumber}`;
 }
@@ -237,9 +241,7 @@ function convertMatch(
     });
   } else if (match.isBye && !match.teamA) {
     // BYE match waiting for source match to complete - show source vs BYE
-    // For loser bracket BYE matches, the team is a loser; for winner bracket, they're a winner
-    const isLoserBracket = round.bracketType === 'LOSER';
-    const teamALabel = getSourceMatchLabel(match.sourceMatchAId, !isLoserBracket, allMatches, matchToRoundMap, allRounds);
+    const teamALabel = getSourceMatchLabel(match.sourceMatchAId, round, allMatches, matchToRoundMap, allRounds);
     participants.push({
       id: 'tbd-bye-team',
       resultText: null,
@@ -258,10 +260,6 @@ function convertMatch(
     // Handle partial team assignments (when winners advance)
     const { teamAGameWins, teamBGameWins } = calculateGameWins(match.games);
 
-    // Determine if teams are winners or losers advancing
-    // For loser bracket, the source is a loser; for others, it's a winner
-    const isLoserBracket = round.bracketType === 'LOSER';
-
     // Team A (or source match label if not set)
     if (match.teamA) {
       const teamAIsWinner = match.winnerId === match.teamA.id;
@@ -273,7 +271,7 @@ function convertMatch(
         name: stripBracketSuffix(match.teamA.name),
       });
     } else {
-      const teamALabel = getSourceMatchLabel(match.sourceMatchAId, !isLoserBracket, allMatches, matchToRoundMap, allRounds);
+      const teamALabel = getSourceMatchLabel(match.sourceMatchAId, round, allMatches, matchToRoundMap, allRounds);
       participants.push({
         id: 'tbd-1',
         resultText: null,
@@ -294,7 +292,7 @@ function convertMatch(
         name: stripBracketSuffix(match.teamB.name),
       });
     } else {
-      const teamBLabel = getSourceMatchLabel(match.sourceMatchBId, !isLoserBracket, allMatches, matchToRoundMap, allRounds);
+      const teamBLabel = getSourceMatchLabel(match.sourceMatchBId, round, allMatches, matchToRoundMap, allRounds);
       participants.push({
         id: 'tbd-2',
         resultText: null,

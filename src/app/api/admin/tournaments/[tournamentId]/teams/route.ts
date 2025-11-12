@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import type { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@clerk/nextjs/server';
+import { getDefaultStopName } from '@/lib/tournamentTypeConfig';
 
 type Id = string;
 
@@ -53,13 +54,14 @@ async function ensureBrackets(prisma: PrismaClient, tournamentId: string) {
 async function ensureStops(prisma: PrismaClient, tournamentId: string) {
   const t = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, name: true, createdAt: true, stops: { select: { id: true } } },
+    select: { id: true, name: true, type: true, createdAt: true, stops: { select: { id: true } } },
   });
   if (!t) throw new Error('Tournament not found');
   if (!t.stops || t.stops.length === 0) {
     const safe = t.createdAt ?? new Date();
+    const defaultStopName = getDefaultStopName(t.type);
     await prisma.stop.create({
-      data: { tournamentId: t.id, name: t.name, startAt: safe, endAt: safe },
+      data: { tournamentId: t.id, name: defaultStopName, startAt: safe, endAt: safe },
     });
   }
 }

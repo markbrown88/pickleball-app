@@ -63,6 +63,12 @@ export default async function PaymentSuccessPage({ params, searchParams }: PageP
 
   } catch (error) {
     console.error('Error retrieving payment session:', error);
+    
+    // If it's a redirect error, re-throw it
+    if (error && typeof error === 'object' && 'digest' in error && String(error.digest).includes('NEXT_REDIRECT')) {
+      throw error;
+    }
+    
     notFound();
   }
 }

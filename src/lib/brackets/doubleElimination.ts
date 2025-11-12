@@ -128,9 +128,9 @@ function createLoserBracket(
   const rounds: BracketRound[] = [];
 
   // Standard double elimination formula
-  // For 3 winner rounds (4,2,1 matches): 5 loser rounds
-  // For 4 winner rounds (8,4,2,1 matches): 7 loser rounds
-  const loserRoundCount = 2 * winnerRoundCount - 1;
+  // For 3 winner rounds (4,2,1 matches): 4 loser rounds (2 × (3-1) = 4)
+  // For 4 winner rounds (8,4,2,1 matches): 6 loser rounds (2 × (4-1) = 6)
+  const loserRoundCount = 2 * (winnerRoundCount - 1);
 
   // Calculate how many losers will come from first winner round (W0)
   // Count non-BYE matches in W0 (each produces 1 loser)

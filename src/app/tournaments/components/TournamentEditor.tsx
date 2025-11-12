@@ -10,6 +10,7 @@ import { ClubsCaptainsTab } from './tabs/ClubsCaptainsTab';
 import { BracketsTab } from './tabs/BracketsTab';
 import { AccessManagersTab } from './tabs/AccessManagersTab';
 import { AdvancedConfigTab } from './tabs/AdvancedConfigTab';
+import { requiresClubs, showsStops, showsBrackets, isTeamTournament } from '@/lib/tournamentTypeConfig';
 
 type Id = string;
 
@@ -114,11 +115,11 @@ export function TournamentEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Team Format and bracket tournaments require clubs
-  const requiresClubs = editor.type === 'Team Format' ||
-                        editor.type === 'Double Elimination' ||
-                        editor.type === 'Double Elimination Clubs' ||
-                        editor.type === 'Single Elimination';
+  // Use centralized tournament type configuration
+  const tournamentRequiresClubs = requiresClubs(editor.type);
+  const tournamentShowsStops = showsStops(editor.type);
+  const tournamentShowsBrackets = showsBrackets(editor.type);
+  const tournamentIsTeam = isTeamTournament(editor.type);
 
   // Dynamic label based on whether captains are enabled
   const clubsTabLabel = editor.hasCaptains ? 'Clubs & Captains' : 'Clubs';
@@ -129,18 +130,15 @@ export function TournamentEditor({
     editorWithReg.registrationType === 'PAID' &&
     editorWithReg.pricingModel !== 'TOURNAMENT_WIDE';
 
-  // Check if tournament is team-based
-  const isTeamTournament = editor.type === 'Team Format';
-
   const tabs = [
     { id: 'details' as const, label: 'Tournament Details' },
     { id: 'registration' as const, label: 'Registration Settings' },
     { id: 'advanced' as const, label: 'Advanced Configuration', hidden: !showAdvancedConfig },
     { id: 'registrations' as const, label: 'Registrations' },
     { id: 'invitations' as const, label: 'Invitations' },
-    { id: 'stops' as const, label: 'Location(s) & Dates' },
-    { id: 'clubs' as const, label: clubsTabLabel, hidden: !requiresClubs },
-    { id: 'brackets' as const, label: 'Brackets', hidden: !editor.hasBrackets },
+    { id: 'stops' as const, label: 'Location(s) & Dates', hidden: !tournamentShowsStops },
+    { id: 'clubs' as const, label: clubsTabLabel, hidden: !tournamentRequiresClubs },
+    { id: 'brackets' as const, label: 'Brackets', hidden: !tournamentShowsBrackets || !editor.hasBrackets },
     { id: 'access' as const, label: 'Access & Managers' },
   ].filter(tab => !tab.hidden);
 
@@ -215,7 +213,7 @@ export function TournamentEditor({
           <AdvancedConfigTab
             tournamentId={tournamentId}
             pricingModel={editorWithReg.pricingModel}
-            isTeamTournament={isTeamTournament}
+            isTeamTournament={tournamentIsTeam}
           />
         )}
 

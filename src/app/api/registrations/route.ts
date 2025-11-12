@@ -5,6 +5,7 @@ import { validateRegistration, sanitizeInput } from '@/lib/validation/registrati
 import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 import { calculateRegistrationAmount } from '@/lib/payments/calculateAmount';
 import { formatAmountForStripe } from '@/lib/stripe/config';
+import { isTeamTournament } from '@/lib/tournamentTypeConfig';
 
 /**
  * POST /api/registrations
@@ -73,12 +74,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate registration data
-    const isTeamTournament = tournament.type === 'TEAM_FORMAT';
+    const tournamentIsTeam = isTeamTournament(tournament.type);
     const validationErrors = validateRegistration(
       playerInfo,
       selectedStopIds,
       selectedBrackets,
-      isTeamTournament,
+      tournamentIsTeam,
       selectedClubId
     );
 
@@ -266,7 +267,7 @@ export async function POST(request: NextRequest) {
 
       // For free tournaments, create roster entries immediately
       // For paid tournaments, roster entries will be created after payment confirmation (via webhook)
-      if (tournament.registrationType === 'FREE' && isTeamTournament && selectedClubId && Array.isArray(selectedBrackets)) {
+      if (tournament.registrationType === 'FREE' && tournamentIsTeam && selectedClubId && Array.isArray(selectedBrackets)) {
         // Get tournament brackets and club info
         const [brackets, club] = await Promise.all([
           tx.tournamentBracket.findMany({
@@ -429,7 +430,7 @@ export async function POST(request: NextRequest) {
 
           // Get club name if team tournament
           let clubName: string | null = null;
-          if (isTeamTournament && selectedClubId) {
+          if (tournamentIsTeam && selectedClubId) {
             const club = await prisma.club.findUnique({
               where: { id: selectedClubId },
               select: { name: true },

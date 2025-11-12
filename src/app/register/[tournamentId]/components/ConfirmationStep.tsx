@@ -134,7 +134,7 @@ export function ConfirmationStep({
                   />
                 </svg>
                 <span>
-                  Check your email for a confirmation message with all your registration details
+                  Check your <a href="/dashboard" className="text-primary hover:underline">dashboard</a> for tournament updates
                 </span>
               </li>
               <li className="flex items-start gap-2">
@@ -151,9 +151,7 @@ export function ConfirmationStep({
                     d="M9 5l7 7-7 7"
                   />
                 </svg>
-                <span>
-                  You'll receive tournament updates and match schedules as they become available
-                </span>
+                <span>Bring your paddle and a positive attitude!</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg
@@ -170,7 +168,7 @@ export function ConfirmationStep({
                   />
                 </svg>
                 <span>
-                  Make sure to arrive at least 30 minutes before your first scheduled match
+                  You can view tournament scores or cancel your registration from your <a href="/dashboard" className="text-primary hover:underline">dashboard</a>
                 </span>
               </li>
               {!isFree && (
@@ -227,11 +225,11 @@ export function ConfirmationStep({
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <a
               href={`/tournament/${tournamentId}`}
-              className="btn btn-ghost flex-1"
+              className="btn btn-primary flex-1"
             >
-              View Tournament Details
+              View Tournament Scores
             </a>
-            <a href="/dashboard" className="btn btn-primary flex-1">
+            <a href="/dashboard" className="btn btn-ghost flex-1">
               Return to Dashboard
             </a>
           </div>

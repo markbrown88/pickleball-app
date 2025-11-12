@@ -363,30 +363,87 @@ export async function POST(
     }
 
     // AUTO-COMPLETE BYE MATCHES: If we just placed a team into a BYE match, auto-complete it
+    // Use a queue-based approach to handle cascading BYE completions
     const allChildMatches = [...winnerBracketChildMatchesA, ...winnerBracketChildMatchesB, ...loserBracketChildMatchesA, ...loserBracketChildMatchesB];
-    for (const childMatch of allChildMatches) {
+    const matchesToCheck = [...allChildMatches];
+    let processedMatches = new Set<string>();
+
+    while (matchesToCheck.length > 0) {
+      const childMatch = matchesToCheck.shift();
+      if (!childMatch || processedMatches.has(childMatch.id)) continue;
+      processedMatches.add(childMatch.id);
+
       // Check if this child match is a BYE and now has a team
       const updatedChild = await prisma.match.findUnique({
         where: { id: childMatch.id },
-        select: { id: true, isBye: true, teamAId: true, winnerId: true },
+        select: {
+          id: true,
+          isBye: true,
+          teamAId: true,
+          teamBId: true,
+          winnerId: true,
+          round: { select: { bracketType: true } },
+        },
       });
 
-      if (updatedChild?.isBye && updatedChild.teamAId && !updatedChild.winnerId) {
-        console.log(`[Complete Match] Auto-completing BYE match ${updatedChild.id}`);
-        // Auto-complete the BYE match by calling this endpoint recursively
-        try {
-          const byeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/admin/matches/${updatedChild.id}/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          });
-          if (byeResponse.ok) {
-            console.log(`[Complete Match] ✓ BYE match ${updatedChild.id} auto-completed`);
-          } else {
-            console.error(`[Complete Match] Failed to auto-complete BYE match: ${await byeResponse.text()}`);
-          }
-        } catch (error) {
-          console.error(`[Complete Match] Error auto-completing BYE match:`, error);
+      // Only auto-complete if it's explicitly marked as a BYE match, has teamA, and no winner yet
+      // DO NOT auto-complete matches that just happen to have one team - they're waiting for their other source
+      if (updatedChild?.isBye && updatedChild?.teamAId && !updatedChild.winnerId) {
+        console.log(`[Complete Match] Auto-completing BYE match ${updatedChild.id} (${updatedChild.round?.bracketType}) - teamA: ${updatedChild.teamAId}`);
+
+        // Set winner
+        await prisma.match.update({
+          where: { id: updatedChild.id },
+          data: { winnerId: updatedChild.teamAId },
+        });
+
+        // Find child matches and advance winner
+        const byeChildMatchesA = await prisma.match.findMany({
+          where: { sourceMatchAId: updatedChild.id },
+          include: { round: { select: { bracketType: true } } },
+        });
+
+        const byeChildMatchesB = await prisma.match.findMany({
+          where: { sourceMatchBId: updatedChild.id },
+          include: { round: { select: { bracketType: true } } },
+        });
+
+        // Filter by bracket type
+        let targetChildrenA = byeChildMatchesA;
+        let targetChildrenB = byeChildMatchesB;
+
+        if (updatedChild.round?.bracketType === 'LOSER') {
+          // Loser bracket BYE advances to loser bracket or finals
+          targetChildrenA = byeChildMatchesA.filter(m => m.round?.bracketType === 'LOSER' || m.round?.bracketType === 'FINALS');
+          targetChildrenB = byeChildMatchesB.filter(m => m.round?.bracketType === 'LOSER' || m.round?.bracketType === 'FINALS');
+        } else {
+          // Winner bracket BYE advances to winner/finals bracket
+          targetChildrenA = byeChildMatchesA.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
+          targetChildrenB = byeChildMatchesB.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
         }
+
+        // Advance winner to child matches
+        for (const child of targetChildrenA) {
+          await prisma.match.update({
+            where: { id: child.id },
+            data: { teamAId: updatedChild.teamAId },
+          });
+          console.log(`[Complete Match]   → Advanced to ${child.round?.bracketType} match ${child.id} as Team A`);
+          // Add to queue to check if this child is also a BYE
+          matchesToCheck.push(child);
+        }
+
+        for (const child of targetChildrenB) {
+          await prisma.match.update({
+            where: { id: child.id },
+            data: { teamBId: updatedChild.teamAId },
+          });
+          console.log(`[Complete Match]   → Advanced to ${child.round?.bracketType} match ${child.id} as Team B`);
+          // Add to queue to check if this child is also a BYE
+          matchesToCheck.push(child);
+        }
+
+        console.log(`[Complete Match] ✓ BYE match ${updatedChild.id} completed, winner: ${updatedChild.teamAId}`);
       }
     }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { EditorRow } from '../TournamentEditor';
+import { isTeamTournament, getAllowedPricingModels } from '@/lib/tournamentTypeConfig';
 
 type RegistrationStatus = 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
 type RegistrationType = 'FREE' | 'PAID';
@@ -23,21 +24,18 @@ type RegistrationSettingsTabProps = {
   setEditor: (editor: EditorRowWithRegistration) => void;
 };
 
-// Check if tournament is Team/Club type (only allows Tournament-Wide or Per-Stop pricing)
-function isTeamOrClubTournament(tournamentType: string): boolean {
-  return tournamentType === 'Team Format' || tournamentType === 'Double Elimination Clubs';
-}
-
 export function RegistrationSettingsTab({ editor, setEditor }: RegistrationSettingsTabProps) {
   const [newRestriction, setNewRestriction] = useState('');
 
-  // Auto-reset invalid pricing models for Team/Club tournaments
+  // Get allowed pricing models for this tournament type
+  const allowedPricingModels = getAllowedPricingModels(editor.type);
+  const tournamentIsTeam = isTeamTournament(editor.type);
+
+  // Auto-reset invalid pricing models
   useEffect(() => {
-    if (isTeamOrClubTournament(editor.type)) {
-      if (editor.pricingModel === 'PER_BRACKET' || editor.pricingModel === 'PER_STOP_PER_BRACKET') {
-        // Reset to Tournament-Wide if invalid model is selected
-        setEditor({ ...editor, pricingModel: 'TOURNAMENT_WIDE' });
-      }
+    if (!allowedPricingModels.includes(editor.pricingModel)) {
+      // Reset to first allowed pricing model (should be TOURNAMENT_WIDE)
+      setEditor({ ...editor, pricingModel: allowedPricingModels[0] || 'TOURNAMENT_WIDE' });
     }
   }, [editor.type]); // Only run when tournament type changes
 
@@ -200,16 +198,8 @@ export function RegistrationSettingsTab({ editor, setEditor }: RegistrationSetti
         <div className="border-t border-border-subtle pt-6">
           <h3 className="text-lg font-semibold text-primary mb-4">Pricing Model</h3>
           <p className="text-sm text-muted mb-4">
-            Choose how players will be charged for this tournament. This determines pricing flexibility for stops and brackets.
+            Choose how players will be charged for this tournament. This determines pricing flexibility for stops and brackets, as applicable for the selected Tournament Type.
           </p>
-
-          {isTeamOrClubTournament(editor.type) && (
-            <div className="mb-4 p-3 bg-info/10 border border-info/20 rounded">
-              <p className="text-sm text-secondary">
-                <strong>Note:</strong> For Team/Club tournaments, players register for one bracket/stop and play whatever game type their captain assigns. Only Tournament-Wide and Per-Stop pricing are available.
-              </p>
-            </div>
-          )}
 
           <div className="space-y-3">
             <label className="flex items-start gap-3 cursor-pointer">
@@ -223,80 +213,89 @@ export function RegistrationSettingsTab({ editor, setEditor }: RegistrationSetti
               <div>
                 <div className="font-medium text-secondary">Tournament-Wide Pricing</div>
                 <p className="text-xs text-muted">
-                  One flat fee covers the entire tournament (all stops, all game types). Simplest option for most tournaments.
+                  One flat fee covers the entire tournament (all stops, all game types).
                 </p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="pricingModel"
-                className="mt-1"
-                checked={editor.pricingModel === 'PER_STOP'}
-                onChange={() => updateField('pricingModel', 'PER_STOP')}
-              />
-              <div>
-                <div className="font-medium text-secondary">Per-Stop Pricing</div>
-                <p className="text-xs text-muted">
-                  Players pay separately for each stop they register for. Good for multi-stop tournaments where players may only attend some events.
-                </p>
-              </div>
-            </label>
+            {allowedPricingModels.includes('PER_STOP') && (
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pricingModel"
+                  className="mt-1"
+                  checked={editor.pricingModel === 'PER_STOP'}
+                  onChange={() => updateField('pricingModel', 'PER_STOP')}
+                />
+                <div>
+                  <div className="font-medium text-secondary">Per-Stop Pricing</div>
+                  <p className="text-xs text-muted">
+                    Players pay separately for each stop they register for.
+                  </p>
+                </div>
+              </label>
+            )}
 
-            {!isTeamOrClubTournament(editor.type) && (
-              <>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="pricingModel"
-                    className="mt-1"
-                    checked={editor.pricingModel === 'PER_BRACKET'}
-                    onChange={() => updateField('pricingModel', 'PER_BRACKET')}
-                  />
-                  <div>
-                    <div className="font-medium text-secondary">Per-Bracket Pricing</div>
-                    <p className="text-xs text-muted">
-                      Different price for each game type/bracket. Best for individual tournaments where singles, doubles, and mixed have different costs.
-                    </p>
-                  </div>
-                </label>
+            {allowedPricingModels.includes('PER_BRACKET') && (
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pricingModel"
+                  className="mt-1"
+                  checked={editor.pricingModel === 'PER_BRACKET'}
+                  onChange={() => updateField('pricingModel', 'PER_BRACKET')}
+                />
+                <div>
+                  <div className="font-medium text-secondary">Per-Bracket Pricing</div>
+                  <p className="text-xs text-muted">
+                    Different price for each game type/bracket. Best for individual tournaments where singles, doubles, and mixed have different costs.
+                  </p>
+                </div>
+              </label>
+            )}
 
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="pricingModel"
-                    className="mt-1"
-                    checked={editor.pricingModel === 'PER_STOP_PER_BRACKET'}
-                    onChange={() => updateField('pricingModel', 'PER_STOP_PER_BRACKET')}
-                  />
-                  <div>
-                    <div className="font-medium text-secondary">Per-Stop Per-Bracket Pricing</div>
-                    <p className="text-xs text-muted">
-                      Maximum flexibility - different price for each stop AND bracket combination. Use for complex tournaments with varying costs.
-                    </p>
-                  </div>
-                </label>
-              </>
+            {allowedPricingModels.includes('PER_STOP_PER_BRACKET') && (
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="pricingModel"
+                  className="mt-1"
+                  checked={editor.pricingModel === 'PER_STOP_PER_BRACKET'}
+                  onChange={() => updateField('pricingModel', 'PER_STOP_PER_BRACKET')}
+                />
+                <div>
+                  <div className="font-medium text-secondary">Per-Stop Per-Bracket Pricing</div>
+                  <p className="text-xs text-muted">
+                    Maximum flexibility - different price for each stop AND bracket combination. Use for complex tournaments with varying costs.
+                  </p>
+                </div>
+              </label>
             )}
           </div>
 
-          {editor.pricingModel !== 'TOURNAMENT_WIDE' && (
+          {editor.pricingModel === 'PER_STOP' && (
             <div className="mt-4 p-3 bg-surface-2 border border-border-subtle rounded">
               <p className="text-sm text-secondary">
-                <strong>Note:</strong> Advanced pricing configuration will be available after you save this tournament.
-                You'll be able to set specific prices per {editor.pricingModel === 'PER_STOP' ? 'stop' : editor.pricingModel === 'PER_BRACKET' ? 'bracket' : 'stop and bracket'}.
+                <strong>Note:</strong> Advanced pricing configuration will be available after you save this tournament. You'll be able to set specific prices per stop.
               </p>
             </div>
           )}
 
-          {/* Reset pricing model if invalid for team/club tournaments */}
-          {isTeamOrClubTournament(editor.type) && 
-           (editor.pricingModel === 'PER_BRACKET' || editor.pricingModel === 'PER_STOP_PER_BRACKET') && (
+          {editor.pricingModel !== 'TOURNAMENT_WIDE' && editor.pricingModel !== 'PER_STOP' && (
+            <div className="mt-4 p-3 bg-surface-2 border border-border-subtle rounded">
+              <p className="text-sm text-secondary">
+                <strong>Note:</strong> Advanced pricing configuration will be available after you save this tournament.
+                You'll be able to set specific prices per {editor.pricingModel === 'PER_BRACKET' ? 'bracket' : 'stop and bracket'}.
+              </p>
+            </div>
+          )}
+
+          {/* Show warning if invalid pricing model is selected */}
+          {!allowedPricingModels.includes(editor.pricingModel) && (
             <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded">
               <p className="text-sm text-warning">
-                <strong>Invalid pricing model:</strong> Per-Bracket pricing is not available for Team/Club tournaments. 
-                Please select Tournament-Wide or Per-Stop pricing.
+                <strong>Invalid pricing model:</strong> This pricing model is not available for {editor.type} tournaments. 
+                Please select one of the allowed pricing models above.
               </p>
             </div>
           )}
