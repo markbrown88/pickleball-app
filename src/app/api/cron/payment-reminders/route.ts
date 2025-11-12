@@ -35,9 +35,11 @@ export async function POST(request: NextRequest) {
 
     // Find registrations that need 12-hour reminder
     // Registered between 12-13 hours ago, payment still pending, haven't sent 12h reminder
+    // Exclude registrations that have a paymentId (indicating payment was processed, even if status not updated)
     const registrationsFor12HourReminder = await prisma.tournamentRegistration.findMany({
       where: {
         paymentStatus: 'PENDING',
+        paymentId: null, // Exclude if paymentId exists (payment was processed)
         registeredAt: {
           gte: new Date(twelveHoursAgo.getTime() - 60 * 60 * 1000), // 12-13 hours ago
           lt: twelveHoursAgo,
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
             id: true,
             name: true,
             startDate: true,
+            registrationType: true, // Need to filter out FREE tournaments
             stops: {
               take: 1,
               orderBy: { startAt: 'asc' },
@@ -92,6 +95,17 @@ export async function POST(request: NextRequest) {
 
       // Skip if already sent 12h reminder
       if (notes.reminder12hSent) {
+        continue;
+      }
+
+      // Only send reminder if payment process was started (has stripeSessionId)
+      // This means they got to the payment step but didn't complete it
+      if (!notes.stripeSessionId) {
+        continue; // Skip - they never started the payment process
+      }
+
+      // Skip free tournaments - no payment needed
+      if (registration.tournament.registrationType === 'FREE') {
         continue;
       }
 
@@ -142,9 +156,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Find registrations that need to be canceled (24+ hours old, still pending)
+    // Exclude registrations that have a paymentId (indicating payment was processed, even if status not updated)
     const registrationsToCancel = await prisma.tournamentRegistration.findMany({
       where: {
         paymentStatus: 'PENDING',
+        paymentId: null, // Exclude if paymentId exists (payment was processed)
         registeredAt: {
           lt: twentyFourHoursAgo,
         },
@@ -162,14 +178,37 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             name: true,
+            registrationType: true, // Need to filter out FREE tournaments
           },
         },
       },
     });
 
     // Cancel expired registrations
+    // Only cancel registrations where payment process was started (has stripeSessionId) but not completed
     let cancellations = 0;
     for (const registration of registrationsToCancel) {
+      // Check notes to see if payment process was started
+      let notes: any = {};
+      if (registration.notes) {
+        try {
+          notes = JSON.parse(registration.notes);
+        } catch (e) {
+          console.error(`Failed to parse notes for registration ${registration.id}:`, e);
+        }
+      }
+
+      // Skip if payment process was never started (no stripeSessionId)
+      // These are registrations that were created but user never got to payment step
+      if (!notes.stripeSessionId) {
+        continue;
+      }
+
+      // Skip free tournaments - no payment needed
+      if (registration.tournament.registrationType === 'FREE') {
+        continue;
+      }
+
       try {
         // Update registration status
         await prisma.tournamentRegistration.update({

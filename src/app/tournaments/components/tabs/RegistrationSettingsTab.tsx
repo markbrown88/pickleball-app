@@ -187,7 +187,7 @@ export function RegistrationSettingsTab({ editor, setEditor }: RegistrationSetti
               />
             </div>
             <p className="text-xs text-muted mt-1">
-              Amount will be charged via Stripe when players register
+              Amount will be charged via Stripe when players register (+HST)
             </p>
           </div>
         )}

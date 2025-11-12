@@ -284,7 +284,9 @@ export default function DashboardPage() {
   const formatAmount = (amountInCents: number | null | undefined, registrationType?: string) => {
     if (registrationType === 'FREE') return 'Free';
     if (!amountInCents) return '$0.00';
-    return `$${(amountInCents / 100).toFixed(2)}`;
+    const price = `$${(amountInCents / 100).toFixed(2)}`;
+    // Add "+HST" for paid tournaments
+    return registrationType === 'PAID' ? `${price} +HST` : price;
   };
 
   const getPaymentStatusBadge = (status?: string) => {

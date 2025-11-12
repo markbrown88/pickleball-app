@@ -43,9 +43,8 @@ export function PlayerInfoStep({
       newErrors.email = 'Please enter a valid email address';
     }
 
-    if (!playerInfo.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!/^[\d\s\-\+\(\)]+$/.test(playerInfo.phone)) {
+    // Phone is optional - only validate format if provided
+    if (playerInfo.phone.trim() && !/^[\d\s\-\+\(\)]+$/.test(playerInfo.phone)) {
       newErrors.phone = 'Please enter a valid phone number';
     }
 
@@ -171,7 +170,7 @@ export function PlayerInfoStep({
         {/* Phone */}
         <div>
           <label className="block text-sm font-semibold text-secondary mb-2">
-            Phone Number <span className="text-error">*</span>
+            Phone Number
           </label>
           <input
             type="tel"

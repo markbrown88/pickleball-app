@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { formatDateRangeUTC } from '@/lib/utils';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
+import { calculateTotalWithTax, getTaxLabel, getTaxRateDisplay } from '@/lib/payments/calculateTax';
 
 type Stop = {
   id: string;
@@ -130,7 +131,10 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
     }
   };
 
-  const totalCost = calculatePrice();
+  const subtotal = calculatePrice();
+  
+  // Calculate tax (13% HST for Ontario)
+  const { subtotal: displaySubtotal, tax, total: totalCost } = calculateTotalWithTax(subtotal);
 
   const getGameTypeLabel = (gameTypeId: string): string => {
     const gameType = gameTypes.find((gt) => gt.id === gameTypeId);
@@ -398,7 +402,9 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
                 return (
                   <div className="flex items-center justify-between">
                     <span className="text-muted">Tournament Registration:</span>
-                    <span className="text-secondary">${costInDollars}</span>
+                    <span className="text-secondary">
+                      ${costInDollars}{tournament.registrationType === 'PAID' ? ' +HST' : ''}
+                    </span>
                   </div>
                 );
               }
@@ -408,7 +414,9 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
                   <>
                     <div className="flex items-center justify-between">
                       <span className="text-muted">Price per stop:</span>
-                      <span className="text-secondary">${costInDollars}</span>
+                      <span className="text-secondary">
+                        ${costInDollars}{tournament.registrationType === 'PAID' ? ' +HST' : ''}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted">Number of stops:</span>
@@ -423,7 +431,9 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
                   <>
                     <div className="flex items-center justify-between">
                       <span className="text-muted">Price per bracket:</span>
-                      <span className="text-secondary">${costInDollars}</span>
+                      <span className="text-secondary">
+                        ${costInDollars}{tournament.registrationType === 'PAID' ? ' +HST' : ''}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted">Number of brackets:</span>
@@ -440,7 +450,9 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
                   <>
                     <div className="flex items-center justify-between">
                       <span className="text-muted">Price per game type:</span>
-                      <span className="text-secondary">${costInDollars}</span>
+                      <span className="text-secondary">
+                        ${costInDollars}{tournament.registrationType === 'PAID' ? ' +HST' : ''}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted">Number of game types:</span>
@@ -458,8 +470,20 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
               return null;
             })()}
 
-            <div className="pt-3 mt-3 border-t border-border-subtle">
-              <div className="flex items-center justify-between text-lg font-bold">
+            <div className="pt-3 mt-3 border-t border-border-subtle space-y-2">
+              {tournament.registrationType === 'PAID' && subtotal > 0 && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted">Subtotal:</span>
+                    <span className="text-secondary">${displaySubtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted">{getTaxLabel()} ({getTaxRateDisplay()}):</span>
+                    <span className="text-secondary">${tax.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between text-lg font-bold pt-2 border-t border-border-subtle">
                 <span className="text-secondary">Total:</span>
                 <span className="text-primary">${totalCost.toFixed(2)}</span>
               </div>

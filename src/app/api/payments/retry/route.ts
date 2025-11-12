@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { stripe, STRIPE_CONFIG, formatAmountForStripe, formatAmountFromStripe } from '@/lib/stripe/config';
 import { calculateRegistrationAmount } from '@/lib/payments/calculateAmount';
+import { calculateTotalWithTax } from '@/lib/payments/calculateTax';
 import { paymentRetryLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
 
 /**
@@ -141,11 +142,24 @@ export async function POST(request: NextRequest) {
       pricingModel,
     };
     
-    // Calculate total amount based on pricing model
-    const calculatedAmount = calculateRegistrationAmount(
-      tournamentWithPricing,
+    // Convert registrationCost from cents to dollars for calculation
+    const registrationCostInDollars = registration.tournament.registrationCost 
+      ? formatAmountFromStripe(registration.tournament.registrationCost) 
+      : 0;
+    
+    const tournamentWithPricingForCalc = {
+      ...tournamentWithPricing,
+      registrationCost: registrationCostInDollars,
+    };
+    
+    // Calculate subtotal based on pricing model
+    const subtotal = calculateRegistrationAmount(
+      tournamentWithPricingForCalc,
       registrationDetails
     );
+    
+    // Calculate tax and total (13% HST for Ontario)
+    const { tax, total: calculatedAmount } = calculateTotalWithTax(subtotal);
 
     // Validate amount matches what was stored during registration
     const storedAmountInDollars = registration.amountPaid ? formatAmountFromStripe(registration.amountPaid) : 0;
@@ -153,6 +167,8 @@ export async function POST(request: NextRequest) {
     
     if (Math.abs(calculatedAmount - expectedAmount) > 0.01 && expectedAmount > 0) {
       console.error('Amount mismatch on retry:', {
+        subtotal,
+        tax,
         calculated: calculatedAmount,
         expected: expectedAmount,
         stored: storedAmountInDollars,
@@ -182,12 +198,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create line items for Stripe Checkout
+    // Create line items for Stripe Checkout (including tax as separate line item)
     const lineItems = createLineItems(
       tournamentWithPricing,
       registration.tournament.brackets || [],
       registrationDetails,
-      amount,
+      subtotal,
+      tax,
       registration.player
     );
 
@@ -283,7 +300,8 @@ function createLineItems(
     stopIds?: string[];
     brackets?: Array<{ stopId: string; bracketId: string; gameTypes?: string[] }>;
   },
-  totalAmount: number,
+  subtotal: number,
+  tax: number,
   player: {
     firstName: string | null;
     lastName: string | null;
@@ -299,8 +317,8 @@ function createLineItems(
   const pricingModel = tournament.pricingModel || 'PER_TOURNAMENT';
   const bracketMap = new Map(brackets.map(b => [b.id, b.name]));
 
-  if (pricingModel === 'PER_TOURNAMENT' || pricingModel === 'PER_STOP') {
-    return [
+  if (pricingModel === 'PER_TOURNAMENT' || pricingModel === 'TOURNAMENT_WIDE' || pricingModel === 'PER_STOP') {
+    const items: any[] = [
       {
         price_data: {
           currency: STRIPE_CONFIG.currency,
@@ -308,11 +326,28 @@ function createLineItems(
             name: `${tournament.name} - Registration`,
             description: `Tournament registration for ${playerName}`,
           },
-          unit_amount: formatAmountForStripe(totalAmount),
+          unit_amount: formatAmountForStripe(subtotal),
         },
         quantity: 1,
       },
     ];
+    
+    // Add tax as separate line item
+    if (tax > 0) {
+      items.push({
+        price_data: {
+          currency: STRIPE_CONFIG.currency,
+          product_data: {
+            name: 'HST (Ontario)',
+            description: '13% Harmonized Sales Tax',
+          },
+          unit_amount: formatAmountForStripe(tax),
+        },
+        quantity: 1,
+      });
+    }
+    
+    return items;
   }
 
   const lineItems: any[] = [];
@@ -362,7 +397,26 @@ function createLineItems(
     }
   }
 
-  return lineItems.length > 0 ? lineItems : [
+  // If we have line items, add tax as separate line item
+  if (lineItems.length > 0) {
+    if (tax > 0) {
+      lineItems.push({
+        price_data: {
+          currency: STRIPE_CONFIG.currency,
+          product_data: {
+            name: 'HST (Ontario)',
+            description: '13% Harmonized Sales Tax',
+          },
+          unit_amount: formatAmountForStripe(tax),
+        },
+        quantity: 1,
+      });
+    }
+    return lineItems;
+  }
+  
+  // Fallback: single line item with subtotal + tax
+  const items: any[] = [
     {
       price_data: {
         currency: STRIPE_CONFIG.currency,
@@ -370,11 +424,27 @@ function createLineItems(
           name: `${tournament.name} - Registration`,
           description: `Tournament registration for ${playerName}`,
         },
-        unit_amount: formatAmountForStripe(totalAmount),
+        unit_amount: formatAmountForStripe(subtotal),
       },
       quantity: 1,
     },
   ];
+  
+  if (tax > 0) {
+    items.push({
+      price_data: {
+        currency: STRIPE_CONFIG.currency,
+        product_data: {
+          name: 'HST (Ontario)',
+          description: '13% Harmonized Sales Tax',
+        },
+        unit_amount: formatAmountForStripe(tax),
+      },
+      quantity: 1,
+    });
+  }
+  
+  return items;
 }
 
 function formatGameType(gameType: string): string {

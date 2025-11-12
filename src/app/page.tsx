@@ -41,12 +41,31 @@ export default function Home() {
       const data = await response.json();
       
       if (data.tournaments && Array.isArray(data.tournaments)) {
-        // Filter to only show OPEN tournaments
-        const openTournaments = data.tournaments.filter((t: Tournament) => 
-          t.registrationStatus === 'OPEN'
-        );
+        const now = new Date(); // Current local time
+        
+        // Filter to only show OPEN tournaments that haven't ended yet
+        const futureOpenTournaments = data.tournaments.filter((t: Tournament) => {
+          // Must be OPEN
+          if (t.registrationStatus !== 'OPEN') return false;
+          
+          // Check if tournament hasn't ended yet
+          if (t.endDate) {
+            const endDate = new Date(t.endDate);
+            return endDate > now;
+          }
+          
+          // If no endDate, check startDate
+          if (t.startDate) {
+            const startDate = new Date(t.startDate);
+            return startDate > now;
+          }
+          
+          // If no dates, include it (shouldn't happen but be safe)
+          return true;
+        });
+        
         // Sort by start date, nearest first
-        const sorted = openTournaments.sort((a: Tournament, b: Tournament) => {
+        const sorted = futureOpenTournaments.sort((a: Tournament, b: Tournament) => {
           const dateA = a.startDate ? new Date(a.startDate).getTime() : new Date(a.createdAt).getTime();
           const dateB = b.startDate ? new Date(b.startDate).getTime() : new Date(b.createdAt).getTime();
           return dateA - dateB;

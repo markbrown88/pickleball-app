@@ -57,10 +57,8 @@ export function validatePlayerInfo(info: PlayerInfo): ValidationError[] {
     errors.push({ field: 'email', message: 'Email must be less than 100 characters' });
   }
 
-  // Phone validation
-  if (!info.phone.trim()) {
-    errors.push({ field: 'phone', message: 'Phone number is required' });
-  } else {
+  // Phone validation (optional - only validate format if provided)
+  if (info.phone.trim()) {
     // Remove all non-digit characters for validation
     const digitsOnly = info.phone.replace(/\D/g, '');
     if (digitsOnly.length < 10) {

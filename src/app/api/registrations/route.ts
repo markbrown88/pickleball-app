@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { validateRegistration, sanitizeInput } from '@/lib/validation/registration';
 import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 import { calculateRegistrationAmount } from '@/lib/payments/calculateAmount';
+import { calculateTotalWithTax } from '@/lib/payments/calculateTax';
 import { formatAmountForStripe } from '@/lib/stripe/config';
 import { isTeamTournament } from '@/lib/tournamentTypeConfig';
 
@@ -94,27 +95,97 @@ export async function POST(request: NextRequest) {
       firstName: sanitizeInput(playerInfo.firstName),
       lastName: sanitizeInput(playerInfo.lastName),
       email: sanitizeInput(playerInfo.email).toLowerCase(),
-      phone: sanitizeInput(playerInfo.phone),
+      phone: playerInfo.phone.trim() ? sanitizeInput(playerInfo.phone) : null,
     };
 
     // Check for duplicate registration
+    // For multi-stop tournaments, allow registration for different stops
     const existingPlayer = await prisma.player.findUnique({
       where: { email: sanitizedPlayerInfo.email },
     });
 
     if (existingPlayer) {
-      const existingRegistration = await prisma.tournamentRegistration.findFirst({
+      const existingRegistrations = await prisma.tournamentRegistration.findMany({
         where: {
           tournamentId,
           playerId: existingPlayer.id,
         },
+        select: {
+          id: true,
+          notes: true,
+        },
       });
 
-      if (existingRegistration) {
-        return NextResponse.json(
-          { error: 'A registration with this email already exists for this tournament' },
-          { status: 409 }
-        );
+      // Check if tournament has multiple stops
+      const tournamentStops = await prisma.stop.findMany({
+        where: { tournamentId },
+        select: { id: true },
+      });
+      const hasMultipleStops = tournamentStops.length > 1;
+
+      // If tournament has multiple stops, check for stop overlap
+      // If single stop or no stops, block any duplicate registration
+      if (hasMultipleStops) {
+        // Check if any existing registration has overlapping stops
+        for (const existingReg of existingRegistrations) {
+          if (!existingReg.notes) {
+            // Old registration format without stop info - block to be safe
+            return NextResponse.json(
+              { error: 'A registration with this email already exists for this tournament' },
+              { status: 409 }
+            );
+          }
+          
+          try {
+            const notes = JSON.parse(existingReg.notes);
+            const existingStopIds: string[] = notes.stopIds || [];
+            
+            // If existing registration has no stops recorded, block to be safe
+            if (existingStopIds.length === 0) {
+              return NextResponse.json(
+                { error: 'A registration with this email already exists for this tournament' },
+                { status: 409 }
+              );
+            }
+            
+            // Check for overlap between existing stops and new stops
+            const overlappingStops = selectedStopIds.filter(stopId => existingStopIds.includes(stopId));
+            
+            if (overlappingStops.length > 0) {
+              // Get stop names for better error message
+              const overlappingStopNames = await prisma.stop.findMany({
+                where: { id: { in: overlappingStops } },
+                select: { name: true },
+              });
+              
+              const stopNames = overlappingStopNames.map(s => s.name).join(', ');
+              return NextResponse.json(
+                { 
+                  error: `You are already registered for ${overlappingStops.length === 1 ? 'stop' : 'stops'}: ${stopNames}. Please select different stops.`,
+                  overlappingStops: overlappingStops,
+                },
+                { status: 409 }
+              );
+            }
+            // No overlap - allow registration for different stops
+          } catch (e) {
+            // If notes can't be parsed, block to be safe
+            console.warn(`Could not parse notes for registration ${existingReg.id}:`, e);
+            return NextResponse.json(
+              { error: 'A registration with this email already exists for this tournament' },
+              { status: 409 }
+            );
+          }
+        }
+        // No overlapping stops found - allow registration
+      } else {
+        // Single stop or no stops - block duplicate registration (existing behavior)
+        if (existingRegistrations.length > 0) {
+          return NextResponse.json(
+            { error: 'A registration with this email already exists for this tournament' },
+            { status: 409 }
+          );
+        }
       }
     }
 
@@ -178,7 +249,7 @@ export async function POST(request: NextRequest) {
         const updateData: {
           firstName: string;
           lastName: string;
-          phone: string;
+          phone: string | null;
           email?: string;
           clerkUserId?: string;
         } = {
@@ -218,7 +289,7 @@ export async function POST(request: NextRequest) {
         brackets: selectedBrackets,
       });
       
-      const registrationAmount = calculateRegistrationAmount(
+      const subtotal = calculateRegistrationAmount(
         {
           registrationCost: registrationCostInDollars,
           pricingModel,
@@ -229,8 +300,13 @@ export async function POST(request: NextRequest) {
         }
       );
       
+      // Calculate tax and total (13% HST for Ontario)
+      const { tax, total: registrationAmount } = calculateTotalWithTax(subtotal);
+      
       console.log('Registration amount calculated:', {
-        registrationAmount,
+        subtotal,
+        tax,
+        total: registrationAmount,
         amountPaidInCents: tournament.registrationType === 'FREE' ? 0 : formatAmountForStripe(registrationAmount),
       });
       
@@ -258,7 +334,9 @@ export async function POST(request: NextRequest) {
             brackets: selectedBrackets,
             clubId: selectedClubId,
             playerInfo: sanitizedPlayerInfo,
-            expectedAmount: registrationAmount, // Store in dollars for reference
+            subtotal: subtotal, // Subtotal before tax (in dollars)
+            tax: tax, // Tax amount (in dollars)
+            expectedAmount: registrationAmount, // Total with tax (in dollars) - for validation
             pricingModel: tournament.pricingModel || 'TOURNAMENT_WIDE', // Store pricing model used
           }),
         },

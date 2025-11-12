@@ -59,9 +59,11 @@ function getPlayerStatusBadge(status: string | null) {
   return badges[status];
 }
 
-function formatCost(cents: number | null): string {
+function formatCost(cents: number | null, registrationType?: RegistrationType): string {
   if (cents === null) return 'Free';
-  return `$${(cents / 100).toFixed(2)}`;
+  const price = `$${(cents / 100).toFixed(2)}`;
+  // Add "+HST" for paid tournaments
+  return registrationType === 'PAID' ? `${price} +HST` : price;
 }
 
 export function TournamentCard({
@@ -98,7 +100,7 @@ export function TournamentCard({
         <div className="flex items-center justify-between">
           <span className="text-muted">Cost:</span>
           <span className="font-medium text-secondary">
-            {formatCost(tournament.registrationCost)}
+            {formatCost(tournament.registrationCost, tournament.registrationType)}
           </span>
         </div>
 
