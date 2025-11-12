@@ -26,12 +26,13 @@ model Club {
   createdAt          DateTime            @default(now())
   address            String?
   updatedAt          DateTime            @default(now()) @db.Timestamptz(6)
-  Player             Player[]
-  Stop               Stop[]
-  Team               Team[]
-  tournamentCaptains TournamentCaptain[]
-  tournamentClubs    TournamentClub[]
-  director           Player?             @relation("ClubDirector", fields: [directorId], references: [id], onDelete: SetNull)
+  Player              Player[]
+  Stop                Stop[]
+  Team                Team[]
+  tournamentCaptains  TournamentCaptain[]
+  tournamentClubs     TournamentClub[]
+  stopBracketCapacity StopBracketCapacity[]
+  director            Player?             @relation("ClubDirector", fields: [directorId], references: [id], onDelete: SetNull)
 }
 
 /// *
@@ -171,6 +172,10 @@ model Tournament {
   invites                TournamentInvite[]
   inviteRequests         InviteRequest[]
   waitlist               TournamentWaitlist[]
+  stopPricing            StopPricing[]
+  bracketPricing         BracketPricing[]
+  bracketGameTypeConfig  BracketGameTypeConfig[]
+  stopBracketCapacity    StopBracketCapacity[]
 }
 
 model TournamentAdmin {
@@ -219,9 +224,11 @@ model Stop {
   rounds         Round[]
   club           Club?            @relation(fields: [clubId], references: [id], onUpdate: NoAction)
   eventManager   Player?          @relation("StopEventManager", fields: [eventManagerId], references: [id], onUpdate: NoAction)
-  tournament     Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  teams          StopTeam[]
-  StopTeamPlayer StopTeamPlayer[] @relation("StopRoster")
+  tournament          Tournament            @relation(fields: [tournamentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  teams               StopTeam[]
+  StopTeamPlayer      StopTeamPlayer[]      @relation("StopRoster")
+  stopPricing         StopPricing[]
+  stopBracketCapacity StopBracketCapacity[]
 
   @@index([tournamentId])
   @@index([clubId])
@@ -438,9 +445,12 @@ model TournamentBracket {
   tournamentId String
   name         String
   idx          Int        @default(0)
-  teams        Team[]
-  games        Game[]     // Games that belong to this bracket (for DOUBLE_ELIMINATION_CLUBS)
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  teams                 Team[]
+  games                 Game[]                  // Games that belong to this bracket (for DOUBLE_ELIMINATION_CLUBS)
+  tournament            Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  bracketPricing        BracketPricing[]
+  bracketGameTypeConfig BracketGameTypeConfig[]
+  stopBracketCapacity   StopBracketCapacity[]
 
   @@unique([tournamentId, name])
   @@index([tournamentId, idx], map: "TournamentBracket_tournamentId_idx")
@@ -646,6 +656,82 @@ model TournamentWaitlist {
 
   @@unique([tournamentId, playerId])
   @@index([tournamentId, status, position])
+}
+
+/// *
+/// * ---------- Advanced Configuration Models ----------
+model StopPricing {
+  id           String   @id @default(cuid())
+  tournamentId String
+  stopId       String
+  cost         Int      // Cost in cents
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  stop         Stop       @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, stopId])
+  @@index([tournamentId])
+  @@index([stopId])
+}
+
+model BracketPricing {
+  id           String   @id @default(cuid())
+  tournamentId String
+  bracketId    String
+  cost         Int      // Cost in cents
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  tournament   Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  bracket      TournamentBracket @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, bracketId])
+  @@index([tournamentId])
+  @@index([bracketId])
+}
+
+model BracketGameTypeConfig {
+  id           String   @id @default(cuid())
+  tournamentId String
+  bracketId    String
+  gameType     String   // MENS_DOUBLES, WOMENS_DOUBLES, MIXED_DOUBLES, etc.
+  isEnabled    Boolean  @default(true)
+  capacity     Int?     // Optional capacity limit for this game type
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  tournament   Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  bracket      TournamentBracket @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, bracketId, gameType])
+  @@index([tournamentId])
+  @@index([bracketId])
+  @@index([gameType])
+}
+
+model StopBracketCapacity {
+  id           String   @id @default(cuid())
+  tournamentId String
+  stopId       String
+  bracketId    String
+  clubId       String?  // Only for team tournaments
+  maxCapacity  Int
+  currentCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  tournament   Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  stop         Stop              @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  bracket      TournamentBracket @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  club         Club?             @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, stopId, bracketId, clubId])
+  @@index([tournamentId])
+  @@index([stopId])
+  @@index([bracketId])
+  @@index([clubId])
 }
 
 enum RegistrationPlayerStatus {
