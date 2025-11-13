@@ -516,6 +516,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
     include: {
       player: {
         select: {
+          id: true,
           email: true,
           firstName: true,
           lastName: true,
@@ -523,7 +524,10 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
         },
       },
       tournament: {
-        include: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
           stops: {
             take: 1,
             orderBy: { startAt: 'asc' },
@@ -557,6 +561,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       include: {
         player: {
           select: {
+            id: true,
             email: true,
             firstName: true,
             lastName: true,
@@ -564,7 +569,10 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
           },
         },
         tournament: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
             stops: {
               take: 1,
               orderBy: { startAt: 'asc' },
@@ -620,6 +628,109 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       }
     } catch (e) {
       console.error('Failed to update notes with paymentIntentId:', e);
+    }
+  }
+
+  // Create roster entries for paid team tournaments after payment confirmation
+  if (registration?.player && registration.tournament && !wasAlreadyPaid) {
+    try {
+      // Parse registration notes to get stopIds, brackets, and clubId
+      let notes: any = {};
+      if (registration.notes) {
+        try {
+          notes = JSON.parse(registration.notes);
+        } catch (e) {
+          console.error('Failed to parse registration notes for roster creation:', e);
+        }
+      }
+
+      const stopIds: string[] = notes.stopIds || [];
+      const brackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }> = notes.brackets || [];
+      const clubId: string | null = notes.clubId || null;
+
+      // Check if this is a team tournament
+      const { isTeamTournament } = await import('@/lib/tournamentTypeConfig');
+      const tournamentIsTeam = isTeamTournament(registration.tournament.type);
+
+      if (tournamentIsTeam && clubId && stopIds.length > 0 && brackets.length > 0) {
+        // Get tournament brackets and club info
+        const [tournamentBrackets, club] = await Promise.all([
+          prisma.tournamentBracket.findMany({
+            where: { tournamentId: registration.tournamentId },
+            select: { id: true, name: true },
+          }),
+          prisma.club.findUnique({
+            where: { id: clubId },
+            select: { name: true },
+          }),
+        ]);
+
+        const clubName = club?.name || 'Team';
+
+        // Create roster entries for each stop/bracket combination
+        for (const stopId of stopIds) {
+          // Find the bracket selection for this stop
+          const bracketSelection = brackets.find((sb: any) => sb && sb.stopId === stopId);
+          if (!bracketSelection || !bracketSelection.bracketId) {
+            console.warn(`No bracket selection found for stop ${stopId} in registration ${registration.id}`);
+            continue;
+          }
+
+          const bracketId = bracketSelection.bracketId;
+          const bracket = tournamentBrackets.find((b) => b.id === bracketId);
+          if (!bracket) {
+            console.warn(`Bracket ${bracketId} not found for tournament ${registration.tournamentId}`);
+            continue;
+          }
+
+          // Find or create team for this club and bracket
+          let team = await prisma.team.findFirst({
+            where: {
+              tournamentId: registration.tournamentId,
+              clubId: clubId,
+              bracketId: bracketId,
+            },
+          });
+
+          if (!team) {
+            const teamName = bracket.name === 'DEFAULT' ? clubName : `${clubName} ${bracket.name}`;
+            team = await prisma.team.create({
+              data: {
+                name: teamName,
+                tournamentId: registration.tournamentId,
+                clubId: clubId,
+                bracketId: bracketId,
+              },
+            });
+          }
+
+          // Create StopTeamPlayer entry (roster entry)
+          try {
+            await prisma.stopTeamPlayer.upsert({
+              where: {
+                stopId_teamId_playerId: {
+                  stopId,
+                  teamId: team.id,
+                  playerId: registration.playerId,
+                },
+              },
+              create: {
+                stopId,
+                teamId: team.id,
+                playerId: registration.playerId,
+              },
+              update: {}, // No update needed if exists
+            });
+            console.log(`Created roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}`);
+          } catch (rosterError) {
+            console.error(`Failed to create roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}:`, rosterError);
+            // Don't throw - roster creation failure shouldn't fail payment processing
+          }
+        }
+      }
+    } catch (rosterCreationError) {
+      console.error('Error creating roster entries after payment:', rosterCreationError);
+      // Don't throw - roster creation failure shouldn't fail payment processing
     }
   }
 
