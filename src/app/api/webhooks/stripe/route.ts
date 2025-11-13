@@ -403,6 +403,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             .join(', ')
         : null;
 
+      // Get club name for team tournaments
+      let clubName: string | null = null;
+      if (notes.clubId) {
+        try {
+          const club = await prisma.club.findUnique({
+            where: { id: notes.clubId },
+            select: { name: true },
+          });
+          clubName = club?.name || null;
+        } catch (e) {
+          console.error('Failed to fetch club name for email:', e);
+        }
+      }
+
       const { sendPaymentReceiptEmail } = await import('@/server/email');
       await sendPaymentReceiptEmail({
         to: registration.player.email,
@@ -416,6 +430,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         endDate: stops.length > 0 ? stops[stops.length - 1]?.endAt || null : (firstStop?.endAt || null),
         location: stops.length > 0 ? null : location,
         stops: stops.length > 0 ? stops : undefined,
+        clubName,
       });
 
       console.log(`Payment receipt email sent for registration ${registrationId}`);
@@ -938,6 +953,20 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
             .join(', ')
         : null;
 
+      // Get club name for team tournaments
+      let clubName: string | null = null;
+      if (notes.clubId) {
+        try {
+          const club = await prisma.club.findUnique({
+            where: { id: notes.clubId },
+            select: { name: true },
+          });
+          clubName = club?.name || null;
+        } catch (e) {
+          console.error('Failed to fetch club name for email:', e);
+        }
+      }
+
       const { sendPaymentReceiptEmail } = await import('@/server/email');
       await sendPaymentReceiptEmail({
         to: registration.player.email,
@@ -951,6 +980,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
         endDate: stops.length > 0 ? stops[stops.length - 1]?.endAt || null : (firstStop?.endAt || null),
         location: stops.length > 0 ? null : location,
         stops: stops.length > 0 ? stops : undefined,
+        clubName,
       });
 
       console.log(`Payment receipt email sent for registration ${registration.id}`);

@@ -1139,6 +1139,7 @@ interface PaymentReceiptEmailParams {
       postalCode?: string | null;
     } | null;
   }>;
+  clubName?: string | null;
 }
 
 export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams) {
@@ -1154,6 +1155,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
     endDate,
     location,
     stops,
+    clubName,
   } = params;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
@@ -1237,35 +1239,45 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
   const stopsListHtml = stops && stops.length > 0
     ? `
       <div style="margin: 20px 0;">
-        <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">Your Tournament Selections:</h3>
-        ${stops.map((stop) => {
+        ${stops.map((stop, index) => {
           const fullAddress = stop.club ? formatFullAddress(stop.club) : '';
           const mapsUrl = stop.club ? buildGoogleMapsUrl(stop.club) : '';
-          const locationDisplay = stop.club 
-            ? `${stop.club.name}${stop.club.city && stop.club.region ? `, ${stop.club.city}, ${stop.club.region}` : stop.club.city ? `, ${stop.club.city}` : ''}`
-            : '';
+          const locationDisplay = stop.club ? stop.club.name : '';
+          const hasMultipleStops = stops.length > 1;
+          const isTeamTournament = !!clubName;
           
           return `
-            <div style="margin: 0 0 25px 0;">
-              <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 8px;">${stop.name}</div>
-              ${locationDisplay ? `
-                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>📍 Location:</strong> ${mapsUrl ? `<a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>` : locationDisplay}
-                </div>
-              ` : ''}
-              ${fullAddress && mapsUrl ? `
-                <div style="margin: 4px 0; font-size: 13px; color: #6b7280;">
-                  <a href="${mapsUrl}" style="color: #6b7280; text-decoration: underline;">${fullAddress}</a>
-                </div>
-              ` : ''}
+            <div style="margin: ${index > 0 ? '30px' : '0'} 0 ${index < stops.length - 1 ? '30px' : '0'} 0;">
               <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                <strong>📅 Dates:</strong> ${formatEmailDateRange(stop.startAt, stop.endAt)}
+                <strong>Tournament:</strong> ${tournamentName}
               </div>
+              ${hasMultipleStops ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>Stop:</strong> ${stop.name}
+                </div>
+              ` : ''}
+              ${isTeamTournament && clubName ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>Team:</strong> ${clubName}
+                </div>
+              ` : ''}
               ${stop.bracketName ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
                   <strong>Bracket:</strong> ${stop.bracketName}
                 </div>
               ` : ''}
+              ${locationDisplay && mapsUrl ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>📍 Location:</strong> <a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>
+                </div>
+              ` : locationDisplay ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>📍 Location:</strong> ${locationDisplay}
+                </div>
+              ` : ''}
+              <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                <strong>📅 Dates:</strong> ${formatEmailDateRange(stop.startAt, stop.endAt)}
+              </div>
             </div>
           `;
         }).join('')}
@@ -1360,7 +1372,6 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                       <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #374151;">
                         <li>Your registration is now confirmed</li>
                         <li>Check your dashboard for tournament updates</li>
-                        <li>The tournament schedule will be posted closer to the event date</li>
                         <li>Save this email as your payment receipt</li>
                       </ul>
                     </div>
@@ -1717,6 +1728,7 @@ interface PaymentReminderEmailParams {
       postalCode?: string | null;
     } | null;
   }>;
+  clubName?: string | null;
 }
 
 export async function sendPaymentReminderEmail(params: PaymentReminderEmailParams) {
@@ -1732,6 +1744,7 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
     endDate,
     location,
     stops,
+    clubName,
   } = params;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
@@ -1816,35 +1829,45 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
   const stopsListHtml = stops && stops.length > 0
     ? `
       <div style="margin: 20px 0;">
-        <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">Your Tournament Selections:</h3>
-        ${stops.map((stop) => {
+        ${stops.map((stop, index) => {
           const fullAddress = stop.club ? formatFullAddress(stop.club) : '';
           const mapsUrl = stop.club ? buildGoogleMapsUrl(stop.club) : '';
-          const locationDisplay = stop.club 
-            ? `${stop.club.name}${stop.club.city && stop.club.region ? `, ${stop.club.city}, ${stop.club.region}` : stop.club.city ? `, ${stop.club.city}` : ''}`
-            : '';
+          const locationDisplay = stop.club ? stop.club.name : '';
+          const hasMultipleStops = stops.length > 1;
+          const isTeamTournament = !!clubName;
           
           return `
-            <div style="margin: 0 0 25px 0;">
-              <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 8px;">${stop.name}</div>
-              ${locationDisplay ? `
-                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>📍 Location:</strong> ${mapsUrl ? `<a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>` : locationDisplay}
-                </div>
-              ` : ''}
-              ${fullAddress && mapsUrl ? `
-                <div style="margin: 4px 0; font-size: 13px; color: #6b7280;">
-                  <a href="${mapsUrl}" style="color: #6b7280; text-decoration: underline;">${fullAddress}</a>
-                </div>
-              ` : ''}
+            <div style="margin: ${index > 0 ? '30px' : '0'} 0 ${index < stops.length - 1 ? '30px' : '0'} 0;">
               <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                <strong>📅 Dates:</strong> ${formatEmailDateRange(stop.startAt, stop.endAt)}
+                <strong>Tournament:</strong> ${tournamentName}
               </div>
+              ${hasMultipleStops ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>Stop:</strong> ${stop.name}
+                </div>
+              ` : ''}
+              ${isTeamTournament && clubName ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>Team:</strong> ${clubName}
+                </div>
+              ` : ''}
               ${stop.bracketName ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
                   <strong>Bracket:</strong> ${stop.bracketName}
                 </div>
               ` : ''}
+              ${locationDisplay && mapsUrl ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>📍 Location:</strong> <a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>
+                </div>
+              ` : locationDisplay ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>📍 Location:</strong> ${locationDisplay}
+                </div>
+              ` : ''}
+              <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                <strong>📅 Dates:</strong> ${formatEmailDateRange(stop.startAt, stop.endAt)}
+              </div>
             </div>
           `;
         }).join('')}

@@ -203,6 +203,20 @@ export async function POST(request: NextRequest) {
                 .join(', ')
             : null;
 
+          // Get club name for team tournaments
+          let clubName: string | null = null;
+          if (notes.clubId) {
+            try {
+              const club = await prisma.club.findUnique({
+                where: { id: notes.clubId },
+                select: { name: true },
+              });
+              clubName = club?.name || null;
+            } catch (e) {
+              console.error(`Failed to fetch club name for reminder email (registration ${registration.id}):`, e);
+            }
+          }
+
           await sendPaymentReminderEmail({
             to: registration.player.email,
             playerName,
@@ -215,6 +229,7 @@ export async function POST(request: NextRequest) {
             endDate: stops.length > 0 ? stops[stops.length - 1]?.endAt || null : (firstStop?.endAt ? new Date(firstStop.endAt) : null),
             location: stops.length > 0 ? null : location,
             stops: stops.length > 0 ? stops : undefined,
+            clubName,
           });
 
           // Mark 12h reminder as sent
