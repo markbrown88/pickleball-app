@@ -13,8 +13,10 @@ import { isTeamTournament } from '@/lib/tournamentTypeConfig';
  * Create a new tournament registration
  */
 export async function POST(request: NextRequest) {
+  let requestBody: any = null;
   try {
-    const body = await request.json();
+    requestBody = await request.json();
+    const body = requestBody;
 
     const {
       tournamentId,
@@ -671,17 +673,16 @@ export async function POST(request: NextRequest) {
     }
     
     // Log request body for debugging (without sensitive data)
-    try {
-      const body = await request.json().catch(() => ({}));
+    if (requestBody) {
       console.error('Request body (sanitized):', {
-        tournamentId: body.tournamentId,
-        selectedStopIds: body.selectedStopIds,
-        selectedBracketsCount: Array.isArray(body.selectedBrackets) ? body.selectedBrackets.length : 'not an array',
-        hasPlayerInfo: !!body.playerInfo,
-        hasSelectedClubId: !!body.selectedClubId,
+        tournamentId: requestBody.tournamentId,
+        selectedStopIds: requestBody.selectedStopIds,
+        selectedBracketsCount: Array.isArray(requestBody.selectedBrackets) ? requestBody.selectedBrackets.length : 'not an array',
+        hasPlayerInfo: !!requestBody.playerInfo,
+        hasSelectedClubId: !!requestBody.selectedClubId,
       });
-    } catch (e) {
-      console.error('Could not log request body:', e);
+    } else {
+      console.error('Request body not available (may have failed to parse)');
     }
     
     return NextResponse.json(
