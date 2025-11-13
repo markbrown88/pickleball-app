@@ -417,13 +417,17 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         }
       }
 
+      // Use the actual amount charged in this payment (from session) instead of total registration amount
+      // For multi-stop registrations, this ensures each email shows the correct amount for that payment
+      const paymentAmount = session.amount_total || registration.amountPaid || 0;
+
       const { sendPaymentReceiptEmail } = await import('@/server/email');
       await sendPaymentReceiptEmail({
         to: registration.player.email,
         playerName,
         tournamentName: registration.tournament.name,
         tournamentId: registration.tournamentId,
-        amountPaid: registration.amountPaid || 0,
+        amountPaid: paymentAmount,
         paymentDate: new Date(),
         transactionId: session.payment_intent as string,
         startDate: stops.length > 0 ? stops[0]?.startAt || null : (firstStop?.startAt || null),
@@ -967,13 +971,17 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
         }
       }
 
+      // Use the actual amount charged in this payment (from payment intent) instead of total registration amount
+      // For multi-stop registrations, this ensures each email shows the correct amount for that payment
+      const paymentAmount = paymentIntent.amount || registration.amountPaid || 0;
+
       const { sendPaymentReceiptEmail } = await import('@/server/email');
       await sendPaymentReceiptEmail({
         to: registration.player.email,
         playerName,
         tournamentName: registration.tournament.name,
         tournamentId: registration.tournamentId,
-        amountPaid: registration.amountPaid || 0,
+        amountPaid: paymentAmount,
         paymentDate: new Date(),
         transactionId: paymentIntent.id,
         startDate: stops.length > 0 ? stops[0]?.startAt || null : (firstStop?.startAt || null),
