@@ -208,16 +208,16 @@ export async function POST(request: NextRequest) {
       registration.player
     );
 
+    // Construct base URL from request
+    const baseUrl = getBaseUrl(request);
+    
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: STRIPE_CONFIG.checkout.paymentMethodTypes,
       mode: STRIPE_CONFIG.checkout.mode,
       line_items: lineItems,
-      success_url: STRIPE_CONFIG.checkout.successUrl(
-        registration.tournamentId,
-        '{CHECKOUT_SESSION_ID}'
-      ),
-      cancel_url: STRIPE_CONFIG.checkout.cancelUrl(registration.tournamentId),
+      success_url: `${baseUrl}/register/${registration.tournamentId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/register/${registration.tournamentId}/payment/cancel`,
       customer_email: registration.player.email || undefined,
       metadata: {
         registrationId: registration.id,
@@ -458,5 +458,29 @@ function formatGameType(gameType: string): string {
     WOMENS_SINGLES: "Women's Singles",
   };
   return gameTypeMap[gameType] || gameType;
+}
+
+/**
+ * Get base URL from request, with fallback to environment variable
+ */
+function getBaseUrl(request: NextRequest): string {
+  // Try to get from request URL first (most reliable)
+  try {
+    const url = new URL(request.url);
+    return `${url.protocol}//${url.host}`;
+  } catch (e) {
+    // Fallback to environment variable
+    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (envUrl) {
+      // Ensure it has a scheme
+      if (envUrl.startsWith('http://') || envUrl.startsWith('https://')) {
+        return envUrl;
+      }
+      // Add https:// if no scheme provided
+      return `https://${envUrl}`;
+    }
+    // Last resort: localhost for development
+    return 'http://localhost:3010';
+  }
 }
 
