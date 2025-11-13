@@ -18,9 +18,9 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
  */
 export const STRIPE_CONFIG = {
   /**
-   * Currency for all transactions (USD)
+   * Currency for all transactions (CAD)
    */
-  currency: 'usd' as const,
+  currency: 'cad' as const,
 
   /**
    * Checkout session configuration
