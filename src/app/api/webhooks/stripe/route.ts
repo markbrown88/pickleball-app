@@ -4,6 +4,10 @@ import { stripe } from '@/lib/stripe/config';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 
+// Disable body parsing for webhook - we need raw body for signature verification
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/webhooks/stripe
  * Handle Stripe webhook events
@@ -17,6 +21,7 @@ export async function POST(request: NextRequest) {
   const signature = headersList.get('stripe-signature');
 
   if (!signature) {
+    console.error('[Webhook] Missing stripe-signature header');
     return NextResponse.json(
       { error: 'Missing stripe-signature header' },
       { status: 400 }
@@ -24,12 +29,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    console.error('STRIPE_WEBHOOK_SECRET is not configured');
+    console.error('[Webhook] STRIPE_WEBHOOK_SECRET is not configured');
     return NextResponse.json(
       { error: 'Webhook secret not configured' },
       { status: 500 }
     );
   }
+
+  // Log webhook secret info (first few chars only for security)
+  const secretPrefix = process.env.STRIPE_WEBHOOK_SECRET.substring(0, 10);
+  console.log('[Webhook] Using webhook secret:', `${secretPrefix}...`);
 
   let event: Stripe.Event;
 
@@ -40,10 +49,24 @@ export async function POST(request: NextRequest) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET
     );
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err);
+  } catch (err: any) {
+    console.error('[Webhook] Signature verification failed:', {
+      error: err.message,
+      errorType: err.type,
+      secretPrefix: secretPrefix,
+      signatureLength: signature?.length,
+      bodyLength: body.length,
+      bodyPreview: body.substring(0, 100),
+    });
+    
+    // Provide helpful error message
+    const errorMessage = err.message || 'Unknown signature verification error';
     return NextResponse.json(
-      { error: 'Invalid signature' },
+      { 
+        error: 'Invalid signature',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+        hint: 'Check that STRIPE_WEBHOOK_SECRET matches the webhook secret from Stripe Dashboard',
+      },
       { status: 400 }
     );
   }
@@ -506,9 +529,16 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
   // First try to find registration by paymentIntentId stored in notes
   let registration = await prisma.tournamentRegistration.findFirst({
     where: {
-      notes: {
-        contains: paymentIntent.id,
-      },
+      OR: [
+        {
+          notes: {
+            contains: paymentIntent.id,
+          },
+        },
+        {
+          paymentId: paymentIntent.id,
+        },
+      ],
       paymentStatus: {
         in: ['PENDING', 'PAID'],
       },
@@ -548,7 +578,77 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
     },
   });
 
+  // Fallback: Try to find by Stripe session ID in notes (for updated registrations)
+  if (!registration) {
+    // Get checkout session to find registration ID
+    try {
+      const sessions = await stripe.checkout.sessions.list({
+        payment_intent: paymentIntent.id,
+        limit: 1,
+      });
+      
+      if (sessions.data.length > 0) {
+        const session = sessions.data[0];
+        const sessionRegistrationId = session.metadata?.registrationId || session.client_reference_id;
+        
+        if (sessionRegistrationId) {
+          registration = await prisma.tournamentRegistration.findFirst({
+            where: {
+              OR: [
+                { id: sessionRegistrationId },
+                {
+                  notes: {
+                    contains: session.id,
+                  },
+                },
+              ],
+              paymentStatus: {
+                in: ['PENDING', 'PAID'],
+              },
+            },
+            include: {
+              player: {
+                select: {
+                  id: true,
+                  email: true,
+                  firstName: true,
+                  lastName: true,
+                  name: true,
+                },
+              },
+              tournament: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true,
+                  stops: {
+                    take: 1,
+                    orderBy: { startAt: 'asc' },
+                    select: {
+                      startAt: true,
+                      endAt: true,
+                      club: {
+                        select: {
+                          name: true,
+                          city: true,
+                          region: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+    } catch (sessionError) {
+      console.warn('Could not retrieve checkout session:', sessionError);
+    }
+  }
+
   // Fallback: Find by matching amount and recent registrations (for backwards compatibility)
+  // Note: This won't work for updated registrations where amountPaid is total but paymentIntent.amount is only for new stops
   if (!registration) {
     registration = await prisma.tournamentRegistration.findFirst({
       where: {
