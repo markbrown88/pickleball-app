@@ -73,6 +73,11 @@ export function StopSelectionStep({
   };
 
   const toggleStop = (stopId: string) => {
+    // Prevent toggling already-registered stops
+    if (isStopAlreadyRegistered(stopId)) {
+      return;
+    }
+    
     if (selectedStopIds.includes(stopId)) {
       onUpdate(selectedStopIds.filter((id) => id !== stopId));
     } else {
@@ -192,7 +197,7 @@ export function StopSelectionStep({
                   <div className="pt-1">
                     <input
                       type="checkbox"
-                      checked={selected}
+                      checked={selected && !alreadyRegistered} // Don't show as checked if already registered
                       onChange={() => {}} // Handled by parent div click
                       disabled={!canSelect}
                       className="w-5 h-5 cursor-pointer"
