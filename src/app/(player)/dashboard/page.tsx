@@ -40,9 +40,25 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
     case 'load:start':
       return { ...state, loading: true, err: null };
     case 'load:success': {
-      const registrationMap: Record<string, PlayerRegistration> = {};
+      // For multi-stop tournaments, a player may have multiple registrations
+      // Group by tournamentId and collect all stopIds
+      const registrationMap: Record<string, PlayerRegistration & { allStopIds?: string[] }> = {};
       action.payload.registrations.forEach((registration) => {
-        registrationMap[registration.tournamentId] = registration;
+        if (registrationMap[registration.tournamentId]) {
+          // Merge stopIds from multiple registrations
+          const existing = registrationMap[registration.tournamentId];
+          const newStopIds = registration.stopIds || [];
+          const existingStopIds = existing.allStopIds || existing.stopIds || [];
+          registrationMap[registration.tournamentId] = {
+            ...existing,
+            allStopIds: [...new Set([...existingStopIds, ...newStopIds])],
+          };
+        } else {
+          registrationMap[registration.tournamentId] = {
+            ...registration,
+            allStopIds: registration.stopIds || [],
+          };
+        }
       });
 
       return {
@@ -412,16 +428,23 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {displayTournaments.map((tournament) => (
-                  <TournamentCard
-                    key={tournament.id}
-                    tournament={tournament}
-                    playerRegistrationStatus={registrations[tournament.id]?.status ?? null}
-                    onRegister={handleRegister}
-                    onRequestInvite={handleRequestInvite}
-                    onJoinWaitlist={handleJoinWaitlist}
-                  />
-                ))}
+                {displayTournaments.map((tournament) => {
+                  const registration = registrations[tournament.id];
+                  // Collect all registered stop IDs from all registrations for this tournament
+                  const registeredStopIds = (registration as any)?.allStopIds || registration?.stopIds || [];
+                  
+                  return (
+                    <TournamentCard
+                      key={tournament.id}
+                      tournament={tournament}
+                      playerRegistrationStatus={registration?.status ?? null}
+                      registeredStopIds={registeredStopIds}
+                      onRegister={handleRegister}
+                      onRequestInvite={handleRequestInvite}
+                      onJoinWaitlist={handleJoinWaitlist}
+                    />
+                  );
+                })}
               </div>
             )}
           </section>

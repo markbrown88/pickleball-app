@@ -91,6 +91,7 @@ export interface PlayerRegistration {
   refundId?: string | null;
   registeredAt: string;
   withdrawnAt?: string | null;
+  stopIds?: string[]; // Array of stop IDs this registration covers (for multi-stop tournaments)
 }
 
 export interface RegistrationResponse {

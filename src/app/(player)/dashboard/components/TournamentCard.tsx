@@ -32,6 +32,7 @@ export type TournamentCardData = {
 type TournamentCardProps = {
   tournament: TournamentCardData;
   playerRegistrationStatus?: 'REGISTERED' | 'WITHDRAWN' | 'REJECTED' | 'PENDING_INVITE' | 'WAITLISTED' | null;
+  registeredStopIds?: string[]; // Array of stop IDs the player has registered for
   onRegister?: (tournamentId: string) => void;
   onRequestInvite?: (tournamentId: string) => void;
   onJoinWaitlist?: (tournamentId: string) => void;
@@ -69,6 +70,7 @@ function formatCost(cents: number | null, registrationType?: RegistrationType): 
 export function TournamentCard({
   tournament,
   playerRegistrationStatus,
+  registeredStopIds = [],
   onRegister,
   onRequestInvite,
   onJoinWaitlist,
@@ -77,7 +79,20 @@ export function TournamentCard({
   const playerBadge = getPlayerStatusBadge(playerRegistrationStatus ?? null);
 
   const isFull = tournament.maxPlayers !== null && tournament.registeredCount >= tournament.maxPlayers;
-  const canRegister = tournament.registrationStatus === 'OPEN' && !playerRegistrationStatus && !isFull;
+  
+  // For multi-stop tournaments, check if player has registered for all stops
+  const hasMultipleStops = tournament.stops.length > 1;
+  const allStopsRegistered = hasMultipleStops 
+    ? tournament.stops.every(stop => registeredStopIds.includes(stop.id))
+    : false;
+  
+  // Player can register if:
+  // - Tournament is OPEN
+  // - Player is not registered OR (multi-stop tournament AND not all stops registered)
+  // - Tournament is not full
+  const canRegister = tournament.registrationStatus === 'OPEN' 
+    && (!playerRegistrationStatus || (hasMultipleStops && !allStopsRegistered))
+    && !isFull;
   const canRequestInvite = tournament.registrationStatus === 'INVITE_ONLY' && !playerRegistrationStatus;
   const canJoinWaitlist = isFull && tournament.isWaitlistEnabled && !playerRegistrationStatus;
 

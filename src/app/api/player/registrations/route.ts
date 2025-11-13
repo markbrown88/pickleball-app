@@ -93,23 +93,37 @@ export async function GET(req: NextRequest) {
     });
 
     // Format new tournament registrations
-    const formattedTournamentRegs = tournamentRegistrations.map(reg => ({
-      id: reg.id, // Registration ID
-      tournamentId: reg.tournamentId,
-      tournamentName: reg.tournament.name,
-      tournamentType: reg.tournament.type,
-      registrationType: reg.tournament.registrationType,
-      status: reg.status, // REGISTERED, WITHDRAWN, REJECTED
-      paymentStatus: reg.paymentStatus,
-      amountPaid: reg.amountPaid, // in cents
-      paymentId: reg.paymentId,
-      refundId: reg.refundId,
-      registeredAt: reg.registeredAt.toISOString(),
-      withdrawnAt: reg.withdrawnAt?.toISOString() || null,
-      teamId: '', // Not applicable for new registration system
-      teamName: '', // Not applicable for new registration system
-      bracket: '', // Not applicable for new registration system
-    }));
+    const formattedTournamentRegs = tournamentRegistrations.map(reg => {
+      // Parse stopIds from notes
+      let stopIds: string[] = [];
+      if (reg.notes) {
+        try {
+          const notes = JSON.parse(reg.notes);
+          stopIds = notes.stopIds || [];
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      return {
+        id: reg.id, // Registration ID
+        tournamentId: reg.tournamentId,
+        tournamentName: reg.tournament.name,
+        tournamentType: reg.tournament.type,
+        registrationType: reg.tournament.registrationType,
+        status: reg.status, // REGISTERED, WITHDRAWN, REJECTED
+        paymentStatus: reg.paymentStatus,
+        amountPaid: reg.amountPaid, // in cents
+        paymentId: reg.paymentId,
+        refundId: reg.refundId,
+        registeredAt: reg.registeredAt.toISOString(),
+        withdrawnAt: reg.withdrawnAt?.toISOString() || null,
+        stopIds: stopIds, // Array of stop IDs this registration covers
+        teamId: '', // Not applicable for new registration system
+        teamName: '', // Not applicable for new registration system
+        bracket: '', // Not applicable for new registration system
+      };
+    });
 
     // Format legacy team registrations
     const formattedTeamRegs = teamRegistrations.map(reg => ({
