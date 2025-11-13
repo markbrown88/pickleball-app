@@ -350,7 +350,32 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Recalculate total amount including all stops
+        // Get existing registration to check amount already paid
+        const existingReg = await tx.tournamentRegistration.findUnique({
+          where: { id: existingRegistrationId },
+          select: {
+            amountPaid: true,
+            notes: true,
+          },
+        });
+        
+        // Calculate price for ONLY NEW stops (not already registered)
+        const newStopSubtotal = calculateRegistrationAmount(
+          {
+            registrationCost: registrationCostInDollars,
+            pricingModel,
+          },
+          {
+            stopIds: selectedStopIds, // Only new stops
+            brackets: selectedBrackets, // Only new brackets
+          }
+        );
+        const { tax: newStopTax, total: newStopTotal } = calculateTotalWithTax(newStopSubtotal);
+        const newStopAmountPaidInCents = tournament.registrationType === 'FREE' 
+          ? 0 
+          : formatAmountForStripe(newStopTotal);
+        
+        // Calculate total amount for all stops (for display/storage purposes)
         const mergedSubtotal = calculateRegistrationAmount(
           {
             registrationCost: registrationCostInDollars,
@@ -362,9 +387,12 @@ export async function POST(request: NextRequest) {
           }
         );
         const { tax: mergedTax, total: mergedTotal } = calculateTotalWithTax(mergedSubtotal);
-        const mergedAmountPaidInCents = tournament.registrationType === 'FREE' 
+        
+        // Amount to charge = existing amount paid + new stops amount
+        const existingAmountPaid = existingReg?.amountPaid || 0;
+        const totalAmountPaidInCents = tournament.registrationType === 'FREE' 
           ? 0 
-          : formatAmountForStripe(mergedTotal);
+          : existingAmountPaid + newStopAmountPaidInCents;
         
         // Store final values for use after update
         finalStopIds = mergedStopIds;
@@ -372,7 +400,17 @@ export async function POST(request: NextRequest) {
         finalSubtotal = mergedSubtotal;
         finalTax = mergedTax;
         finalTotal = mergedTotal;
-        finalAmountPaidInCents = mergedAmountPaidInCents;
+        finalAmountPaidInCents = totalAmountPaidInCents;
+        
+        // Parse existing notes to preserve other data
+        let existingNotes: any = {};
+        if (existingReg?.notes) {
+          try {
+            existingNotes = JSON.parse(existingReg.notes);
+          } catch (e) {
+            console.warn('Failed to parse existing registration notes:', e);
+          }
+        }
         
         // Update existing registration
         registration = await tx.tournamentRegistration.update({
@@ -380,16 +418,21 @@ export async function POST(request: NextRequest) {
           data: {
             // Update payment status if needed (if it was PENDING and now FREE, or vice versa)
             paymentStatus: tournament.registrationType === 'FREE' ? 'COMPLETED' : 'PENDING',
-            amountPaid: mergedAmountPaidInCents,
+            amountPaid: totalAmountPaidInCents,
             notes: JSON.stringify({
               stopIds: mergedStopIds,
               brackets: mergedBrackets,
-              clubId: selectedClubId || existingClubId, // Use new clubId if provided, otherwise keep existing
+              clubId: selectedClubId || existingClubId || existingNotes.clubId, // Use new clubId if provided, otherwise keep existing
               playerInfo: sanitizedPlayerInfo,
               subtotal: mergedSubtotal,
               tax: mergedTax,
               expectedAmount: mergedTotal,
               pricingModel: tournament.pricingModel || 'TOURNAMENT_WIDE',
+              // Store pricing info for new stops separately
+              newStopsSubtotal: newStopSubtotal,
+              newStopsTax: newStopTax,
+              newStopsTotal: newStopTotal,
+              existingAmountPaid: existingAmountPaid,
             }),
           },
         });

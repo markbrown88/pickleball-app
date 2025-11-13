@@ -114,6 +114,8 @@ export async function POST(request: NextRequest) {
         phone: string;
       };
       expectedAmount?: number; // Amount in dollars stored during registration
+      newStopsTotal?: number; // Amount for new stops only (if updating existing registration)
+      existingAmountPaid?: number; // Amount already paid for existing stops
     } = {};
 
     if (registration.notes) {
@@ -141,6 +143,11 @@ export async function POST(request: NextRequest) {
       pricingModel,
     };
     
+    // If this is an update to existing registration, use newStopsTotal instead of expectedAmount
+    const amountToCharge = registrationDetails.newStopsTotal !== undefined 
+      ? registrationDetails.newStopsTotal 
+      : (registrationDetails.expectedAmount || 0);
+    
     console.log('Payment calculation debug:', {
       registrationId: registrationId,
       pricingModel,
@@ -148,47 +155,75 @@ export async function POST(request: NextRequest) {
       registrationCostInDollars,
       stopIds: registrationDetails.stopIds,
       brackets: registrationDetails.brackets,
+      isUpdate: registrationDetails.newStopsTotal !== undefined,
+      newStopsTotal: registrationDetails.newStopsTotal,
+      existingAmountPaid: registrationDetails.existingAmountPaid,
+      amountToCharge,
     });
     
-    const subtotal = calculateRegistrationAmount(
-      tournamentWithPricing,
-      registrationDetails
-    );
+    // If updating existing registration, use pre-calculated new stops amount
+    // Otherwise, calculate from scratch
+    let subtotal: number;
+    let tax: number;
+    let calculatedAmount: number;
     
-    // Calculate tax and total (13% HST for Ontario)
-    const { tax, total: calculatedAmount } = calculateTotalWithTax(subtotal);
-
-    // Validate amount matches what was stored during registration
-    const storedAmountInDollars = registration.amountPaid ? formatAmountFromStripe(registration.amountPaid) : 0;
-    const expectedAmount = registrationDetails.expectedAmount ?? storedAmountInDollars;
-    
-    console.log('Amount validation debug:', {
-      registrationId: registrationId,
-      subtotal,
-      tax,
-      calculatedAmount,
-      expectedAmount,
-      storedAmountInDollars,
-      amountPaidInCents: registration.amountPaid,
-      difference: Math.abs(calculatedAmount - expectedAmount),
-    });
-    
-    if (Math.abs(calculatedAmount - expectedAmount) > 0.01) {
-      console.error('Amount mismatch:', {
-        calculated: calculatedAmount,
-        expected: expectedAmount,
-        stored: storedAmountInDollars,
+    if (registrationDetails.newStopsTotal !== undefined && registrationDetails.newStopsSubtotal !== undefined) {
+      // Use pre-calculated amounts for new stops only
+      subtotal = registrationDetails.newStopsSubtotal;
+      tax = registrationDetails.newStopsTax || 0;
+      calculatedAmount = registrationDetails.newStopsTotal;
+      
+      console.log('Using pre-calculated new stops amount:', {
         registrationId: registrationId,
+        subtotal,
+        tax,
+        total: calculatedAmount,
+        existingAmountPaid: registrationDetails.existingAmountPaid,
       });
-      return NextResponse.json(
-        { 
-          error: 'Payment amount validation failed',
-          details: 'The calculated payment amount does not match the registration amount. This may indicate a pricing change. Please contact support for assistance.',
-          supportUrl: '/support',
-          registrationId: registrationId,
-        },
-        { status: 400 }
+    } else {
+      // Calculate from scratch for new registrations
+      subtotal = calculateRegistrationAmount(
+        tournamentWithPricing,
+        registrationDetails
       );
+      
+      // Calculate tax and total (13% HST for Ontario)
+      const taxCalc = calculateTotalWithTax(subtotal);
+      tax = taxCalc.tax;
+      calculatedAmount = taxCalc.total;
+      
+      // Validate amount matches what was stored during registration
+      const storedAmountInDollars = registration.amountPaid ? formatAmountFromStripe(registration.amountPaid) : 0;
+      const expectedAmount = registrationDetails.expectedAmount ?? storedAmountInDollars;
+      
+      console.log('Amount validation debug:', {
+        registrationId: registrationId,
+        subtotal,
+        tax,
+        calculatedAmount,
+        expectedAmount,
+        storedAmountInDollars,
+        amountPaidInCents: registration.amountPaid,
+        difference: Math.abs(calculatedAmount - expectedAmount),
+      });
+      
+      if (Math.abs(calculatedAmount - expectedAmount) > 0.01) {
+        console.error('Amount mismatch:', {
+          calculated: calculatedAmount,
+          expected: expectedAmount,
+          stored: storedAmountInDollars,
+          registrationId: registrationId,
+        });
+        return NextResponse.json(
+          { 
+            error: 'Payment amount validation failed',
+            details: 'The calculated payment amount does not match the registration amount. This may indicate a pricing change. Please contact support for assistance.',
+            supportUrl: '/support',
+            registrationId: registrationId,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const amount = calculatedAmount;
