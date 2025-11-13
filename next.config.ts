@@ -50,7 +50,7 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: https: https://challenges.cloudflare.com",
               "font-src 'self' data: https://fonts.gstatic.com",
               "connect-src 'self' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk.klyngcup.com https://clerk-telemetry.com https://*.supabase.com https://*.upstash.io https://challenges.cloudflare.com https://cloudflareinsights.com",
-              "frame-src 'self' https://challenges.cloudflare.com",
+              "frame-src 'self' https://challenges.cloudflare.com https://vercel.live",
               "worker-src 'self' blob:",
               "frame-ancestors 'none'"
             ].join('; ')
