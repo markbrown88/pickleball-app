@@ -117,6 +117,85 @@ export async function POST(request: NextRequest) {
               ? `${registration.player.firstName} ${registration.player.lastName}`
               : registration.player.firstName || 'Player');
 
+          // Get actual stops from registration notes
+          const stopIds: string[] = notes.stopIds || [];
+          let stops: Array<{
+            id: string;
+            name: string;
+            startAt: Date | null;
+            endAt: Date | null;
+            bracketName?: string | null;
+            club?: {
+              name: string;
+              address1?: string | null;
+              city?: string | null;
+              region?: string | null;
+              postalCode?: string | null;
+            } | null;
+          }> = [];
+
+          if (stopIds.length > 0) {
+            // Fetch stops with club information
+            const fetchedStops = await prisma.stop.findMany({
+              where: { id: { in: stopIds } },
+              include: {
+                club: {
+                  select: {
+                    name: true,
+                    address1: true,
+                    city: true,
+                    region: true,
+                    postalCode: true,
+                  },
+                },
+              },
+            });
+
+            // Get bracket names from roster entries if they exist
+            const rosterEntries = await prisma.stopTeamPlayer.findMany({
+              where: {
+                stopId: { in: stopIds },
+                playerId: registration.playerId,
+              },
+              include: {
+                team: {
+                  include: {
+                    bracket: {
+                      select: {
+                        name: true,
+                      },
+                    },
+                  },
+                },
+              },
+            });
+
+            // Create a map of stopId -> bracketName from roster entries
+            const bracketMap = new Map<string, string>();
+            for (const roster of rosterEntries) {
+              if (roster.team?.bracket?.name) {
+                bracketMap.set(roster.stopId, roster.team.bracket.name);
+              }
+            }
+
+            // Build stops array
+            stops = fetchedStops.map((stop) => ({
+              id: stop.id,
+              name: stop.name,
+              startAt: stop.startAt,
+              endAt: stop.endAt,
+              bracketName: bracketMap.get(stop.id) || null,
+              club: stop.club ? {
+                name: stop.club.name,
+                address1: stop.club.address1,
+                city: stop.club.city,
+                region: stop.club.region,
+                postalCode: stop.club.postalCode,
+              } : null,
+            }));
+          }
+
+          // Fallback to first stop for backward compatibility
           const firstStop = registration.tournament.stops[0];
           const location = firstStop?.club
             ? [firstStop.club.name, firstStop.club.city, firstStop.club.region]
@@ -132,9 +211,10 @@ export async function POST(request: NextRequest) {
             registrationId: registration.id,
             amount: registration.amountPaid || 0,
             hoursRemaining: 12,
-            startDate: firstStop?.startAt ? new Date(firstStop.startAt) : null,
-            endDate: firstStop?.endAt ? new Date(firstStop.endAt) : null,
-            location,
+            startDate: stops.length > 0 ? stops[0]?.startAt || null : (firstStop?.startAt ? new Date(firstStop.startAt) : null),
+            endDate: stops.length > 0 ? stops[stops.length - 1]?.endAt || null : (firstStop?.endAt ? new Date(firstStop.endAt) : null),
+            location: stops.length > 0 ? null : location,
+            stops: stops.length > 0 ? stops : undefined,
           });
 
           // Mark 12h reminder as sent

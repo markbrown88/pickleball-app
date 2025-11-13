@@ -201,7 +201,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     registrationStatus: t.registrationStatus ?? 'CLOSED',
     registrationType: t.registrationType ?? 'FREE',
     registrationCost: t.registrationCost ?? null,
-    pricingModel: (t as any).pricingModel ?? 'TOURNAMENT_WIDE', // @ts-ignore - Prisma client needs regeneration
+    pricingModel: t.pricingModel ?? 'TOURNAMENT_WIDE',
     maxPlayers: t.maxPlayers ?? null,
     restrictionNotes: t.restrictionNotes ?? [],
     isWaitlistEnabled: t.isWaitlistEnabled ?? true,

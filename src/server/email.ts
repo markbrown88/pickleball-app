@@ -1125,6 +1125,20 @@ interface PaymentReceiptEmailParams {
   startDate?: Date | null;
   endDate?: Date | null;
   location?: string | null;
+  stops?: Array<{
+    id: string;
+    name: string;
+    startAt: Date | null;
+    endAt: Date | null;
+    bracketName?: string | null;
+    club?: {
+      name: string;
+      address1?: string | null;
+      city?: string | null;
+      region?: string | null;
+      postalCode?: string | null;
+    } | null;
+  }>;
 }
 
 export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams) {
@@ -1139,11 +1153,127 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
     startDate,
     endDate,
     location,
+    stops,
   } = params;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
   const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
 
+  // Format date for email: Fri., Nov. 21 - Sat., Nov. 22, 2025
+  const formatEmailDate = (date: Date | null | undefined) => {
+    if (!date) return '';
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dayName = dayNames[date.getUTCDay()];
+    const month = monthNames[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    return `${dayName}., ${month}. ${day}, ${year}`;
+  };
+
+  const formatEmailDateRange = (start: Date | null | undefined, end: Date | null | undefined) => {
+    if (!start && !end) return '';
+    if (!start) return formatEmailDate(end);
+    if (!end) return formatEmailDate(start);
+    
+    const startFormatted = formatEmailDate(start);
+    const endFormatted = formatEmailDate(end);
+    
+    // If same day, return single date
+    if (start.toDateString() === end.toDateString()) {
+      return startFormatted;
+    }
+    
+    // Extract parts for formatting
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const startDayName = dayNames[start.getUTCDay()];
+    const startMonth = monthNames[start.getUTCMonth()];
+    const startDay = start.getUTCDate();
+    
+    const endDayName = dayNames[end.getUTCDay()];
+    const endMonth = monthNames[end.getUTCMonth()];
+    const endDay = end.getUTCDate();
+    const endYear = end.getUTCFullYear();
+    
+    // If same month, format: Fri., Nov. 21 - Sat., Nov. 22, 2025
+    if (start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()) {
+      return `${startDayName}., ${startMonth}. ${startDay} - ${endDayName}., ${endMonth}. ${endDay}, ${endYear}`;
+    }
+    
+    // Different months: Fri., Nov. 21 - Sat., Dec. 12, 2025
+    return `${startDayName}., ${startMonth}. ${startDay} - ${endDayName}., ${endMonth}. ${endDay}, ${endYear}`;
+  };
+
+  // Build Google Maps URL from address components
+  const buildGoogleMapsUrl = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+    if (!club) return '';
+    const parts = [
+      club.address1,
+      club.city,
+      club.region,
+      club.postalCode,
+      'Canada'
+    ].filter(Boolean);
+    if (parts.length === 0) return '';
+    const query = encodeURIComponent(parts.join(', '));
+    return `https://www.google.com/maps/search/?api=1&query=${query}`;
+  };
+
+  // Format full address
+  const formatFullAddress = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+    if (!club) return '';
+    const parts = [
+      club.address1,
+      club.city,
+      club.region,
+      club.postalCode
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  // Build stops list HTML if stops are provided
+  const stopsListHtml = stops && stops.length > 0
+    ? `
+      <div style="margin: 20px 0;">
+        <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">Your Tournament Selections:</h3>
+        ${stops.map((stop) => {
+          const fullAddress = stop.club ? formatFullAddress(stop.club) : '';
+          const mapsUrl = stop.club ? buildGoogleMapsUrl(stop.club) : '';
+          const locationDisplay = stop.club 
+            ? `${stop.club.name}${stop.club.city && stop.club.region ? `, ${stop.club.city}, ${stop.club.region}` : stop.club.city ? `, ${stop.club.city}` : ''}`
+            : '';
+          
+          return `
+            <div style="margin: 0 0 25px 0;">
+              <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 8px;">${stop.name}</div>
+              ${locationDisplay ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>📍 Location:</strong> ${mapsUrl ? `<a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>` : locationDisplay}
+                </div>
+              ` : ''}
+              ${fullAddress && mapsUrl ? `
+                <div style="margin: 4px 0; font-size: 13px; color: #6b7280;">
+                  <a href="${mapsUrl}" style="color: #6b7280; text-decoration: underline;">${fullAddress}</a>
+                </div>
+              ` : ''}
+              <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                <strong>📅 Dates:</strong> ${formatEmailDateRange(stop.startAt, stop.endAt)}
+              </div>
+              ${stop.bracketName ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>Bracket:</strong> ${stop.bracketName}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `
+    : '';
+
+  // Fallback date range for backward compatibility
   const formatDate = (date: Date | null | undefined) => {
     if (!date) return 'TBD';
     return date.toLocaleDateString('en-US', {
@@ -1201,15 +1331,17 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                         <strong>💰 Amount Paid:</strong> $${(amountPaid / 100).toFixed(2)}
                       </div>
 
-                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                        <strong>📅 Dates:</strong> ${dateRange}
-                      </div>
+                      ${stopsListHtml ? '' : (dateRange !== 'Dates TBD' ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>📅 Dates:</strong> ${dateRange}
+                        </div>
+                      ` : '')}
 
-                      ${location ? `
+                      ${stopsListHtml ? '' : (location ? `
                         <div style="margin: 10px 0; font-size: 14px; color: #374151;">
                           <strong>📍 Location:</strong> ${location}
                         </div>
-                      ` : ''}
+                      ` : '')}
 
                       <div style="margin: 10px 0; font-size: 14px; color: #374151;">
                         <strong>✓ Paid:</strong> ${paymentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${paymentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -1221,6 +1353,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                         </div>
                       ` : ''}
                     </div>
+                    ${stopsListHtml}
 
                     <div style="background-color: #f9fafb; border-radius: 4px; padding: 20px; margin: 0 0 30px 0;">
                       <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">What's Next?</h3>
@@ -1570,6 +1703,20 @@ interface PaymentReminderEmailParams {
   startDate?: Date | null;
   endDate?: Date | null;
   location?: string | null;
+  stops?: Array<{
+    id: string;
+    name: string;
+    startAt: Date | null;
+    endAt: Date | null;
+    bracketName?: string | null;
+    club?: {
+      name: string;
+      address1?: string | null;
+      city?: string | null;
+      region?: string | null;
+      postalCode?: string | null;
+    } | null;
+  }>;
 }
 
 export async function sendPaymentReminderEmail(params: PaymentReminderEmailParams) {
@@ -1584,12 +1731,128 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
     startDate,
     endDate,
     location,
+    stops,
   } = params;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
   const paymentLink = `${baseUrl}/register/${tournamentId}/payment/status/${registrationId}`;
   const amountFormatted = `$${(amount / 100).toFixed(2)}`;
 
+  // Format date for email: Fri., Nov. 21 - Sat., Nov. 22, 2025
+  const formatEmailDate = (date: Date | null | undefined) => {
+    if (!date) return '';
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dayName = dayNames[date.getUTCDay()];
+    const month = monthNames[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    return `${dayName}., ${month}. ${day}, ${year}`;
+  };
+
+  const formatEmailDateRange = (start: Date | null | undefined, end: Date | null | undefined) => {
+    if (!start && !end) return '';
+    if (!start) return formatEmailDate(end);
+    if (!end) return formatEmailDate(start);
+    
+    const startFormatted = formatEmailDate(start);
+    const endFormatted = formatEmailDate(end);
+    
+    // If same day, return single date
+    if (start.toDateString() === end.toDateString()) {
+      return startFormatted;
+    }
+    
+    // Extract parts for formatting
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const startDayName = dayNames[start.getUTCDay()];
+    const startMonth = monthNames[start.getUTCMonth()];
+    const startDay = start.getUTCDate();
+    
+    const endDayName = dayNames[end.getUTCDay()];
+    const endMonth = monthNames[end.getUTCMonth()];
+    const endDay = end.getUTCDate();
+    const endYear = end.getUTCFullYear();
+    
+    // If same month, format: Fri., Nov. 21 - Sat., Nov. 22, 2025
+    if (start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()) {
+      return `${startDayName}., ${startMonth}. ${startDay} - ${endDayName}., ${endMonth}. ${endDay}, ${endYear}`;
+    }
+    
+    // Different months: Fri., Nov. 21 - Sat., Dec. 12, 2025
+    return `${startDayName}., ${startMonth}. ${startDay} - ${endDayName}., ${endMonth}. ${endDay}, ${endYear}`;
+  };
+
+  // Build Google Maps URL from address components
+  const buildGoogleMapsUrl = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+    if (!club) return '';
+    const parts = [
+      club.address1,
+      club.city,
+      club.region,
+      club.postalCode,
+      'Canada'
+    ].filter(Boolean);
+    if (parts.length === 0) return '';
+    const query = encodeURIComponent(parts.join(', '));
+    return `https://www.google.com/maps/search/?api=1&query=${query}`;
+  };
+
+  // Format full address
+  const formatFullAddress = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+    if (!club) return '';
+    const parts = [
+      club.address1,
+      club.city,
+      club.region,
+      club.postalCode
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  // Build stops list HTML if stops are provided
+  const stopsListHtml = stops && stops.length > 0
+    ? `
+      <div style="margin: 20px 0;">
+        <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #111827;">Your Tournament Selections:</h3>
+        ${stops.map((stop) => {
+          const fullAddress = stop.club ? formatFullAddress(stop.club) : '';
+          const mapsUrl = stop.club ? buildGoogleMapsUrl(stop.club) : '';
+          const locationDisplay = stop.club 
+            ? `${stop.club.name}${stop.club.city && stop.club.region ? `, ${stop.club.city}, ${stop.club.region}` : stop.club.city ? `, ${stop.club.city}` : ''}`
+            : '';
+          
+          return `
+            <div style="margin: 0 0 25px 0;">
+              <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 8px;">${stop.name}</div>
+              ${locationDisplay ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>📍 Location:</strong> ${mapsUrl ? `<a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>` : locationDisplay}
+                </div>
+              ` : ''}
+              ${fullAddress && mapsUrl ? `
+                <div style="margin: 4px 0; font-size: 13px; color: #6b7280;">
+                  <a href="${mapsUrl}" style="color: #6b7280; text-decoration: underline;">${fullAddress}</a>
+                </div>
+              ` : ''}
+              <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                <strong>📅 Dates:</strong> ${formatEmailDateRange(stop.startAt, stop.endAt)}
+              </div>
+              ${stop.bracketName ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>Bracket:</strong> ${stop.bracketName}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `
+    : '';
+
+  // Fallback date range for backward compatibility
   const formatDate = (date: Date | null | undefined) => {
     if (!date) return 'TBD';
     return date.toLocaleDateString('en-US', {
@@ -1658,9 +1921,10 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
                         <span style="color: #6b7280; font-size: 14px;">Amount Due:</span>
                         <span style="font-size: 20px; font-weight: 700; color: #111827; margin-left: 10px;">${amountFormatted}</span>
                       </div>
-                      ${dateRange !== 'Dates TBD' ? `<div style="margin-bottom: 10px;"><span style="color: #6b7280; font-size: 14px;">Dates:</span> <span style="color: #111827;">${dateRange}</span></div>` : ''}
-                      ${location ? `<div><span style="color: #6b7280; font-size: 14px;">Location:</span> <span style="color: #111827;">${location}</span></div>` : ''}
+                      ${stopsListHtml ? '' : (dateRange !== 'Dates TBD' ? `<div style="margin-bottom: 10px;"><span style="color: #6b7280; font-size: 14px;">Dates:</span> <span style="color: #111827;">${dateRange}</span></div>` : '')}
+                      ${stopsListHtml ? '' : (location ? `<div><span style="color: #6b7280; font-size: 14px;">Location:</span> <span style="color: #111827;">${location}</span></div>` : '')}
                     </div>
+                    ${stopsListHtml}
 
                     <div style="text-align: center; margin: 30px 0;">
                       <a href="${paymentLink}" style="display: inline-block; background-color: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Complete Payment Now</a>

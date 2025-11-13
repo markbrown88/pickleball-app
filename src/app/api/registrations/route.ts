@@ -32,6 +32,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate that selectedStopIds is an array and not empty
+    if (!Array.isArray(selectedStopIds) || selectedStopIds.length === 0) {
+      return NextResponse.json(
+        { error: 'At least one tournament stop must be selected' },
+        { status: 400 }
+      );
+    }
+
+    // Validate that selectedBrackets is an array
+    if (!Array.isArray(selectedBrackets)) {
+      return NextResponse.json(
+        { error: 'Bracket selections must be an array' },
+        { status: 400 }
+      );
+    }
+
     // Fetch tournament to check type and pricing
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -99,16 +115,23 @@ export async function POST(request: NextRequest) {
     };
 
     // Check for duplicate registration
-    // For multi-stop tournaments, allow registration for different stops
+    // For multi-stop tournaments, update existing registration to include new stops
+    // The database has a unique constraint on [tournamentId, playerId], so we can only have one registration per tournament/player
     const existingPlayer = await prisma.player.findUnique({
       where: { email: sanitizedPlayerInfo.email },
     });
 
+    let existingRegistrationId: string | null = null;
+    let existingStopIds: string[] = [];
+    let existingBrackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }> = [];
+    let existingClubId: string | null = null;
+
     if (existingPlayer) {
-      const existingRegistrations = await prisma.tournamentRegistration.findMany({
+      const existingReg = await prisma.tournamentRegistration.findFirst({
         where: {
           tournamentId,
           playerId: existingPlayer.id,
+          status: 'REGISTERED', // Only check active registrations
         },
         select: {
           id: true,
@@ -116,71 +139,51 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Check if tournament has multiple stops
-      const tournamentStops = await prisma.stop.findMany({
-        where: { tournamentId },
-        select: { id: true },
-      });
-      const hasMultipleStops = tournamentStops.length > 1;
-
-      // If tournament has multiple stops, check for stop overlap
-      // If single stop or no stops, block any duplicate registration
-      if (hasMultipleStops) {
-        // Check if any existing registration has overlapping stops
-        for (const existingReg of existingRegistrations) {
-          if (!existingReg.notes) {
-            // Old registration format without stop info - block to be safe
-            return NextResponse.json(
-              { error: 'A registration with this email already exists for this tournament' },
-              { status: 409 }
-            );
-          }
-          
+      if (existingReg) {
+        existingRegistrationId = existingReg.id;
+        
+        // Parse existing registration data
+        if (existingReg.notes) {
           try {
             const notes = JSON.parse(existingReg.notes);
-            const existingStopIds: string[] = notes.stopIds || [];
-            
-            // If existing registration has no stops recorded, block to be safe
-            if (existingStopIds.length === 0) {
-              return NextResponse.json(
-                { error: 'A registration with this email already exists for this tournament' },
-                { status: 409 }
-              );
-            }
-            
-            // Check for overlap between existing stops and new stops
-            const overlappingStops = selectedStopIds.filter((stopId: string) => existingStopIds.includes(stopId));
-            
-            if (overlappingStops.length > 0) {
-              // Get stop names for better error message
-              const overlappingStopNames = await prisma.stop.findMany({
-                where: { id: { in: overlappingStops } },
-                select: { name: true },
-              });
-              
-              const stopNames = overlappingStopNames.map(s => s.name).join(', ');
-              return NextResponse.json(
-                { 
-                  error: `You are already registered for ${overlappingStops.length === 1 ? 'stop' : 'stops'}: ${stopNames}. Please select different stops.`,
-                  overlappingStops: overlappingStops,
-                },
-                { status: 409 }
-              );
-            }
-            // No overlap - allow registration for different stops
+            existingStopIds = notes.stopIds || [];
+            existingBrackets = notes.brackets || [];
+            existingClubId = notes.clubId || null;
           } catch (e) {
-            // If notes can't be parsed, block to be safe
             console.warn(`Could not parse notes for registration ${existingReg.id}:`, e);
+          }
+        }
+
+        // Check if tournament has multiple stops
+        const tournamentStops = await prisma.stop.findMany({
+          where: { tournamentId },
+          select: { id: true },
+        });
+        const hasMultipleStops = tournamentStops.length > 1;
+
+        if (hasMultipleStops) {
+          // Check for overlap between existing stops and new stops
+          const overlappingStops = selectedStopIds.filter((stopId: string) => existingStopIds.includes(stopId));
+          
+          if (overlappingStops.length > 0) {
+            // Get stop names for better error message
+            const overlappingStopNames = await prisma.stop.findMany({
+              where: { id: { in: overlappingStops } },
+              select: { name: true },
+            });
+            
+            const stopNames = overlappingStopNames.map(s => s.name).join(', ');
             return NextResponse.json(
-              { error: 'A registration with this email already exists for this tournament' },
+              { 
+                error: `You are already registered for ${overlappingStops.length === 1 ? 'stop' : 'stops'}: ${stopNames}. Please select different stops.`,
+                overlappingStops: overlappingStops,
+              },
               { status: 409 }
             );
           }
-        }
-        // No overlapping stops found - allow registration
-      } else {
-        // Single stop or no stops - block duplicate registration (existing behavior)
-        if (existingRegistrations.length > 0) {
+          // No overlap - will update existing registration to include new stops
+        } else {
+          // Single stop tournament - block duplicate registration
           return NextResponse.json(
             { error: 'A registration with this email already exists for this tournament' },
             { status: 409 }
@@ -233,6 +236,12 @@ export async function POST(request: NextRequest) {
 
       if (!player) {
         // For new players, we need required fields
+        // For team tournaments, clubId is required
+        // For individual tournaments, clubId can be null
+        const clubIdForNewPlayer = tournamentIsTeam 
+          ? (selectedClubId || null)
+          : null;
+        
         player = await tx.player.create({
           data: {
             firstName: sanitizedPlayerInfo.firstName,
@@ -240,7 +249,7 @@ export async function POST(request: NextRequest) {
             email: sanitizedPlayerInfo.email,
             phone: sanitizedPlayerInfo.phone,
             gender: 'MALE', // Default, can be updated later
-            clubId: selectedClubId || tournament._count.registrations === 0 ? selectedClubId : '', // Placeholder
+            clubId: clubIdForNewPlayer,
             clerkUserId: userId || null, // Link to Clerk user if logged in
           },
         });
@@ -314,37 +323,110 @@ export async function POST(request: NextRequest) {
         ? 0 
         : formatAmountForStripe(registrationAmount);
 
-      // Create registration using TournamentRegistration model
-      const newRegistration = await tx.tournamentRegistration.create({
-        data: {
-          tournamentId,
-          playerId: player.id,
-          status: 'REGISTERED',
-          paymentStatus: tournament.registrationType === 'FREE' ? 'COMPLETED' : 'PENDING',
-          amountPaid: amountPaidInCents,
-        },
-      });
-
-      // Store registration details in notes field (including expected amount for validation)
-      await tx.tournamentRegistration.update({
-        where: { id: newRegistration.id },
-        data: {
-          notes: JSON.stringify({
-            stopIds: selectedStopIds,
-            brackets: selectedBrackets,
-            clubId: selectedClubId,
-            playerInfo: sanitizedPlayerInfo,
-            subtotal: subtotal, // Subtotal before tax (in dollars)
-            tax: tax, // Tax amount (in dollars)
-            expectedAmount: registrationAmount, // Total with tax (in dollars) - for validation
-            pricingModel: tournament.pricingModel || 'TOURNAMENT_WIDE', // Store pricing model used
-          }),
-        },
-      });
+      // Check if we're updating an existing registration or creating a new one
+      let registration;
+      let finalStopIds: string[];
+      let finalBrackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }>;
+      let finalSubtotal: number;
+      let finalTax: number;
+      let finalTotal: number;
+      let finalAmountPaidInCents: number;
+      
+      if (existingRegistrationId) {
+        // Update existing registration to include new stops
+        // Merge new stops with existing stops (avoid duplicates)
+        const mergedStopIds = [...new Set([...existingStopIds, ...selectedStopIds])];
+        const mergedBrackets = [...existingBrackets];
+        
+        // Add new brackets, avoiding duplicates for the same stopId+bracketId combination
+        for (const newBracket of selectedBrackets) {
+          const existingIndex = mergedBrackets.findIndex(
+            (b: any) => b.stopId === newBracket.stopId && b.bracketId === newBracket.bracketId
+          );
+          if (existingIndex === -1) {
+            mergedBrackets.push(newBracket);
+          }
+        }
+        
+        // Recalculate total amount including all stops
+        const mergedSubtotal = calculateRegistrationAmount(
+          {
+            registrationCost: registrationCostInDollars,
+            pricingModel,
+          },
+          {
+            stopIds: mergedStopIds,
+            brackets: mergedBrackets,
+          }
+        );
+        const { tax: mergedTax, total: mergedTotal } = calculateTotalWithTax(mergedSubtotal);
+        const mergedAmountPaidInCents = tournament.registrationType === 'FREE' 
+          ? 0 
+          : formatAmountForStripe(mergedTotal);
+        
+        // Store final values for use after update
+        finalStopIds = mergedStopIds;
+        finalBrackets = mergedBrackets;
+        finalSubtotal = mergedSubtotal;
+        finalTax = mergedTax;
+        finalTotal = mergedTotal;
+        finalAmountPaidInCents = mergedAmountPaidInCents;
+        
+        // Update existing registration
+        registration = await tx.tournamentRegistration.update({
+          where: { id: existingRegistrationId },
+          data: {
+            // Update payment status if needed (if it was PENDING and now FREE, or vice versa)
+            paymentStatus: tournament.registrationType === 'FREE' ? 'COMPLETED' : 'PENDING',
+            amountPaid: mergedAmountPaidInCents,
+            notes: JSON.stringify({
+              stopIds: mergedStopIds,
+              brackets: mergedBrackets,
+              clubId: selectedClubId || existingClubId, // Use new clubId if provided, otherwise keep existing
+              playerInfo: sanitizedPlayerInfo,
+              subtotal: mergedSubtotal,
+              tax: mergedTax,
+              expectedAmount: mergedTotal,
+              pricingModel: tournament.pricingModel || 'TOURNAMENT_WIDE',
+            }),
+          },
+        });
+      } else {
+        // Create new registration
+        finalStopIds = selectedStopIds;
+        finalBrackets = selectedBrackets;
+        finalSubtotal = subtotal;
+        finalTax = tax;
+        finalTotal = registrationAmount;
+        finalAmountPaidInCents = amountPaidInCents;
+        
+        registration = await tx.tournamentRegistration.create({
+          data: {
+            tournamentId,
+            playerId: player.id,
+            status: 'REGISTERED',
+            paymentStatus: tournament.registrationType === 'FREE' ? 'COMPLETED' : 'PENDING',
+            amountPaid: amountPaidInCents,
+            notes: JSON.stringify({
+              stopIds: selectedStopIds,
+              brackets: selectedBrackets,
+              clubId: selectedClubId,
+              playerInfo: sanitizedPlayerInfo,
+              subtotal: subtotal, // Subtotal before tax (in dollars)
+              tax: tax, // Tax amount (in dollars)
+              expectedAmount: registrationAmount, // Total with tax (in dollars) - for validation
+              pricingModel: tournament.pricingModel || 'TOURNAMENT_WIDE', // Store pricing model used
+            }),
+          },
+        });
+      }
 
       // For free tournaments, create roster entries immediately
       // For paid tournaments, roster entries will be created after payment confirmation (via webhook)
-      if (tournament.registrationType === 'FREE' && tournamentIsTeam && selectedClubId && Array.isArray(selectedBrackets)) {
+      // Only create roster entries for NEW stops (not already existing)
+      const clubIdToUse = selectedClubId || existingClubId;
+      
+      if (tournament.registrationType === 'FREE' && tournamentIsTeam && clubIdToUse && Array.isArray(finalBrackets)) {
         // Get tournament brackets and club info
         const [brackets, club] = await Promise.all([
           tx.tournamentBracket.findMany({
@@ -352,7 +434,7 @@ export async function POST(request: NextRequest) {
             select: { id: true, name: true },
           }),
           tx.club.findUnique({
-            where: { id: selectedClubId },
+            where: { id: clubIdToUse },
             select: { name: true },
           }),
         ]);
@@ -360,9 +442,14 @@ export async function POST(request: NextRequest) {
         const clubName = club?.name || 'Team';
 
         // Create roster entries for each stop/bracket combination
-        for (const stopId of selectedStopIds) {
+        // Only create entries for NEW stops (not already existing)
+        const stopsToCreateEntriesFor = existingRegistrationId 
+          ? selectedStopIds.filter((stopId: string) => !existingStopIds.includes(stopId))
+          : selectedStopIds;
+        
+        for (const stopId of stopsToCreateEntriesFor) {
           // Find the bracket selection for this stop
-          const bracketSelection = selectedBrackets.find((sb: any) => sb && sb.stopId === stopId);
+          const bracketSelection = finalBrackets.find((sb: any) => sb && sb.stopId === stopId);
           if (!bracketSelection || !bracketSelection.bracketId) {
             console.warn(`No bracket selection found for stop ${stopId}`);
             continue;
@@ -379,7 +466,7 @@ export async function POST(request: NextRequest) {
           let team = await tx.team.findFirst({
             where: {
               tournamentId,
-              clubId: selectedClubId,
+              clubId: clubIdToUse,
               bracketId: bracketId,
             },
           });
@@ -390,7 +477,7 @@ export async function POST(request: NextRequest) {
               data: {
                 name: teamName,
                 tournamentId,
-                clubId: selectedClubId,
+                clubId: clubIdToUse,
                 bracketId: bracketId,
               },
             });
@@ -420,8 +507,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return newRegistration;
+      return registration;
     });
+
+    // Parse final stopIds and brackets from registration notes for email
+    let emailStopIds: string[] = selectedStopIds;
+    let emailBrackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }> = selectedBrackets;
+    let emailClubId: string | null = selectedClubId || null;
+    
+    if (registration.notes) {
+      try {
+        const notes = JSON.parse(registration.notes);
+        emailStopIds = notes.stopIds || selectedStopIds;
+        emailBrackets = notes.brackets || selectedBrackets;
+        emailClubId = notes.clubId || selectedClubId || null;
+      } catch (e) {
+        console.warn('Could not parse registration notes for email:', e);
+      }
+    }
 
     // Send confirmation email for free tournaments, or payment reminder for paid tournaments
     if (tournament.registrationType === 'FREE') {
@@ -441,7 +544,7 @@ export async function POST(request: NextRequest) {
             where: { id: tournamentId },
             include: {
               stops: {
-                where: { id: { in: selectedStopIds } },
+                where: { id: { in: emailStopIds } },
                 orderBy: { startAt: 'asc' },
                 select: {
                   id: true,
@@ -483,8 +586,8 @@ export async function POST(request: NextRequest) {
 
           // Build stops array with bracket names and club information
           const stopsWithBrackets = tournamentDetails.stops.map((stop) => {
-            const bracketSelection = Array.isArray(selectedBrackets)
-              ? selectedBrackets.find((sb: any) => sb.stopId === stop.id)
+            const bracketSelection = Array.isArray(emailBrackets)
+              ? emailBrackets.find((sb: any) => sb.stopId === stop.id)
               : null;
             const bracket = bracketSelection
               ? brackets.find((b) => b.id === bracketSelection.bracketId)
@@ -507,9 +610,9 @@ export async function POST(request: NextRequest) {
 
           // Get club name if team tournament
           let clubName: string | null = null;
-          if (tournamentIsTeam && selectedClubId) {
+          if (tournamentIsTeam && emailClubId) {
             const club = await prisma.club.findUnique({
-              where: { id: selectedClubId },
+              where: { id: emailClubId },
               select: { name: true },
             });
             clubName = club?.name || null;
@@ -537,76 +640,9 @@ export async function POST(request: NextRequest) {
         console.error('[Registration] Failed to send confirmation email:', emailError);
         // Don't fail the registration if email fails
       }
-    } else {
-      // For paid tournaments, send immediate payment reminder
-      try {
-        const [playerDetails, tournamentDetails] = await Promise.all([
-          prisma.player.findUnique({
-            where: { id: registration.playerId },
-            select: {
-              email: true,
-              firstName: true,
-              lastName: true,
-              name: true,
-            },
-          }),
-          prisma.tournament.findUnique({
-            where: { id: tournamentId },
-            include: {
-              stops: {
-                take: 1,
-                orderBy: { startAt: 'asc' },
-                select: {
-                  startAt: true,
-                  endAt: true,
-                  club: {
-                    select: {
-                      name: true,
-                      city: true,
-                      region: true,
-                    },
-                  },
-                },
-              },
-            },
-          }),
-        ]);
-
-        if (playerDetails?.email && tournamentDetails) {
-          const playerName =
-            playerDetails.name ||
-            (playerDetails.firstName && playerDetails.lastName
-              ? `${playerDetails.firstName} ${playerDetails.lastName}`
-              : playerDetails.firstName || 'Player');
-
-          const firstStop = tournamentDetails.stops[0];
-          const location = firstStop?.club
-            ? [firstStop.club.name, firstStop.club.city, firstStop.club.region]
-                .filter(Boolean)
-                .join(', ')
-            : null;
-
-          const { sendPaymentReminderEmail } = await import('@/server/email');
-          await sendPaymentReminderEmail({
-            to: playerDetails.email,
-            playerName,
-            tournamentName: tournamentDetails.name,
-            tournamentId: tournamentId,
-            registrationId: registration.id,
-            amount: registration.amountPaid || 0,
-            hoursRemaining: 24,
-            startDate: firstStop?.startAt ? new Date(firstStop.startAt) : null,
-            endDate: firstStop?.endAt ? new Date(firstStop.endAt) : null,
-            location,
-          });
-
-          console.log('[Registration] Payment reminder email sent successfully');
-        }
-      } catch (emailError) {
-        console.error('[Registration] Failed to send payment reminder email:', emailError);
-        // Don't fail the registration if email fails
-      }
-    }
+    // Note: Payment reminder emails are now sent by the cron job (/api/cron/payment-reminders)
+    // only if payment is still pending after 12 hours. This prevents sending reminders
+    // immediately after registration or after payment has already been completed.
 
     return NextResponse.json({
       success: true,
@@ -632,6 +668,20 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && 'code' in error) {
       console.error('Prisma error code:', (error as any).code);
       console.error('Prisma error meta:', (error as any).meta);
+    }
+    
+    // Log request body for debugging (without sensitive data)
+    try {
+      const body = await request.json().catch(() => ({}));
+      console.error('Request body (sanitized):', {
+        tournamentId: body.tournamentId,
+        selectedStopIds: body.selectedStopIds,
+        selectedBracketsCount: Array.isArray(body.selectedBrackets) ? body.selectedBrackets.length : 'not an array',
+        hasPlayerInfo: !!body.playerInfo,
+        hasSelectedClubId: !!body.selectedClubId,
+      });
+    } catch (e) {
+      console.error('Could not log request body:', e);
     }
     
     return NextResponse.json(

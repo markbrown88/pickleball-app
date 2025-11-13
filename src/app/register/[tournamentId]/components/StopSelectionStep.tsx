@@ -117,7 +117,6 @@ export function StopSelectionStep({
                     <li key={stop.id}>{stop.name}</li>
                   ))}
                 </ul>
-                <p className="text-muted mt-2">These stops are shown below but cannot be selected again.</p>
               </div>
             </div>
           </div>
