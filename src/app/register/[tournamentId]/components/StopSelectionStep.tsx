@@ -30,6 +30,7 @@ type StopSelectionStepProps = {
   clubs: Club[];
   selectedClubId?: string;
   onClubUpdate: (clubId: string) => void;
+  registeredStopIds?: string[]; // Stops the player has already registered for
 };
 
 export function StopSelectionStep({
@@ -43,6 +44,7 @@ export function StopSelectionStep({
   clubs,
   selectedClubId,
   onClubUpdate,
+  registeredStopIds = [],
 }: StopSelectionStepProps) {
   const [error, setError] = useState<string>('');
 
@@ -64,6 +66,10 @@ export function StopSelectionStep({
     if (stop.isRegistrationClosed) return false;
     if (!stop.registrationDeadline) return true;
     return new Date(stop.registrationDeadline) > new Date();
+  };
+
+  const isStopAlreadyRegistered = (stopId: string): boolean => {
+    return registeredStopIds.includes(stopId);
   };
 
   const toggleStop = (stopId: string) => {
@@ -89,6 +95,8 @@ export function StopSelectionStep({
     onNext();
   };
 
+  const alreadyRegisteredStops = stops.filter(stop => isStopAlreadyRegistered(stop.id));
+
   return (
     <div className="space-y-6">
       <div>
@@ -96,6 +104,24 @@ export function StopSelectionStep({
         <p className="text-sm text-muted">
           Choose which tournament dates you'd like to attend. You can select multiple stops.
         </p>
+        {alreadyRegisteredStops.length > 0 && (
+          <div className="mt-3 p-3 bg-info/10 border border-info/30 rounded text-sm">
+            <div className="flex items-start gap-2">
+              <svg className="w-5 h-5 text-info flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-info mb-1">You're already registered for:</p>
+                <ul className="list-disc list-inside text-muted space-y-1">
+                  {alreadyRegisteredStops.map(stop => (
+                    <li key={stop.id}>{stop.name}</li>
+                  ))}
+                </ul>
+                <p className="text-muted mt-2">These stops are shown below but cannot be selected again.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Club Selection (Team Tournaments Only) */}
@@ -143,23 +169,24 @@ export function StopSelectionStep({
         ) : (
           stops.map((stop) => {
             const available = isStopAvailable(stop);
+            const alreadyRegistered = isStopAlreadyRegistered(stop.id);
             const selected = selectedStopIds.includes(stop.id);
+            const canSelect = available && !alreadyRegistered;
 
             return (
               <div
                 key={stop.id}
                 className={`
-                  relative p-4 rounded transition-all cursor-pointer
+                  relative p-4 rounded transition-all
                   ${
                     selected
                       ? 'bg-primary/5 ring-2 ring-primary/20'
-                      : available
-                        ? 'bg-surface-3 hover:ring-1 hover:ring-primary/50'
-                        : 'bg-surface-3 opacity-60'
+                      : canSelect
+                        ? 'bg-surface-3 hover:ring-1 hover:ring-primary/50 cursor-pointer'
+                        : 'bg-surface-3 opacity-60 cursor-not-allowed'
                   }
-                  ${!available ? 'cursor-not-allowed' : ''}
                 `}
-                onClick={() => available && toggleStop(stop.id)}
+                onClick={() => canSelect && toggleStop(stop.id)}
               >
                 <div className="flex items-start gap-4">
                   {/* Checkbox */}
@@ -168,7 +195,7 @@ export function StopSelectionStep({
                       type="checkbox"
                       checked={selected}
                       onChange={() => {}} // Handled by parent div click
-                      disabled={!available}
+                      disabled={!canSelect}
                       className="w-5 h-5 cursor-pointer"
                     />
                   </div>
@@ -184,7 +211,12 @@ export function StopSelectionStep({
                       </div>
 
                       {/* Status Badge */}
-                      {!available && (
+                      {alreadyRegistered && (
+                        <span className="px-3 py-1 bg-success/20 text-success text-xs font-semibold rounded">
+                          Already Registered
+                        </span>
+                      )}
+                      {!available && !alreadyRegistered && (
                         <span className="px-3 py-1 bg-error/20 text-error text-xs font-semibold rounded">
                           {(() => {
                             // Check if stop has ended

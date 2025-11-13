@@ -63,9 +63,10 @@ export type RegistrationData = {
 type TournamentRegistrationFlowProps = {
   tournament: TournamentData;
   initialPlayerInfo?: PlayerInfo | null;
+  registeredStopIds?: string[]; // Stops the player has already registered for
 };
 
-export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: TournamentRegistrationFlowProps) {
+export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, registeredStopIds = [] }: TournamentRegistrationFlowProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('info');
   const [registrationData, setRegistrationData] = useState<RegistrationData>({
@@ -201,6 +202,7 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo }: To
                 clubs={tournament.clubs}
                 selectedClubId={registrationData.selectedClubId}
                 onClubUpdate={updateSelectedClub}
+                registeredStopIds={registeredStopIds}
               />
             )}
 

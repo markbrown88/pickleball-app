@@ -42,12 +42,13 @@ export default async function RegisterPage({ params }: PageProps) {
     phone: string;
   } | null = null;
 
+  let effectivePlayerId: string | null = null;
+  let registeredStopIds: string[] = [];
+
   if (userId) {
     // Check for Act As cookie
     const cookieStore = await cookies();
     const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
-    
-    let effectivePlayerId: string | null = null;
     
     try {
       const effectivePlayer = await getEffectivePlayer(actAsPlayerId || null);
@@ -80,6 +81,33 @@ export default async function RegisterPage({ params }: PageProps) {
           phone: player.phone || '',
         };
       }
+
+      // Fetch existing registrations for this tournament to get already-registered stops
+      const existingRegistrations = await prisma.tournamentRegistration.findMany({
+        where: {
+          tournamentId,
+          playerId: effectivePlayerId,
+          status: 'REGISTERED', // Only count active registrations
+        },
+        select: {
+          notes: true,
+        },
+      });
+
+      // Collect all stopIds from existing registrations
+      const allStopIds = new Set<string>();
+      for (const reg of existingRegistrations) {
+        if (reg.notes) {
+          try {
+            const notes = JSON.parse(reg.notes);
+            const stopIds = notes.stopIds || [];
+            stopIds.forEach((stopId: string) => allStopIds.add(stopId));
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+      registeredStopIds = Array.from(allStopIds);
     }
   }
 
@@ -234,5 +262,5 @@ export default async function RegisterPage({ params }: PageProps) {
     })),
   };
 
-  return <TournamentRegistrationFlow tournament={tournamentData} initialPlayerInfo={initialPlayerInfo} />;
+  return <TournamentRegistrationFlow tournament={tournamentData} initialPlayerInfo={initialPlayerInfo} registeredStopIds={registeredStopIds} />;
 }
