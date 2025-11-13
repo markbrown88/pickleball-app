@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk.klyngcup.com https://challenges.cloudflare.com https://static.cloudflareinsights.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk.klyngcup.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://vercel.live",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://challenges.cloudflare.com",
               "img-src 'self' data: https: https://challenges.cloudflare.com",
               "font-src 'self' data: https://fonts.gstatic.com",
