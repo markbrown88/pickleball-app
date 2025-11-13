@@ -114,7 +114,9 @@ export async function POST(request: NextRequest) {
         phone: string;
       };
       expectedAmount?: number; // Amount in dollars stored during registration
-      newStopsTotal?: number; // Amount for new stops only (if updating existing registration)
+      newStopsSubtotal?: number; // Subtotal for new stops only (if updating existing registration)
+      newStopsTax?: number; // Tax for new stops only (if updating existing registration)
+      newStopsTotal?: number; // Total amount for new stops only (if updating existing registration)
       existingAmountPaid?: number; // Amount already paid for existing stops
     } = {};
 
