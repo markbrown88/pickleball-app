@@ -642,6 +642,7 @@ export async function POST(request: NextRequest) {
         console.error('[Registration] Failed to send confirmation email:', emailError);
         // Don't fail the registration if email fails
       }
+    }
     // Note: Payment reminder emails are now sent by the cron job (/api/cron/payment-reminders)
     // only if payment is still pending after 12 hours. This prevents sending reminders
     // immediately after registration or after payment has already been completed.
