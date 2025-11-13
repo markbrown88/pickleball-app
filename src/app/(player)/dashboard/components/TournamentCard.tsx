@@ -80,18 +80,28 @@ export function TournamentCard({
 
   const isFull = tournament.maxPlayers !== null && tournament.registeredCount >= tournament.maxPlayers;
   
-  // For multi-stop tournaments, check if player has registered for all stops
+  // Filter stops to only include future/available stops (stops that haven't ended yet)
+  const now = new Date();
+  const availableStops = tournament.stops.filter(stop => {
+    if (!stop.endAt) return true; // If no end date, consider it available
+    const endDate = new Date(stop.endAt);
+    return endDate >= now; // Stop is available if it hasn't ended yet
+  });
+  
+  // For multi-stop tournaments, check if player has registered for all available stops
   const hasMultipleStops = tournament.stops.length > 1;
-  const allStopsRegistered = hasMultipleStops 
-    ? tournament.stops.every(stop => registeredStopIds.includes(stop.id))
+  const allAvailableStopsRegistered = hasMultipleStops && availableStops.length > 0
+    ? availableStops.every(stop => registeredStopIds.includes(stop.id))
     : false;
   
   // Player can register if:
   // - Tournament is OPEN
-  // - Player is not registered OR (multi-stop tournament AND not all stops registered)
+  // - There are available stops to register for
+  // - Player is not registered OR (multi-stop tournament AND not all available stops registered)
   // - Tournament is not full
   const canRegister = tournament.registrationStatus === 'OPEN' 
-    && (!playerRegistrationStatus || (hasMultipleStops && !allStopsRegistered))
+    && availableStops.length > 0 // Must have at least one available stop
+    && (!playerRegistrationStatus || (hasMultipleStops && !allAvailableStopsRegistered))
     && !isFull;
   const canRequestInvite = tournament.registrationStatus === 'INVITE_ONLY' && !playerRegistrationStatus;
   const canJoinWaitlist = isFull && tournament.isWaitlistEnabled && !playerRegistrationStatus;
