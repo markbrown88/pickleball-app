@@ -164,12 +164,12 @@ export default function Home() {
                 </div>
               </SignedIn>
               <SignedOut>
-                <SignInButton mode="modal">
+                <SignInButton mode="modal" fallbackRedirectUrl="/dashboard">
                   <button className="btn btn-ghost">
                     Login
                   </button>
                 </SignInButton>
-                <SignUpButton mode="modal">
+                <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
                   <button className="btn btn-primary">
                     Sign Up
                   </button>
@@ -207,7 +207,7 @@ export default function Home() {
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
           <SignedOut>
-            <SignUpButton mode="modal">
+            <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
               <button className="btn btn-secondary text-lg py-4 px-8">
                       Register to Play!
               </button>
@@ -538,7 +538,7 @@ export default function Home() {
                       View Results
                     </Link>
                     <SignedOut>
-                      <SignUpButton mode="modal">
+                      <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${tournament.id}`}>
                         <button className="btn btn-secondary">
                           Register
                         </button>
@@ -758,7 +758,7 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <SignedOut>
-              <SignUpButton mode="modal">
+              <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
                 <button className="btn btn-secondary text-lg py-4 px-8 shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300">
                   Register to Play!
                 </button>
@@ -810,8 +810,8 @@ export default function Home() {
               <h4 className="font-semibold text-primary mb-4">Account</h4>
               <ul className="space-y-2">
                 <SignedOut>
-                  <li><SignInButton mode="modal"><button className="text-muted hover:text-primary">Login</button></SignInButton></li>
-                  <li><SignUpButton mode="modal"><button className="text-muted hover:text-primary">Sign Up</button></SignUpButton></li>
+                  <li><SignInButton mode="modal" fallbackRedirectUrl="/dashboard"><button className="text-muted hover:text-primary">Login</button></SignInButton></li>
+                  <li><SignUpButton mode="modal" fallbackRedirectUrl="/dashboard"><button className="text-muted hover:text-primary">Sign Up</button></SignUpButton></li>
                 </SignedOut>
                 <SignedIn>
                   <li><Link href="/dashboard" className="text-muted hover:text-primary">Dashboard</Link></li>
