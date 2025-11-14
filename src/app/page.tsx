@@ -186,14 +186,6 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left side - Content */}
             <div className="text-center lg:text-left">
-              {/* Pickleball Icon */}
-              <div className="mb-8 flex justify-center lg:justify-start">
-                <div className="w-20 h-20 bg-gradient-to-br from-brand-primary to-brand-accent rounded-full flex items-center justify-center shadow-lg">
-                  <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                </div>
-              </div>
               <h1 className="text-5xl md:text-7xl font-bold text-primary mb-6">
                 Klyng Cup
           </h1>
@@ -205,29 +197,79 @@ export default function Home() {
                 Pickleball clubs compete in a customizable multi-stop championship series unlike anything else in the sport.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-          <SignedOut>
-            <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
-              <button className="btn btn-secondary text-lg py-4 px-8">
-                      Register to Play!
-              </button>
-            </SignUpButton>
-          </SignedOut>
-                <SignedIn>
-                  <Link 
-                    href="/dashboard"
-                    className="btn btn-secondary text-lg py-4 px-8"
-                  >
-                    Go to Dashboard
-                  </Link>
-                  <a 
-                    href="#tournaments"
-                    className="btn btn-ghost text-lg py-4 px-8 border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
-                  >
-                    Current Tournaments
-                  </a>
-                </SignedIn>
-              </div>
+              {/* Klyng Cup-Pickleplex Tournament Card */}
+              {(() => {
+                const klyngCupPickleplex = tournaments.find((t: Tournament) => 
+                  t.name.toLowerCase().includes('klyng cup') && 
+                  (t.name.toLowerCase().includes('pickleplex') || t.name.toLowerCase().includes('pickle plex'))
+                );
+                
+                if (klyngCupPickleplex) {
+                  return (
+                    <div className="card hover:shadow-lg transition-shadow duration-300 max-w-2xl mx-auto lg:mx-0">
+                      <div className="flex items-start justify-between mb-4">
+                        <h3 className="text-xl font-semibold text-primary line-clamp-2">
+                          {klyngCupPickleplex.name}
+                        </h3>
+                        {klyngCupPickleplex.status && (
+                          <span className={`chip ${getStatusChip(klyngCupPickleplex.status)}`}>
+                            {klyngCupPickleplex.status}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {klyngCupPickleplex.description && (
+                        <p className="text-muted text-sm mb-4 line-clamp-2">
+                          {klyngCupPickleplex.description}
+                        </p>
+                      )}
+                      
+                      <div className="space-y-2 mb-6">
+                        {klyngCupPickleplex.location && (
+                          <div className="flex items-center text-secondary">
+                            <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span className="text-sm">{klyngCupPickleplex.location}</span>
+                          </div>
+                        )}
+                        
+                        {klyngCupPickleplex.startDate && (
+                          <div className="flex items-center text-secondary">
+                            <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-sm tabular">
+                              {formatDate(klyngCupPickleplex.startDate)}
+                              {klyngCupPickleplex.endDate && klyngCupPickleplex.endDate !== klyngCupPickleplex.startDate && 
+                                ` - ${formatDate(klyngCupPickleplex.endDate)}`
+                              }
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Link 
+                          href={`/tournament/${klyngCupPickleplex.id}`}
+                          className="btn btn-primary flex-1"
+                        >
+                          View Results
+                        </Link>
+                        <SignedOut>
+                          <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${klyngCupPickleplex.id}`}>
+                            <button className="btn btn-secondary">
+                              Register
+                            </button>
+                          </SignUpButton>
+                        </SignedOut>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             {/* Right side - Photo */}
@@ -235,7 +277,7 @@ export default function Home() {
               <div className="relative h-96 lg:h-[500px] rounded-2xl overflow-hidden shadow-2xl">
                 <div 
                   className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-                  style={{ backgroundImage: 'url(/images/klyngcup.jpg)' }}
+                  style={{ backgroundImage: 'url(/images/klyngcup-trophy.jpeg)' }}
                 ></div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                 {/* Decorative elements */}

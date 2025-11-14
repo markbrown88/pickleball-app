@@ -63,8 +63,13 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     redirect('/');
   }
 
-  // Profile completion check is now handled in middleware.ts
-  // This ensures users cannot access any routes until profile is complete
+  // Check if profile is complete - redirect to profile page if incomplete
+  // This ensures users cannot access player routes until profile is complete
+  // Note: Profile page itself will handle incomplete profiles gracefully (shows setup form)
+  // The client-side check in dashboard/page components provides additional protection
+  if (!realPlayer.firstName || !realPlayer.lastName || !realPlayer.clubId) {
+    redirect('/profile');
+  }
 
   // Check for Act As cookie (set by client-side ActAsContext)
   const cookieStore = await cookies();

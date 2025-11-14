@@ -45,11 +45,11 @@ export function ProfilePageView() {
       if (response.ok) {
         const profile: UserProfile & { needsProfileSetup?: boolean } = await response.json();
         setUserProfile(profile);
-        // Check if profile needs setup (from API response or if missing required fields)
+        // Check if profile needs setup (minimum required: firstName, lastName, clubId)
+        // This matches the middleware check - users must complete these before accessing app
         const needsSetup = profile.needsProfileSetup || 
           !profile.firstName || 
           !profile.lastName || 
-          !profile.gender ||
           !profile.club;
         setNeedsProfileSetup(needsSetup);
       } else if (response.status === 404) {
