@@ -228,11 +228,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Check if player needs profile setup (missing required info or using defaults)
-    // A player needs setup if they're missing firstName, lastName, or if they don't have a proper club selection
+    // A player needs setup if they're missing firstName, lastName, or if they were auto-created with minimal info
+    // Also check if they're using default values (e.g., no phone, no city, etc.) which suggests incomplete profile
     const needsProfileSetup = 
       !finalPlayer.firstName || 
       !finalPlayer.lastName || 
-      !finalPlayer.gender;
+      !finalPlayer.gender ||
+      (!finalPlayer.phone && !finalPlayer.city); // If missing both phone and city, likely incomplete
 
     return NextResponse.json({
       id: finalPlayer.id,
