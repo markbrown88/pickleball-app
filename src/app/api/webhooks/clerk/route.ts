@@ -148,13 +148,29 @@ export async function POST(req: NextRequest) {
         });
       } else {
         console.log('No existing Player found with email:', email);
-        console.log('New Player record will be created by auth middleware');
+        console.log('Creating new Player record for Clerk user');
 
-        // No existing player found - the auth middleware will create a new Player record
+        // Create a new Player record for the new Clerk user
+        // Use email and any available name information from Clerk
+        const newPlayer = await prisma.player.create({
+          data: {
+            clerkUserId: clerkUserId,
+            email: email,
+            firstName: first_name || null,
+            lastName: last_name || null,
+            name: first_name && last_name ? `${first_name} ${last_name}` : first_name || last_name || null,
+            gender: 'MALE', // Default, can be updated later
+            country: 'Canada', // Default for this application
+          },
+        });
+
+        console.log('Successfully created new Player record:', newPlayer.id);
+
         return NextResponse.json({
           success: true,
-          action: 'none',
-          message: 'No existing player found, will be created by auth middleware',
+          action: 'created',
+          playerId: newPlayer.id,
+          clerkUserId,
         });
       }
     }
