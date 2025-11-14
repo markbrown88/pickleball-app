@@ -197,10 +197,18 @@ export async function POST(req: NextRequest) {
 
     // For other event types, just acknowledge
     return NextResponse.json({ success: true, eventType });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error processing Clerk webhook:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      code: error?.code,
+    });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+      },
       { status: 500 }
     );
   }
