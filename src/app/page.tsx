@@ -210,9 +210,6 @@ export default function Home() {
               <h1 className="text-5xl md:text-7xl font-bold text-primary mb-6">
                 Battle of the Clubs
           </h1>
-              <p className="text-xl md:text-2xl text-brand-secondary mb-4 font-semibold">
-                Battle of the Clubs
-              </p>
               <p className="text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-12 leading-relaxed">
                 A high-stakes, high-fun, co-ed interclub league where pride, teamwork, and performance take center court. 
                 Pickleball clubs compete in a customizable multi-stop championship series unlike anything else in the sport.
@@ -231,11 +228,13 @@ export default function Home() {
                   const isInviteOnly = klyngCupPickleplex.registrationStatus === 'INVITE_ONLY';
                   
                   return (
-                    <div className="card hover:shadow-lg transition-shadow duration-300 max-w-2xl mx-auto lg:mx-0">
-                      <div className="flex items-start justify-between mb-4">
-                        <h3 className="text-xl font-semibold text-primary line-clamp-2">
-                          {klyngCupPickleplex.name}
-                        </h3>
+                    <div className="max-w-2xl mx-auto lg:mx-0">
+                      <p className="text-sm text-white mb-2">Upcoming Tournament</p>
+                      <div className="card hover:shadow-lg transition-shadow duration-300">
+                        <div className="flex items-start justify-between mb-4">
+                          <h3 className="text-xl font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>
+                            {klyngCupPickleplex.name}
+                          </h3>
                         {klyngCupPickleplex.status && (
                           <span className={`chip ${getStatusChip(klyngCupPickleplex.status)}`}>
                             {klyngCupPickleplex.status}
@@ -311,6 +310,7 @@ export default function Home() {
                             </SignUpButton>
                           </SignedOut>
                         )}
+                      </div>
                       </div>
                     </div>
                   );
@@ -582,7 +582,7 @@ export default function Home() {
                     className="card hover:shadow-lg transition-shadow duration-300"
                   >
                     <div className="flex items-start justify-between mb-4">
-                      <h3 className="text-xl font-semibold text-primary line-clamp-2">
+                      <h3 className="text-xl font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>
                         {tournament.name}
                       </h3>
                       {tournament.status && (
