@@ -3,6 +3,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { UserButton, SignedIn, SignedOut, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
+import { formatDateRangeUTC } from '@/lib/utils';
+
+type TournamentStop = {
+  id: string;
+  name: string;
+  startAt: string | null;
+  endAt: string | null;
+  locationName: string | null;
+};
 
 type Tournament = { 
   id: string; 
@@ -14,6 +23,7 @@ type Tournament = {
   status?: string;
   registrationStatus?: string;
   createdAt: string;
+  stops?: TournamentStop[];
 };
 
 type UserProfile = {
@@ -43,10 +53,10 @@ export default function Home() {
       if (data.tournaments && Array.isArray(data.tournaments)) {
         const now = new Date(); // Current local time
         
-        // Filter to only show OPEN tournaments that haven't ended yet
-        const futureOpenTournaments = data.tournaments.filter((t: Tournament) => {
-          // Must be OPEN
-          if (t.registrationStatus !== 'OPEN') return false;
+        // Filter to show OPEN and INVITE_ONLY tournaments that haven't ended yet
+        const futureTournaments = data.tournaments.filter((t: Tournament) => {
+          // Must be OPEN or INVITE_ONLY
+          if (t.registrationStatus !== 'OPEN' && t.registrationStatus !== 'INVITE_ONLY') return false;
           
           // Check if tournament hasn't ended yet
           if (t.endDate) {
@@ -65,7 +75,7 @@ export default function Home() {
         });
         
         // Sort by start date, nearest first
-        const sorted = futureOpenTournaments.sort((a: Tournament, b: Tournament) => {
+        const sorted = futureTournaments.sort((a: Tournament, b: Tournament) => {
           const dateA = a.startDate ? new Date(a.startDate).getTime() : new Date(a.createdAt).getTime();
           const dateB = b.startDate ? new Date(b.startDate).getTime() : new Date(b.createdAt).getTime();
           return dateA - dateB;
@@ -105,13 +115,24 @@ export default function Home() {
     fetchTournaments();
   }, []);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+  // Helper function to find next upcoming stop for multi-stop tournaments
+  const getNextStop = (tournament: Tournament): TournamentStop | null => {
+    if (!tournament.stops || tournament.stops.length === 0) return null;
+    
+    const now = new Date();
+    const upcomingStops = tournament.stops
+      .filter(stop => {
+        if (!stop.startAt) return false;
+        const stopDate = new Date(stop.startAt);
+        return stopDate > now;
+      })
+      .sort((a, b) => {
+        const dateA = a.startAt ? new Date(a.startAt).getTime() : 0;
+        const dateB = b.startAt ? new Date(b.startAt).getTime() : 0;
+        return dateA - dateB;
+      });
+    
+    return upcomingStops.length > 0 ? upcomingStops[0] : null;
   };
 
   const getStatusChip = (status?: string) => {
@@ -205,6 +226,10 @@ export default function Home() {
                 );
                 
                 if (klyngCupPickleplex) {
+                  const nextStop = getNextStop(klyngCupPickleplex);
+                  const isMultiStop = klyngCupPickleplex.stops && klyngCupPickleplex.stops.length > 1;
+                  const isInviteOnly = klyngCupPickleplex.registrationStatus === 'INVITE_ONLY';
+                  
                   return (
                     <div className="card hover:shadow-lg transition-shadow duration-300 max-w-2xl mx-auto lg:mx-0">
                       <div className="flex items-start justify-between mb-4">
@@ -225,28 +250,48 @@ export default function Home() {
                       )}
                       
                       <div className="space-y-2 mb-6">
-                        {klyngCupPickleplex.location && (
-                          <div className="flex items-center text-secondary">
-                            <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span className="text-sm">{klyngCupPickleplex.location}</span>
-                          </div>
-                        )}
-                        
-                        {klyngCupPickleplex.startDate && (
-                          <div className="flex items-center text-secondary">
-                            <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            <span className="text-sm tabular">
-                              {formatDate(klyngCupPickleplex.startDate)}
-                              {klyngCupPickleplex.endDate && klyngCupPickleplex.endDate !== klyngCupPickleplex.startDate && 
-                                ` - ${formatDate(klyngCupPickleplex.endDate)}`
-                              }
-                            </span>
-                          </div>
+                        {isMultiStop && nextStop ? (
+                          <>
+                            <div className="flex items-center text-secondary">
+                              <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span className="text-sm">Next Stop: {nextStop.name}</span>
+                            </div>
+                            {nextStop.startAt && (
+                              <div className="flex items-center text-secondary">
+                                <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span className="text-sm tabular">
+                                  {formatDateRangeUTC(nextStop.startAt, nextStop.endAt)}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {klyngCupPickleplex.location && (
+                              <div className="flex items-center text-secondary">
+                                <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span className="text-sm">{klyngCupPickleplex.location}</span>
+                              </div>
+                            )}
+                            {klyngCupPickleplex.startDate && (
+                              <div className="flex items-center text-secondary">
+                                <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span className="text-sm tabular">
+                                  {formatDateRangeUTC(klyngCupPickleplex.startDate, klyngCupPickleplex.endDate)}
+                                </span>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                       
@@ -257,13 +302,15 @@ export default function Home() {
                         >
                           View Results
                         </Link>
-                        <SignedOut>
-                          <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${klyngCupPickleplex.id}`}>
-                            <button className="btn btn-secondary">
-                              Register
-                            </button>
-                          </SignUpButton>
-                        </SignedOut>
+                        {!isInviteOnly && (
+                          <SignedOut>
+                            <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${klyngCupPickleplex.id}`}>
+                              <button className="btn btn-secondary">
+                                Register
+                              </button>
+                            </SignUpButton>
+                          </SignedOut>
+                        )}
                       </div>
                     </div>
                   );
@@ -524,71 +571,99 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {tournaments.slice(0, 6).map((tournament) => (
-                <div 
-                  key={tournament.id} 
-                  className="card hover:shadow-lg transition-shadow duration-300"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <h3 className="text-xl font-semibold text-primary line-clamp-2">
-                      {tournament.name}
-                    </h3>
-                    {tournament.status && (
-                      <span className={`chip ${getStatusChip(tournament.status)}`}>
-                        {tournament.status}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {tournament.description && (
-                    <p className="text-muted text-sm mb-4 line-clamp-2">
-                      {tournament.description}
-                    </p>
-                  )}
-                  
-                  <div className="space-y-2 mb-6">
-                    {tournament.location && (
-                      <div className="flex items-center text-secondary">
-                        <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-sm">{tournament.location}</span>
-                      </div>
+              {tournaments.slice(0, 6).map((tournament) => {
+                const nextStop = getNextStop(tournament);
+                const isMultiStop = tournament.stops && tournament.stops.length > 1;
+                const isInviteOnly = tournament.registrationStatus === 'INVITE_ONLY';
+                
+                return (
+                  <div 
+                    key={tournament.id} 
+                    className="card hover:shadow-lg transition-shadow duration-300"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <h3 className="text-xl font-semibold text-primary line-clamp-2">
+                        {tournament.name}
+                      </h3>
+                      {tournament.status && (
+                        <span className={`chip ${getStatusChip(tournament.status)}`}>
+                          {tournament.status}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {tournament.description && (
+                      <p className="text-muted text-sm mb-4 line-clamp-2">
+                        {tournament.description}
+                      </p>
                     )}
                     
-                    {tournament.startDate && (
-                      <div className="flex items-center text-secondary">
-                        <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-sm tabular">
-                          {formatDate(tournament.startDate)}
-                          {tournament.endDate && tournament.endDate !== tournament.startDate && 
-                            ` - ${formatDate(tournament.endDate)}`
-                          }
-                        </span>
-                      </div>
-                    )}
+                    <div className="space-y-2 mb-6">
+                      {isMultiStop && nextStop ? (
+                        <>
+                          <div className="flex items-center text-secondary">
+                            <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span className="text-sm">Next Stop: {nextStop.name}</span>
+                          </div>
+                          {nextStop.startAt && (
+                            <div className="flex items-center text-secondary">
+                              <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-sm tabular">
+                                {formatDateRangeUTC(nextStop.startAt, nextStop.endAt)}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {tournament.location && (
+                            <div className="flex items-center text-secondary">
+                              <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span className="text-sm">{tournament.location}</span>
+                            </div>
+                          )}
+                          {tournament.startDate && (
+                            <div className="flex items-center text-secondary">
+                              <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-sm tabular">
+                                {formatDateRangeUTC(tournament.startDate, tournament.endDate)}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Link 
+                        href={`/tournament/${tournament.id}`}
+                        className="btn btn-primary flex-1"
+                      >
+                        View Results
+                      </Link>
+                      {!isInviteOnly && (
+                        <SignedOut>
+                          <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${tournament.id}`}>
+                            <button className="btn btn-secondary">
+                              Register
+                            </button>
+                          </SignUpButton>
+                        </SignedOut>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="flex gap-2">
-                    <Link 
-                      href={`/tournament/${tournament.id}`}
-                      className="btn btn-primary flex-1"
-                    >
-                      View Results
-                    </Link>
-                    <SignedOut>
-                      <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${tournament.id}`}>
-                        <button className="btn btn-secondary">
-                          Register
-                        </button>
-                      </SignUpButton>
-                    </SignedOut>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
