@@ -131,10 +131,22 @@ export function ProfilePageView() {
         });
 
         if (response.ok) {
-          const profile: UserProfile = await response.json();
+          const profile: UserProfile & { needsProfileSetup?: boolean } = await response.json();
           setUserProfile(profile);
-          setNeedsProfileSetup(false);
-          handleInfo('Profile saved successfully');
+          // Check if profile is now complete
+          const needsSetup = profile.needsProfileSetup || 
+            !profile.firstName || 
+            !profile.lastName || 
+            !profile.club;
+          setNeedsProfileSetup(needsSetup);
+          
+          if (!needsSetup) {
+            handleInfo('Profile saved successfully');
+            // Redirect to dashboard after successful profile completion
+            window.location.href = '/dashboard';
+          } else {
+            handleInfo('Profile updated. Please complete all required fields.');
+          }
           return true;
         }
 
