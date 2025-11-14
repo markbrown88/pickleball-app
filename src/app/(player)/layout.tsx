@@ -7,6 +7,14 @@ import { prisma } from '@/server/db';
 import { AppShell } from '../shared/AppShell';
 import { getAvailableUsers } from '../shared/getAvailableUsers';
 
+// Helper to check if current path is profile page
+function isProfilePage(headersList: Headers): boolean {
+  const pathname = headersList.get('x-pathname') || 
+                   headersList.get('x-invoke-path') ||
+                   headersList.get('referer') || '';
+  return pathname.includes('/profile');
+}
+
 async function getUserRoleByPlayerId(playerId: string): Promise<'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player'> {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
@@ -63,11 +71,20 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     redirect('/');
   }
 
-  // Check if profile is complete - redirect to profile page if incomplete
-  // This ensures users cannot access player routes until profile is complete
-  // Note: Profile page itself will handle incomplete profiles gracefully (shows setup form)
-  // The client-side check in dashboard/page components provides additional protection
-  if (!realPlayer.firstName || !realPlayer.lastName || !realPlayer.clubId) {
+  // Check if profile is complete - minimum required: firstName, lastName, and clubId
+  // Allow access to /profile page so users can complete their profile
+  // Block access to all other player routes until profile is complete
+  const headersList = await headers();
+  const pathnameHeader = headersList.get('x-pathname') || 
+                         headersList.get('x-invoke-path') ||
+                         headersList.get('referer') || '';
+  
+  // Check if user is trying to access profile page (allow it even if incomplete)
+  const isAccessingProfile = pathnameHeader.includes('/profile');
+  
+  // If profile is incomplete and user is NOT on profile page, redirect to profile
+  const profileIncomplete = !realPlayer.firstName || !realPlayer.lastName || !realPlayer.clubId;
+  if (profileIncomplete && !isAccessingProfile) {
     redirect('/profile');
   }
 
