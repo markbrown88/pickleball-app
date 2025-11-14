@@ -49,7 +49,7 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
   }
 
   // Get the real authenticated user's player record with profile completion check
-  const realPlayer = await prisma.player.findUnique({
+  let realPlayer = await prisma.player.findUnique({
     where: { clerkUserId: user.id },
     select: { 
       id: true, 
@@ -60,8 +60,63 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     }
   });
 
+  // If no Player record exists, create one automatically (fallback if webhook didn't work)
   if (!realPlayer) {
-    redirect('/');
+    const userEmail = user.emailAddresses?.[0]?.emailAddress;
+    
+    if (!userEmail) {
+      // No email, can't create player - redirect to sign in
+      redirect('/sign-in');
+    }
+
+    try {
+      // Find a default club to assign to the new player
+      const defaultClub = await prisma.club.findFirst({
+        orderBy: { name: 'asc' },
+        select: { id: true },
+      });
+
+      if (!defaultClub) {
+        console.error('Layout: No clubs found in database. Cannot create Player without a club.');
+        redirect('/sign-in');
+      }
+
+      // Get name from Clerk user
+      const firstName = user.firstName || null;
+      const lastName = user.lastName || null;
+      const name = firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName || null;
+
+      // Create the player record
+      realPlayer = await prisma.player.create({
+        data: {
+          clerkUserId: user.id,
+          email: userEmail.toLowerCase(),
+          firstName,
+          lastName,
+          name,
+          gender: 'MALE', // Default, can be updated later
+          country: 'Canada', // Default for this application
+          clubId: defaultClub.id, // Required field - assign to first available club
+        },
+        select: {
+          id: true,
+          isAppAdmin: true,
+          firstName: true,
+          lastName: true,
+          clubId: true,
+        }
+      });
+
+      console.log('Layout: Successfully created Player record automatically:', {
+        id: realPlayer.id,
+        email: userEmail,
+        clerkUserId: user.id
+      });
+    } catch (createError: any) {
+      console.error('Layout: Error creating Player record automatically:', createError);
+      // If creation fails, redirect to sign in
+      redirect('/sign-in');
+    }
   }
 
   // Profile completion check is handled by ProfileGuard (client-side)
