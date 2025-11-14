@@ -148,6 +148,27 @@ export async function GET(req: NextRequest) {
           email: player.email,
           clerkUserId: player.clerkUserId
         });
+        
+        // Mark that this player needs profile setup since it was auto-created with defaults
+        return NextResponse.json({
+          id: player.id,
+          clerkUserId: player.clerkUserId,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          name: player.name,
+          email: player.email,
+          phone: player.phone,
+          gender: player.gender,
+          dupr: player.dupr,
+          age: player.age,
+          birthday: player.birthday,
+          city: player.city,
+          region: player.region,
+          country: player.country,
+          club: player.club,
+          isAppAdmin: player.isAppAdmin,
+          needsProfileSetup: true, // Signal that profile needs to be completed
+        });
       } catch (createError: any) {
         console.error('Auth API: Error creating Player record automatically:', createError);
         // If creation fails, return error (don't crash)
@@ -206,6 +227,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
     }
 
+    // Check if player needs profile setup (missing required info or using defaults)
+    // A player needs setup if they're missing firstName, lastName, or if they don't have a proper club selection
+    const needsProfileSetup = 
+      !finalPlayer.firstName || 
+      !finalPlayer.lastName || 
+      !finalPlayer.gender;
+
     return NextResponse.json({
       id: finalPlayer.id,
       clerkUserId: finalPlayer.clerkUserId,
@@ -222,7 +250,8 @@ export async function GET(req: NextRequest) {
       region: finalPlayer.region,
       country: finalPlayer.country,
       club: finalPlayer.club,
-      isAppAdmin: finalPlayer.isAppAdmin
+      isAppAdmin: finalPlayer.isAppAdmin,
+      needsProfileSetup: needsProfileSetup || undefined, // Only include if true
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);

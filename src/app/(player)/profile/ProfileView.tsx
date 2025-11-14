@@ -43,9 +43,15 @@ export function ProfilePageView() {
     try {
       const response = await fetchWithActAs(PROFILE_ENDPOINT);
       if (response.ok) {
-        const profile: UserProfile = await response.json();
+        const profile: UserProfile & { needsProfileSetup?: boolean } = await response.json();
         setUserProfile(profile);
-        setNeedsProfileSetup(false);
+        // Check if profile needs setup (from API response or if missing required fields)
+        const needsSetup = profile.needsProfileSetup || 
+          !profile.firstName || 
+          !profile.lastName || 
+          !profile.gender ||
+          !profile.club;
+        setNeedsProfileSetup(needsSetup);
       } else if (response.status === 404) {
         setNeedsProfileSetup(true);
         setUserProfile(null);
