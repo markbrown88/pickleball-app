@@ -82,15 +82,15 @@ export default function ClubRegistrationClient() {
     <div className="min-h-screen bg-app">
       <header className="bg-surface-1 border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-20 md:h-20 py-2.5">
             <div className="flex items-center">
               <Link href="/" className="flex items-center">
                 <Image 
                   src="/images/klyng-cup.png" 
                   alt="Klyng Cup" 
                   width={120} 
-                  height={40}
-                  className="h-8 w-auto"
+                  height={65}
+                  className="h-8 md:h-[65px] w-auto"
                   priority
                 />
               </Link>
