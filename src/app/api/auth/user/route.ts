@@ -227,14 +227,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
     }
 
-    // Check if player needs profile setup (missing required info or using defaults)
-    // A player needs setup if they're missing firstName, lastName, or if they were auto-created with minimal info
-    // Also check if they're using default values (e.g., no phone, no city, etc.) which suggests incomplete profile
+    // Check if player needs profile setup (minimum required: firstName, lastName, clubId)
+    // This is the minimum required to access the app - other fields can be added later
     const needsProfileSetup = 
       !finalPlayer.firstName || 
       !finalPlayer.lastName || 
-      !finalPlayer.gender ||
-      (!finalPlayer.phone && !finalPlayer.city); // If missing both phone and city, likely incomplete
+      !finalPlayer.clubId;
 
     return NextResponse.json({
       id: finalPlayer.id,

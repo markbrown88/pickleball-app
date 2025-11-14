@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { currentUser } from '@clerk/nextjs/server';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { prisma } from '@/server/db';
 
 import { AppShell } from '../shared/AppShell';
@@ -47,15 +47,24 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     redirect('/');
   }
 
-  // Get the real authenticated user's player record
+  // Get the real authenticated user's player record with profile completion check
   const realPlayer = await prisma.player.findUnique({
     where: { clerkUserId: user.id },
-    select: { id: true, isAppAdmin: true }
+    select: { 
+      id: true, 
+      isAppAdmin: true,
+      firstName: true,
+      lastName: true,
+      clubId: true,
+    }
   });
 
   if (!realPlayer) {
     redirect('/');
   }
+
+  // Profile completion check is now handled in middleware.ts
+  // This ensures users cannot access any routes until profile is complete
 
   // Check for Act As cookie (set by client-side ActAsContext)
   const cookieStore = await cookies();
