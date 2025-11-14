@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { UserButton, SignedIn, SignedOut, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 import { formatDateRangeUTC } from '@/lib/utils';
 
@@ -155,8 +156,15 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-primary">
-                Klyng Cup
+              <Link href="/" className="flex items-center">
+                <Image 
+                  src="/images/klyng-cup.png" 
+                  alt="Klyng Cup" 
+                  width={120} 
+                  height={40}
+                  className="h-8 w-auto"
+                  priority
+                />
               </Link>
             </div>
             <nav className="hidden md:flex items-center space-x-8">
@@ -229,7 +237,7 @@ export default function Home() {
                   
                   return (
                     <div className="max-w-2xl mx-auto lg:mx-0">
-                      <p className="text-sm text-white mb-2">Upcoming Tournament</p>
+                      <p className="text-sm text-white mb-2 font-bold uppercase">Upcoming Tournament</p>
                       <div className="card hover:shadow-lg transition-shadow duration-300">
                         <div className="flex items-start justify-between mb-4">
                           <h3 className="text-xl font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>

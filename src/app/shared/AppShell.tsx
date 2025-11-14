@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 
 import { Navigation, getNavigationItems, type UserRole } from './Navigation';
@@ -83,8 +84,15 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
           `}>
             <div className="px-4 py-5 border-b border-subtle">
               <div className="flex items-center justify-between">
-                <Link href="/" className="text-lg font-semibold text-primary">
-                  Klyng Cup
+                <Link href="/" className="flex items-center">
+                  <Image 
+                    src="/images/klyng-cup.png" 
+                    alt="Klyng Cup" 
+                    width={120} 
+                    height={40}
+                    className="h-6 w-auto"
+                    priority
+                  />
                 </Link>
                 {/* Mobile close button */}
                 <button
