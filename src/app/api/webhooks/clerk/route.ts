@@ -150,6 +150,25 @@ export async function POST(req: NextRequest) {
         console.log('No existing Player found with email:', email);
         console.log('Creating new Player record for Clerk user');
 
+        // Find a default club to assign to the new player
+        // Try to find the first club alphabetically, or create a default one if none exists
+        let defaultClub = await prisma.club.findFirst({
+          orderBy: { name: 'asc' },
+          select: { id: true },
+        });
+
+        // If no clubs exist, we need to handle this - but this should be rare
+        // For now, we'll log an error and return - the player can be created later via profile setup
+        if (!defaultClub) {
+          console.error('No clubs found in database. Cannot create Player without a club.');
+          return NextResponse.json({
+            success: false,
+            action: 'failed',
+            error: 'No clubs available. Player must be created manually or after a club is added.',
+            message: 'Please contact support or complete your profile setup.',
+          }, { status: 500 });
+        }
+
         // Create a new Player record for the new Clerk user
         // Use email and any available name information from Clerk
         const newPlayer = await prisma.player.create({
@@ -161,10 +180,11 @@ export async function POST(req: NextRequest) {
             name: first_name && last_name ? `${first_name} ${last_name}` : first_name || last_name || null,
             gender: 'MALE', // Default, can be updated later
             country: 'Canada', // Default for this application
+            clubId: defaultClub.id, // Required field - assign to first available club
           },
         });
 
-        console.log('Successfully created new Player record:', newPlayer.id);
+        console.log('Successfully created new Player record:', newPlayer.id, 'with club:', defaultClub.id);
 
         return NextResponse.json({
           success: true,
