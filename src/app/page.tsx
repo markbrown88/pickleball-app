@@ -208,7 +208,7 @@ export default function Home() {
             {/* Left side - Content */}
             <div className="text-center lg:text-left">
               <h1 className="text-5xl md:text-7xl font-bold text-primary mb-6">
-                Klyng Cup
+                Battle of the Clubs
           </h1>
               <p className="text-xl md:text-2xl text-brand-secondary mb-4 font-semibold">
                 Battle of the Clubs

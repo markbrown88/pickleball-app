@@ -439,14 +439,11 @@ export default function RulesPage() {
             Now that you understand the format, join the most exciting pickleball tournament experience.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/tournaments" className="btn btn-secondary text-lg py-4 px-8">
-              View Tournaments
-            </Link>
             <Link 
               href="/clubs"
-              className="btn btn-ghost text-lg py-4 px-8 border-white text-white hover:bg-white hover:text-brand-primary"
+              className="btn btn-secondary text-lg py-4 px-8"
             >
-              Register Your Club
+              Register Now!
             </Link>
           </div>
         </div>
