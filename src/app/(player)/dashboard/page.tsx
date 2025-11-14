@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { useAuth, useUser, SignInButton } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import type { PlayerRegistration, Tournament, TournamentsResponse, UserProfile } from '@/types';
@@ -143,11 +144,48 @@ async function fetchDashboardData(): Promise<{
 export default function DashboardPage() {
   const { isSignedIn } = useAuth();
   const { isLoaded: userLoaded } = useUser();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [activeSection, setActiveSection] = useState<'tournaments' | 'registrations'>('tournaments');
 
   const [state, dispatch] = useReducer(dashboardReducer, initialState);
   const { overview, err, tournaments, registrations, loading } = state;
+
+  // Check if profile needs setup and redirect if necessary
+  useEffect(() => {
+    if (!userLoaded || !isSignedIn) return;
+
+    let cancelled = false;
+
+    const checkProfileSetup = async () => {
+      try {
+        const profileResponse = await fetchWithActAs(PROFILE_ENDPOINT);
+        if (profileResponse.ok) {
+          const profile: UserProfile & { needsProfileSetup?: boolean } = await profileResponse.json();
+          // Check if profile needs setup (from API response or if missing required fields)
+          const needsSetup = profile.needsProfileSetup || 
+            !profile.firstName || 
+            !profile.lastName || 
+            !profile.gender ||
+            !profile.club;
+          
+          if (needsSetup && !cancelled) {
+            // Redirect to profile page to complete setup
+            router.push('/profile');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking profile setup:', error);
+      }
+    };
+
+    void checkProfileSetup();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, userLoaded, router]);
 
   useEffect(() => {
     if (!userLoaded || !isSignedIn) return;
