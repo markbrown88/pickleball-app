@@ -94,6 +94,71 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // If no player found, create one automatically (fallback if webhook didn't work)
+    if (!player && userEmail) {
+      console.log('Auth API: No player record found, creating one automatically for user:', userId);
+      
+      try {
+        // Find a default club to assign to the new player
+        const defaultClub = await prisma.club.findFirst({
+          orderBy: { name: 'asc' },
+          select: { id: true },
+        });
+
+        if (!defaultClub) {
+          console.error('Auth API: No clubs found in database. Cannot create Player without a club.');
+          return NextResponse.json({ 
+            error: 'Player profile not found', 
+            needsProfileSetup: true,
+            message: 'Please complete your profile setup to continue.' 
+          }, { status: 404 });
+        }
+
+        // Get name from Clerk user
+        const firstName = clerkUser?.firstName || null;
+        const lastName = clerkUser?.lastName || null;
+        const name = firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName || null;
+
+        // Create the player record
+        player = await prisma.player.create({
+          data: {
+            clerkUserId: userId,
+            email: userEmail.toLowerCase(),
+            firstName,
+            lastName,
+            name,
+            gender: 'MALE', // Default, can be updated later
+            country: 'Canada', // Default for this application
+            clubId: defaultClub.id, // Required field - assign to first available club
+          },
+          include: {
+            club: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                region: true
+              }
+            }
+          }
+        });
+
+        console.log('Auth API: Successfully created Player record automatically:', {
+          id: player.id,
+          email: player.email,
+          clerkUserId: player.clerkUserId
+        });
+      } catch (createError: any) {
+        console.error('Auth API: Error creating Player record automatically:', createError);
+        // If creation fails, return error (don't crash)
+        return NextResponse.json({ 
+          error: 'Failed to create player profile', 
+          needsProfileSetup: true,
+          message: 'Please complete your profile setup to continue.' 
+        }, { status: 500 });
+      }
+    }
+
     if (!player) {
       console.log('Auth API: No player record found for user:', userId);
       return NextResponse.json({ 
