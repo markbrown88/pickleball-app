@@ -119,9 +119,14 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     }
   }
 
-  // Profile completion check is handled by ProfileGuard (client-side)
-  // This allows users to access /profile to complete their profile
-  // ProfileGuard will redirect incomplete profiles away from other routes
+  // Check if profile is complete - minimum required: firstName, lastName, and clubId
+  // Server-side check: redirect to profile if incomplete
+  // Client-side ProfileGuard component provides additional protection and handles pathname detection
+  const profileIncomplete = !realPlayer.firstName || !realPlayer.lastName || !realPlayer.clubId;
+  if (profileIncomplete) {
+    // Always redirect to profile - the ProfileGuard will allow access to /profile itself
+    redirect('/profile');
+  }
 
   // Check for Act As cookie (set by client-side ActAsContext)
   const cookieStore = await cookies();
