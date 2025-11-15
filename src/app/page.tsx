@@ -154,7 +154,7 @@ export default function Home() {
       {/* Header */}
       <header className="bg-surface-1 border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 md:h-20 py-2.5">
+          <div className="flex items-center justify-between h-24 md:h-24 py-[10px]">
             <div className="flex items-center">
               <Link href="/" className="flex items-center">
                 <Image 
@@ -655,6 +655,8 @@ export default function Home() {
                     <div className="flex gap-2">
                       <Link 
                         href={`/tournament/${tournament.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="btn btn-primary flex-1"
                       >
                         View Results

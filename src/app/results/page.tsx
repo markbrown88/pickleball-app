@@ -10,6 +10,7 @@ interface Tournament {
   description?: string;
   startDate?: string;
   endDate?: string;
+  registrationStatus?: string;
 }
 
 export default function TournamentsPage() {
@@ -28,7 +29,9 @@ export default function TournamentsPage() {
       if (response.ok) {
         const data = await response.json();
         const items = Array.isArray(data?.tournaments) ? data.tournaments : [];
-        setTournaments(items);
+        // Filter to only show OPEN tournaments (exclude CLOSED)
+        const openTournaments = items.filter((t: Tournament) => t.registrationStatus === 'OPEN');
+        setTournaments(openTournaments);
       } else {
         setError('Failed to load tournaments');
       }

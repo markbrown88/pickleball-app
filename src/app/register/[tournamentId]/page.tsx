@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { TournamentRegistrationFlow } from './TournamentRegistrationFlow';
@@ -46,6 +46,10 @@ export default async function RegisterPage({ params }: PageProps) {
   let registeredStopIds: string[] = [];
 
   if (userId) {
+    // Get Clerk user email for newly signed up users
+    const clerkUser = await currentUser();
+    const clerkEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || '';
+
     // Check for Act As cookie
     const cookieStore = await cookies();
     const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
@@ -77,8 +81,16 @@ export default async function RegisterPage({ params }: PageProps) {
         initialPlayerInfo = {
           firstName: player.firstName || '',
           lastName: player.lastName || '',
-          email: player.email || '',
+          email: player.email || clerkEmail, // Use player email, fallback to Clerk email
           phone: player.phone || '',
+        };
+      } else if (clerkEmail) {
+        // Player doesn't exist yet (newly signed up), use Clerk email
+        initialPlayerInfo = {
+          firstName: clerkUser?.firstName || '',
+          lastName: clerkUser?.lastName || '',
+          email: clerkEmail,
+          phone: '',
         };
       }
 
