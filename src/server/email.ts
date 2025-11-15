@@ -5,6 +5,7 @@ interface SendEmailOptions {
   subject: string;
   html: string;
   from?: string;
+  bcc?: string | string[];
 }
 
 export async function sendEmail(options: SendEmailOptions) {
@@ -18,6 +19,7 @@ export async function sendEmail(options: SendEmailOptions) {
       to: options.to,
       subject: options.subject,
       from: fromAddress,
+      bcc: options.bcc,
       note: 'RESEND_API_KEY not configured - email not actually sent. Set RESEND_API_KEY in .env.local to enable email sending.'
     });
     return;
@@ -25,17 +27,25 @@ export async function sendEmail(options: SendEmailOptions) {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const result = await resend.emails.send({
+    const emailData: any = {
       from: fromAddress,
       to: options.to,
       subject: options.subject,
       html: options.html
-    });
+    };
+    
+    // Add BCC if provided
+    if (options.bcc) {
+      emailData.bcc = Array.isArray(options.bcc) ? options.bcc : [options.bcc];
+    }
+    
+    const result = await resend.emails.send(emailData);
 
     console.log('[Email sent successfully]', {
       to: options.to,
       subject: options.subject,
       from: fromAddress,
+      bcc: options.bcc,
       resendId: result.data?.id,
     });
 
@@ -1412,7 +1422,8 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
   await sendEmail({
     to,
     subject: `Payment Receipt: ${tournamentName}`,
-    html
+    html,
+    bcc: ['markbrown8@gmail.com', 'lily226@gmail.com'],
   });
 }
 
