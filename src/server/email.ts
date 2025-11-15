@@ -1158,7 +1158,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
     clubName,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
 
   // Format date for email: Fri., Nov. 21 - Sat., Nov. 22, 2025
@@ -1377,7 +1377,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Details</a>
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Scores</a>
                     </div>
 
                     <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
