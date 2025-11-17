@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
         select: {
           id: true,
           notes: true,
+          paymentStatus: true, // Need to check payment status
         },
       });
 
@@ -156,6 +157,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Only block overlapping stops if the existing registration is PAID or COMPLETED
+        // If it's PENDING, allow them to proceed to payment
+        const isPaid = existingReg.paymentStatus === 'PAID' || existingReg.paymentStatus === 'COMPLETED';
+
         // Check if tournament has multiple stops
         const tournamentStops = await prisma.stop.findMany({
           where: { tournamentId },
@@ -165,9 +170,10 @@ export async function POST(request: NextRequest) {
 
         if (hasMultipleStops) {
           // Check for overlap between existing stops and new stops
+          // Only block if the existing registration is paid
           const overlappingStops = selectedStopIds.filter((stopId: string) => existingStopIds.includes(stopId));
           
-          if (overlappingStops.length > 0) {
+          if (overlappingStops.length > 0 && isPaid) {
             // Get stop names for better error message
             const overlappingStopNames = await prisma.stop.findMany({
               where: { id: { in: overlappingStops } },
@@ -183,13 +189,16 @@ export async function POST(request: NextRequest) {
               { status: 409 }
             );
           }
-          // No overlap - will update existing registration to include new stops
+          // No overlap OR existing registration is PENDING - will update existing registration to include new stops
         } else {
-          // Single stop tournament - block duplicate registration
-          return NextResponse.json(
-            { error: 'A registration with this email already exists for this tournament' },
-            { status: 409 }
-          );
+          // Single stop tournament - only block if paid
+          if (isPaid) {
+            return NextResponse.json(
+              { error: 'A registration with this email already exists for this tournament' },
+              { status: 409 }
+            );
+          }
+          // If PENDING, allow them to proceed to payment
         }
       }
     }
