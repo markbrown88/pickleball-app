@@ -63,21 +63,35 @@ export type RegistrationData = {
 type TournamentRegistrationFlowProps = {
   tournament: TournamentData;
   initialPlayerInfo?: PlayerInfo | null;
-  registeredStopIds?: string[]; // Stops the player has already registered for
+  registeredStopIds?: string[]; // Stops the player has already registered for (paid)
+  pendingRegistration?: {
+    stopIds: string[];
+    brackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }>;
+    clubId?: string;
+    playerInfo?: { firstName: string; lastName: string; email: string; phone: string };
+  } | null;
 };
 
-export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, registeredStopIds = [] }: TournamentRegistrationFlowProps) {
+export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, registeredStopIds = [], pendingRegistration }: TournamentRegistrationFlowProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('info');
+  
+  // Pre-populate from pending registration if available
+  const initialStopIds = pendingRegistration?.stopIds || [];
+  const initialBrackets = pendingRegistration?.brackets || [];
+  const initialClubId = pendingRegistration?.clubId;
+  const pendingPlayerInfo = pendingRegistration?.playerInfo;
+  
   const [registrationData, setRegistrationData] = useState<RegistrationData>({
-    playerInfo: initialPlayerInfo || {
+    playerInfo: pendingPlayerInfo || initialPlayerInfo || {
       firstName: '',
       lastName: '',
       email: '',
       phone: '',
     },
-    selectedStopIds: [],
-    selectedBrackets: [],
+    selectedStopIds: initialStopIds,
+    selectedBrackets: initialBrackets,
+    selectedClubId: initialClubId,
   });
 
   const handleCancel = () => {
@@ -203,6 +217,7 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, regi
                 selectedClubId={registrationData.selectedClubId}
                 onClubUpdate={updateSelectedClub}
                 registeredStopIds={registeredStopIds}
+                pendingStopIds={pendingRegistration?.stopIds || []}
               />
             )}
 

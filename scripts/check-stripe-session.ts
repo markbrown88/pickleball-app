@@ -1,129 +1,83 @@
-import { PrismaClient } from '@prisma/client';
-import { stripe } from '../src/lib/stripe/config';
+// Load environment variables from .env.local
+import { config } from 'dotenv';
+import { resolve } from 'path';
+config({ path: resolve(process.cwd(), '.env.local') });
 
-const prisma = new PrismaClient();
+import Stripe from 'stripe';
 
-async function checkStripeSession(registrationId: string) {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2025-10-29.clover',
+});
+
+async function checkStripeSession(sessionId: string) {
   try {
-    console.log(`\n=== Checking Stripe Session for Registration: ${registrationId} ===\n`);
+    console.log(`\n=== Checking Stripe Session: ${sessionId} ===\n`);
 
-    // Get registration
-    const registration = await prisma.tournamentRegistration.findUnique({
-      where: { id: registrationId },
-      select: {
-        id: true,
-        notes: true,
-        paymentStatus: true,
-        paymentId: true,
-        amountPaid: true,
-      },
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['payment_intent', 'line_items'],
     });
 
-    if (!registration) {
-      console.log('❌ Registration not found!');
-      return;
-    }
+    console.log(`Session Status: ${session.status}`);
+    console.log(`Payment Status: ${session.payment_status}`);
+    console.log(`Amount Total: $${((session.amount_total || 0) / 100).toFixed(2)}`);
+    console.log(`Currency: ${session.currency}`);
+    console.log(`Customer Email: ${session.customer_email || 'None'}`);
+    console.log(`Created: ${new Date(session.created * 1000).toISOString()}`);
 
-    // Parse notes to get Stripe session ID
-    let stripeSessionId: string | null = null;
-    if (registration.notes) {
-      try {
-        const notes = JSON.parse(registration.notes);
-        stripeSessionId = notes.stripeSessionId || null;
-      } catch (e) {
-        console.log('Failed to parse notes');
-      }
-    }
-
-    if (!stripeSessionId) {
-      console.log('❌ No Stripe Session ID found in registration notes');
-      return;
-    }
-
-    console.log('Stripe Session ID:', stripeSessionId);
-    console.log('Current Payment Status:', registration.paymentStatus);
-    console.log('Payment ID:', registration.paymentId || 'None');
-    console.log('Amount Paid:', registration.amountPaid ? `$${(registration.amountPaid / 100).toFixed(2)}` : 'None');
-
-    // Retrieve Stripe session
-    try {
-      const session = await stripe.checkout.sessions.retrieve(stripeSessionId);
+    if (session.payment_intent) {
+      const paymentIntent = typeof session.payment_intent === 'string' 
+        ? await stripe.paymentIntents.retrieve(session.payment_intent)
+        : session.payment_intent;
       
-      console.log('\n📋 Stripe Session Details:');
-      console.log('  ID:', session.id);
-      console.log('  Status:', session.status);
-      console.log('  Payment Status:', session.payment_status);
-      console.log('  Payment Intent:', session.payment_intent || 'None');
-      console.log('  Amount Total:', session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : 'None');
-      console.log('  Currency:', session.currency);
-      console.log('  Customer Email:', session.customer_email || 'None');
-      console.log('  Created:', new Date(session.created * 1000).toISOString());
+      console.log(`\n--- Payment Intent ---`);
+      console.log(`   ID: ${paymentIntent.id}`);
+      console.log(`   Status: ${paymentIntent.status}`);
+      console.log(`   Amount: $${((paymentIntent.amount || 0) / 100).toFixed(2)}`);
+      console.log(`   Currency: ${paymentIntent.currency}`);
+      console.log(`   Created: ${new Date(paymentIntent.created * 1000).toISOString()}`);
       
-      if (session.payment_status === 'paid' && session.payment_intent) {
-        console.log('\n✅ Payment is confirmed in Stripe!');
-        console.log('  Payment Intent ID:', session.payment_intent);
-        
-        // Check if payment intent ID is in registration notes
-        if (registration.notes) {
-          try {
-            const notes = JSON.parse(registration.notes);
-            if (notes.paymentIntentId === session.payment_intent) {
-              console.log('  ✅ Payment Intent ID is stored in registration notes');
-            } else {
-              console.log('  ⚠️  Payment Intent ID is NOT stored in registration notes');
-              console.log('  Expected:', session.payment_intent);
-              console.log('  Found:', notes.paymentIntentId || 'None');
-            }
-          } catch (e) {
-            console.log('  ⚠️  Could not parse notes to check paymentIntentId');
-          }
-        }
-
-        // Check if registration is marked as PAID
-        if (registration.paymentStatus === 'PAID') {
-          console.log('  ✅ Registration is marked as PAID in database');
-        } else {
-          console.log('  ❌ Registration is NOT marked as PAID in database');
-          console.log('  Current status:', registration.paymentStatus);
-        }
-      } else {
-        console.log('\n⚠️  Payment is not confirmed in Stripe');
-        console.log('  Payment Status:', session.payment_status);
-      }
-
-      // Retrieve payment intent if it exists
-      if (session.payment_intent) {
-        try {
-          const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
-          console.log('\n💳 Payment Intent Details:');
-          console.log('  ID:', paymentIntent.id);
-          console.log('  Status:', paymentIntent.status);
-          console.log('  Amount:', `$${(paymentIntent.amount / 100).toFixed(2)}`);
-          console.log('  Currency:', paymentIntent.currency);
-          console.log('  Created:', new Date(paymentIntent.created * 1000).toISOString());
-        } catch (e) {
-          console.log('  ⚠️  Could not retrieve payment intent:', e);
+      if (paymentIntent.charges && paymentIntent.charges.data.length > 0) {
+        console.log(`\n   Charges:`);
+        for (const charge of paymentIntent.charges.data) {
+          console.log(`     - ${charge.id}: ${charge.status} ($${((charge.amount || 0) / 100).toFixed(2)})`);
         }
       }
-
-    } catch (error: any) {
-      console.error('❌ Error retrieving Stripe session:', error.message);
+    } else {
+      console.log(`\n⚠️  No payment intent found for this session`);
     }
 
-  } catch (error) {
-    console.error('❌ Error:', error);
-  } finally {
-    await prisma.$disconnect();
+    if (session.line_items) {
+      const lineItems = await stripe.checkout.sessions.listLineItems(sessionId);
+      console.log(`\n--- Line Items ---`);
+      for (const item of lineItems.data) {
+        console.log(`   - ${item.description}: $${((item.amount_total || 0) / 100).toFixed(2)}`);
+      }
+    }
+
+    console.log(`\n--- Metadata ---`);
+    console.log(JSON.stringify(session.metadata || {}, null, 2));
+
+  } catch (error: any) {
+    console.error(`\n❌ Error:`, error.message);
+    if (error.type === 'StripeInvalidRequestError') {
+      console.error(`   This session may not exist or may have been deleted`);
+    }
   }
 }
 
-// Get registration ID from command line args
-const registrationId = process.argv[2];
-
-if (!registrationId) {
-  console.error('Usage: tsx scripts/check-stripe-session.ts <registrationId>');
+const sessionId = process.argv[2];
+if (!sessionId) {
+  console.error('Usage: npx tsx scripts/check-stripe-session.ts <sessionId>');
+  console.error('Example: npx tsx scripts/check-stripe-session.ts cs_live_...');
   process.exit(1);
 }
 
-checkStripeSession(registrationId);
-
+checkStripeSession(sessionId)
+  .then(() => {
+    console.log('\n✅ Check complete');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('\n❌ Failed:', error);
+    process.exit(1);
+  });

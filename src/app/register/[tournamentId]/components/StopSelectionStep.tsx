@@ -30,7 +30,8 @@ type StopSelectionStepProps = {
   clubs: Club[];
   selectedClubId?: string;
   onClubUpdate: (clubId: string) => void;
-  registeredStopIds?: string[]; // Stops the player has already registered for
+  registeredStopIds?: string[]; // Stops the player has already registered for (paid)
+  pendingStopIds?: string[]; // Stops in pending registration
 };
 
 export function StopSelectionStep({
@@ -45,6 +46,7 @@ export function StopSelectionStep({
   selectedClubId,
   onClubUpdate,
   registeredStopIds = [],
+  pendingStopIds = [],
 }: StopSelectionStepProps) {
   const [error, setError] = useState<string>('');
 
@@ -72,6 +74,10 @@ export function StopSelectionStep({
     return registeredStopIds.includes(stopId);
   };
 
+  const isStopPending = (stopId: string): boolean => {
+    return pendingStopIds.includes(stopId) && !isStopAlreadyRegistered(stopId);
+  };
+
   const toggleStop = (stopId: string) => {
     // Prevent toggling already-registered stops
     if (isStopAlreadyRegistered(stopId)) {
@@ -87,7 +93,11 @@ export function StopSelectionStep({
   };
 
   const handleNext = () => {
-    if (selectedStopIds.length === 0) {
+    // Allow proceeding if stops are selected OR if we have pending stops (resuming pending registration)
+    const hasSelectedStops = selectedStopIds.length > 0;
+    const hasPendingStops = pendingStopIds.length > 0;
+    
+    if (!hasSelectedStops && !hasPendingStops) {
       setError('Please select at least one tournament stop');
       return;
     }
@@ -174,8 +184,9 @@ export function StopSelectionStep({
           stops.map((stop) => {
             const available = isStopAvailable(stop);
             const alreadyRegistered = isStopAlreadyRegistered(stop.id);
-            const selected = selectedStopIds.includes(stop.id);
-            const canSelect = available && !alreadyRegistered;
+            const isPending = isStopPending(stop.id);
+            const selected = selectedStopIds.includes(stop.id) || isPending;
+            const canSelect = available && !alreadyRegistered && !isPending;
 
             return (
               <div
@@ -197,10 +208,11 @@ export function StopSelectionStep({
                   <div className="pt-1">
                     <input
                       type="checkbox"
-                      checked={selected && !alreadyRegistered} // Don't show as checked if already registered
+                      checked={selected && !alreadyRegistered} // Show as checked if selected or pending (but not already registered)
                       onChange={() => {}} // Handled by parent div click
                       disabled={!canSelect}
                       className="w-5 h-5 cursor-pointer"
+                      readOnly={isPending} // Read-only for pending stops
                     />
                   </div>
 
@@ -220,7 +232,12 @@ export function StopSelectionStep({
                           Already Registered
                         </span>
                       )}
-                      {!available && !alreadyRegistered && (
+                      {isPending && !alreadyRegistered && (
+                        <span className="px-3 py-1 bg-warning/20 text-warning text-xs font-semibold rounded">
+                          Payment Pending
+                        </span>
+                      )}
+                      {!available && !alreadyRegistered && !isPending && (
                         <span className="px-3 py-1 bg-error/20 text-error text-xs font-semibold rounded">
                           {(() => {
                             // Check if stop has ended

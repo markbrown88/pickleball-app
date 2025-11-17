@@ -86,6 +86,7 @@ async function sendPaymentReceipt(email: string, registrationId?: string) {
                   club: {
                     select: {
                       name: true,
+                      address: true,
                       address1: true,
                       city: true,
                       region: true,
@@ -159,6 +160,7 @@ async function sendPaymentReceipt(email: string, registrationId?: string) {
               bracketName: bracketMap.get(stop.id) || null,
               club: stop.club ? {
                 name: stop.club.name,
+                address: stop.club.address,
                 address1: stop.club.address1,
                 city: stop.club.city,
                 region: stop.club.region,

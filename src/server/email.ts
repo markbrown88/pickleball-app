@@ -213,6 +213,7 @@ interface RegistrationConfirmationEmailParams {
     bracketName?: string | null;
     club?: {
       name: string;
+      address?: string | null;
       address1?: string | null;
       city?: string | null;
       region?: string | null;
@@ -286,10 +287,12 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
   };
 
   // Build Google Maps URL from address components
-  const buildGoogleMapsUrl = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+  const buildGoogleMapsUrl = (club: { address?: string | null; address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
     if (!club) return '';
+    // Use address1 if available, otherwise use address field
+    const streetAddress = club.address1 || club.address;
     const parts = [
-      club.address1,
+      streetAddress,
       club.city,
       club.region,
       club.postalCode,
@@ -301,10 +304,12 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
   };
 
   // Format full address
-  const formatFullAddress = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+  const formatFullAddress = (club: { address?: string | null; address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
     if (!club) return '';
+    // Use address1 if available, otherwise use address field
+    const streetAddress = club.address1 || club.address;
     const parts = [
-      club.address1,
+      streetAddress,
       club.city,
       club.region,
       club.postalCode
@@ -1143,6 +1148,7 @@ interface PaymentReceiptEmailParams {
     bracketName?: string | null;
     club?: {
       name: string;
+      address?: string | null;
       address1?: string | null;
       city?: string | null;
       region?: string | null;
@@ -1168,8 +1174,12 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
     clubName,
   } = params;
 
+  // Always use production URL, never localhost
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
-  const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
+  // Ensure we never use localhost in production emails
+  const tournamentLink = baseUrl.includes('localhost') 
+    ? `https://klyngcup.com/tournament/${tournamentId}`
+    : `${baseUrl}/tournament/${tournamentId}`;
 
   // Format date for email: Fri., Nov. 21 - Sat., Nov. 22, 2025
   const formatEmailDate = (date: Date | null | undefined) => {
@@ -1219,10 +1229,12 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
   };
 
   // Build Google Maps URL from address components
-  const buildGoogleMapsUrl = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+  const buildGoogleMapsUrl = (club: { address?: string | null; address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
     if (!club) return '';
+    // Use address1 if available, otherwise use address field
+    const streetAddress = club.address1 || club.address;
     const parts = [
-      club.address1,
+      streetAddress,
       club.city,
       club.region,
       club.postalCode,
@@ -1234,10 +1246,12 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
   };
 
   // Format full address
-  const formatFullAddress = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+  const formatFullAddress = (club: { address?: string | null; address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
     if (!club) return '';
+    // Use address1 if available, otherwise use address field
+    const streetAddress = club.address1 || club.address;
     const parts = [
-      club.address1,
+      streetAddress,
       club.city,
       club.region,
       club.postalCode
@@ -1256,8 +1270,31 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
           const hasMultipleStops = stops.length > 1;
           const isTeamTournament = !!clubName;
           
-          // Use full address for Google Maps link text if available, otherwise use club name
-          const locationLinkText = fullAddress || locationDisplay;
+          // Use full address for Google Maps link text if available
+          // If full address is not available, try to build a partial address from available fields
+          // Include club name + available address fields for better context
+          let locationLinkText = fullAddress;
+          if (!locationLinkText && stop.club) {
+            // Build partial address from available fields, including club name
+            // Use address1 if available, otherwise use address field
+            const streetAddress = stop.club.address1 || stop.club.address;
+            const partialParts = [
+              streetAddress,
+              stop.club.city,
+              stop.club.region,
+              stop.club.postalCode
+            ].filter(Boolean);
+            
+            if (partialParts.length > 0) {
+              // If we have address fields, include club name for context
+              locationLinkText = `${locationDisplay}${partialParts.length > 0 ? ', ' + partialParts.join(', ') : ''}`;
+            } else {
+              // Fall back to just club name if no address fields
+              locationLinkText = locationDisplay;
+            }
+          } else if (!locationLinkText) {
+            locationLinkText = locationDisplay;
+          }
           
           return `
             <div style="margin: ${index > 0 ? '30px' : '0'} 0 ${index < stops.length - 1 ? '30px' : '0'} 0;">
@@ -1736,6 +1773,7 @@ interface PaymentReminderEmailParams {
     bracketName?: string | null;
     club?: {
       name: string;
+      address?: string | null;
       address1?: string | null;
       city?: string | null;
       region?: string | null;
@@ -1813,10 +1851,12 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
   };
 
   // Build Google Maps URL from address components
-  const buildGoogleMapsUrl = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+  const buildGoogleMapsUrl = (club: { address?: string | null; address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
     if (!club) return '';
+    // Use address1 if available, otherwise use address field
+    const streetAddress = club.address1 || club.address;
     const parts = [
-      club.address1,
+      streetAddress,
       club.city,
       club.region,
       club.postalCode,
@@ -1828,10 +1868,12 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
   };
 
   // Format full address
-  const formatFullAddress = (club: { address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
+  const formatFullAddress = (club: { address?: string | null; address1?: string | null; city?: string | null; region?: string | null; postalCode?: string | null; name: string } | null | undefined) => {
     if (!club) return '';
+    // Use address1 if available, otherwise use address field
+    const streetAddress = club.address1 || club.address;
     const parts = [
-      club.address1,
+      streetAddress,
       club.city,
       club.region,
       club.postalCode

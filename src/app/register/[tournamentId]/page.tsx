@@ -44,6 +44,12 @@ export default async function RegisterPage({ params }: PageProps) {
 
   let effectivePlayerId: string | null = null;
   let registeredStopIds: string[] = [];
+  let pendingRegistration: {
+    stopIds: string[];
+    brackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }>;
+    clubId?: string;
+    playerInfo?: { firstName: string; lastName: string; email: string; phone: string };
+  } | null = null;
 
   if (userId) {
     // Get Clerk user email for newly signed up users
@@ -86,19 +92,68 @@ export default async function RegisterPage({ params }: PageProps) {
         };
       }
 
+      // Check for pending registration first (to pre-populate form)
+      const pendingReg = await prisma.tournamentRegistration.findFirst({
+        where: {
+          tournamentId,
+          playerId: effectivePlayerId,
+          status: 'REGISTERED',
+          paymentStatus: 'PENDING',
+        },
+        select: {
+          notes: true,
+        },
+        orderBy: {
+          registeredAt: 'desc',
+        },
+      });
+
+      if (pendingReg?.notes) {
+        try {
+          const notes = JSON.parse(pendingReg.notes);
+          pendingRegistration = {
+            stopIds: notes.stopIds || [],
+            brackets: notes.brackets || [],
+            clubId: notes.clubId,
+            playerInfo: notes.playerInfo,
+          };
+          
+          // Pre-populate player info from pending registration if available
+          if (notes.playerInfo && !initialPlayerInfo) {
+            initialPlayerInfo = {
+              firstName: notes.playerInfo.firstName || '',
+              lastName: notes.playerInfo.lastName || '',
+              email: notes.playerInfo.email || clerkEmail,
+              phone: notes.playerInfo.phone || '',
+            };
+          }
+          
+          // Pre-populate club if available
+          if (notes.clubId && pendingRegistration.clubId) {
+            // Will be passed to TournamentRegistrationFlow
+          }
+        } catch (e) {
+          console.error('Failed to parse pending registration notes:', e);
+        }
+      }
+
       // Fetch existing registrations for this tournament to get already-registered stops
+      // Include both REGISTERED and PENDING registrations
       const existingRegistrations = await prisma.tournamentRegistration.findMany({
         where: {
           tournamentId,
           playerId: effectivePlayerId,
-          status: 'REGISTERED', // Only count active registrations
+          status: 'REGISTERED',
+          paymentStatus: {
+            in: ['PAID', 'COMPLETED'], // Only count paid/completed registrations as "already registered"
+          },
         },
         select: {
           notes: true,
         },
       });
 
-      // Collect all stopIds from existing registrations
+      // Collect all stopIds from existing paid registrations
       const allStopIds = new Set<string>();
       for (const reg of existingRegistrations) {
         if (reg.notes) {
@@ -276,5 +331,10 @@ export default async function RegisterPage({ params }: PageProps) {
     })),
   };
 
-  return <TournamentRegistrationFlow tournament={tournamentData} initialPlayerInfo={initialPlayerInfo} registeredStopIds={registeredStopIds} />;
+  return <TournamentRegistrationFlow 
+    tournament={tournamentData} 
+    initialPlayerInfo={initialPlayerInfo} 
+    registeredStopIds={registeredStopIds}
+    pendingRegistration={pendingRegistration}
+  />;
 }

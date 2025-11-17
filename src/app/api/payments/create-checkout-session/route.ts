@@ -118,6 +118,8 @@ export async function POST(request: NextRequest) {
       newStopsTax?: number; // Tax for new stops only (if updating existing registration)
       newStopsTotal?: number; // Total amount for new stops only (if updating existing registration)
       existingAmountPaid?: number; // Amount already paid for existing stops
+      newlySelectedStopIds?: string[]; // Stop IDs that were newly selected (for fallback calculation)
+      newlySelectedBrackets?: Array<{ stopId: string; bracketId: string; gameTypes?: string[] }>; // Brackets that were newly selected
     } = {};
 
     if (registration.notes) {
@@ -146,9 +148,13 @@ export async function POST(request: NextRequest) {
     };
     
     // If this is an update to existing registration, use newStopsTotal instead of expectedAmount
+    // This ensures we only charge for newly selected stops, not all stops
     const amountToCharge = registrationDetails.newStopsTotal !== undefined 
       ? registrationDetails.newStopsTotal 
       : (registrationDetails.expectedAmount || 0);
+    
+    // Note: The actual amount charged will be calculated below using calculatedAmount,
+    // which respects newlySelectedStopIds if newStopsTotal is missing
     
     console.log('Payment calculation debug:', {
       registrationId: registrationId,
@@ -183,10 +189,23 @@ export async function POST(request: NextRequest) {
         existingAmountPaid: registrationDetails.existingAmountPaid,
       });
     } else {
-      // Calculate from scratch for new registrations
+      // Calculate from scratch
+      // IMPORTANT: If this is an update to existing registration but newStopsTotal is missing,
+      // only calculate for newly selected stops, not all stops
+      const stopsToCalculate = registrationDetails.newlySelectedStopIds && registrationDetails.newlySelectedStopIds.length > 0
+        ? registrationDetails.newlySelectedStopIds
+        : registrationDetails.stopIds || [];
+      
+      const bracketsToCalculate = registrationDetails.newlySelectedBrackets && registrationDetails.newlySelectedBrackets.length > 0
+        ? registrationDetails.newlySelectedBrackets
+        : registrationDetails.brackets || [];
+      
       subtotal = calculateRegistrationAmount(
         tournamentWithPricing,
-        registrationDetails
+        {
+          stopIds: stopsToCalculate,
+          brackets: bracketsToCalculate,
+        }
       );
       
       // Calculate tax and total (13% HST for Ontario)
@@ -195,8 +214,11 @@ export async function POST(request: NextRequest) {
       calculatedAmount = taxCalc.total;
       
       // Validate amount matches what was stored during registration
+      // For updates, use newStopsTotal if available, otherwise use calculatedAmount
       const storedAmountInDollars = registration.amountPaid ? formatAmountFromStripe(registration.amountPaid) : 0;
-      const expectedAmount = registrationDetails.expectedAmount ?? storedAmountInDollars;
+      const expectedAmount = registrationDetails.newStopsTotal !== undefined
+        ? registrationDetails.newStopsTotal
+        : (registrationDetails.expectedAmount ?? storedAmountInDollars);
       
       console.log('Amount validation debug:', {
         registrationId: registrationId,
@@ -207,6 +229,8 @@ export async function POST(request: NextRequest) {
         storedAmountInDollars,
         amountPaidInCents: registration.amountPaid,
         difference: Math.abs(calculatedAmount - expectedAmount),
+        usingNewlySelectedStops: registrationDetails.newlySelectedStopIds !== undefined,
+        stopsToCalculate,
       });
       
       if (Math.abs(calculatedAmount - expectedAmount) > 0.01) {

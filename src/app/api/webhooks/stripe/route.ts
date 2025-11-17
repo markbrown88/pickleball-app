@@ -342,6 +342,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             club: {
               select: {
                 name: true,
+                address: true,
                 address1: true,
                 city: true,
                 region: true,
@@ -387,6 +388,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
           bracketName: bracketMap.get(stop.id) || null,
           club: stop.club ? {
             name: stop.club.name,
+            address: stop.club.address,
             address1: stop.club.address1,
             city: stop.club.city,
             region: stop.club.region,
@@ -896,6 +898,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
             club: {
               select: {
                 name: true,
+                address: true,
                 address1: true,
                 city: true,
                 region: true,
@@ -941,6 +944,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
           bracketName: bracketMap.get(stop.id) || null,
           club: stop.club ? {
             name: stop.club.name,
+            address: stop.club.address,
             address1: stop.club.address1,
             city: stop.club.city,
             region: stop.club.region,

@@ -433,6 +433,9 @@ export async function POST(request: NextRequest) {
               newStopsTax: newStopTax,
               newStopsTotal: newStopTotal,
               existingAmountPaid: existingAmountPaid,
+              // Store which stops were newly selected (for payment calculation fallback)
+              newlySelectedStopIds: selectedStopIds,
+              newlySelectedBrackets: selectedBrackets,
             }),
           },
         });
@@ -685,10 +688,117 @@ export async function POST(request: NextRequest) {
         console.error('[Registration] Failed to send confirmation email:', emailError);
         // Don't fail the registration if email fails
       }
+    } else if (tournament.registrationType === 'PAID' && registration.paymentStatus === 'PENDING') {
+      // Send immediate payment reminder email for paid tournaments with pending payment
+      try {
+        // Get player and tournament details for email
+        const [playerDetails, tournamentDetails, brackets] = await Promise.all([
+          prisma.player.findUnique({
+            where: { id: registration.playerId },
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+              name: true,
+            },
+          }),
+          prisma.tournament.findUnique({
+            where: { id: tournamentId },
+            include: {
+              stops: {
+                where: { id: { in: emailStopIds } },
+                orderBy: { startAt: 'asc' },
+                select: {
+                  id: true,
+                  name: true,
+                  startAt: true,
+                  endAt: true,
+                  club: {
+                    select: {
+                      name: true,
+                      address: true,
+                      address1: true,
+                      city: true,
+                      region: true,
+                      postalCode: true,
+                    },
+                  },
+                },
+              },
+            },
+          }),
+          prisma.tournamentBracket.findMany({
+            where: { tournamentId },
+            select: { id: true, name: true },
+          }),
+        ]);
+
+        if (playerDetails?.email && tournamentDetails) {
+          const playerName =
+            playerDetails.name ||
+            (playerDetails.firstName && playerDetails.lastName
+              ? `${playerDetails.firstName} ${playerDetails.lastName}`
+              : playerDetails.firstName || 'Player');
+
+          // Build stops array with bracket names and club information
+          const stopsWithBrackets = tournamentDetails.stops.map((stop) => {
+            const bracketSelection = Array.isArray(emailBrackets)
+              ? emailBrackets.find((sb: any) => sb.stopId === stop.id)
+              : null;
+            const bracket = bracketSelection
+              ? brackets.find((b) => b.id === bracketSelection.bracketId)
+              : null;
+            return {
+              id: stop.id,
+              name: stop.name,
+              startAt: stop.startAt ? new Date(stop.startAt) : null,
+              endAt: stop.endAt ? new Date(stop.endAt) : null,
+              bracketName: bracket?.name || null,
+              club: stop.club ? {
+                name: stop.club.name,
+                address: stop.club.address,
+                address1: stop.club.address1,
+                city: stop.club.city,
+                region: stop.club.region,
+                postalCode: stop.club.postalCode,
+              } : null,
+            };
+          });
+
+          // Get club name if team tournament
+          let clubName: string | null = null;
+          if (tournamentIsTeam && emailClubId) {
+            const club = await prisma.club.findUnique({
+              where: { id: emailClubId },
+              select: { name: true },
+            });
+            clubName = club?.name || null;
+          }
+
+          const { sendPaymentReminderEmail } = await import('@/server/email');
+          await sendPaymentReminderEmail({
+            to: playerDetails.email,
+            playerName,
+            tournamentName: tournamentDetails.name,
+            tournamentId: tournamentId,
+            registrationId: registration.id,
+            amount: finalAmountPaidInCents,
+            hoursRemaining: 24, // 24 hours to complete payment
+            startDate: stopsWithBrackets.length > 0 ? stopsWithBrackets[0]?.startAt || null : null,
+            endDate: stopsWithBrackets.length > 0 ? stopsWithBrackets[stopsWithBrackets.length - 1]?.endAt || null : null,
+            stops: stopsWithBrackets.length > 0 ? stopsWithBrackets : undefined,
+            clubName,
+          });
+
+          console.log('[Registration] Payment reminder email sent successfully');
+        }
+      } catch (emailError) {
+        console.error('[Registration] Failed to send payment reminder email:', emailError);
+        // Don't fail the registration if email fails
+      }
     }
-    // Note: Payment reminder emails are now sent by the cron job (/api/cron/payment-reminders)
-    // only if payment is still pending after 12 hours. This prevents sending reminders
-    // immediately after registration or after payment has already been completed.
+    // Note: Additional payment reminder emails are sent by the cron job (/api/cron/payment-reminders)
+    // at 12 hours and 24 hours if payment is still pending.
 
     return NextResponse.json({
       success: true,
