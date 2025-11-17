@@ -82,8 +82,16 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, regi
   const initialClubId = pendingRegistration?.clubId;
   const pendingPlayerInfo = pendingRegistration?.playerInfo;
   
+  // Normalize pendingPlayerInfo to ensure all fields are strings (not null)
+  const normalizedPendingPlayerInfo = pendingPlayerInfo ? {
+    firstName: pendingPlayerInfo.firstName || '',
+    lastName: pendingPlayerInfo.lastName || '',
+    email: pendingPlayerInfo.email || '',
+    phone: pendingPlayerInfo.phone || '',
+  } : null;
+  
   const [registrationData, setRegistrationData] = useState<RegistrationData>({
-    playerInfo: pendingPlayerInfo || initialPlayerInfo || {
+    playerInfo: normalizedPendingPlayerInfo || initialPlayerInfo || {
       firstName: '',
       lastName: '',
       email: '',

@@ -29,22 +29,22 @@ export function PlayerInfoStep({
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof PlayerInfo, string>> = {};
 
-    if (!playerInfo.firstName.trim()) {
+    if (!playerInfo.firstName?.trim()) {
       newErrors.firstName = 'First name is required';
     }
 
-    if (!playerInfo.lastName.trim()) {
+    if (!playerInfo.lastName?.trim()) {
       newErrors.lastName = 'Last name is required';
     }
 
-    if (!playerInfo.email.trim()) {
+    if (!playerInfo.email?.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(playerInfo.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
 
     // Phone is optional - only validate format if provided
-    if (playerInfo.phone.trim() && !/^[\d\s\-\+\(\)]+$/.test(playerInfo.phone)) {
+    if (playerInfo.phone?.trim() && !/^[\d\s\-\+\(\)]+$/.test(playerInfo.phone)) {
       newErrors.phone = 'Please enter a valid phone number';
     }
 
@@ -125,7 +125,7 @@ export function PlayerInfoStep({
           <input
             type="text"
             className={`input w-full ${errors.firstName ? 'border-error' : ''}`}
-            value={playerInfo.firstName}
+            value={playerInfo.firstName || ''}
             onChange={(e) => updateField('firstName', e.target.value)}
             placeholder="John"
           />
@@ -142,7 +142,7 @@ export function PlayerInfoStep({
           <input
             type="text"
             className={`input w-full ${errors.lastName ? 'border-error' : ''}`}
-            value={playerInfo.lastName}
+            value={playerInfo.lastName || ''}
             onChange={(e) => updateField('lastName', e.target.value)}
             placeholder="Doe"
           />
@@ -160,7 +160,7 @@ export function PlayerInfoStep({
           <input
             type="email"
             className={`input w-full ${errors.email ? 'border-error' : ''}`}
-            value={playerInfo.email}
+            value={playerInfo.email || ''}
             onChange={(e) => updateField('email', e.target.value)}
             placeholder="john.doe@example.com"
           />
@@ -175,7 +175,7 @@ export function PlayerInfoStep({
           <input
             type="tel"
             className={`input w-full ${errors.phone ? 'border-error' : ''}`}
-            value={playerInfo.phone}
+            value={playerInfo.phone || ''}
             onChange={(e) => updateField('phone', e.target.value)}
             placeholder="(555) 123-4567"
           />
