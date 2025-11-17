@@ -84,14 +84,6 @@ export default async function RegisterPage({ params }: PageProps) {
           email: player.email || clerkEmail, // Use player email, fallback to Clerk email
           phone: player.phone || '',
         };
-      } else if (clerkEmail) {
-        // Player doesn't exist yet (newly signed up), use Clerk email
-        initialPlayerInfo = {
-          firstName: clerkUser?.firstName || '',
-          lastName: clerkUser?.lastName || '',
-          email: clerkEmail,
-          phone: '',
-        };
       }
 
       // Fetch existing registrations for this tournament to get already-registered stops
@@ -120,6 +112,16 @@ export default async function RegisterPage({ params }: PageProps) {
         }
       }
       registeredStopIds = Array.from(allStopIds);
+    }
+    
+    // If no Player record exists yet (newly signed up user), use Clerk user data
+    if (!initialPlayerInfo && clerkEmail) {
+      initialPlayerInfo = {
+        firstName: clerkUser?.firstName || '',
+        lastName: clerkUser?.lastName || '',
+        email: clerkEmail,
+        phone: '',
+      };
     }
   }
 

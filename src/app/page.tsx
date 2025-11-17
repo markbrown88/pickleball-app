@@ -311,7 +311,11 @@ export default function Home() {
                         </Link>
                         {!isInviteOnly && (
                           <SignedOut>
-                            <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${klyngCupPickleplex.id}`}>
+                            <SignUpButton 
+                              mode="modal" 
+                              forceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
+                              signInUrl={`/sign-in?redirect_url=${encodeURIComponent(`/register/${klyngCupPickleplex.id}`)}`}
+                            >
                               <button className="btn btn-secondary flex-1">
                                 Register Now!
                               </button>
@@ -663,7 +667,11 @@ export default function Home() {
                       </Link>
                       {!isInviteOnly && (
                         <SignedOut>
-                          <SignUpButton mode="modal" fallbackRedirectUrl={`/register/${tournament.id}`}>
+                          <SignUpButton 
+                            mode="modal" 
+                            forceRedirectUrl={`/register/${tournament.id}`}
+                            signInUrl={`/sign-in?redirect_url=${encodeURIComponent(`/register/${tournament.id}`)}`}
+                          >
                             <button className="btn btn-secondary flex-1">
                               Register Now!
                             </button>
