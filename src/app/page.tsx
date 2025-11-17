@@ -314,7 +314,7 @@ export default function Home() {
                             <SignUpButton 
                               mode="modal" 
                               forceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
-                              signInUrl={`/sign-in?redirect_url=${encodeURIComponent(`/register/${klyngCupPickleplex.id}`)}`}
+                              signInForceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
                             >
                               <button className="btn btn-secondary flex-1">
                                 Register Now!
@@ -670,7 +670,7 @@ export default function Home() {
                           <SignUpButton 
                             mode="modal" 
                             forceRedirectUrl={`/register/${tournament.id}`}
-                            signInUrl={`/sign-in?redirect_url=${encodeURIComponent(`/register/${tournament.id}`)}`}
+                            signInForceRedirectUrl={`/register/${tournament.id}`}
                           >
                             <button className="btn btn-secondary flex-1">
                               Register Now!
