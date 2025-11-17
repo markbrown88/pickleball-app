@@ -782,7 +782,7 @@ export async function POST(request: NextRequest) {
             tournamentName: tournamentDetails.name,
             tournamentId: tournamentId,
             registrationId: registration.id,
-            amount: registration.amountPaid,
+            amount: registration.amountPaid ?? 0,
             hoursRemaining: 24, // 24 hours to complete payment
             startDate: stopsWithBrackets.length > 0 ? stopsWithBrackets[0]?.startAt || null : null,
             endDate: stopsWithBrackets.length > 0 ? stopsWithBrackets[stopsWithBrackets.length - 1]?.endAt || null : null,
