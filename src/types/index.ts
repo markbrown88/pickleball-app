@@ -107,6 +107,7 @@ export interface RegistrationResponse {
 // Player Types
 export interface Player {
   id: string;
+  clerkUserId?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   email?: string | null;

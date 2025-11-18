@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Player, Club } from '@/types';
-import { useAdminUser } from '@/app/admin/AdminContext';
 
 interface InlinePlayerEditorProps {
   player: Player;
@@ -12,7 +11,6 @@ interface InlinePlayerEditorProps {
 }
 
 export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: InlinePlayerEditorProps) {
-  const admin = useAdminUser();
   const [form, setForm] = useState({
     firstName: player.firstName || '',
     lastName: player.lastName || '',
@@ -52,11 +50,6 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
 
   return (
     <tr className="bg-blue-50">
-      {admin.isAppAdmin && (
-        <td className="py-2 pr-4">
-          <span className="text-xs text-muted font-mono">{player.id}</span>
-        </td>
-      )}
       <td className="py-2 pr-4">
         <input
           type="text"
@@ -132,6 +125,13 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
           className="input w-full text-sm"
           placeholder="Phone"
         />
+      </td>
+      <td className="py-2 pr-4">
+        {player.clerkUserId ? (
+          <span className="chip chip-success text-[10px] px-2 py-0.5">Registered</span>
+        ) : (
+          <span className="chip chip-muted text-[10px] px-2 py-0.5">Profile Only</span>
+        )}
       </td>
       <td className="py-2 pr-2 text-right align-middle">
         <div className="flex items-center gap-2 justify-end">

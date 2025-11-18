@@ -21,6 +21,7 @@ type PlayerLite = {
   gender: 'MALE' | 'FEMALE';
   dupr: number | null;
   age: number | null;
+  hasPaid: boolean;
 };
 
 type StopData = {
@@ -741,6 +742,9 @@ function BracketRosterEditor({
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-secondary">{labelPL(player)}</span>
                   <div className="flex items-center gap-2">
+                    {player.hasPaid && (
+                      <span className="chip chip-success text-[10px] px-2 py-0.5">Paid</span>
+                    )}
                     <span className={`chip text-[10px] px-2 py-0.5 ${
                       player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
                     }`}>
@@ -772,6 +776,9 @@ function BracketRosterEditor({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
+                  {player.hasPaid && (
+                    <span className="chip chip-success text-[10px] px-2 py-0.5">Paid</span>
+                  )}
                   <span className={`chip text-[10px] px-2 py-0.5 ${
                     player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
                   }`}>

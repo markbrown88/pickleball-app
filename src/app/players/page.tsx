@@ -322,11 +322,6 @@ export default function PlayersPage() {
           <table className="table">
             <thead>
               <tr>
-                {admin.isAppAdmin && (
-                  <th className="py-2 pr-4 select-none">
-                    <span className="text-primary font-medium">Player ID</span>
-                  </th>
-                )}
                 <SortableTh label="First Name" onClick={() => clickSortPlayers('firstName')} active={playerSort.col === 'firstName'} dir={playerSort.dir} />
                 <SortableTh label="Last Name" onClick={() => clickSortPlayers('lastName')} active={playerSort.col === 'lastName'} dir={playerSort.dir} />
                 <SortableTh label="Sex" onClick={() => clickSortPlayers('gender')} active={playerSort.col === 'gender'} dir={playerSort.dir} />
@@ -334,23 +329,21 @@ export default function PlayersPage() {
                 <SortableTh label="Age" onClick={() => clickSortPlayers('age')} active={playerSort.col === 'age'} dir={playerSort.dir} />
                 <SortableTh label="City" onClick={() => clickSortPlayers('city')} active={playerSort.col === 'city'} dir={playerSort.dir} />
                 <SortableTh label="Phone" onClick={() => clickSortPlayers('phone')} active={playerSort.col === 'phone'} dir={playerSort.dir} />
+                <th className="py-2 pr-4 select-none">
+                  <span className="text-primary font-medium">Status</span>
+                </th>
                 <th className="py-2 pr-2 w-10"></th>
               </tr>
             </thead>
             <tbody>
               {loading && (playersPage.items?.length ?? 0) === 0 && (
-                <tr><td colSpan={admin.isAppAdmin ? 9 : 8} className="py-8 text-center text-muted">Loading players...</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-muted">Loading players...</td></tr>
               )}
               {!loading && (playersPage.items?.length ?? 0) === 0 && (
-                <tr><td colSpan={admin.isAppAdmin ? 9 : 8} className="py-8 text-center text-muted">No players yet.</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-muted">No players yet.</td></tr>
               )}
               {(playersPage.items ?? []).map((p) => (
                 <tr key={p.id} className={p.disabled ? 'opacity-50' : ''}>
-                  {admin.isAppAdmin && (
-                    <td className="py-2 pr-4">
-                      <span className="text-xs text-muted font-mono">{p.id}</span>
-                    </td>
-                  )}
                   <td className="py-2 pr-4 text-muted">
                     <div className="flex items-center gap-2">
                       {p.firstName ?? '—'}
@@ -367,6 +360,13 @@ export default function PlayersPage() {
                   <td className="py-2 pr-4 text-muted tabular">{p.age ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted">{p.city ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted">{p.phone ?? '—'}</td>
+                  <td className="py-2 pr-4">
+                    {p.clerkUserId ? (
+                      <span className="chip chip-success text-[10px] px-2 py-0.5">Registered</span>
+                    ) : (
+                      <span className="chip chip-muted text-[10px] px-2 py-0.5">Profile Only</span>
+                    )}
+                  </td>
                   <td className="py-2 pr-2 text-right align-middle">
                     <div className="flex items-center gap-2 justify-end">
                       <button

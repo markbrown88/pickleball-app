@@ -12,6 +12,7 @@ type PlayerLite = {
   gender: 'MALE' | 'FEMALE';
   dupr: number | null;
   age: number | null;
+  hasPaid: boolean;
 };
 
 type StopData = {
@@ -47,7 +48,7 @@ type TournamentRosterPayload = {
   clubs: ClubRoster[];
 };
 
-function toPlayerLite(player: any): PlayerLite {
+function toPlayerLite(player: any, paidPlayerIds: Set<string>): PlayerLite {
   return {
     id: player.id,
     firstName: player.firstName ?? null,
@@ -56,6 +57,7 @@ function toPlayerLite(player: any): PlayerLite {
     gender: player.gender,
     dupr: player.dupr ?? null,
     age: player.age ?? null,
+    hasPaid: paidPlayerIds.has(player.id),
   };
 }
 
@@ -131,6 +133,16 @@ export async function GET(
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
+    // Fetch all paid registrations for this tournament
+    const paidRegistrations = await prisma.tournamentRegistration.findMany({
+      where: {
+        tournamentId,
+        paymentStatus: { in: ['PAID', 'COMPLETED'] },
+      },
+      select: { playerId: true },
+    });
+    const paidPlayerIds = new Set(paidRegistrations.map(r => r.playerId));
+
     if (!tournament.clubs.length) {
       // For tournaments without clubs linked, we still need to fetch teams
       // and group them by their clubId
@@ -182,7 +194,7 @@ export async function GET(
       for (const entry of stopTeamPlayers) {
         const key = `${entry.teamId}:${entry.stopId}`;
         const current = stopRosterMap.get(key) ?? [];
-        current.push(toPlayerLite(entry.player));
+        current.push(toPlayerLite(entry.player, paidPlayerIds));
         stopRosterMap.set(key, current);
       }
 
@@ -212,7 +224,7 @@ export async function GET(
         const brackets: BracketRoster[] = club.teams.map((team) => ({
           teamId: team.id,
           bracketName: team.bracket?.name ?? null,
-          roster: team.playerLinks.map((link) => toPlayerLite(link.player)),
+          roster: team.playerLinks.map((link) => toPlayerLite(link.player, paidPlayerIds)),
           stops: tournament.stops.map((stop) => ({
             stopId: stop.id,
             stopRoster: stopRosterMap.get(`${team.id}:${stop.id}`) ?? [],
@@ -273,7 +285,7 @@ export async function GET(
     for (const entry of stopTeamPlayers) {
       const key = `${entry.teamId}:${entry.stopId}`;
       const current = stopRosterMap.get(key) ?? [];
-      current.push(toPlayerLite(entry.player));
+      current.push(toPlayerLite(entry.player, paidPlayerIds));
       stopRosterMap.set(key, current);
     }
 
@@ -291,7 +303,7 @@ export async function GET(
       const brackets: BracketRoster[] = clubTeams.map((team) => ({
         teamId: team.id,
         bracketName: team.bracket?.name ?? null,
-        roster: team.playerLinks.map((link) => toPlayerLite(link.player)),
+        roster: team.playerLinks.map((link) => toPlayerLite(link.player, paidPlayerIds)),
         stops: tournament.stops.map((stop) => ({
           stopId: stop.id,
           stopRoster: stopRosterMap.get(`${team.id}:${stop.id}`) ?? [],

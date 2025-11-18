@@ -173,49 +173,56 @@ export async function PUT(req: Request) {
     if (displayAge !== undefined) updateData.displayAge = displayAge;
     if (displayLocation !== undefined) updateData.displayLocation = displayLocation;
 
-    const player = await prisma.player.update({
-      where: { id: playerId },
-      data: updateData,
-      include: {
-        club: {
-          select: {
-            id: true,
-            name: true,
-            city: true,
-            region: true,
+    try {
+      const player = await prisma.player.update({
+        where: { id: playerId },
+        data: updateData,
+        include: {
+          club: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+              region: true,
+            }
           }
         }
+      });
+
+      // Format response to match UserProfile type
+      const response = {
+        id: player.id,
+        clerkUserId: player.clerkUserId || '',
+        firstName: player.firstName,
+        lastName: player.lastName,
+        name: player.name,
+        email: player.email,
+        phone: player.phone,
+        gender: player.gender,
+        dupr: player.dupr,
+        duprSingles: player.duprSingles,
+        duprDoubles: player.duprDoubles,
+        clubRatingSingles: player.clubRatingSingles,
+        clubRatingDoubles: player.clubRatingDoubles,
+        age: player.age,
+        birthday: player.birthday,
+        city: player.city,
+        region: player.region,
+        country: player.country,
+        displayAge: player.displayAge,
+        displayLocation: player.displayLocation,
+        isAppAdmin: player.isAppAdmin,
+        isTournamentAdmin: false, // TODO: check tournament admin status
+        club: player.club
+      };
+
+      return NextResponse.json(response);
+    } catch (updateError: any) {
+      if (updateError?.code === 'P2002') {
+        return NextResponse.json({ error: 'A player with that email address already exists' }, { status: 409 });
       }
-    });
-
-    // Format response to match UserProfile type
-    const response = {
-      id: player.id,
-      clerkUserId: player.clerkUserId || '',
-      firstName: player.firstName,
-      lastName: player.lastName,
-      name: player.name,
-      email: player.email,
-      phone: player.phone,
-      gender: player.gender,
-      dupr: player.dupr,
-      duprSingles: player.duprSingles,
-      duprDoubles: player.duprDoubles,
-      clubRatingSingles: player.clubRatingSingles,
-      clubRatingDoubles: player.clubRatingDoubles,
-      age: player.age,
-      birthday: player.birthday,
-      city: player.city,
-      region: player.region,
-      country: player.country,
-      displayAge: player.displayAge,
-      displayLocation: player.displayLocation,
-      isAppAdmin: player.isAppAdmin,
-      isTournamentAdmin: false, // TODO: check tournament admin status
-      club: player.club
-    };
-
-    return NextResponse.json(response);
+      throw updateError;
+    }
   } catch (e) {
     console.error('Error updating player profile:', e);
     const msg = e instanceof Error ? e.message : 'error';

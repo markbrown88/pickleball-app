@@ -275,36 +275,44 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     const displayAge = body.displayAge !== undefined ? body.displayAge : true;
     const displayLocation = body.displayLocation !== undefined ? body.displayLocation : true;
 
-    const updated = await prisma.player.update({
-      where: { id: playerId },
-      data: {
-        firstName,
-        lastName,
-        gender,
-        clubId,
-        name: fullName,
-        city,
-        region,
-        country,
-        phone,
-        email,
-        dupr: typeof body.dupr === 'number' && Number.isFinite(body.dupr) ? body.dupr : null,
-        duprSingles,
-        duprDoubles,
-        clubRatingSingles,
-        clubRatingDoubles,
-        displayAge,
-        displayLocation,
-        birthdayYear: y,
-        birthdayMonth: m,
-        birthdayDay: d,
-      },
-      include: { club: true },
-    });
+    try {
+      const updated = await prisma.player.update({
+        where: { id: playerId },
+        data: {
+          firstName,
+          lastName,
+          gender,
+          clubId,
+          name: fullName,
+          city,
+          region,
+          country,
+          phone,
+          email,
+          dupr: typeof body.dupr === 'number' && Number.isFinite(body.dupr) ? body.dupr : null,
+          duprSingles,
+          duprDoubles,
+          clubRatingSingles,
+          clubRatingDoubles,
+          displayAge,
+          displayLocation,
+          birthdayYear: y,
+          birthdayMonth: m,
+          birthdayDay: d,
+        },
+        include: { club: true },
+      });
 
-    const withAge = { ...updated, age: computeAge(y, m, d) };
-    return NextResponse.json(withAge);
+      const withAge = { ...updated, age: computeAge(y, m, d) };
+      return NextResponse.json(withAge);
+    } catch (updateError: any) {
+      if (updateError?.code === 'P2002') {
+        return NextResponse.json({ error: 'A player with that email address already exists' }, { status: 409 });
+      }
+      throw updateError;
+    }
   } catch (e) {
+    console.error('Error updating player:', e);
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

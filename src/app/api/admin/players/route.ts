@@ -139,6 +139,7 @@ export async function GET(req: NextRequest) {
         where,
         select: {
           id: true,
+          clerkUserId: true,
           firstName: true,
           lastName: true,
           name: true,
