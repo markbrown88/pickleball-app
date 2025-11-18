@@ -48,6 +48,7 @@ async function getUserRoleByPlayerId(playerId: string): Promise<UserRole> {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
     select: {
+      id: true,
       isAppAdmin: true,
       TournamentCaptain: { select: { tournamentId: true }, take: 1 },
       tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
