@@ -477,6 +477,8 @@ export default function DashboardPage() {
                       tournament={tournament}
                       playerRegistrationStatus={registration?.status ?? null}
                       registeredStopIds={registeredStopIds}
+                      paymentStatus={registration?.paymentStatus ?? null}
+                      registrationId={registration?.id}
                       onRegister={handleRegister}
                       onRequestInvite={handleRequestInvite}
                       onJoinWaitlist={handleJoinWaitlist}

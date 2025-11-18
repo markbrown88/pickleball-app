@@ -219,6 +219,7 @@ export async function POST(request: NextRequest) {
       success_url: `${baseUrl}/register/${registration.tournamentId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/register/${registration.tournamentId}/payment/cancel`,
       customer_email: registration.player.email || undefined,
+      locale: 'en', // Explicitly set locale to prevent Stripe locale detection errors
       metadata: {
         registrationId: registration.id,
         tournamentId: registration.tournamentId,

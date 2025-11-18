@@ -65,8 +65,9 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
     const userEmail = user.emailAddresses?.[0]?.emailAddress;
     
     if (!userEmail) {
-      // No email, can't create player - redirect to sign in
-      redirect('/sign-in');
+      // No email, can't create player - redirect to homepage (not sign-in to avoid redirect loop)
+      console.error('Layout: User has no email address. Cannot create Player.');
+      redirect('/');
     }
 
     try {
@@ -78,7 +79,7 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
 
       if (!defaultClub) {
         console.error('Layout: No clubs found in database. Cannot create Player without a club.');
-        redirect('/sign-in');
+        redirect('/');
       }
 
       // Get name from Clerk user
@@ -114,8 +115,8 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
       });
     } catch (createError: any) {
       console.error('Layout: Error creating Player record automatically:', createError);
-      // If creation fails, redirect to sign in
-      redirect('/sign-in');
+      // If creation fails, redirect to homepage (not sign-in to avoid redirect loop)
+      redirect('/');
     }
   }
 

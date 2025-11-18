@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Player, Club } from '@/types';
+import { useAdminUser } from '@/app/admin/AdminContext';
 
 interface InlinePlayerEditorProps {
   player: Player;
@@ -11,15 +12,13 @@ interface InlinePlayerEditorProps {
 }
 
 export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: InlinePlayerEditorProps) {
+  const admin = useAdminUser();
   const [form, setForm] = useState({
     firstName: player.firstName || '',
     lastName: player.lastName || '',
     gender: player.gender || 'MALE',
     clubId: player.clubId || '',
-    dupr: player.duprSingles?.toString() || '',
     city: player.city || '',
-    region: player.region || '',
-    country: player.country || 'Canada',
     phone: player.phone || '',
     email: player.email || '',
     age: player.age?.toString() || '',
@@ -32,7 +31,6 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
     try {
       const updates = {
         ...form,
-        dupr: form.dupr ? Number(form.dupr) : null,
         age: form.age ? Number(form.age) : null,
       };
       await onSave(player.id, updates);
@@ -54,6 +52,11 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
 
   return (
     <tr className="bg-blue-50">
+      {admin.isAppAdmin && (
+        <td className="py-2 pr-4">
+          <span className="text-xs text-muted font-mono">{player.id}</span>
+        </td>
+      )}
       <td className="py-2 pr-4">
         <input
           type="text"
@@ -112,19 +115,6 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
       </td>
       <td className="py-2 pr-4">
         <input
-          type="number"
-          step="0.1"
-          min="1.0"
-          max="7.0"
-          value={form.dupr}
-          onChange={(e) => setForm(prev => ({ ...prev, dupr: e.target.value }))}
-          onKeyDown={handleKeyDown}
-          className="input w-full text-sm"
-          placeholder="DUPR"
-        />
-      </td>
-      <td className="py-2 pr-4">
-        <input
           type="text"
           value={form.city}
           onChange={(e) => setForm(prev => ({ ...prev, city: e.target.value }))}
@@ -132,28 +122,6 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
           className="input w-full text-sm"
           placeholder="City"
         />
-      </td>
-      <td className="py-2 pr-4">
-        <input
-          type="text"
-          value={form.region}
-          onChange={(e) => setForm(prev => ({ ...prev, region: e.target.value }))}
-          onKeyDown={handleKeyDown}
-          className="input w-full text-sm"
-          placeholder="Region"
-        />
-      </td>
-      <td className="py-2 pr-4">
-        <select
-          value={form.country}
-          onChange={(e) => setForm(prev => ({ ...prev, country: e.target.value }))}
-          onKeyDown={handleKeyDown}
-          className="input w-full text-sm"
-        >
-          <option value="Canada">Canada</option>
-          <option value="USA">USA</option>
-          <option value="Other">Other</option>
-        </select>
       </td>
       <td className="py-2 pr-4">
         <input

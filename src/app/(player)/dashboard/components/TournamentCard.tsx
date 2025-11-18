@@ -33,6 +33,8 @@ type TournamentCardProps = {
   tournament: TournamentCardData;
   playerRegistrationStatus?: 'REGISTERED' | 'WITHDRAWN' | 'REJECTED' | 'PENDING_INVITE' | 'WAITLISTED' | null;
   registeredStopIds?: string[]; // Array of stop IDs the player has registered for
+  paymentStatus?: 'PAID' | 'PENDING' | 'FAILED' | 'COMPLETED' | 'REFUNDED' | null;
+  registrationId?: string; // Registration ID for payment completion link
   onRegister?: (tournamentId: string) => void;
   onRequestInvite?: (tournamentId: string) => void;
   onJoinWaitlist?: (tournamentId: string) => void;
@@ -71,6 +73,8 @@ export function TournamentCard({
   tournament,
   playerRegistrationStatus,
   registeredStopIds = [],
+  paymentStatus,
+  registrationId,
   onRegister,
   onRequestInvite,
   onJoinWaitlist,
@@ -94,15 +98,22 @@ export function TournamentCard({
     ? availableStops.every(stop => registeredStopIds.includes(stop.id))
     : false;
   
+  // Check if payment is pending for a registered user
+  const needsPayment = playerRegistrationStatus === 'REGISTERED' 
+    && tournament.registrationType === 'PAID' 
+    && paymentStatus === 'PENDING';
+  
   // Player can register if:
   // - Tournament is OPEN
   // - There are available stops to register for
   // - Player is not registered OR (multi-stop tournament AND not all available stops registered)
   // - Tournament is not full
+  // - Payment is not pending (if payment pending, show "Complete Payment" instead)
   const canRegister = tournament.registrationStatus === 'OPEN' 
     && availableStops.length > 0 // Must have at least one available stop
     && (!playerRegistrationStatus || (hasMultipleStops && !allAvailableStopsRegistered))
-    && !isFull;
+    && !isFull
+    && !needsPayment; // Don't show register button if payment is pending
   const canRequestInvite = tournament.registrationStatus === 'INVITE_ONLY' && !playerRegistrationStatus;
   const canJoinWaitlist = isFull && tournament.isWaitlistEnabled && !playerRegistrationStatus;
 
@@ -175,6 +186,15 @@ export function TournamentCard({
         >
           View Details
         </Link>
+
+        {needsPayment && registrationId && (
+          <Link
+            href={`/register/${tournament.id}/payment/status/${registrationId}`}
+            className="btn btn-primary btn-sm flex-1"
+          >
+            Complete Payment
+          </Link>
+        )}
 
         {canRegister && onRegister && (
           <button

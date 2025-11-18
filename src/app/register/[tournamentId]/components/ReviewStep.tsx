@@ -81,6 +81,7 @@ const GAME_TYPES_INDIVIDUAL = [
 export function ReviewStep({ tournament, registrationData, onBack, onCancel, onEdit }: ReviewStepProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
 
   const isTeamTournament = tournament.type === 'TEAM_FORMAT';
   const gameTypes = isTeamTournament ? GAME_TYPES_TEAM : GAME_TYPES_INDIVIDUAL;
@@ -226,6 +227,8 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
       // Registration successful
       if (tournament.registrationType === 'PAID') {
         // Create Stripe Checkout session for payment
+        console.log('[Payment] Creating Stripe checkout session for registration:', data.registrationId);
+        
         const paymentResponse = await fetchWithActAs('/api/payments/create-checkout-session', {
           method: 'POST',
           headers: {
@@ -236,12 +239,25 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
           }),
         });
 
+        console.log('[Payment] Checkout session response status:', paymentResponse.status);
+        
         const paymentData = await paymentResponse.json();
+        console.log('[Payment] Checkout session response data:', {
+          hasUrl: !!paymentData.url,
+          sessionId: paymentData.sessionId,
+          error: paymentData.error,
+        });
 
         if (!paymentResponse.ok) {
           const errorMsg = paymentData.details 
             ? `${paymentData.error}: ${paymentData.details}`
             : paymentData.error || 'Failed to create payment session';
+          
+          console.error('[Payment] Failed to create checkout session:', {
+            status: paymentResponse.status,
+            error: errorMsg,
+            responseData: paymentData,
+          });
           
           if (paymentData.supportUrl) {
             throw new Error(`${errorMsg} Need help? Contact support.`);
@@ -252,9 +268,49 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
 
         // Redirect to Stripe Checkout
         if (paymentData.url) {
-          window.location.href = paymentData.url;
+          console.log('[Payment] Redirecting to Stripe checkout:', {
+            url: paymentData.url,
+            sessionId: paymentData.sessionId,
+            registrationId: data.registrationId,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            referrer: document.referrer,
+          });
+          
+          // Store payment URL in case redirect fails (for fallback link)
+          setPaymentUrl(paymentData.url);
+          
+          // Add a small delay to ensure logging completes before redirect
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          try {
+            // Attempt redirect - this will navigate away immediately if successful
+            window.location.href = paymentData.url;
+            
+            // If redirect is blocked by browser, we'll catch it below
+            // But typically window.location.href assignment doesn't throw errors
+            // Browser security may silently block it instead
+          } catch (redirectError) {
+            console.error('[Payment] Error during redirect attempt:', redirectError);
+            const errorDetails = redirectError instanceof Error ? redirectError.message : String(redirectError);
+            console.error('[Payment] Redirect error details:', {
+              error: errorDetails,
+              url: paymentData.url,
+              sessionId: paymentData.sessionId,
+            });
+            
+            // Don't throw - show error with fallback link instead
+            setError(`Redirect blocked by browser. Please click the "Complete Payment" button below to proceed.`);
+            setIsSubmitting(false);
+            return;
+          }
         } else {
-          throw new Error('No payment URL received');
+          console.error('[Payment] No payment URL received in response:', {
+            responseData: paymentData,
+            status: paymentResponse.status,
+            registrationId: data.registrationId,
+          });
+          throw new Error('No payment URL received from server. Please try again or contact support.');
         }
       } else {
         // Free tournament - redirect to confirmation page
@@ -281,21 +337,42 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
 
       {/* Error Message */}
       {error && (
-        <div className="p-3 bg-error/10 border border-error text-error text-sm rounded flex items-start gap-2">
-          <svg
-            className="w-5 h-5 flex-shrink-0 mt-0.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <span>{error}</span>
+        <div className="p-3 bg-error/10 border border-error text-error text-sm rounded flex flex-col gap-3">
+          <div className="flex items-start gap-2">
+            <svg
+              className="w-5 h-5 flex-shrink-0 mt-0.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>{error}</span>
+          </div>
+          {/* Fallback payment button if redirect failed */}
+          {paymentUrl && (
+            <div className="pt-2 border-t border-error/20">
+              <a
+                href={paymentUrl}
+                target="_self"
+                rel="noopener noreferrer"
+                className="btn btn-primary w-full"
+                onClick={() => {
+                  console.log('[Payment] Fallback payment link clicked:', paymentUrl);
+                }}
+              >
+                Complete Payment
+              </a>
+              <p className="text-xs text-muted mt-2 text-center">
+                If the redirect didn't work, click the button above to complete your payment.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

@@ -278,23 +278,57 @@ export async function POST(request: NextRequest) {
     // Construct base URL from request
     const baseUrl = getBaseUrl(request);
     
-    // Create Stripe Checkout Session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: STRIPE_CONFIG.checkout.paymentMethodTypes,
-      mode: STRIPE_CONFIG.checkout.mode,
-      line_items: lineItems,
-      success_url: `${baseUrl}/register/${registration.tournamentId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/register/${registration.tournamentId}/payment/cancel`,
-      customer_email: registration.player.email || undefined,
-      metadata: {
-        registrationId: registration.id,
-        tournamentId: registration.tournamentId,
-        tournamentName: registration.tournament.name,
-        expectedAmount: amount.toString(), // Store amount for validation
-        amountPaid: registration.amountPaid?.toString() || '0', // Store stored amount
-      },
-      client_reference_id: registrationId,
+    console.log('[Checkout Session] Creating Stripe checkout session:', {
+      registrationId,
+      tournamentId: registration.tournamentId,
+      tournamentName: registration.tournament.name,
+      playerEmail: registration.player.email,
+      amount,
+      baseUrl,
+      lineItemsCount: lineItems.length,
+      timestamp: new Date().toISOString(),
     });
+    
+    // Create Stripe Checkout Session
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        payment_method_types: STRIPE_CONFIG.checkout.paymentMethodTypes,
+        mode: STRIPE_CONFIG.checkout.mode,
+        line_items: lineItems,
+        success_url: `${baseUrl}/register/${registration.tournamentId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/register/${registration.tournamentId}/payment/cancel`,
+        customer_email: registration.player.email || undefined,
+        locale: 'en', // Explicitly set locale to prevent Stripe locale detection errors
+        metadata: {
+          registrationId: registration.id,
+          tournamentId: registration.tournamentId,
+          tournamentName: registration.tournament.name,
+          expectedAmount: amount.toString(), // Store amount for validation
+          amountPaid: registration.amountPaid?.toString() || '0', // Store stored amount
+        },
+        client_reference_id: registrationId,
+      });
+      
+      console.log('[Checkout Session] Stripe session created successfully:', {
+        sessionId: session.id,
+        sessionUrl: session.url,
+        sessionStatus: session.status,
+        paymentIntentId: session.payment_intent,
+        sessionMode: session.mode,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (stripeError: any) {
+      console.error('[Checkout Session] Stripe API error:', {
+        error: stripeError.message,
+        errorType: stripeError.type,
+        errorCode: stripeError.code,
+        registrationId,
+        playerEmail: registration.player.email,
+        timestamp: new Date().toISOString(),
+      });
+      throw stripeError;
+    }
 
     // Update registration notes to include Stripe session ID and payment intent ID
     const updatedNotes = {
@@ -303,18 +337,42 @@ export async function POST(request: NextRequest) {
       paymentIntentId: session.payment_intent as string | undefined,
     };
 
-    await prisma.tournamentRegistration.update({
-      where: { id: registrationId },
-      data: {
-        notes: JSON.stringify(updatedNotes),
-        paymentStatus: 'PENDING',
-      },
-    });
+    try {
+      await prisma.tournamentRegistration.update({
+        where: { id: registrationId },
+        data: {
+          notes: JSON.stringify(updatedNotes),
+          paymentStatus: 'PENDING',
+        },
+      });
+      console.log('[Checkout Session] Registration updated with session ID:', {
+        registrationId,
+        sessionId: session.id,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (dbError: any) {
+      console.error('[Checkout Session] Database update error:', {
+        error: dbError.message,
+        registrationId,
+        sessionId: session.id,
+        timestamp: new Date().toISOString(),
+      });
+      // Don't fail the request if DB update fails - session is already created
+    }
 
-    return NextResponse.json({
+    const responseData = {
       sessionId: session.id,
       url: session.url,
+    };
+    
+    console.log('[Checkout Session] Returning response:', {
+      hasUrl: !!responseData.url,
+      sessionId: responseData.sessionId,
+      registrationId,
+      timestamp: new Date().toISOString(),
     });
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Stripe checkout session creation error:', error);

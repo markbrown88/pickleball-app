@@ -13,7 +13,7 @@ export default function SignInPage() {
     <div className="p-6">
       <SignIn 
         signUpUrl={signUpUrl}
-        forceRedirectUrl={redirectUrl}
+        fallbackRedirectUrl={redirectUrl}
       />
     </div>
   );
