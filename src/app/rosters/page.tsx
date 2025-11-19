@@ -619,6 +619,7 @@ function ClubRosterEditor({
                 excludeIdsAcrossStop={excludeWithinStop}
                 readOnly={readOnly}
                 onPaymentToggle={readOnly ? undefined : (playerId, currentMethod) => togglePaymentStatus(stop.stopId, playerId, currentMethod)}
+                showPaymentInfo={club.isManagedByUser}
               />
             );
           })}
@@ -716,6 +717,7 @@ function BracketRosterEditor({
   excludeIdsAcrossStop,
   readOnly = false,
   onPaymentToggle,
+  showPaymentInfo = true,
 }: {
   title: string;
   tournamentId: string;
@@ -726,6 +728,7 @@ function BracketRosterEditor({
   excludeIdsAcrossStop: string[];
   readOnly?: boolean;
   onPaymentToggle?: (playerId: string, currentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID') => void;
+  showPaymentInfo?: boolean;
 }) {
   const [term, setTerm] = useState('');
   const [options, setOptions] = useState<PlayerLite[]>([]);
@@ -850,8 +853,8 @@ function BracketRosterEditor({
             <li key={player.id} className="flex items-center justify-between py-2">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  {/* Payment indicator - always shown, fixed width for consistency */}
-                  {player.paymentMethod === 'STRIPE' && (
+                  {/* Payment indicator - only shown if user has permission to view */}
+                  {showPaymentInfo && player.paymentMethod === 'STRIPE' && (
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap inline-block text-center"
                       style={{ backgroundColor: '#059669', color: 'white', minWidth: '52px' }}
@@ -860,7 +863,7 @@ function BracketRosterEditor({
                       Paid
                     </span>
                   )}
-                  {player.paymentMethod === 'MANUAL' && onPaymentToggle && (
+                  {showPaymentInfo && player.paymentMethod === 'MANUAL' && onPaymentToggle && (
                     <button
                       type="button"
                       onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
@@ -871,7 +874,7 @@ function BracketRosterEditor({
                       Paid X.
                     </button>
                   )}
-                  {player.paymentMethod === 'MANUAL' && !onPaymentToggle && (
+                  {showPaymentInfo && player.paymentMethod === 'MANUAL' && !onPaymentToggle && (
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap inline-block text-center"
                       style={{ backgroundColor: '#10b981', color: 'white', minWidth: '52px' }}
@@ -880,7 +883,7 @@ function BracketRosterEditor({
                       Paid X.
                     </span>
                   )}
-                  {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
+                  {showPaymentInfo && player.paymentMethod === 'UNPAID' && onPaymentToggle && (
                     <button
                       type="button"
                       onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
@@ -891,7 +894,7 @@ function BracketRosterEditor({
                       $
                     </button>
                   )}
-                  {player.paymentMethod === 'UNPAID' && !onPaymentToggle && (
+                  {showPaymentInfo && player.paymentMethod === 'UNPAID' && !onPaymentToggle && (
                     <span
                       className="text-[10px] px-2 py-0.5 font-bold whitespace-nowrap inline-block text-center"
                       style={{ color: '#fbbf24', minWidth: '52px' }}
@@ -927,9 +930,10 @@ function BracketRosterEditor({
               {!readOnly && (
                 <button
                   type="button"
-                  className="p-2 text-error hover:opacity-80 transition-opacity"
+                  className="p-2 hover:opacity-80 transition-opacity"
                   onClick={() => removePlayer(player.id)}
                   title="Remove player"
+                  style={{ color: '#ef4444' }}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
