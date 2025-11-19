@@ -233,13 +233,24 @@ export default function DashboardPage() {
     }));
   }, [assignments]);
 
-  // Filter tournaments by date
+  // Filter tournaments by date and registration status
   const { upcomingTournaments, pastTournaments } = useMemo(() => {
     const now = new Date();
     const upcoming: TournamentCardData[] = [];
     const past: TournamentCardData[] = [];
 
     tournaments.forEach((tournament) => {
+      // Show tournament if:
+      // 1. Registration is OPEN, OR
+      // 2. Player is already registered for it
+      const isPlayerRegistered = !!registrations[tournament.id];
+      const isRegistrationOpen = tournament.registrationStatus === 'OPEN';
+
+      if (!isPlayerRegistered && !isRegistrationOpen) {
+        // Skip closed/invite-only tournaments that player is not registered for
+        return;
+      }
+
       const endDate = tournament.endDate ? new Date(tournament.endDate) : null;
       if (endDate && endDate < now) {
         past.push(tournament);
@@ -263,7 +274,7 @@ export default function DashboardPage() {
     });
 
     return { upcomingTournaments: upcoming, pastTournaments: past };
-  }, [tournaments]);
+  }, [tournaments, registrations]);
 
   // Convert registrations object to array and sort by date
   const registrationsList = useMemo(() => {

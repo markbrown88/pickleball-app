@@ -12,6 +12,7 @@ import {
 
 import type { UserProfile } from '@/types';
 import Image from 'next/image';
+import { fetchWithActAs } from '@/lib/fetchWithActAs';
 
 type ClubOption = {
   id: string;
@@ -128,21 +129,21 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
       setDataLoading(true);
       try {
         // Fetch tournaments
-        const tournamentsRes = await fetch('/api/player/tournaments');
+        const tournamentsRes = await fetchWithActAs('/api/player/tournaments');
         if (tournamentsRes.ok) {
           const tournamentsData = await tournamentsRes.json();
           setTournaments(tournamentsData.tournaments || []);
         }
 
         // Fetch games
-        const gamesRes = await fetch('/api/player/games');
+        const gamesRes = await fetchWithActAs('/api/player/games');
         if (gamesRes.ok) {
           const gamesData = await gamesRes.json();
           setGames(gamesData.games || []);
         }
 
         // Fetch stats
-        const statsRes = await fetch('/api/player/stats');
+        const statsRes = await fetchWithActAs('/api/player/stats');
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setStats(statsData);
