@@ -33,14 +33,32 @@ export async function PUT(request: Request, { params }: Params) {
       throw new Error('Team not found');
     }
 
-    // Verify stop exists
+    // Verify stop exists and check if it's in the past
     const stop = await prisma.stop.findUnique({
       where: { id: stopId },
-      select: { id: true }
+      select: { 
+        id: true,
+        name: true,
+        startAt: true,
+        endAt: true,
+      }
     });
 
     if (!stop) {
       throw new Error('Stop not found');
+    }
+
+    // Warn if stop is in the past (but allow admin to proceed)
+    const now = new Date();
+    const isPast = stop.endAt 
+      ? new Date(stop.endAt) < now
+      : stop.startAt 
+        ? new Date(stop.startAt) < now
+        : false;
+    
+    if (isPast) {
+      console.warn(`Admin is adding players to a past stop: ${stop.name} (${stopId})`);
+      // Note: We allow this for admin flexibility, but log a warning
     }
 
     await prisma.$transaction(async (tx) => {

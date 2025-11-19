@@ -50,6 +50,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate that all selected stops are in the future
+    const stops = await prisma.stop.findMany({
+      where: {
+        id: { in: selectedStopIds },
+      },
+      select: {
+        id: true,
+        name: true,
+        startAt: true,
+        endAt: true,
+      },
+    });
+
+    const now = new Date();
+    const pastStops = stops.filter((stop) => {
+      if (stop.endAt) {
+        return new Date(stop.endAt) < now;
+      } else if (stop.startAt) {
+        return new Date(stop.startAt) < now;
+      }
+      return false;
+    });
+
+    if (pastStops.length > 0) {
+      const pastStopNames = pastStops.map((s) => s.name).join(', ');
+      return NextResponse.json(
+        { 
+          error: `Cannot register for stops that have already passed: ${pastStopNames}`,
+          pastStops: pastStops.map((s) => ({ id: s.id, name: s.name })),
+        },
+        { status: 400 }
+      );
+    }
+
     // Fetch tournament to check type and pricing
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -397,11 +431,9 @@ export async function POST(request: NextRequest) {
         );
         const { tax: mergedTax, total: mergedTotal } = calculateTotalWithTax(mergedSubtotal);
         
-        // Amount to charge = existing amount paid + new stops amount
+        // IMPORTANT: Don't update amountPaid here - it will be updated by the webhook when payment is confirmed
+        // The amountPaid field should only reflect what was actually paid in Stripe, not what we expect to charge
         const existingAmountPaid = existingReg?.amountPaid || 0;
-        const totalAmountPaidInCents = tournament.registrationType === 'FREE' 
-          ? 0 
-          : existingAmountPaid + newStopAmountPaidInCents;
         
         // Store final values for use after update
         finalStopIds = mergedStopIds;
@@ -409,7 +441,8 @@ export async function POST(request: NextRequest) {
         finalSubtotal = mergedSubtotal;
         finalTax = mergedTax;
         finalTotal = mergedTotal;
-        finalAmountPaidInCents = totalAmountPaidInCents;
+        // Keep existing amountPaid - webhook will add the new payment amount when confirmed
+        finalAmountPaidInCents = existingAmountPaid;
         
         // Parse existing notes to preserve other data
         let existingNotes: any = {};
@@ -427,7 +460,8 @@ export async function POST(request: NextRequest) {
           data: {
             // Update payment status if needed (if it was PENDING and now FREE, or vice versa)
             paymentStatus: tournament.registrationType === 'FREE' ? 'COMPLETED' : 'PENDING',
-            amountPaid: totalAmountPaidInCents,
+            // Don't update amountPaid here - webhook will update it when payment is confirmed
+            // amountPaid should only reflect what was actually paid, not what we expect to charge
             notes: JSON.stringify({
               stopIds: mergedStopIds,
               brackets: mergedBrackets,

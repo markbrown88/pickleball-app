@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { formatAmountFromStripe } from '@/lib/stripe/helpers';
 
@@ -38,6 +38,8 @@ export function PaymentAnalyticsClient({
   revenueBreakdown,
   recentPayments,
 }: PaymentAnalyticsClientProps) {
+  const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED'>('ALL');
+
   const formatAmount = (amountInCents: number) => {
     return `$${formatAmountFromStripe(amountInCents).toFixed(2)}`;
   };
@@ -59,6 +61,19 @@ export function PaymentAnalyticsClient({
   };
 
   const totalRevenueFormatted = formatAmount(stats.totalRevenue);
+
+  // Filter payments based on selected filter
+  const filteredPayments = useMemo(() => {
+    if (paymentFilter === 'ALL') {
+      return recentPayments;
+    }
+    return recentPayments.filter(p => p.paymentStatus === paymentFilter);
+  }, [recentPayments, paymentFilter]);
+
+  // Get pending payments separately
+  const pendingPayments = useMemo(() => {
+    return recentPayments.filter(p => p.paymentStatus === 'PENDING');
+  }, [recentPayments]);
 
   return (
     <div className="space-y-8">
@@ -155,11 +170,113 @@ export function PaymentAnalyticsClient({
         )}
       </div>
 
+      {/* Pending Payments Section */}
+      {pendingPayments.length > 0 && (
+        <div className="card border-warning/20">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Pending Payments ({pendingPayments.length})</h2>
+            <span className="chip chip-warning">Action Required</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-surface-1">
+                <tr>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Date</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Tournament</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
+                  <th className="text-right p-3 text-sm font-medium text-secondary">Amount</th>
+                  <th className="text-right p-3 text-sm font-medium text-secondary">Days Pending</th>
+                  <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingPayments.map((payment) => {
+                  const daysPending = Math.floor(
+                    (Date.now() - new Date(payment.registeredAt).getTime()) / (1000 * 60 * 60 * 24)
+                  );
+                  return (
+                    <tr key={payment.id} className="border-t border-border-subtle hover:bg-surface-2">
+                      <td className="p-3 text-sm text-muted">
+                        {new Date(payment.registeredAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-3">
+                        <Link
+                          href={`/tournament/${payment.tournamentId}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {payment.tournamentName}
+                        </Link>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-medium">{payment.playerName}</div>
+                        <div className="text-xs text-muted">{payment.playerEmail}</div>
+                      </td>
+                      <td className="p-3 text-right font-semibold">
+                        {formatAmount(payment.amount)}
+                      </td>
+                      <td className="p-3 text-right">
+                        <span className={daysPending >= 1 ? 'text-warning font-medium' : 'text-muted'}>
+                          {daysPending} {daysPending === 1 ? 'day' : 'days'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <Link
+                          href={`/register/${payment.tournamentId}/payment/status/${payment.id}`}
+                          className="btn btn-ghost btn-sm"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Recent Payments */}
       <div className="card">
-        <h2 className="text-xl font-semibold mb-4">Recent Payments</h2>
-        {recentPayments.length === 0 ? (
-          <div className="text-center py-8 text-muted">No payments found</div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Recent Payments</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPaymentFilter('ALL')}
+              className={`btn btn-sm ${paymentFilter === 'ALL' ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setPaymentFilter('PAID')}
+              className={`btn btn-sm ${paymentFilter === 'PAID' ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              Paid
+            </button>
+            <button
+              onClick={() => setPaymentFilter('PENDING')}
+              className={`btn btn-sm ${paymentFilter === 'PENDING' ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setPaymentFilter('FAILED')}
+              className={`btn btn-sm ${paymentFilter === 'FAILED' ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              Failed
+            </button>
+            <button
+              onClick={() => setPaymentFilter('REFUNDED')}
+              className={`btn btn-sm ${paymentFilter === 'REFUNDED' ? 'btn-primary' : 'btn-ghost'}`}
+            >
+              Refunded
+            </button>
+          </div>
+        </div>
+        {filteredPayments.length === 0 ? (
+          <div className="text-center py-8 text-muted">
+            No {paymentFilter === 'ALL' ? '' : paymentFilter.toLowerCase()} payments found
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -174,7 +291,7 @@ export function PaymentAnalyticsClient({
                 </tr>
               </thead>
               <tbody>
-                {recentPayments.map((payment) => (
+                {filteredPayments.map((payment) => (
                   <tr key={payment.id} className="border-t border-border-subtle hover:bg-surface-2">
                     <td className="p-3 text-sm text-muted">
                       {new Date(payment.registeredAt).toLocaleDateString()}

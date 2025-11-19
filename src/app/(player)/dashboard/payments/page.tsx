@@ -42,6 +42,7 @@ export default async function PaymentAnalyticsPage({}: PageProps) {
     refundedRegistrations,
     revenueByTournament,
     recentPayments,
+    allPendingPayments,
   ] = await Promise.all([
     // Total revenue (sum of all paid amounts)
     prisma.tournamentRegistration.aggregate({
@@ -124,7 +125,38 @@ export default async function PaymentAnalyticsPage({}: PageProps) {
       },
       take: 50,
     }),
+
+    // All pending payments (always include these)
+    prisma.tournamentRegistration.findMany({
+      where: {
+        paymentStatus: 'PENDING',
+      },
+      include: {
+        tournament: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        player: {
+          select: {
+            firstName: true,
+            lastName: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        registeredAt: 'desc',
+      },
+    }),
   ]);
+
+  // Combine recent payments with all pending payments, removing duplicates
+  const recentPaymentIds = new Set(recentPayments.map(p => p.id));
+  const additionalPendingPayments = allPendingPayments.filter(p => !recentPaymentIds.has(p.id));
+  const combinedPayments = [...recentPayments, ...additionalPendingPayments];
 
   // Get tournament names for revenue breakdown
   const tournamentIds = revenueByTournament.map((r) => r.tournamentId);
@@ -165,7 +197,7 @@ export default async function PaymentAnalyticsPage({}: PageProps) {
     <PaymentAnalyticsClient
       stats={stats}
       revenueBreakdown={revenueBreakdown}
-      recentPayments={recentPayments.map((p) => ({
+      recentPayments={combinedPayments.map((p) => ({
         id: p.id,
         tournamentId: p.tournamentId,
         tournamentName: p.tournament.name,

@@ -199,6 +199,31 @@ export function isStopAvailable(
 }
 
 /**
+ * Check if a stop has passed (endAt or startAt is in the past)
+ */
+export function isStopInPast(stop: { endAt: Date | null; startAt: Date | null }): boolean {
+  const now = new Date();
+  
+  // If stop has an endAt date, check if it's in the past
+  if (stop.endAt) {
+    const endDate = new Date(stop.endAt);
+    if (endDate < now) {
+      return true;
+    }
+  }
+  
+  // If no endAt, check startAt (if it exists)
+  if (stop.startAt && !stop.endAt) {
+    const startDate = new Date(stop.startAt);
+    if (startDate < now) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Sanitize user input (prevent XSS)
  */
 export function sanitizeInput(input: string): string {

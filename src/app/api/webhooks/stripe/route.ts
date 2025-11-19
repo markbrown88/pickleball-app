@@ -127,34 +127,90 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   // Get payment intent ID from session
   const paymentIntentId = session.payment_intent as string | null;
 
-  // Update registration status using TournamentRegistration model
+  // Get the actual payment amount from Stripe session
+  let actualPaymentAmount: number | null = null;
+  try {
+    if (paymentIntentId) {
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      actualPaymentAmount = paymentIntent.amount;
+    } else if (session.amount_total) {
+      actualPaymentAmount = session.amount_total;
+    }
+  } catch (e) {
+    console.error('Failed to retrieve payment intent amount:', e);
+  }
+
+  // Fetch current registration to get existing amountPaid
+  const currentRegistration = await prisma.tournamentRegistration.findUnique({
+    where: { id: registrationId },
+    select: { amountPaid: true, notes: true },
+  });
+
+  // Calculate new amountPaid: existing amount + actual payment amount
+  const existingAmountPaid = currentRegistration?.amountPaid || 0;
+  const newAmountPaid = actualPaymentAmount !== null
+    ? existingAmountPaid + actualPaymentAmount
+    : existingAmountPaid;
+
+  // Update registration status and amountPaid using TournamentRegistration model
   await prisma.tournamentRegistration.update({
     where: { id: registrationId },
     data: {
       status: 'REGISTERED',
       paymentStatus: 'PAID',
       paymentId: paymentIntentId || undefined,
+      amountPaid: newAmountPaid,
     },
   });
 
-  // Update notes to include paymentIntentId if not already stored
+  // Update notes to include paymentIntentId and track which stops were paid for in THIS payment
   const registrationForNotes = await prisma.tournamentRegistration.findUnique({
     where: { id: registrationId },
     select: { notes: true },
   });
 
-  if (registrationForNotes?.notes && paymentIntentId) {
+  if (registrationForNotes?.notes) {
     try {
       const notes = JSON.parse(registrationForNotes.notes);
-      if (!notes.paymentIntentId) {
+      let notesUpdated = false;
+      
+      if (paymentIntentId && !notes.paymentIntentId) {
         notes.paymentIntentId = paymentIntentId;
+        notesUpdated = true;
+      }
+      
+      // Track which stops were paid for in THIS payment
+      // Use newlySelectedStopIds if this is an update, otherwise use all stopIds
+      const paidStopIds = notes.newlySelectedStopIds && notes.newlySelectedStopIds.length > 0
+        ? notes.newlySelectedStopIds
+        : notes.stopIds || [];
+      
+      // Store paid stops for this payment (append to existing paidStops array if it exists)
+      if (!notes.paidStops) {
+        notes.paidStops = [];
+      }
+      
+      // Add this payment's stops to the paidStops array (avoid duplicates)
+      const existingPaidStopIds = new Set(notes.paidStops.flatMap((p: any) => p.stopIds || []));
+      const newPaidStopIds = paidStopIds.filter((id: string) => !existingPaidStopIds.has(id));
+      
+      if (newPaidStopIds.length > 0) {
+        notes.paidStops.push({
+          paymentIntentId: paymentIntentId || 'unknown',
+          stopIds: newPaidStopIds,
+          paidAt: new Date().toISOString(),
+        });
+        notesUpdated = true;
+      }
+      
+      if (notesUpdated) {
         await prisma.tournamentRegistration.update({
           where: { id: registrationId },
           data: { notes: JSON.stringify(notes) },
         });
       }
     } catch (e) {
-      console.error('Failed to update notes with paymentIntentId:', e);
+      console.error('Failed to update notes with paymentIntentId and paidStopIds:', e);
     }
   }
 
@@ -209,15 +265,24 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         }
       }
 
-      const stopIds: string[] = notes.stopIds || [];
-      const brackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }> = notes.brackets || [];
+      // IMPORTANT: Only create roster entries for stops that were paid for in THIS payment
+      // Use newlySelectedStopIds if this is an update to existing registration, otherwise use all stopIds
+      const paidStopIds = notes.newlySelectedStopIds && notes.newlySelectedStopIds.length > 0
+        ? notes.newlySelectedStopIds
+        : notes.stopIds || [];
+      
+      // Filter brackets to only include brackets for stops that were paid for in THIS payment
+      const paidBrackets = (notes.brackets || []).filter((b: any) => 
+        paidStopIds.includes(b.stopId)
+      );
+      
       const clubId: string | null = notes.clubId || null;
 
       // Check if this is a team tournament
       const { isTeamTournament } = await import('@/lib/tournamentTypeConfig');
       const tournamentIsTeam = isTeamTournament(registration.tournament.type);
 
-      if (tournamentIsTeam && clubId && stopIds.length > 0 && brackets.length > 0) {
+      if (tournamentIsTeam && clubId && paidStopIds.length > 0 && paidBrackets.length > 0) {
         // Get tournament brackets and club info
         const [tournamentBrackets, club] = await Promise.all([
           prisma.tournamentBracket.findMany({
@@ -232,10 +297,40 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
         const clubName = club?.name || 'Team';
 
-        // Create roster entries for each stop/bracket combination
-        for (const stopId of stopIds) {
-          // Find the bracket selection for this stop
-          const bracketSelection = brackets.find((sb: any) => sb && sb.stopId === stopId);
+        // Fetch stop details to validate dates
+        const stops = await prisma.stop.findMany({
+          where: {
+            id: { in: paidStopIds },
+          },
+          select: {
+            id: true,
+            name: true,
+            startAt: true,
+            endAt: true,
+          },
+        });
+
+        const now = new Date();
+
+        // Create roster entries ONLY for stops that were paid for in THIS payment
+        for (const stopId of paidStopIds) {
+          // Validate that stop hasn't passed
+          const stop = stops.find((s) => s.id === stopId);
+          if (stop) {
+            const isPast = stop.endAt 
+              ? new Date(stop.endAt) < now
+              : stop.startAt 
+                ? new Date(stop.startAt) < now
+                : false;
+            
+            if (isPast) {
+              console.warn(`Skipping roster entry creation for past stop ${stop.name} (${stopId})`);
+              continue;
+            }
+          }
+          
+          // Find the bracket selection for this stop (from paid brackets only)
+          const bracketSelection = paidBrackets.find((sb: any) => sb && sb.stopId === stopId);
           if (!bracketSelection || !bracketSelection.bracketId) {
             console.warn(`No bracket selection found for stop ${stopId} in registration ${registrationId}`);
             continue;
@@ -726,29 +821,71 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
   // Check if already paid (to avoid duplicate emails)
   const wasAlreadyPaid = registration.paymentStatus === 'PAID';
 
+  // Fetch current registration to get existing amountPaid
+  const currentRegistration = await prisma.tournamentRegistration.findUnique({
+    where: { id: registration.id },
+    select: { amountPaid: true },
+  });
+
+  // Calculate new amountPaid: existing amount + actual payment amount
+  const existingAmountPaid = currentRegistration?.amountPaid || 0;
+  const newAmountPaid = existingAmountPaid + paymentIntent.amount;
+
   // Ensure registration is marked as paid and paymentIntentId is stored
+  // Update amountPaid to reflect the actual payment amount added
   await prisma.tournamentRegistration.update({
     where: { id: registration.id },
     data: {
       status: 'REGISTERED',
       paymentStatus: 'PAID',
       paymentId: paymentIntent.id,
+      amountPaid: newAmountPaid,
     },
   });
 
-  // Update notes to include paymentIntentId if not already stored
+  // Update notes to include paymentIntentId and track which stops were paid for in THIS payment
   if (registration.notes) {
     try {
       const notes = JSON.parse(registration.notes);
+      let notesUpdated = false;
+      
       if (!notes.paymentIntentId) {
         notes.paymentIntentId = paymentIntent.id;
+        notesUpdated = true;
+      }
+      
+      // Track which stops were paid for in THIS payment
+      // Use newlySelectedStopIds if this is an update, otherwise use all stopIds
+      const paidStopIds = notes.newlySelectedStopIds && notes.newlySelectedStopIds.length > 0
+        ? notes.newlySelectedStopIds
+        : notes.stopIds || [];
+      
+      // Store paid stops for this payment (append to existing paidStops array if it exists)
+      if (!notes.paidStops) {
+        notes.paidStops = [];
+      }
+      
+      // Add this payment's stops to the paidStops array (avoid duplicates)
+      const existingPaidStopIds = new Set(notes.paidStops.flatMap((p: any) => p.stopIds || []));
+      const newPaidStopIds = paidStopIds.filter((id: string) => !existingPaidStopIds.has(id));
+      
+      if (newPaidStopIds.length > 0) {
+        notes.paidStops.push({
+          paymentIntentId: paymentIntent.id,
+          stopIds: newPaidStopIds,
+          paidAt: new Date().toISOString(),
+        });
+        notesUpdated = true;
+      }
+      
+      if (notesUpdated) {
         await prisma.tournamentRegistration.update({
           where: { id: registration.id },
           data: { notes: JSON.stringify(notes) },
         });
       }
     } catch (e) {
-      console.error('Failed to update notes with paymentIntentId:', e);
+      console.error('Failed to update notes with paymentIntentId and paidStopIds:', e);
     }
   }
 
@@ -765,15 +902,24 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
         }
       }
 
-      const stopIds: string[] = notes.stopIds || [];
-      const brackets: Array<{ stopId: string; bracketId: string; gameTypes: string[] }> = notes.brackets || [];
+      // IMPORTANT: Only create roster entries for stops that were paid for in THIS payment
+      // Use newlySelectedStopIds if this is an update to existing registration, otherwise use all stopIds
+      const paidStopIds = notes.newlySelectedStopIds && notes.newlySelectedStopIds.length > 0
+        ? notes.newlySelectedStopIds
+        : notes.stopIds || [];
+      
+      // Filter brackets to only include brackets for stops that were paid for in THIS payment
+      const paidBrackets = (notes.brackets || []).filter((b: any) => 
+        paidStopIds.includes(b.stopId)
+      );
+      
       const clubId: string | null = notes.clubId || null;
 
       // Check if this is a team tournament
       const { isTeamTournament } = await import('@/lib/tournamentTypeConfig');
       const tournamentIsTeam = isTeamTournament(registration.tournament.type);
 
-      if (tournamentIsTeam && clubId && stopIds.length > 0 && brackets.length > 0) {
+      if (tournamentIsTeam && clubId && paidStopIds.length > 0 && paidBrackets.length > 0) {
         // Get tournament brackets and club info
         const [tournamentBrackets, club] = await Promise.all([
           prisma.tournamentBracket.findMany({
@@ -788,10 +934,40 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
 
         const clubName = club?.name || 'Team';
 
-        // Create roster entries for each stop/bracket combination
-        for (const stopId of stopIds) {
-          // Find the bracket selection for this stop
-          const bracketSelection = brackets.find((sb: any) => sb && sb.stopId === stopId);
+        // Fetch stop details to validate dates
+        const stops = await prisma.stop.findMany({
+          where: {
+            id: { in: paidStopIds },
+          },
+          select: {
+            id: true,
+            name: true,
+            startAt: true,
+            endAt: true,
+          },
+        });
+
+        const now = new Date();
+
+        // Create roster entries ONLY for stops that were paid for in THIS payment
+        for (const stopId of paidStopIds) {
+          // Validate that stop hasn't passed
+          const stop = stops.find((s) => s.id === stopId);
+          if (stop) {
+            const isPast = stop.endAt 
+              ? new Date(stop.endAt) < now
+              : stop.startAt 
+                ? new Date(stop.startAt) < now
+                : false;
+            
+            if (isPast) {
+              console.warn(`Skipping roster entry creation for past stop ${stop.name} (${stopId})`);
+              continue;
+            }
+          }
+          
+          // Find the bracket selection for this stop (from paid brackets only)
+          const bracketSelection = paidBrackets.find((sb: any) => sb && sb.stopId === stopId);
           if (!bracketSelection || !bracketSelection.bracketId) {
             console.warn(`No bracket selection found for stop ${stopId} in registration ${registration.id}`);
             continue;
