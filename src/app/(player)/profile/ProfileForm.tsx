@@ -63,6 +63,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
   const [activeTab, setActiveTab] = useState<'performance' | 'activity'>('performance');
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [clubSearch, setClubSearch] = useState('');
   const [showClubDropdown, setShowClubDropdown] = useState(false);
@@ -119,11 +120,11 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
     }
   }, [hydrateFromProfile, profile, setBirthday, setCountryOther, setCountrySel]);
 
-  // Fetch tournaments and games data
+  // Fetch tournaments, games, and stats data
   useEffect(() => {
     const fetchData = async () => {
       if (!profile) return;
-      
+
       setDataLoading(true);
       try {
         // Fetch tournaments
@@ -138,6 +139,13 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         if (gamesRes.ok) {
           const gamesData = await gamesRes.json();
           setGames(gamesData.games || []);
+        }
+
+        // Fetch stats
+        const statsRes = await fetch('/api/player/stats');
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData);
         }
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -635,50 +643,81 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                 {/* Stats Section */}
                 <div>
                   <h3 className="text-lg font-semibold text-primary mb-4">Statistics</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-green-500">👍</span>
-                        <span className="text-sm text-muted">Wins</span>
-                      </div>
-                      <span className="font-semibold text-primary">—</span>
+                  {dataLoading || !stats ? (
+                    <div className="text-center py-8 text-muted">
+                      <p>Loading statistics...</p>
                     </div>
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-red-500">👎</span>
-                        <span className="text-sm text-muted">Losses</span>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Match Record */}
+                      <div className="border-b border-border-subtle pb-3">
+                        <h4 className="text-sm font-semibold text-secondary mb-2">Match Record</h4>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Matches Played</span>
+                          <span className="font-semibold text-primary">{stats.matchRecord.played}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Win-Loss</span>
+                          <span className="font-semibold text-primary">{stats.matchRecord.won}-{stats.matchRecord.lost}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Win %</span>
+                          <span className="font-semibold text-primary">{stats.matchRecord.winPct}%</span>
+                        </div>
                       </div>
-                      <span className="font-semibold text-primary">—</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-blue-500">🎯</span>
-                        <span className="text-sm text-muted">Avg Points</span>
+
+                      {/* Game Record */}
+                      <div className="border-b border-border-subtle pb-3">
+                        <h4 className="text-sm font-semibold text-secondary mb-2">Game Record</h4>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Games Played</span>
+                          <span className="font-semibold text-primary">{stats.gameRecord.played}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Win-Loss</span>
+                          <span className="font-semibold text-primary">{stats.gameRecord.won}-{stats.gameRecord.lost}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Win %</span>
+                          <span className="font-semibold text-primary">{stats.gameRecord.winPct}%</span>
+                        </div>
                       </div>
-                      <span className="font-semibold text-primary">—</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-purple-500">👥</span>
-                        <span className="text-sm text-muted">Avg Partner</span>
+
+                      {/* Scoring */}
+                      <div className="border-b border-border-subtle pb-3">
+                        <h4 className="text-sm font-semibold text-secondary mb-2">Scoring</h4>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Avg Points For</span>
+                          <span className="font-semibold text-primary">{stats.scoring.avgPointsScored}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Avg Points Against</span>
+                          <span className="font-semibold text-primary">{stats.scoring.avgPointsAllowed}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Point Differential</span>
+                          <span className="font-semibold text-primary">{stats.scoring.pointDifferential > 0 ? '+' : ''}{stats.scoring.pointDifferential}</span>
+                        </div>
                       </div>
-                      <span className="font-semibold text-primary">—</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-orange-500">⚔️</span>
-                        <span className="text-sm text-muted">Avg Opponent</span>
+
+                      {/* Clutch Stats */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-secondary mb-2">Clutch Performance</h4>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Close Game Win %</span>
+                          <span className="font-semibold text-primary">{stats.clutch.closeGameWinPct}%</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Avg Margin (Wins)</span>
+                          <span className="font-semibold text-primary">{stats.clutch.avgMarginVictory}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-sm text-muted">Avg Margin (Losses)</span>
+                          <span className="font-semibold text-primary">{stats.clutch.avgMarginDefeat}</span>
+                        </div>
                       </div>
-                      <span className="font-semibold text-primary">—</span>
                     </div>
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-yellow-500">⭐</span>
-                        <span className="text-sm text-muted">Half-Life</span>
-                      </div>
-                      <span className="font-semibold text-primary">—</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -725,51 +764,86 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                 </div>
               ) : games.length > 0 ? (
                 <div className="space-y-3">
-                  {games.map((game) => (
-                    <div key={game.id} className="border border-subtle rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-medium text-muted">
-                              {game.slot?.replace('_', ' ') || 'Game'}
-                            </span>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              game.isComplete ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {game.isComplete ? 'Complete' : 'In Progress'}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-4 text-sm text-muted">
-                            <div>
-                              <span className="font-medium text-primary">{game.playerTeam?.name || 'Your Team'}</span>
-                              <span className="ml-2 text-secondary">({game.playerTeam?.club?.name})</span>
+                  {games.map((game) => {
+                    const playerScore = game.isTeamA ? game.teamAScore : game.teamBScore;
+                    const opponentScore = game.isTeamA ? game.teamBScore : game.teamAScore;
+                    const won = playerScore !== null && opponentScore !== null && playerScore > opponentScore;
+                    const lost = playerScore !== null && opponentScore !== null && playerScore < opponentScore;
+
+                    return (
+                      <div key={game.id} className="border border-subtle rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm font-medium text-muted">
+                                {game.slot?.replace(/_/g, ' ') || 'Game'}
+                              </span>
+                              {game.isForfeit ? (
+                                <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                  Forfeit
+                                </span>
+                              ) : game.isComplete ? (
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  won ? 'bg-green-100 text-green-800' : lost ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {won ? 'Won' : lost ? 'Lost' : 'Complete'}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  In Progress
+                                </span>
+                              )}
                             </div>
-                            <span className="text-secondary">vs</span>
-                            <div>
-                              <span className="font-medium text-primary">{game.opponentTeam?.name || 'Opponent Team'}</span>
-                              <span className="ml-2 text-secondary">({game.opponentTeam?.club?.name})</span>
+
+                            <div className="flex items-center gap-4 text-sm mb-2">
+                              <div>
+                                <span className="font-medium text-primary">{game.playerTeam?.name || 'Your Team'}</span>
+                                {game.playerTeam?.club?.name && (
+                                  <span className="ml-2 text-muted">({game.playerTeam.club.name})</span>
+                                )}
+                              </div>
+                              <span className="text-muted">vs</span>
+                              <div>
+                                <span className="font-medium text-primary">{game.opponentTeam?.name || 'Opponent'}</span>
+                                {game.opponentTeam?.club?.name && (
+                                  <span className="ml-2 text-muted">({game.opponentTeam.club.name})</span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          
-                          {game.teamAScore !== null && game.teamBScore !== null && (
-                            <div className="mt-2 text-lg font-semibold text-primary">
-                              {game.teamAScore} - {game.teamBScore}
+
+                            {!game.isForfeit && playerScore !== null && opponentScore !== null && (
+                              <div className="text-lg font-semibold text-primary mb-2">
+                                {playerScore} - {opponentScore}
+                              </div>
+                            )}
+
+                            {game.partner && (
+                              <div className="text-sm text-muted mb-2">
+                                Partner: <span className="font-medium text-secondary">
+                                  {game.partner.firstName && game.partner.lastName
+                                    ? `${game.partner.firstName} ${game.partner.lastName}`
+                                    : game.partner.name || 'Unknown'}
+                                </span>
+                                {game.partner.dupr && (
+                                  <span className="ml-2">({game.partner.dupr} DUPR)</span>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="text-xs text-muted">
+                              {game.tournament?.name && `${game.tournament.name} • `}
+                              {game.stop?.name} • {new Date(game.createdAt).toLocaleDateString()}
                             </div>
-                          )}
-                          
-                          <div className="mt-2 text-xs text-secondary">
-                            {game.stop?.name} • {new Date(game.createdAt).toLocaleDateString()}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted">
                   <p>No games yet</p>
-                  <p className="text-sm">Game data will appear here</p>
+                  <p className="text-sm">Game data will appear here once you play matches</p>
                 </div>
               )}
             </div>
