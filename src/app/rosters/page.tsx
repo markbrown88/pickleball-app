@@ -909,7 +909,7 @@ function BracketRosterEditor({
               {!readOnly && (
                 <button
                   type="button"
-                  className="p-2 text-muted hover:text-error transition-colors"
+                  className="p-2 text-error hover:opacity-80 transition-opacity"
                   onClick={() => removePlayer(player.id)}
                   title="Remove player"
                 >
