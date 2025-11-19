@@ -815,9 +815,13 @@ function BracketRosterEditor({
                     {player.hasPaid && (
                       <span className="chip chip-success text-[10px] px-2 py-0.5">Paid</span>
                     )}
-                    <span className={`chip text-[10px] px-2 py-0.5 ${
-                      player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
-                    }`}>
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                      style={{
+                        backgroundColor: player.gender === 'MALE' ? '#3b82f6' : '#db2777',
+                        color: 'white'
+                      }}
+                    >
                       {player.gender === 'MALE' ? 'M' : 'F'}
                     </span>
                   </div>
@@ -840,7 +844,6 @@ function BracketRosterEditor({
       )}
 
       <div className="space-y-3 mt-4">
-        <div className="text-xs font-semibold text-muted label-caps">Current Roster</div>
         <ul className="space-y-2">
           {list.map((player) => (
             <li key={player.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-2 border border-border-subtle hover:border-border-medium transition-colors">
@@ -850,7 +853,7 @@ function BracketRosterEditor({
                   {onPaymentToggle && player.paymentMethod === 'STRIPE' && (
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                      style={{ backgroundColor: '#22c55e', color: 'white' }}
+                      style={{ backgroundColor: '#059669', color: 'white' }}
                       title="Paid via Stripe"
                     >
                       Paid
@@ -861,7 +864,7 @@ function BracketRosterEditor({
                       type="button"
                       onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
                       className="text-[10px] px-2 py-0.5 rounded-full font-medium hover:opacity-80 transition-opacity cursor-pointer"
-                      style={{ backgroundColor: '#4ade80', color: 'white' }}
+                      style={{ backgroundColor: '#10b981', color: 'white' }}
                       title="Click to mark as unpaid"
                     >
                       Paid X.
@@ -877,9 +880,13 @@ function BracketRosterEditor({
                       💰
                     </button>
                   )}
-                  <span className={`chip text-[10px] px-2 py-0.5 ${
-                    player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
-                  }`}>
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    style={{
+                      backgroundColor: player.gender === 'MALE' ? '#3b82f6' : '#db2777',
+                      color: 'white'
+                    }}
+                  >
                     {player.gender === 'MALE' ? 'M' : 'F'}
                   </span>
                 </div>
