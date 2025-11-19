@@ -32,3 +32,35 @@ export function clearSelectedTournament(): void {
     console.warn('Failed to clear selected tournament from localStorage:', error);
   }
 }
+
+/**
+ * Roster tab persistence - tracks which stop tab was last active for each club accordion
+ */
+const ROSTER_TAB_STORAGE_KEY = 'rosterActiveStopTabs';
+
+export function saveActiveStopTab(tournamentId: string, clubId: string, stopId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const stored = localStorage.getItem(ROSTER_TAB_STORAGE_KEY);
+    const data = stored ? JSON.parse(stored) : {};
+    const key = `${tournamentId}:${clubId}`;
+    data[key] = stopId;
+    localStorage.setItem(ROSTER_TAB_STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.warn('Failed to save active stop tab to localStorage:', error);
+  }
+}
+
+export function getLastActiveStopTab(tournamentId: string, clubId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(ROSTER_TAB_STORAGE_KEY);
+    if (!stored) return null;
+    const data = JSON.parse(stored);
+    const key = `${tournamentId}:${clubId}`;
+    return data[key] ?? null;
+  } catch (error) {
+    console.warn('Failed to read active stop tab from localStorage:', error);
+    return null;
+  }
+}

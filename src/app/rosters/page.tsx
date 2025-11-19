@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAdminUser } from '../admin/AdminContext';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
-import { saveSelectedTournament, getLastSelectedTournament } from '@/lib/tournamentStorage';
+import { saveSelectedTournament, getLastSelectedTournament, saveActiveStopTab, getLastActiveStopTab } from '@/lib/tournamentStorage';
 
 type RosterTournament = {
   id: string;
@@ -427,12 +427,20 @@ function ClubRosterEditor({
     // Auto-select first stop or expand all if single stop
     if (stops.length > 0) {
       if (hasMultipleStops) {
-        setSelectedStopId(stops[0].stopId);
+        // Try to restore last active tab for this club
+        const lastActiveStopId = getLastActiveStopTab(tournamentId, club.clubId);
+        const isLastActiveValid = lastActiveStopId && stops.some(s => s.stopId === lastActiveStopId);
+
+        if (isLastActiveValid) {
+          setSelectedStopId(lastActiveStopId);
+        } else {
+          setSelectedStopId(stops[0].stopId);
+        }
       } else {
         setExpandedStops(new Set([stops[0].stopId]));
       }
     }
-  }, [stops, club.brackets, hasMultipleStops]);
+  }, [stops, club.brackets, club.clubId, hasMultipleStops, tournamentId]);
 
   const setStopTeamRoster = (stopId: string, teamId: string, next: PlayerLite[]) => {
     setRosters((prev) => ({
@@ -582,7 +590,10 @@ function ClubRosterEditor({
                 return (
                   <button
                     key={stop.stopId}
-                    onClick={() => setSelectedStopId(stop.stopId)}
+                    onClick={() => {
+                      setSelectedStopId(stop.stopId);
+                      saveActiveStopTab(tournamentId, club.clubId, stop.stopId);
+                    }}
                     className={`tab-button ${isActive ? 'active' : ''}`}
                   >
                     <div className="flex flex-col items-start">
