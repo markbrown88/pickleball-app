@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAdminUser } from '../admin/AdminContext';
 
@@ -72,25 +72,43 @@ function normalizePlayersResponse(value: PlayersResponse | undefined): { items: 
 
 export default function PlayersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const admin = useAdminUser();
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize from URL parameters
   const [playersPage, setPlayersPage] = useState<{ items: Player[]; total: number; take: number; skip: number; sort: string }>(
-    { items: [], total: 0, take: 25, skip: 0, sort: 'lastName:asc' }
+    { items: [], total: 0, take: 25, skip: 0, sort: searchParams.get('sort') || 'lastName:asc' }
   );
-  const [playerSort, setPlayerSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({ col: 'lastName', dir: 'asc' });
-  const [playerSearch, setPlayerSearch] = useState('');
 
-  const [playersClubFilter, setPlayersClubFilter] = useState<string>('');
-  const [registrationStatusFilter, setRegistrationStatusFilter] = useState<string>(''); // '' = All, 'registered' = Registered, 'profile' = Profile Only
-  const [showDisabledPlayers, setShowDisabledPlayers] = useState(false);
+  const initialSort = searchParams.get('sort') || 'lastName:asc';
+  const [sortCol, sortDir] = initialSort.split(':');
+  const [playerSort, setPlayerSort] = useState<{ col: string; dir: 'asc' | 'desc' }>({
+    col: sortCol || 'lastName',
+    dir: (sortDir === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc'
+  });
+  const [playerSearch, setPlayerSearch] = useState(searchParams.get('search') || '');
+
+  const [playersClubFilter, setPlayersClubFilter] = useState<string>(searchParams.get('clubId') || '');
+  const [registrationStatusFilter, setRegistrationStatusFilter] = useState<string>(searchParams.get('regStatus') || '');
+  const [showDisabledPlayers, setShowDisabledPlayers] = useState(searchParams.get('showDisabled') === 'true');
   const [clubsAll, setClubsAll] = useState<Club[]>([]);
 
   const playerSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playersRequestRef = useRef(0);
   const playersListConfigRef = useRef({ take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter, registrationStatus: registrationStatusFilter });
+
+  // Helper to update URL with current filters
+  const updateURL = useCallback((params: Record<string, string>) => {
+    const newParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) newParams.set(key, value);
+    });
+    const queryString = newParams.toString();
+    router.replace(`/players${queryString ? `?${queryString}` : ''}`, { scroll: false });
+  }, [router]);
 
   const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch, showDisabled: boolean = showDisabledPlayers, regStatus: string = registrationStatusFilter) => {
     const requestId = playersRequestRef.current + 1;
@@ -154,16 +172,28 @@ export default function PlayersPage() {
       playerSearchDebounceRef.current = null;
     }
     const term = value.trim();
+    const cfg = playersListConfigRef.current;
     if (!term) {
-      const cfg = playersListConfigRef.current;
       void loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, '');
+      updateURL({
+        sort: cfg.sort,
+        clubId: cfg.clubId,
+        regStatus: cfg.registrationStatus,
+        showDisabled: showDisabledPlayers ? 'true' : ''
+      });
       return;
     }
     playerSearchDebounceRef.current = setTimeout(() => {
-      const cfg = playersListConfigRef.current;
       void loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, term);
+      updateURL({
+        search: term,
+        sort: cfg.sort,
+        clubId: cfg.clubId,
+        regStatus: cfg.registrationStatus,
+        showDisabled: showDisabledPlayers ? 'true' : ''
+      });
     }, 300);
-  }, [loadPlayersPage]);
+  }, [loadPlayersPage, showDisabledPlayers, updateURL]);
 
   const clearPlayerSearch = useCallback(() => {
     setPlayerSearch('');
@@ -173,33 +203,50 @@ export default function PlayersPage() {
     }
     const cfg = playersListConfigRef.current;
     void loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, '');
-  }, [loadPlayersPage]);
-
-  const submitPlayerSearch = useCallback((event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (playerSearchDebounceRef.current) {
-      clearTimeout(playerSearchDebounceRef.current);
-      playerSearchDebounceRef.current = null;
-    }
-    const cfg = playersListConfigRef.current;
-    void loadPlayersPage(cfg.take, 0, cfg.sort, cfg.clubId, playerSearch);
-  }, [loadPlayersPage, playerSearch]);
+    updateURL({
+      sort: cfg.sort,
+      clubId: cfg.clubId,
+      regStatus: cfg.registrationStatus,
+      showDisabled: showDisabledPlayers ? 'true' : ''
+    });
+  }, [loadPlayersPage, showDisabledPlayers, updateURL]);
 
   const clickSortPlayers = useCallback((col: string) => {
     const dir = (playerSort.col === col && playerSort.dir === 'asc') ? 'desc' : 'asc';
     setPlayerSort({ col, dir });
     void loadPlayersPage(playersPage.take, 0, `${col}:${dir}`, playersClubFilter, playerSearch);
-  }, [loadPlayersPage, playerSort, playersPage.take, playersClubFilter, playerSearch]);
+    updateURL({
+      search: playerSearch,
+      sort: `${col}:${dir}`,
+      clubId: playersClubFilter,
+      regStatus: registrationStatusFilter,
+      showDisabled: showDisabledPlayers ? 'true' : ''
+    });
+  }, [loadPlayersPage, playerSort, playersPage.take, playersClubFilter, playerSearch, registrationStatusFilter, showDisabledPlayers, updateURL]);
 
   const changePlayersClubFilter = useCallback((clubId: string) => {
     setPlayersClubFilter(clubId);
     void loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, clubId, playerSearch);
-  }, [loadPlayersPage, playersPage.take, playerSort.col, playerSort.dir, playerSearch]);
+    updateURL({
+      search: playerSearch,
+      sort: `${playerSort.col}:${playerSort.dir}`,
+      clubId,
+      regStatus: registrationStatusFilter,
+      showDisabled: showDisabledPlayers ? 'true' : ''
+    });
+  }, [loadPlayersPage, playersPage.take, playerSort.col, playerSort.dir, playerSearch, registrationStatusFilter, showDisabledPlayers, updateURL]);
 
   const changeRegistrationStatusFilter = useCallback((status: string) => {
     setRegistrationStatusFilter(status);
     void loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch, showDisabledPlayers, status);
-  }, [loadPlayersPage, playersPage.take, playerSort.col, playerSort.dir, playersClubFilter, playerSearch, showDisabledPlayers]);
+    updateURL({
+      search: playerSearch,
+      sort: `${playerSort.col}:${playerSort.dir}`,
+      clubId: playersClubFilter,
+      regStatus: status,
+      showDisabled: showDisabledPlayers ? 'true' : ''
+    });
+  }, [loadPlayersPage, playersPage.take, playerSort.col, playerSort.dir, playersClubFilter, playerSearch, showDisabledPlayers, updateURL]);
 
   const removePlayer = useCallback(async (id: Id) => {
     if (!confirm('Delete this player?')) return;
@@ -265,7 +312,7 @@ export default function PlayersPage() {
       )}
 
       <div className="card">
-        <form className="flex flex-wrap items-center gap-3" onSubmit={submitPlayerSearch}>
+        <div className="flex flex-wrap items-center gap-3">
           {admin.isAppAdmin && (
             <div className="flex items-center gap-2">
               <label className="text-sm text-muted">Primary Club</label>
@@ -322,15 +369,23 @@ export default function PlayersPage() {
                   type="checkbox"
                   checked={showDisabledPlayers}
                   onChange={(e) => {
-                    setShowDisabledPlayers(e.target.checked);
+                    const checked = e.target.checked;
+                    setShowDisabledPlayers(checked);
                     void loadPlayersPage(
                       playersPage.take,
                       0,
                       `${playerSort.col}:${playerSort.dir}`,
                       playersClubFilter,
                       playerSearch,
-                      e.target.checked
+                      checked
                     );
+                    updateURL({
+                      search: playerSearch,
+                      sort: `${playerSort.col}:${playerSort.dir}`,
+                      clubId: playersClubFilter,
+                      regStatus: registrationStatusFilter,
+                      showDisabled: checked ? 'true' : ''
+                    });
                   }}
                   className="w-4 h-4"
                 />
@@ -338,8 +393,7 @@ export default function PlayersPage() {
               </label>
             </div>
           )}
-          <button type="submit" className="btn btn-secondary btn-sm">Apply</button>
-        </form>
+        </div>
       </div>
 
       <div className="card">
