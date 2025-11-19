@@ -850,8 +850,8 @@ function BracketRosterEditor({
             <li key={player.id} className="flex items-center justify-between py-2">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  {/* Payment indicator - fixed width for consistency */}
-                  {onPaymentToggle && player.paymentMethod === 'STRIPE' && (
+                  {/* Payment indicator - always shown, fixed width for consistency */}
+                  {player.paymentMethod === 'STRIPE' && (
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap inline-block text-center"
                       style={{ backgroundColor: '#059669', color: 'white', minWidth: '52px' }}
@@ -860,7 +860,7 @@ function BracketRosterEditor({
                       Paid
                     </span>
                   )}
-                  {onPaymentToggle && player.paymentMethod === 'MANUAL' && (
+                  {player.paymentMethod === 'MANUAL' && onPaymentToggle && (
                     <button
                       type="button"
                       onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
@@ -870,6 +870,15 @@ function BracketRosterEditor({
                     >
                       Paid X.
                     </button>
+                  )}
+                  {player.paymentMethod === 'MANUAL' && !onPaymentToggle && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap inline-block text-center"
+                      style={{ backgroundColor: '#10b981', color: 'white', minWidth: '52px' }}
+                      title="Paid manually"
+                    >
+                      Paid X.
+                    </span>
                   )}
                   {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
                     <button
@@ -881,6 +890,15 @@ function BracketRosterEditor({
                     >
                       $
                     </button>
+                  )}
+                  {player.paymentMethod === 'UNPAID' && !onPaymentToggle && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 font-bold whitespace-nowrap inline-block text-center"
+                      style={{ color: '#fbbf24', minWidth: '52px' }}
+                      title="Unpaid"
+                    >
+                      $
+                    </span>
                   )}
 
                   {/* Gender indicator */}
