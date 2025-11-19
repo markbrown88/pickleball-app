@@ -100,7 +100,7 @@ export function TeamFormatManager({
       const firstTournament = tournaments[0];
       if (firstTournament.stops.length > 0) {
         // Try to restore last active stop from localStorage
-        const lastActiveStopId = getManagerLastActiveStopTab(firstTournament.id);
+        const lastActiveStopId = getManagerLastActiveStopTab(firstTournament.tournamentId);
         const stopExists = lastActiveStopId && firstTournament.stops.some(s => s.stopId === lastActiveStopId);
 
         // Use last active stop if it exists, otherwise use first stop
@@ -115,7 +115,7 @@ export function TeamFormatManager({
   useEffect(() => {
     if (selectedStopId && tournaments.length > 0) {
       const tournament = tournaments[0];
-      saveManagerActiveStopTab(tournament.id, selectedStopId);
+      saveManagerActiveStopTab(tournament.tournamentId, selectedStopId);
     }
   }, [selectedStopId, tournaments]);
 
