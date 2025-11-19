@@ -290,11 +290,12 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                       key={value}
                       type="button"
                       onClick={() => handleChange('gender', value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                        form.gender === value
-                          ? 'bg-secondary text-white shadow-md'
-                          : 'bg-gray-200 text-black hover:bg-gray-300'
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all text-white ${
+                        form.gender === value ? 'shadow-md scale-105' : 'opacity-70 hover:opacity-100'
                       }`}
+                      style={{
+                        backgroundColor: value === 'MALE' ? '#3b82f6' : '#db2777',
+                      }}
                     >
                       {value === 'MALE' ? 'Male' : 'Female'}
                     </button>

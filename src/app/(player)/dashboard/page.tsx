@@ -411,7 +411,7 @@ export default function DashboardPage() {
       {err && <div className="alert alert-error">{err}</div>}
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">My Teams</h2>
+        <h2 className="text-xl font-semibold">Current Teams</h2>
         {assignmentsByTournament.length === 0 ? (
           <div className="card text-center py-10 text-muted">
             <p>You are not currently assigned to any teams.</p>

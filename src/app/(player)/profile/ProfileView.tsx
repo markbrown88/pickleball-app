@@ -124,7 +124,7 @@ export function ProfilePageView() {
           displayLocation: profileData.displayLocation ?? true,
         };
         
-        const response = await fetch(PROFILE_ENDPOINT, {
+        const response = await fetchWithActAs(PROFILE_ENDPOINT, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(apiData),
