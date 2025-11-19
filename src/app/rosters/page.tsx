@@ -848,57 +848,61 @@ function BracketRosterEditor({
         <ul className="space-y-2">
           {list.map((player) => (
             <li key={player.id} className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-3 flex-1">
-                {/* Payment indicator - fixed width for consistency */}
-                {onPaymentToggle && player.paymentMethod === 'STRIPE' && (
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  {/* Payment indicator - fixed width for consistency */}
+                  {onPaymentToggle && player.paymentMethod === 'STRIPE' && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap inline-block text-center"
+                      style={{ backgroundColor: '#059669', color: 'white', minWidth: '52px' }}
+                      title="Paid via Stripe"
+                    >
+                      Paid
+                    </span>
+                  )}
+                  {onPaymentToggle && player.paymentMethod === 'MANUAL' && (
+                    <button
+                      type="button"
+                      onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium hover:opacity-80 transition-opacity cursor-pointer whitespace-nowrap inline-block text-center"
+                      style={{ backgroundColor: '#10b981', color: 'white', minWidth: '52px' }}
+                      title="Click to mark as unpaid"
+                    >
+                      Paid X.
+                    </button>
+                  )}
+                  {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
+                    <button
+                      type="button"
+                      onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
+                      className="text-[10px] px-2 py-0.5 font-bold hover:opacity-80 transition-opacity cursor-pointer whitespace-nowrap inline-block text-center"
+                      style={{ color: '#fbbf24', minWidth: '52px' }}
+                      title="Click to mark as paid externally"
+                    >
+                      $
+                    </button>
+                  )}
+
+                  {/* Gender indicator */}
                   <span
-                    className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap inline-block text-center"
-                    style={{ backgroundColor: '#059669', color: 'white', minWidth: '52px' }}
-                    title="Paid via Stripe"
+                    className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    style={{
+                      backgroundColor: player.gender === 'MALE' ? '#3b82f6' : '#db2777',
+                      color: 'white'
+                    }}
                   >
-                    Paid
+                    {player.gender === 'MALE' ? 'M' : 'F'}
                   </span>
-                )}
-                {onPaymentToggle && player.paymentMethod === 'MANUAL' && (
-                  <button
-                    type="button"
-                    onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
-                    className="text-[10px] px-2 py-0.5 rounded-full font-medium hover:opacity-80 transition-opacity cursor-pointer whitespace-nowrap inline-block text-center"
-                    style={{ backgroundColor: '#10b981', color: 'white', minWidth: '52px' }}
-                    title="Click to mark as unpaid"
-                  >
-                    Paid X.
-                  </button>
-                )}
-                {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
-                  <button
-                    type="button"
-                    onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
-                    className="text-[10px] px-2 py-0.5 font-bold hover:opacity-80 transition-opacity cursor-pointer whitespace-nowrap inline-block text-center"
-                    style={{ color: '#fbbf24', minWidth: '52px' }}
-                    title="Click to mark as paid externally"
-                  >
-                    $
-                  </button>
-                )}
 
-                {/* Gender indicator */}
-                <span
-                  className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                  style={{
-                    backgroundColor: player.gender === 'MALE' ? '#3b82f6' : '#db2777',
-                    color: 'white'
-                  }}
-                >
-                  {player.gender === 'MALE' ? 'M' : 'F'}
-                </span>
+                  {/* Player name */}
+                  <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
+                </div>
 
-                {/* Player name */}
-                <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
-
-                {/* DUPR and Age */}
-                <span className="text-xs text-muted">DUPR: <span className="font-semibold text-secondary">{player.dupr ?? 'N/A'}</span></span>
-                <span className="text-xs text-muted">Age: <span className="font-semibold text-secondary">{player.age ?? 'N/A'}</span></span>
+                {/* DUPR and Age on new line */}
+                <div className="flex items-center gap-3 mt-1 ml-16">
+                  <span className="text-xs text-muted">DUPR: <span className="font-semibold text-secondary">{player.dupr ?? 'N/A'}</span></span>
+                  <span className="text-xs text-muted">Age: <span className="font-semibold text-secondary">{player.age ?? 'N/A'}</span></span>
+                </div>
               </div>
 
               {/* Remove button - trash icon */}
