@@ -13,6 +13,7 @@ type PlayerLite = {
   dupr: number | null;
   age: number | null;
   hasPaid: boolean;
+  paymentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID';
 };
 
 type StopData = {
@@ -48,8 +49,28 @@ type TournamentRosterPayload = {
   clubs: ClubRoster[];
 };
 
-function toPlayerLite(player: any, stopId: string, paidStopPlayerMap: Map<string, Set<string>>): PlayerLite {
+function toPlayerLite(
+  player: any,
+  stopId: string,
+  paidStopPlayerMap: Map<string, Set<string>>,
+  paymentMethodOverride?: 'STRIPE' | 'MANUAL' | 'UNPAID'
+): PlayerLite {
   const paidPlayersForStop = paidStopPlayerMap.get(stopId) ?? new Set<string>();
+  const paidViaStripe = paidPlayersForStop.has(player.id);
+
+  // Determine payment method
+  let paymentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID';
+  if (paymentMethodOverride) {
+    // Use override from StopTeamPlayer if provided
+    paymentMethod = paymentMethodOverride;
+  } else if (paidViaStripe) {
+    // Check if paid via Stripe
+    paymentMethod = 'STRIPE';
+  } else {
+    // Default to unpaid
+    paymentMethod = 'UNPAID';
+  }
+
   return {
     id: player.id,
     firstName: player.firstName ?? null,
@@ -58,7 +79,8 @@ function toPlayerLite(player: any, stopId: string, paidStopPlayerMap: Map<string
     gender: player.gender,
     dupr: player.dupr ?? null,
     age: player.age ?? null,
-    hasPaid: paidPlayersForStop.has(player.id),
+    hasPaid: paymentMethod === 'STRIPE' || paymentMethod === 'MANUAL',
+    paymentMethod,
   };
 }
 
@@ -203,6 +225,7 @@ export async function GET(
         select: {
           stopId: true,
           teamId: true,
+          paymentMethod: true,
           player: true,
         },
         orderBy: [{ stopId: 'asc' }, { createdAt: 'asc' }],
@@ -212,7 +235,7 @@ export async function GET(
       for (const entry of stopTeamPlayers) {
         const key = `${entry.teamId}:${entry.stopId}`;
         const current = stopRosterMap.get(key) ?? [];
-        current.push(toPlayerLite(entry.player, entry.stopId, paidStopPlayerMap));
+        current.push(toPlayerLite(entry.player, entry.stopId, paidStopPlayerMap, entry.paymentMethod));
         stopRosterMap.set(key, current);
       }
 
@@ -294,6 +317,7 @@ export async function GET(
       select: {
         stopId: true,
         teamId: true,
+        paymentMethod: true,
         player: true,
       },
       orderBy: [{ stopId: 'asc' }, { createdAt: 'asc' }],
@@ -303,7 +327,7 @@ export async function GET(
     for (const entry of stopTeamPlayers) {
       const key = `${entry.teamId}:${entry.stopId}`;
       const current = stopRosterMap.get(key) ?? [];
-      current.push(toPlayerLite(entry.player, entry.stopId, paidStopPlayerMap));
+      current.push(toPlayerLite(entry.player, entry.stopId, paidStopPlayerMap, entry.paymentMethod));
       stopRosterMap.set(key, current);
     }
 

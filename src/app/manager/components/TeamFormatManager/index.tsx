@@ -5,6 +5,7 @@ import { DndContext, DragEndEvent, DragStartEvent, closestCenter } from '@dnd-ki
 import { SortableContext } from '@dnd-kit/sortable';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import { expectedGenderForIndex, LINEUP_SLOT_ORDER, LINEUP_SLOT_CONFIG } from '@/lib/lineupSlots';
+import { saveManagerActiveStopTab, getManagerLastActiveStopTab } from '@/lib/tournamentStorage';
 import { GameScoreBox } from '../shared/GameScoreBox';
 import { DraggableTeam } from '../shared/DraggableTeam';
 import { InlineLineupEditor } from '../shared/InlineLineupEditor';
@@ -93,17 +94,30 @@ export function TeamFormatManager({
   const debouncedScoreUpdate = useRef<Record<string, NodeJS.Timeout>>({});
   const debouncedCourtUpdate = useRef<Record<string, NodeJS.Timeout>>({});
 
-  // Auto-select first stop when tournaments load
+  // Auto-select stop when tournaments load (with persistence)
   useEffect(() => {
     if (tournaments.length > 0 && !selectedStopId) {
       const firstTournament = tournaments[0];
       if (firstTournament.stops.length > 0) {
-        const firstStopId = firstTournament.stops[0].stopId;
-        setSelectedStopId(firstStopId);
-        loadSchedule(firstStopId);
+        // Try to restore last active stop from localStorage
+        const lastActiveStopId = getManagerLastActiveStopTab(firstTournament.id);
+        const stopExists = lastActiveStopId && firstTournament.stops.some(s => s.stopId === lastActiveStopId);
+
+        // Use last active stop if it exists, otherwise use first stop
+        const stopId = stopExists ? lastActiveStopId : firstTournament.stops[0].stopId;
+        setSelectedStopId(stopId);
+        loadSchedule(stopId);
       }
     }
   }, [tournaments, selectedStopId]);
+
+  // Save selected stop to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedStopId && tournaments.length > 0) {
+      const tournament = tournaments[0];
+      saveManagerActiveStopTab(tournament.id, selectedStopId);
+    }
+  }, [selectedStopId, tournaments]);
 
   // Initialize lineup deadlines from tournament data
   useEffect(() => {
@@ -428,7 +442,7 @@ export function TeamFormatManager({
 
       // Reload schedule data
       await loadSchedule(stopId, true);
-      
+
       // Check for duplicate matchups after schedule generation
       setTimeout(() => {
         checkForDuplicateMatchups(stopId, roundMatchups, scheduleData, tournaments, onError);

@@ -109,32 +109,32 @@ export default function TournamentRegistrationsPage() {
     <section className="min-h-screen bg-app p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header Card */}
       <header className="card">
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-primary">Tournament Registrations</h1>
             <p className="text-sm text-muted mt-1">
               Monitor and manage player registrations and invitations
             </p>
           </div>
-
-          {/* Tournament Selector */}
-          <div className="flex items-center gap-3">
-            <label htmlFor="tournament-select" className="text-sm font-medium text-primary">
-              Tournament:
-            </label>
-            <select
-              id="tournament-select"
-              className="input w-auto min-w-[300px]"
-              value={selectedTournamentId ?? ''}
-              onChange={(e) => setSelectedTournamentId(e.target.value)}
-            >
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {tournaments.length > 1 && (
+            <div className="flex items-center gap-3">
+              <label htmlFor="tournament-select" className="text-sm font-semibold text-secondary label-caps">
+                Tournament:
+              </label>
+              <select
+                id="tournament-select"
+                className="input min-w-[280px]"
+                value={selectedTournamentId ?? ''}
+                onChange={(e) => setSelectedTournamentId(e.target.value)}
+              >
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </header>
 

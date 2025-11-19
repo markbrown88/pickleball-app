@@ -64,3 +64,33 @@ export function getLastActiveStopTab(tournamentId: string, clubId: string): stri
     return null;
   }
 }
+
+/**
+ * Manager page tab persistence - tracks which stop tab was last active
+ */
+const MANAGER_STOP_TAB_STORAGE_KEY = 'managerActiveStopTab';
+
+export function saveManagerActiveStopTab(tournamentId: string, stopId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const stored = localStorage.getItem(MANAGER_STOP_TAB_STORAGE_KEY);
+    const data = stored ? JSON.parse(stored) : {};
+    data[tournamentId] = stopId;
+    localStorage.setItem(MANAGER_STOP_TAB_STORAGE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.warn('Failed to save manager active stop tab to localStorage:', error);
+  }
+}
+
+export function getManagerLastActiveStopTab(tournamentId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(MANAGER_STOP_TAB_STORAGE_KEY);
+    if (!stored) return null;
+    const data = JSON.parse(stored);
+    return data[tournamentId] ?? null;
+  } catch (error) {
+    console.warn('Failed to read manager active stop tab from localStorage:', error);
+    return null;
+  }
+}

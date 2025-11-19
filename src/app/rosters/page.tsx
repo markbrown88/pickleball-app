@@ -22,6 +22,7 @@ type PlayerLite = {
   dupr: number | null;
   age: number | null;
   hasPaid: boolean;
+  paymentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID';
 };
 
 type StopData = {
@@ -452,6 +453,47 @@ function ClubRosterEditor({
     }));
   };
 
+  const togglePaymentStatus = async (stopId: string, playerId: string, currentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID') => {
+    // Don't allow toggling STRIPE payments (they're automatic)
+    if (currentMethod === 'STRIPE') return;
+
+    // Toggle between MANUAL and UNPAID
+    const newMethod = currentMethod === 'MANUAL' ? 'UNPAID' : 'MANUAL';
+
+    try {
+      const response = await fetchWithActAs(
+        `/api/admin/rosters/${tournamentId}/${stopId}/${playerId}/payment`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentMethod: newMethod }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update payment status');
+      }
+
+      // Update local state
+      setRosters((prev) => {
+        const updated = { ...prev };
+        for (const [stopKey, stopData] of Object.entries(updated)) {
+          for (const [teamKey, playerList] of Object.entries(stopData)) {
+            updated[stopKey][teamKey] = playerList.map((p) =>
+              p.id === playerId && stopKey === stopId
+                ? { ...p, paymentMethod: newMethod, hasPaid: newMethod === 'MANUAL' }
+                : p
+            );
+          }
+        }
+        return updated;
+      });
+    } catch (err) {
+      onError((err as Error).message);
+    }
+  };
+
   const toggleStop = (stopId: string) => {
     setExpandedStops((prev) => {
       const next = new Set(prev);
@@ -566,6 +608,7 @@ function ClubRosterEditor({
                 list={list}
                 onChange={(next) => setStopTeamRoster(stop.stopId, bracket.teamId, next)}
                 excludeIdsAcrossStop={excludeWithinStop}
+                onPaymentToggle={(playerId, currentMethod) => togglePaymentStatus(stop.stopId, playerId, currentMethod)}
               />
             );
           })}
@@ -659,6 +702,7 @@ function BracketRosterEditor({
   list,
   onChange,
   excludeIdsAcrossStop,
+  onPaymentToggle,
 }: {
   title: string;
   tournamentId: string;
@@ -667,6 +711,7 @@ function BracketRosterEditor({
   list: PlayerLite[];
   onChange: (players: PlayerLite[]) => void;
   excludeIdsAcrossStop: string[];
+  onPaymentToggle?: (playerId: string, currentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID') => void;
 }) {
   const [term, setTerm] = useState('');
   const [options, setOptions] = useState<PlayerLite[]>([]);
@@ -787,8 +832,28 @@ function BracketRosterEditor({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
-                  {player.hasPaid && (
-                    <span className="chip chip-success text-[10px] px-2 py-0.5">Paid</span>
+                  {player.paymentMethod === 'STRIPE' && (
+                    <span className="chip chip-success text-[10px] px-2 py-0.5" title="Paid via Stripe">Paid</span>
+                  )}
+                  {player.paymentMethod === 'MANUAL' && onPaymentToggle && (
+                    <button
+                      type="button"
+                      onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
+                      className="chip chip-info text-[10px] px-2 py-0.5 hover:opacity-75 transition-opacity cursor-pointer"
+                      title="Click to mark as unpaid"
+                    >
+                      Paid Ext.
+                    </button>
+                  )}
+                  {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
+                    <button
+                      type="button"
+                      onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
+                      className="text-[10px] px-2 py-0.5 text-muted hover:text-secondary transition-colors cursor-pointer"
+                      title="Click to mark as paid externally"
+                    >
+                      💰
+                    </button>
                   )}
                   <span className={`chip text-[10px] px-2 py-0.5 ${
                     player.gender === 'MALE' ? 'chip-info' : 'chip-accent'

@@ -35,6 +35,16 @@ function normalizeBracketId(v: unknown): string | null | undefined {
   return s;
 }
 
+/** Fisher-Yates shuffle to randomize array order */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 /** Deterministic round-robin (circle method) with BYE handling. */
 function generateRoundRobin(teamIds: string[]) {
   const ids = [...teamIds];
@@ -211,9 +221,9 @@ export async function POST(req: Request, ctx: Ctx) {
         continue;
       }
       
-      // Sort teams within each club for deterministic layout
+      // Shuffle teams within each club for randomized matchups
       for (const [clubKey, teams] of clubGroups) {
-        teams.sort((a, b) => a.name.localeCompare(b.name));
+        clubGroups.set(clubKey, shuffleArray(teams));
       }
     }
 
@@ -269,21 +279,25 @@ export async function POST(req: Request, ctx: Ctx) {
         // Generate round-robin using team IDs
         const teamIds = teamsForBracket.map(t => t.id);
         console.log(`Bracket ${bracketKey}: Team IDs for round-robin:`, teamIds);
-        
+
         // Validate that we have valid team IDs
         if (teamIds.length < 2) {
           console.log(`Skipping bracket ${bracketKey}: Not enough teams (${teamIds.length})`);
           continue;
         }
-        
+
         // Check for null/undefined team IDs
         const invalidIds = teamIds.filter(id => !id || id === 'null' || id === 'undefined');
         if (invalidIds.length > 0) {
           console.log(`Skipping bracket ${bracketKey}: Invalid team IDs found:`, invalidIds);
           continue;
         }
-        
-        const rr = generateRoundRobin(teamIds);
+
+        // Shuffle team order to randomize matchup sequence while maintaining round-robin property
+        const shuffledTeamIds = shuffleArray(teamIds);
+        console.log(`Bracket ${bracketKey}: Shuffled team IDs:`, shuffledTeamIds);
+
+        const rr = generateRoundRobin(shuffledTeamIds);
         
         // Validate that all team IDs exist in the database
         const existingTeams = await tx.team.findMany({
