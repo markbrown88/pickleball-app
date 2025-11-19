@@ -513,13 +513,22 @@ export async function PUT(req: NextRequest) {
     let birthdayDay = existingPlayer.birthdayDay;
     let birthdayDate = existingPlayer.birthday;
 
-    if (birthday) {
-      const date = new Date(birthday);
-      if (!isNaN(date.getTime())) {
-        birthdayYear = date.getFullYear();
-        birthdayMonth = date.getMonth() + 1;
-        birthdayDay = date.getDate();
-        birthdayDate = date;
+    // Handle birthday updates
+    if (birthday !== undefined) {
+      if (birthday && birthday.trim() !== '') {
+        const date = new Date(birthday);
+        if (!isNaN(date.getTime())) {
+          birthdayYear = date.getFullYear();
+          birthdayMonth = date.getMonth() + 1;
+          birthdayDay = date.getDate();
+          birthdayDate = date;
+        }
+      } else {
+        // Clear birthday if empty string provided
+        birthdayYear = null;
+        birthdayMonth = null;
+        birthdayDay = null;
+        birthdayDate = null;
       }
     }
 
@@ -538,7 +547,7 @@ export async function PUT(req: NextRequest) {
       ...(region !== undefined && { region: region?.trim() || null }),
       ...(country && { country: country.trim() }),
       ...(dupr !== undefined && { dupr: dupr ? parseFloat(dupr) : null }),
-      ...(birthday && {
+      ...(birthday !== undefined && {
         birthdayYear,
         birthdayMonth,
         birthdayDay,
