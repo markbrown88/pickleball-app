@@ -873,10 +873,11 @@ function BracketRosterEditor({
                   <button
                     type="button"
                     onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
-                    className="text-[10px] px-2 py-0.5 text-muted hover:text-secondary transition-colors cursor-pointer"
+                    className="text-[10px] px-2 py-0.5 font-bold hover:opacity-80 transition-opacity cursor-pointer"
+                    style={{ color: '#fbbf24' }}
                     title="Click to mark as paid externally"
                   >
-                    💰
+                    $
                   </button>
                 )}
                 <span
