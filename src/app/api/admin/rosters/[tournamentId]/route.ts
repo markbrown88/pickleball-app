@@ -48,7 +48,8 @@ type TournamentRosterPayload = {
   clubs: ClubRoster[];
 };
 
-function toPlayerLite(player: any, paidPlayerIds: Set<string>): PlayerLite {
+function toPlayerLite(player: any, stopId: string, paidStopPlayerMap: Map<string, Set<string>>): PlayerLite {
+  const paidPlayersForStop = paidStopPlayerMap.get(stopId) ?? new Set<string>();
   return {
     id: player.id,
     firstName: player.firstName ?? null,
@@ -57,7 +58,7 @@ function toPlayerLite(player: any, paidPlayerIds: Set<string>): PlayerLite {
     gender: player.gender,
     dupr: player.dupr ?? null,
     age: player.age ?? null,
-    hasPaid: paidPlayerIds.has(player.id),
+    hasPaid: paidPlayersForStop.has(player.id),
   };
 }
 
@@ -133,15 +134,32 @@ export async function GET(
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
-    // Fetch all paid registrations for this tournament
+    // Fetch all paid registrations for this tournament with stop information
     const paidRegistrations = await prisma.tournamentRegistration.findMany({
       where: {
         tournamentId,
         paymentStatus: { in: ['PAID', 'COMPLETED'] },
       },
-      select: { playerId: true },
+      select: { playerId: true, notes: true },
     });
-    const paidPlayerIds = new Set(paidRegistrations.map(r => r.playerId));
+
+    // Build map of stopId -> Set of playerIds who paid for that stop
+    const paidStopPlayerMap = new Map<string, Set<string>>();
+    for (const reg of paidRegistrations) {
+      try {
+        const notes = reg.notes ? JSON.parse(reg.notes) : {};
+        const stopIds: string[] = notes.stopIds ?? [];
+        for (const stopId of stopIds) {
+          if (!paidStopPlayerMap.has(stopId)) {
+            paidStopPlayerMap.set(stopId, new Set<string>());
+          }
+          paidStopPlayerMap.get(stopId)!.add(reg.playerId);
+        }
+      } catch (err) {
+        // If notes parsing fails, skip this registration
+        console.error(`Failed to parse notes for registration ${reg.playerId}:`, err);
+      }
+    }
 
     if (!tournament.clubs.length) {
       // For tournaments without clubs linked, we still need to fetch teams
@@ -194,7 +212,7 @@ export async function GET(
       for (const entry of stopTeamPlayers) {
         const key = `${entry.teamId}:${entry.stopId}`;
         const current = stopRosterMap.get(key) ?? [];
-        current.push(toPlayerLite(entry.player, paidPlayerIds));
+        current.push(toPlayerLite(entry.player, entry.stopId, paidStopPlayerMap));
         stopRosterMap.set(key, current);
       }
 
@@ -224,7 +242,7 @@ export async function GET(
         const brackets: BracketRoster[] = club.teams.map((team) => ({
           teamId: team.id,
           bracketName: team.bracket?.name ?? null,
-          roster: team.playerLinks.map((link) => toPlayerLite(link.player, paidPlayerIds)),
+          roster: team.playerLinks.map((link) => toPlayerLite(link.player, '', paidStopPlayerMap)),
           stops: tournament.stops.map((stop) => ({
             stopId: stop.id,
             stopRoster: stopRosterMap.get(`${team.id}:${stop.id}`) ?? [],
@@ -285,7 +303,7 @@ export async function GET(
     for (const entry of stopTeamPlayers) {
       const key = `${entry.teamId}:${entry.stopId}`;
       const current = stopRosterMap.get(key) ?? [];
-      current.push(toPlayerLite(entry.player, paidPlayerIds));
+      current.push(toPlayerLite(entry.player, entry.stopId, paidStopPlayerMap));
       stopRosterMap.set(key, current);
     }
 
@@ -303,7 +321,7 @@ export async function GET(
       const brackets: BracketRoster[] = clubTeams.map((team) => ({
         teamId: team.id,
         bracketName: team.bracket?.name ?? null,
-        roster: team.playerLinks.map((link) => toPlayerLite(link.player, paidPlayerIds)),
+        roster: team.playerLinks.map((link) => toPlayerLite(link.player, '', paidStopPlayerMap)),
         stops: tournament.stops.map((stop) => ({
           stopId: stop.id,
           stopRoster: stopRosterMap.get(`${team.id}:${stop.id}`) ?? [],
