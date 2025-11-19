@@ -39,6 +39,7 @@ type ClubRoster = {
   clubName: string;
   captainAccessToken: string | null;
   isManagedByUser: boolean;
+  canEdit: boolean;
   brackets: BracketRoster[];
 };
 
@@ -284,6 +285,7 @@ export async function GET(
           clubName: club.clubName,
           captainAccessToken: null, // No TournamentClub link, so no access token
           isManagedByUser: captainClubIds.has(club.clubId) || isAppAdmin || isTournamentAdmin,
+          canEdit: isAppAdmin || isTournamentAdmin, // Captains can view but not edit
           brackets,
         };
       });
@@ -371,6 +373,7 @@ export async function GET(
         clubName: link.club?.name ?? 'Club',
         captainAccessToken: link.captainAccessToken ?? null,
         isManagedByUser: captainClubIds.has(link.clubId) || isAppAdmin || isTournamentAdmin,
+        canEdit: isAppAdmin || isTournamentAdmin, // Captains can view but not edit
         brackets,
       };
     });
