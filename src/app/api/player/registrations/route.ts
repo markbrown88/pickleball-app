@@ -93,17 +93,55 @@ export async function GET(req: NextRequest) {
     });
 
     // Format new tournament registrations
-    const formattedTournamentRegs = tournamentRegistrations.map(reg => {
-      // Parse stopIds from notes
+    const formattedTournamentRegs = await Promise.all(tournamentRegistrations.map(async (reg) => {
+      // Parse stopIds and brackets from notes
       let stopIds: string[] = [];
+      let brackets: Array<{ stopId: string; bracketId: string; gameTypes?: string[] }> = [];
       if (reg.notes) {
         try {
           const notes = JSON.parse(reg.notes);
           stopIds = notes.stopIds || [];
+          brackets = notes.brackets || [];
         } catch (e) {
           // Ignore parse errors
         }
       }
+
+      // Fetch stop details
+      const stops = stopIds.length > 0
+        ? await prisma.stop.findMany({
+            where: { id: { in: stopIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+
+      // Fetch bracket details
+      const bracketIds = brackets.map(b => b.bracketId).filter(Boolean);
+      const bracketDetails = bracketIds.length > 0
+        ? await prisma.tournamentBracket.findMany({
+            where: { id: { in: bracketIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+
+      // Create a map of bracket ID to name
+      const bracketMap = new Map(bracketDetails.map(b => [b.id, b.name]));
+
+      // Build stops with brackets information
+      const stopsWithBrackets = stops.map(stop => {
+        const stopBrackets = brackets
+          .filter(b => b.stopId === stop.id)
+          .map(b => ({
+            bracketId: b.bracketId,
+            bracketName: bracketMap.get(b.bracketId) || 'Unknown',
+            gameTypes: b.gameTypes || [],
+          }));
+        return {
+          stopId: stop.id,
+          stopName: stop.name,
+          brackets: stopBrackets,
+        };
+      });
 
       return {
         id: reg.id, // Registration ID
@@ -119,11 +157,12 @@ export async function GET(req: NextRequest) {
         registeredAt: reg.registeredAt.toISOString(),
         withdrawnAt: reg.withdrawnAt?.toISOString() || null,
         stopIds: stopIds, // Array of stop IDs this registration covers
+        stops: stopsWithBrackets, // Array of stops with bracket information
         teamId: '', // Not applicable for new registration system
         teamName: '', // Not applicable for new registration system
         bracket: '', // Not applicable for new registration system
       };
-    });
+    }));
 
     // Format legacy team registrations
     const formattedTeamRegs = teamRegistrations.map(reg => ({

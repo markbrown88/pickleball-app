@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatDateRangeUTC } from '@/lib/utils';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import { calculateTotalWithTax, getTaxLabel, getTaxRateDisplay } from '@/lib/payments/calculateTax';
+import { formatPhoneForDisplay } from '@/lib/phone';
 
 type Stop = {
   id: string;
@@ -401,7 +402,9 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted w-20">Phone:</span>
-            <span className="text-secondary">{registrationData.playerInfo.phone}</span>
+            <span className="text-secondary">
+              {formatPhoneForDisplay(registrationData.playerInfo.phone)}
+            </span>
           </div>
         </div>
       </div>

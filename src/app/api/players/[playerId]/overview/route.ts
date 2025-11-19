@@ -85,23 +85,35 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ play
           include: {
             club: true,
             tournament: { select: { id: true, name: true } },
+            bracket: { select: { id: true, name: true } },
+            captain: { select: { id: true } },
           },
         },
       },
       orderBy: [{ createdAt: 'asc' }],
     });
 
+    // Filter to only ongoing tournaments (where stop hasn't ended yet or no end date)
+    const now = new Date();
+    const ongoingRosterLinks = rosterLinks.filter(link => {
+      const stopEndAt = link.stop.endAt ? new Date(link.stop.endAt) : null;
+      return !stopEndAt || stopEndAt >= now;
+    });
+
     // Flatten rows for UI table
-    const assignments = rosterLinks.map(link => ({
+    const assignments = ongoingRosterLinks.map(link => ({
       tournamentId: link.team.tournament?.id ?? link.stop.tournament.id,
       tournamentName: link.team.tournament?.name ?? link.stop.tournament.name,
       stopId: link.stopId,
       stopName: link.stop.name,
-      stopStartAt: (link.stop as any).startAt ?? null,
-      stopEndAt: (link.stop as any).endAt ?? null,
+      stopStartAt: link.stop.startAt ? link.stop.startAt.toISOString() : null,
+      stopEndAt: link.stop.endAt ? link.stop.endAt.toISOString() : null,
       teamId: link.teamId,
       teamName: link.team.name,
       teamClubName: link.team.club?.name ?? null,
+      bracketId: link.team.bracket?.id ?? null,
+      bracketName: link.team.bracket?.name ?? null,
+      isCaptain: link.team.captain?.id === effectivePlayerId,
     }));
 
     const age = computeAge(player.birthdayYear as any, player.birthdayMonth as any, player.birthdayDay as any);

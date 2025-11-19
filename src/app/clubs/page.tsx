@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAdminUser } from '../admin/AdminContext';
 import { useModal } from '../shared/ModalContext';
 import GlobalModalManager from '../shared/GlobalModalManager';
+import { formatPhoneForDisplay } from '@/lib/phone';
 
 const CA_PROVINCES = ['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'] as const;
 const US_STATES = [
@@ -293,7 +294,9 @@ export default function AdminClubsPage() {
                   <td className="py-2 pr-4 text-muted">{club.city ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted">{club.region ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted">{club.country ?? '—'}</td>
-                  <td className="py-2 pr-4 text-muted">{club.phone ?? '—'}</td>
+                  <td className="py-2 pr-4 text-muted">
+                    {formatPhoneForDisplay(club.phone) || '—'}
+                  </td>
                   <td className="py-2 pr-2 text-right align-middle">
                     <div className="flex gap-1">
                       <button

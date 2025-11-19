@@ -6,11 +6,13 @@ export type PlayerAssignment = {
   teamId: string;
   teamName: string;
   teamClubName?: string | null;
-  stopName?: string | null;
+  stopId: string;
+  stopName: string;
   stopStartAt?: string | null;
   stopEndAt?: string | null;
-  isCaptain?: boolean;
-  bracket?: string | null;
+  isCaptain: boolean;
+  bracketId?: string | null;
+  bracketName?: string | null;
 };
 
 export type DashboardOverview = {

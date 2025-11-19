@@ -1,6 +1,7 @@
 'use client';
 
 import type { UserProfile } from '@/types';
+import { formatPhoneForDisplay } from '@/lib/phone';
 
 export function ProfileSummary({ profile }: { profile: UserProfile | null }) {
   if (!profile) return null;
@@ -19,7 +20,9 @@ export function ProfileSummary({ profile }: { profile: UserProfile | null }) {
       <div>
         <h3 className="text-sm font-medium text-muted">Contact</h3>
         <p className="text-sm text-muted">{profile.email ?? 'No email provided'}</p>
-        <p className="text-sm text-muted">{profile.phone ?? 'No phone provided'}</p>
+        <p className="text-sm text-muted">
+          {formatPhoneForDisplay(profile.phone) || 'No phone provided'}
+        </p>
       </div>
       <div>
         <h3 className="text-sm font-medium text-muted">Location</h3>

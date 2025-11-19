@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Player, Club } from '@/types';
+import { formatPhoneForDisplay, formatPhoneInput } from '@/lib/phone';
 
 interface InlinePlayerEditorProps {
   player: Player;
@@ -17,7 +18,7 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
     gender: player.gender || 'MALE',
     clubId: player.clubId || '',
     city: player.city || '',
-    phone: player.phone || '',
+    phone: player.phone ? formatPhoneForDisplay(player.phone) : '',
     email: player.email || '',
     age: player.age?.toString() || '',
   });
@@ -120,7 +121,9 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
         <input
           type="tel"
           value={form.phone}
-          onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, phone: formatPhoneInput(e.target.value) }))
+          }
           onKeyDown={handleKeyDown}
           className="input w-full text-sm"
           placeholder="Phone"

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { UserProfile } from '@/types';
+import { formatPhoneForDisplay, formatPhoneInput } from '@/lib/phone';
 
 interface ProfileEditFormProps {
   profile: UserProfile;
@@ -15,7 +16,7 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
     firstName: profile.firstName || '',
     lastName: profile.lastName || '',
     email: profile.email || '',
-    phone: profile.phone || '',
+    phone: profile.phone ? formatPhoneForDisplay(profile.phone) : '',
     gender: profile.gender || '',
     clubId: profile.club?.id || '',
     city: profile.city || '',
@@ -36,7 +37,11 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+    let value =
+      e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+    if (e.target.name === 'phone' && typeof value === 'string') {
+      value = formatPhoneInput(value);
+    }
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: value,

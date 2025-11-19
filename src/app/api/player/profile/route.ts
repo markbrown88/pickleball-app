@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { formatPhoneForDisplay, formatPhoneForStorage } from '@/lib/phone';
 
 export async function GET(req: Request) {
   try {
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
         lastName: player.lastName,
         name: player.name,
         email: player.email,
-        phone: player.phone,
+        phone: formatPhoneForDisplay(player.phone),
         gender: player.gender,
         dupr: player.dupr,
         duprSingles: player.duprSingles,
@@ -147,7 +148,9 @@ export async function PUT(req: Request) {
     if (firstName !== undefined) updateData.firstName = firstName?.trim() || null;
     if (lastName !== undefined) updateData.lastName = lastName?.trim() || null;
     if (email !== undefined) updateData.email = email?.trim() || null;
-    if (phone !== undefined) updateData.phone = phone?.trim() || null;
+    if (phone !== undefined) {
+      updateData.phone = phone ? formatPhoneForStorage(phone) : null;
+    }
     if (gender !== undefined) updateData.gender = gender;
     if (clubId !== undefined) updateData.clubId = clubId;
     if (city !== undefined) updateData.city = city?.trim() || null;
@@ -197,7 +200,7 @@ export async function PUT(req: Request) {
         lastName: player.lastName,
         name: player.name,
         email: player.email,
-        phone: player.phone,
+        phone: formatPhoneForDisplay(player.phone),
         gender: player.gender,
         dupr: player.dupr,
         duprSingles: player.duprSingles,

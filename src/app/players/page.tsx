@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAdminUser } from '../admin/AdminContext';
+import { formatPhoneForDisplay } from '@/lib/phone';
 
 const CA_PROVINCES = ['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'] as const;
 const US_STATES = [
@@ -451,7 +452,9 @@ export default function PlayersPage() {
                   <td className="py-2 pr-4 text-muted">{p.club?.name ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted tabular">{p.age ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted">{p.city ?? '—'}</td>
-                  <td className="py-2 pr-4 text-muted">{p.phone ?? '—'}</td>
+                  <td className="py-2 pr-4 text-muted">
+                    {formatPhoneForDisplay(p.phone) || '—'}
+                  </td>
                   <td className="py-2 pr-4">
                     {p.clerkUserId ? (
                       <span className="chip chip-success text-[10px] px-2 py-0.5">Registered</span>

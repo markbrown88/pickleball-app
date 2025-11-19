@@ -6,6 +6,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { formatPhoneForDisplay, formatPhoneForStorage } from '@/lib/phone';
 
 function computeAge(y?: number | null, m?: number | null, d?: number | null): number | null {
   if (!y || !m || !d) return null;
@@ -18,15 +19,6 @@ function computeAge(y?: number | null, m?: number | null, d?: number | null): nu
   } catch {
     return null;
   }
-}
-
-function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
-  if (!input) return { ok: true, formatted: undefined };
-  const digits = String(input).replace(/\D/g, '');
-  let n = digits;
-  if (n.length === 11 && n.startsWith('1')) n = n.slice(1);
-  if (n.length !== 10) return { ok: false, error: 'Phone must have 10 digits (US/CA)' };
-  return { ok: true, formatted: `(${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}` };
 }
 
 function validEmail(input?: string | null): boolean {
@@ -123,7 +115,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       lastName: player.lastName,
       name: player.name,
       email: player.email,
-      phone: player.phone,
+      phone: formatPhoneForDisplay(player.phone),
       gender: player.gender,
       dupr: player.dupr,
       duprSingles: player.duprSingles,
@@ -251,10 +243,14 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     const email: string | null = body.email ? squeeze(String(body.email)) : null;
     if (!validEmail(email ?? undefined)) return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
 
-    const phoneRaw: string | null = body.phone ? String(body.phone).trim() : null;
-    const phoneCheck = normalizePhone(phoneRaw);
-    if (!phoneCheck.ok) return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
-    const phone = phoneCheck.formatted ?? null;
+    let phone: string | null = null;
+    if (body.phone !== undefined) {
+      try {
+        phone = body.phone ? formatPhoneForStorage(body.phone, { strict: true }) : null;
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+      }
+    }
 
     const city = body.city ? squeeze(String(body.city)) : null;
     const region = body.region ? squeeze(String(body.region)) : null;
@@ -303,7 +299,11 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         include: { club: true },
       });
 
-      const withAge = { ...updated, age: computeAge(y, m, d) };
+      const withAge = {
+        ...updated,
+        phone: formatPhoneForDisplay(updated.phone),
+        age: computeAge(y, m, d),
+      };
       return NextResponse.json(withAge);
     } catch (updateError: any) {
       if (updateError?.code === 'P2002') {

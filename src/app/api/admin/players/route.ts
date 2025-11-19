@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { formatPhoneForDisplay, formatPhoneForStorage } from '@/lib/phone';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,15 +11,6 @@ const squeeze = (s: string) => s.replace(/\s+/g, ' ').trim();
 function validEmail(input?: string | null): boolean {
   if (!input) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
-}
-
-function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
-  if (!input) return { ok: true, formatted: undefined };
-  const digits = String(input).replace(/\D/g, '');
-  let n = digits;
-  if (n.length === 11 && n.startsWith('1')) n = n.slice(1);
-  if (n.length !== 10) return { ok: false, error: 'Phone must have 10 digits (US/CA)' };
-  return { ok: true, formatted: `(${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}` };
 }
 
 function parseBirthdayStr(s?: string | null): { y: number | null; m: number | null; d: number | null } {
@@ -191,6 +183,7 @@ export async function GET(req: NextRequest) {
 
       return {
         ...player,
+        phone: formatPhoneForDisplay(player.phone),
         age,
         clubName: player.club?.name || null
       };
@@ -309,10 +302,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
 
-    const phoneRaw: string | null = body?.phone ? String(body.phone).trim() : null;
-    const phoneCheck = normalizePhone(phoneRaw);
-    if (!phoneCheck.ok) {
-      return NextResponse.json({ error: phoneCheck.error }, { status: 400 });
+    let phone: string | null = null;
+    if (body?.phone !== undefined) {
+      try {
+        phone = body.phone ? formatPhoneForStorage(body.phone, { strict: true }) : null;
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+      }
     }
 
     const { y, m, d } = parseBirthdayStr(body?.birthday);
@@ -337,7 +333,7 @@ export async function POST(req: NextRequest) {
           gender,
           clubId,
           email,
-          phone: phoneCheck.formatted ?? null,
+          phone,
           city: body?.city ? squeeze(String(body.city)) : null,
           region: body?.region ? squeeze(String(body.region)) : null,
           country: body?.country ? squeeze(String(body.country)) : 'Canada',

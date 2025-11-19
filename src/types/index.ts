@@ -92,6 +92,15 @@ export interface PlayerRegistration {
   registeredAt: string;
   withdrawnAt?: string | null;
   stopIds?: string[]; // Array of stop IDs this registration covers (for multi-stop tournaments)
+  stops?: Array<{
+    stopId: string;
+    stopName: string;
+    brackets: Array<{
+      bracketId: string;
+      bracketName: string;
+      gameTypes?: string[];
+    }>;
+  }>; // Array of stops with bracket information
 }
 
 export interface RegistrationResponse {

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { CA_PROVINCES, US_STATES, CountrySel } from '@/app/(player)/shared/useProfileData';
+import { formatPhoneInput } from '@/lib/phone';
 
 type ClubOption = {
   id: string;
@@ -39,13 +40,14 @@ type ProfileSetupFormProps = {
 };
 
 export function ProfileSetup({ user, clubs, onSave, loading }: ProfileSetupFormProps) {
+  const initialPhone = user?.phoneNumbers?.[0]?.phoneNumber ?? '';
   const [formData, setFormData] = useState({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     gender: 'MALE' as 'MALE' | 'FEMALE',
     clubId: '',
     email: user?.emailAddresses?.[0]?.emailAddress || '',
-    phone: user?.phoneNumbers?.[0]?.phoneNumber || '',
+    phone: initialPhone ? formatPhoneInput(initialPhone) : '',
     city: '',
     region: '',
     country: 'Canada',
@@ -136,7 +138,9 @@ export function ProfileSetup({ user, clubs, onSave, loading }: ProfileSetupFormP
             type="tel"
             className="input"
             value={formData.phone}
-            onChange={(event) => setFormData((prev) => ({ ...prev, phone: event.target.value }))}
+            onChange={(event) =>
+              setFormData((prev) => ({ ...prev, phone: formatPhoneInput(event.target.value) }))
+            }
           />
         </div>
       </div>

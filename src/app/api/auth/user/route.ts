@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
+import { formatPhoneForDisplay, formatPhoneForStorage } from '@/lib/phone';
 
 /**
  * GET /api/auth/user
@@ -157,7 +158,7 @@ export async function GET(req: NextRequest) {
           lastName: player.lastName,
           name: player.name,
           email: player.email,
-          phone: player.phone,
+          phone: formatPhoneForDisplay(player.phone),
           gender: player.gender,
           dupr: player.dupr,
           age: player.age,
@@ -241,7 +242,7 @@ export async function GET(req: NextRequest) {
       lastName: finalPlayer.lastName,
       name: finalPlayer.name,
       email: finalPlayer.email,
-      phone: finalPlayer.phone,
+      phone: formatPhoneForDisplay(finalPlayer.phone),
       gender: finalPlayer.gender,
       dupr: finalPlayer.dupr,
       age: finalPlayer.age,
@@ -357,7 +358,7 @@ export async function POST(req: NextRequest) {
           lastName: updatedPlayer.lastName,
           name: updatedPlayer.name,
           email: updatedPlayer.email,
-          phone: updatedPlayer.phone,
+          phone: formatPhoneForDisplay(updatedPlayer.phone),
           gender: updatedPlayer.gender,
           dupr: updatedPlayer.dupr,
           age: updatedPlayer.age,
@@ -397,7 +398,7 @@ export async function POST(req: NextRequest) {
         gender,
         clubId,
         email: email?.trim() || null,
-        phone: phone?.trim() || null,
+        phone: phone ? formatPhoneForStorage(phone) : null,
         city: city?.trim() || null,
         region: region?.trim() || null,
         country: country.trim(),
@@ -426,7 +427,7 @@ export async function POST(req: NextRequest) {
       lastName: player.lastName,
       name: player.name,
       email: player.email,
-      phone: player.phone,
+      phone: formatPhoneForDisplay(player.phone),
       gender: player.gender,
       dupr: player.dupr,
       age: player.age,
@@ -530,7 +531,9 @@ export async function PUT(req: NextRequest) {
       ...(gender && { gender }),
       ...(clubId !== undefined && clubId && clubId.trim() !== '' && { clubId: clubId.trim() }),
       ...(email !== undefined && { email: email?.trim() || null }),
-      ...(phone !== undefined && { phone: phone?.trim() || null }),
+      ...(phone !== undefined && {
+        phone: phone ? formatPhoneForStorage(phone) : null,
+      }),
       ...(city !== undefined && { city: city?.trim() || null }),
       ...(region !== undefined && { region: region?.trim() || null }),
       ...(country && { country: country.trim() }),
@@ -568,7 +571,7 @@ export async function PUT(req: NextRequest) {
       lastName: updatedPlayer.lastName,
       name: updatedPlayer.name,
       email: updatedPlayer.email,
-      phone: updatedPlayer.phone,
+      phone: formatPhoneForDisplay(updatedPlayer.phone),
       gender: updatedPlayer.gender,
       dupr: updatedPlayer.dupr,
       age: updatedPlayer.age,

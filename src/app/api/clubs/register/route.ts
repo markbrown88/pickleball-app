@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { formatPhoneForStorage } from '@/lib/phone';
 import { sendEmail } from '@/server/email';
 
 export async function POST(req: NextRequest) {
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
         city: city.trim(),
         region: region.trim(),
         postalCode: postalCode.trim(),
-        phone: phone?.trim() || null,
+        phone: phone ? formatPhoneForStorage(phone) : null,
         contactEmail: contactEmail.trim(),
         contactName: contactName.trim(),
         contactPhone: contactPhone?.trim() || null,

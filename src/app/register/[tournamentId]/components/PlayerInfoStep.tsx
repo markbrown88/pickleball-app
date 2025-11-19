@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatPhoneInput } from '@/lib/phone';
 
 export type PlayerInfo = {
   firstName: string;
@@ -60,7 +61,8 @@ export function PlayerInfoStep({
   };
 
   const updateField = (field: keyof PlayerInfo, value: string) => {
-    onUpdate({ ...playerInfo, [field]: value });
+    const nextValue = field === 'phone' ? formatPhoneInput(value) : value;
+    onUpdate({ ...playerInfo, [field]: nextValue });
     // Clear error for this field when user starts typing
     if (errors[field]) {
       setErrors((prev) => {

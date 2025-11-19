@@ -6,6 +6,7 @@ import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 import { calculateRegistrationAmount } from '@/lib/payments/calculateAmount';
 import { calculateTotalWithTax } from '@/lib/payments/calculateTax';
 import { formatAmountForStripe } from '@/lib/stripe/config';
+import { formatPhoneForStorage } from '@/lib/phone';
 import { isTeamTournament } from '@/lib/tournamentTypeConfig';
 
 /**
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
       firstName: sanitizeInput(playerInfo.firstName),
       lastName: sanitizeInput(playerInfo.lastName),
       email: sanitizeInput(playerInfo.email).toLowerCase(),
-      phone: playerInfo.phone.trim() ? sanitizeInput(playerInfo.phone) : null,
+      phone: playerInfo.phone ? formatPhoneForStorage(playerInfo.phone) : null,
     };
 
     // Check for duplicate registration

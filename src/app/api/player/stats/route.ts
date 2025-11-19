@@ -400,12 +400,12 @@ function calculateStats(games: GameData[], matchIds: Set<string>, partners: Set<
 function getFormat(slot: GameSlot | null): 'singles' | 'doubles' | 'mixed' | null {
   if (!slot) return null;
 
-  if (slot === 'SINGLES_1' || slot === 'SINGLES_2') {
-    return 'singles';
-  } else if (slot === 'DOUBLES_1' || slot === 'DOUBLES_2') {
+  if (slot === 'MENS_DOUBLES' || slot === 'WOMENS_DOUBLES') {
     return 'doubles';
-  } else if (slot === 'MIXED_1') {
+  } else if (slot === 'MIXED_1' || slot === 'MIXED_2') {
     return 'mixed';
+  } else if (slot === 'TIEBREAKER') {
+    return null; // Tiebreakers are not categorized by format
   }
 
   return null;

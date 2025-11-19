@@ -216,6 +216,23 @@ export default function DashboardPage() {
 
   const assignments = useMemo<PlayerAssignment[]>(() => overview?.assignments ?? [], [overview?.assignments]);
 
+  // Group assignments by tournament
+  const assignmentsByTournament = useMemo(() => {
+    const grouped = new Map<string, PlayerAssignment[]>();
+    assignments.forEach((assignment) => {
+      const key = assignment.tournamentId;
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)!.push(assignment);
+    });
+    return Array.from(grouped.entries()).map(([tournamentId, assignments]) => ({
+      tournamentId,
+      tournamentName: assignments[0]?.tournamentName ?? '',
+      assignments,
+    }));
+  }, [assignments]);
+
   // Filter tournaments by date
   const { upcomingTournaments, pastTournaments } = useMemo(() => {
     const now = new Date();
@@ -387,27 +404,61 @@ export default function DashboardPage() {
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">My Teams</h2>
-        {assignments.length === 0 ? (
+        {assignmentsByTournament.length === 0 ? (
           <div className="card text-center py-10 text-muted">
             <p>You are not currently assigned to any teams.</p>
             <p className="text-sm mt-2">Register for a tournament below to get started.</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {assignments.map((assignment) => (
-              <div key={`${assignment.tournamentId}:${assignment.teamId}`} className="card space-y-3">
-                <div className="flex items-start justify-between">
+            {assignmentsByTournament.map((tournamentGroup) => (
+              <div key={tournamentGroup.tournamentId} className="card space-y-4">
+                <div className="flex items-start justify-between border-b border-border-subtle pb-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-primary">{assignment.tournamentName}</h3>
-                    <p className="text-sm text-muted">{assignment.bracket}</p>
+                    <h3 className="text-lg font-semibold text-primary">{tournamentGroup.tournamentName}</h3>
                   </div>
-                  <Link href={`/tournament/${assignment.tournamentId}`} className="btn btn-ghost btn-sm">
+                  <Link href={`/tournament/${tournamentGroup.tournamentId}`} className="btn btn-ghost btn-sm">
                     View
                   </Link>
                 </div>
-                <div className="text-sm text-muted space-y-1">
-                  <div className="font-medium text-secondary">{assignment.teamName}</div>
-                  <div>Role: {assignment.isCaptain ? 'Captain' : 'Player'}</div>
+                
+                <div className="space-y-3">
+                  {tournamentGroup.assignments.map((assignment, idx) => (
+                    <div key={`${assignment.teamId}:${assignment.stopId}`} className={idx > 0 ? 'border-t border-border-subtle pt-3' : ''}>
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium text-secondary">{assignment.teamName}</div>
+                            {assignment.teamClubName && (
+                              <div className="text-sm text-muted">Club: {assignment.teamClubName}</div>
+                            )}
+                          </div>
+                          <div className="text-sm">
+                            <span className={`chip ${assignment.isCaptain ? 'chip-success' : 'chip-muted'}`}>
+                              {assignment.isCaptain ? 'Captain' : 'Player'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="text-sm text-muted space-y-1">
+                          <div>
+                            <span className="font-medium">Stop:</span> {assignment.stopName}
+                            {assignment.stopStartAt && (
+                              <span className="ml-2">
+                                ({new Date(assignment.stopStartAt).toLocaleDateString()}
+                                {assignment.stopEndAt && ` - ${new Date(assignment.stopEndAt).toLocaleDateString()}`})
+                              </span>
+                            )}
+                          </div>
+                          {assignment.bracketName && (
+                            <div>
+                              <span className="font-medium">Bracket:</span> {assignment.bracketName}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -508,7 +559,7 @@ export default function DashboardPage() {
                 <table className="w-full">
                   <thead className="bg-surface-1">
                     <tr>
-                      <th className="text-left p-3 text-sm font-medium text-secondary">Tournament</th>
+                      <th className="text-left p-3 text-sm font-medium text-secondary">Registration Details</th>
                       <th className="text-left p-3 text-sm font-medium text-secondary">Registration Status</th>
                       <th className="text-left p-3 text-sm font-medium text-secondary">Payment Status</th>
                       <th className="text-left p-3 text-sm font-medium text-secondary">Amount</th>
@@ -521,7 +572,28 @@ export default function DashboardPage() {
                       <tr key={registration.tournamentId} className="border-t border-border-subtle hover:bg-surface-2">
                         <td className="p-3">
                           <div className="font-medium text-primary">{registration.tournamentName}</div>
-                          <div className="text-sm text-muted">{registration.tournamentType}</div>
+                          <div className="text-sm text-muted mt-1 space-y-1">
+                            {registration.stops && registration.stops.length > 0 ? (
+                              registration.stops.map((stop, idx) => (
+                                <div key={stop.stopId} className={idx > 0 ? 'mt-2 pt-2 border-t border-border-subtle' : ''}>
+                                  <div className="font-medium text-secondary">Stop: {stop.stopName}</div>
+                                  {stop.brackets && stop.brackets.length > 0 && (
+                                    <div className="ml-2 mt-1">
+                                      <span className="text-muted">Brackets: </span>
+                                      {stop.brackets.map((bracket, bIdx) => (
+                                        <span key={bracket.bracketId}>
+                                          {bIdx > 0 && ', '}
+                                          {bracket.bracketName}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-muted">No stops selected</div>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3">
                           {getRegistrationStatusBadge(registration.status)}
@@ -539,12 +611,6 @@ export default function DashboardPage() {
                         </td>
                         <td className="p-3 text-right">
                           <div className="flex gap-2 justify-end">
-                            <Link
-                              href={`/tournament/${registration.tournamentId}`}
-                              className="btn btn-ghost btn-sm"
-                            >
-                              View
-                            </Link>
                             {registration.paymentStatus === 'PENDING' && registration.id && (
                               <Link
                                 href={`/register/${registration.tournamentId}/payment/status/${registration.id}`}
