@@ -84,19 +84,20 @@ export default function PlayersPage() {
   const [playerSearch, setPlayerSearch] = useState('');
 
   const [playersClubFilter, setPlayersClubFilter] = useState<string>('');
+  const [registrationStatusFilter, setRegistrationStatusFilter] = useState<string>(''); // '' = All, 'registered' = Registered, 'profile' = Profile Only
   const [showDisabledPlayers, setShowDisabledPlayers] = useState(false);
   const [clubsAll, setClubsAll] = useState<Club[]>([]);
 
   const playerSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playersRequestRef = useRef(0);
-  const playersListConfigRef = useRef({ take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter });
+  const playersListConfigRef = useRef({ take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter, registrationStatus: registrationStatusFilter });
 
-  const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch, showDisabled: boolean = showDisabledPlayers) => {
+  const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch, showDisabled: boolean = showDisabledPlayers, regStatus: string = registrationStatusFilter) => {
     const requestId = playersRequestRef.current + 1;
     playersRequestRef.current = requestId;
     try {
       const term = searchTerm.trim();
-      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}${term ? `&search=${encodeURIComponent(term)}` : ''}${showDisabled ? '&showDisabled=true' : ''}`;
+      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}${term ? `&search=${encodeURIComponent(term)}` : ''}${showDisabled ? '&showDisabled=true' : ''}${regStatus ? `&registrationStatus=${encodeURIComponent(regStatus)}` : ''}`;
       const respRaw = await api<PlayersResponse>(query);
       const resp = normalizePlayersResponse(respRaw);
       if (requestId === playersRequestRef.current) {
@@ -108,7 +109,7 @@ export default function PlayersPage() {
         setErr((e as Error).message);
       }
     }
-  }, [playerSearch, showDisabledPlayers]);
+  }, [playerSearch, showDisabledPlayers, registrationStatusFilter]);
 
   const reloadClubs = useCallback(async () => {
     const data = await api<Club[]>('/api/admin/clubs?sort=name:asc');
@@ -116,8 +117,8 @@ export default function PlayersPage() {
   }, []);
 
   useEffect(() => {
-    playersListConfigRef.current = { take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter };
-  }, [playersPage.take, playerSort.col, playerSort.dir, playersClubFilter]);
+    playersListConfigRef.current = { take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter, registrationStatus: registrationStatusFilter };
+  }, [playersPage.take, playerSort.col, playerSort.dir, playersClubFilter, registrationStatusFilter]);
 
   useEffect(() => {
     (async () => {
@@ -195,6 +196,11 @@ export default function PlayersPage() {
     void loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, clubId, playerSearch);
   }, [loadPlayersPage, playersPage.take, playerSort.col, playerSort.dir, playerSearch]);
 
+  const changeRegistrationStatusFilter = useCallback((status: string) => {
+    setRegistrationStatusFilter(status);
+    void loadPlayersPage(playersPage.take, 0, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch, showDisabledPlayers, status);
+  }, [loadPlayersPage, playersPage.take, playerSort.col, playerSort.dir, playersClubFilter, playerSearch, showDisabledPlayers]);
+
   const removePlayer = useCallback(async (id: Id) => {
     if (!confirm('Delete this player?')) return;
     try {
@@ -236,9 +242,15 @@ export default function PlayersPage() {
               : 'Manage player profiles for your club.'}
           </p>
         </div>
-        {(admin.isAppAdmin || admin.isTournamentAdmin) && (
-          <button className="btn btn-primary" onClick={() => router.push('/players/new')}>Add Player</button>
-        )}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-2xl font-semibold text-primary">{playersPage.total}</div>
+            <div className="text-sm text-muted">Total Players</div>
+          </div>
+          {(admin.isAppAdmin || admin.isTournamentAdmin) && (
+            <button className="btn btn-primary" onClick={() => router.push('/players/new')}>Add Player</button>
+          )}
+        </div>
       </header>
 
       {err && (
@@ -271,6 +283,18 @@ export default function PlayersPage() {
               </select>
             </div>
           )}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-muted">Registration Status</label>
+            <select
+              className="input"
+              value={registrationStatusFilter}
+              onChange={(e) => changeRegistrationStatusFilter(e.target.value)}
+            >
+              <option value="">All</option>
+              <option value="registered">Registered</option>
+              <option value="profile">Profile Only</option>
+            </select>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-muted">Search</label>
             <div className="flex items-center gap-2">

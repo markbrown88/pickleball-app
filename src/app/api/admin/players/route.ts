@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
     const sort = url.searchParams.get('sort') || 'lastName:asc';
     const search = url.searchParams.get('search') || '';
     const showDisabled = url.searchParams.get('showDisabled') === 'true';
+    const registrationStatus = url.searchParams.get('registrationStatus') || ''; // 'registered' or 'profile'
     let clubId = url.searchParams.get('clubId') || '';
 
     // Tournament Admins can only see players from their own club
@@ -127,6 +128,13 @@ export async function GET(req: NextRequest) {
 
     if (clubId) {
       where.clubId = clubId;
+    }
+
+    // Filter by registration status
+    if (registrationStatus === 'registered') {
+      where.clerkUserId = { not: null };
+    } else if (registrationStatus === 'profile') {
+      where.clerkUserId = null;
     }
 
     // Filter disabled players by default unless showDisabled is true
