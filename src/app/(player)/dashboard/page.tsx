@@ -145,8 +145,7 @@ export default function DashboardPage() {
   const { isSignedIn } = useAuth();
   const { isLoaded: userLoaded } = useUser();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
-  const [activeSection, setActiveSection] = useState<'tournaments' | 'registrations'>('tournaments');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'registrations'>('upcoming');
 
   const [state, dispatch] = useReducer(dashboardReducer, initialState);
   const { overview, err, tournaments, registrations, loading } = state;
@@ -361,8 +360,6 @@ export default function DashboardPage() {
     );
   }
 
-  const displayTournaments = activeTab === 'upcoming' ? upcomingTournaments : pastTournaments;
-
   const formatAmount = (amountInCents: number | null | undefined, registrationType?: string) => {
     if (registrationType === 'FREE') return 'Free';
     if (!amountInCents) return '$0.00';
@@ -440,9 +437,6 @@ export default function DashboardPage() {
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="font-medium text-secondary">{assignment.teamName}</div>
-                            {assignment.teamClubName && (
-                              <div className="text-sm text-muted">Club: {assignment.teamClubName}</div>
-                            )}
                           </div>
                           <div className="text-sm">
                             <span className={`chip ${assignment.isCaptain ? 'chip-success' : 'chip-muted'}`}>
@@ -450,14 +444,17 @@ export default function DashboardPage() {
                             </span>
                           </div>
                         </div>
-                        
+
                         <div className="text-sm text-muted space-y-1">
                           <div>
                             <span className="font-medium">Stop:</span> {assignment.stopName}
                             {assignment.stopStartAt && (
-                              <span className="ml-2">
-                                ({new Date(assignment.stopStartAt).toLocaleDateString()}
-                                {assignment.stopEndAt && ` - ${new Date(assignment.stopEndAt).toLocaleDateString()}`})
+                              <span className="ml-1">
+                                ({new Date(assignment.stopStartAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })})
                               </span>
                             )}
                           </div>
@@ -477,88 +474,97 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* Section Tabs */}
+      {/* Main Tabs */}
       <div className="border-b border-border-subtle">
-        <nav className="flex gap-1 -mb-px" aria-label="Dashboard sections">
+        <nav className="flex gap-1 -mb-px" aria-label="Dashboard tabs">
           <button
-            className={`tab-button ${activeSection === 'tournaments' ? 'active' : ''}`}
-            onClick={() => setActiveSection('tournaments')}
+            className={`tab-button ${activeTab === 'upcoming' ? 'active' : ''}`}
+            onClick={() => setActiveTab('upcoming')}
           >
-            Tournaments
+            Upcoming Tournaments ({upcomingTournaments.length})
           </button>
           <button
-            className={`tab-button ${activeSection === 'registrations' ? 'active' : ''}`}
-            onClick={() => setActiveSection('registrations')}
+            className={`tab-button ${activeTab === 'past' ? 'active' : ''}`}
+            onClick={() => setActiveTab('past')}
+          >
+            Past Tournaments ({pastTournaments.length})
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'registrations' ? 'active' : ''}`}
+            onClick={() => setActiveTab('registrations')}
           >
             Registrations & Payments ({registrationsList.length})
           </button>
         </nav>
       </div>
 
-      {activeSection === 'tournaments' && (
-        <>
-          {/* Tournaments Section with Tabs */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Tournaments</h2>
+      {/* Upcoming Tournaments Tab */}
+      {activeTab === 'upcoming' && (
+        <section className="space-y-4">
+          {upcomingTournaments.length === 0 ? (
+            <div className="card text-center py-10 text-muted">
+              <p>No upcoming tournaments found.</p>
             </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {upcomingTournaments.map((tournament) => {
+                const registration = registrations[tournament.id];
+                const registeredStopIds = (registration as any)?.allStopIds || registration?.stopIds || [];
 
-            {/* Tabs */}
-            <div className="border-b border-border-subtle">
-              <nav className="flex gap-1 -mb-px" aria-label="Tournament tabs">
-                <button
-                  className={`tab-button ${activeTab === 'upcoming' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('upcoming')}
-                >
-                  Upcoming ({upcomingTournaments.length})
-                </button>
-                <button
-                  className={`tab-button ${activeTab === 'past' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('past')}
-                >
-                  Past ({pastTournaments.length})
-                </button>
-              </nav>
+                return (
+                  <TournamentCard
+                    key={tournament.id}
+                    tournament={tournament}
+                    playerRegistrationStatus={registration?.status ?? null}
+                    registeredStopIds={registeredStopIds}
+                    paymentStatus={registration?.paymentStatus ?? null}
+                    registrationId={registration?.id}
+                    onRegister={handleRegister}
+                    onRequestInvite={handleRequestInvite}
+                    onJoinWaitlist={handleJoinWaitlist}
+                  />
+                );
+              })}
             </div>
-
-            {/* Tournament Cards */}
-            {displayTournaments.length === 0 ? (
-              <div className="card text-center py-10 text-muted">
-                <p>No {activeTab} tournaments found.</p>
-              </div>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {displayTournaments.map((tournament) => {
-                  const registration = registrations[tournament.id];
-                  // Collect all registered stop IDs from all registrations for this tournament
-                  const registeredStopIds = (registration as any)?.allStopIds || registration?.stopIds || [];
-                  
-                  return (
-                    <TournamentCard
-                      key={tournament.id}
-                      tournament={tournament}
-                      playerRegistrationStatus={registration?.status ?? null}
-                      registeredStopIds={registeredStopIds}
-                      paymentStatus={registration?.paymentStatus ?? null}
-                      registrationId={registration?.id}
-                      onRegister={handleRegister}
-                      onRequestInvite={handleRequestInvite}
-                      onJoinWaitlist={handleJoinWaitlist}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </>
+          )}
+        </section>
       )}
 
-      {activeSection === 'registrations' && (
+      {/* Past Tournaments Tab */}
+      {activeTab === 'past' && (
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Registrations & Payments</h2>
-          </div>
+          {pastTournaments.length === 0 ? (
+            <div className="card text-center py-10 text-muted">
+              <p>No past tournaments found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {pastTournaments.map((tournament) => {
+                const registration = registrations[tournament.id];
+                const registeredStopIds = (registration as any)?.allStopIds || registration?.stopIds || [];
 
+                return (
+                  <TournamentCard
+                    key={tournament.id}
+                    tournament={tournament}
+                    playerRegistrationStatus={registration?.status ?? null}
+                    registeredStopIds={registeredStopIds}
+                    paymentStatus={registration?.paymentStatus ?? null}
+                    registrationId={registration?.id}
+                    onRegister={handleRegister}
+                    onRequestInvite={handleRequestInvite}
+                    onJoinWaitlist={handleJoinWaitlist}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Registrations & Payments Tab */}
+      {activeTab === 'registrations' && (
+        <section className="space-y-4">
           {registrationsList.length === 0 ? (
             <div className="card text-center py-10 text-muted">
               <p>You haven't registered for any tournaments yet.</p>
