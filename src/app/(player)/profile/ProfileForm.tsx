@@ -552,7 +552,12 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                 <h1 className="text-2xl font-bold text-primary">{form.firstName} {form.lastName}</h1>
                 <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted">
                   <div className="flex items-center gap-2">
-                    <span className={form.gender === 'MALE' ? 'chip-info' : 'chip-accent'}>
+                    <span
+                      className="chip text-white text-xs font-medium px-2 py-0.5"
+                      style={{
+                        backgroundColor: form.gender === 'MALE' ? '#3b82f6' : '#db2777',
+                      }}
+                    >
                       {form.gender === 'MALE' ? 'M' : 'F'}
                     </span>
                     <span>{age || '—'} • {locationString}</span>
@@ -573,24 +578,16 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
       {/* Performance/Activity Tabs */}
       <div className="bg-surface-1 rounded-lg border border-subtle">
         <div className="border-b border-subtle">
-          <nav className="flex space-x-8 px-6">
+          <nav className="flex px-6">
             <button
               onClick={() => setActiveTab('performance')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'performance'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted hover:text-primary hover:border-muted'
-              }`}
+              className={`tab-button ${activeTab === 'performance' ? 'active' : ''}`}
             >
               Performance
             </button>
             <button
               onClick={() => setActiveTab('activity')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'activity'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted hover:text-primary hover:border-muted'
-              }`}
+              className={`tab-button ${activeTab === 'activity' ? 'active' : ''}`}
             >
               Recent Activity
             </button>
