@@ -303,7 +303,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-primary mb-1">Birthday *</label>
+                <label className="block text-sm font-medium text-primary mb-1">Birthday</label>
               <input
                   type="date"
                   value={birthday}
@@ -551,7 +551,12 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-primary">{form.firstName} {form.lastName}</h1>
                 <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted">
-                  <span>{form.gender === 'MALE' ? 'M' : 'F'} • {age || '—'} • {locationString}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={form.gender === 'MALE' ? 'chip-info' : 'chip-accent'}>
+                      {form.gender === 'MALE' ? 'M' : 'F'}
+                    </span>
+                    <span>{age || '—'} • {locationString}</span>
+                  </div>
                   {form.email && <span>📧 {form.email}</span>}
                   {form.phone && <span>📞 {formatPhoneNumber(form.phone)}</span>}
                   {profile?.club && <span>🏢 {profile.club.name}</span>}
@@ -569,25 +574,25 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
       <div className="bg-surface-1 rounded-lg border border-subtle">
         <div className="border-b border-subtle">
           <nav className="flex space-x-8 px-6">
-            <button 
+            <button
               onClick={() => setActiveTab('performance')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'performance' 
-                  ? 'border-primary text-primary' 
-                  : 'border-transparent text-muted hover:text-primary'
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'performance'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted hover:text-primary hover:border-muted'
               }`}
             >
               Performance
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('activity')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'activity' 
-                  ? 'border-primary text-primary' 
-                  : 'border-transparent text-muted hover:text-primary'
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'activity'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted hover:text-primary hover:border-muted'
               }`}
             >
-              Activity
+              Recent Activity
             </button>
           </nav>
         </div>
@@ -696,14 +701,30 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                           <span className="font-semibold text-primary">{stats.scoring.avgPointsAllowed}</span>
                         </div>
                         <div className="flex items-center justify-between py-1">
-                          <span className="text-sm text-muted">Point Differential</span>
+                          <span className="text-sm text-muted flex items-center gap-1">
+                            Point Differential
+                            <span
+                              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-muted/20 text-muted cursor-help text-xs"
+                              title="Total points scored minus total points allowed across all games. Positive = scoring more than allowing."
+                            >
+                              ?
+                            </span>
+                          </span>
                           <span className="font-semibold text-primary">{stats.scoring.pointDifferential > 0 ? '+' : ''}{stats.scoring.pointDifferential}</span>
                         </div>
                       </div>
 
                       {/* Clutch Stats */}
                       <div>
-                        <h4 className="text-sm font-semibold text-secondary mb-2">Clutch Performance</h4>
+                        <h4 className="text-sm font-semibold text-secondary mb-2 flex items-center gap-1.5">
+                          Clutch Performance
+                          <span
+                            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-secondary/20 text-secondary cursor-help text-xs font-normal"
+                            title="Performance in high-pressure situations: close games (margin ≤2 points) and deciding games (final game of a match)"
+                          >
+                            ?
+                          </span>
+                        </h4>
                         <div className="flex items-center justify-between py-1">
                           <span className="text-sm text-muted">Close Game Win %</span>
                           <span className="font-semibold text-primary">{stats.clutch.closeGameWinPct}%</span>
@@ -757,14 +778,13 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
             </div>
           ) : (
             /* Activity Tab Content */
-            <div>
-              <h3 className="text-lg font-semibold text-primary mb-4">Recent Games</h3>
+            <>
               {dataLoading ? (
                 <div className="text-center py-8 text-muted">
                   <p>Loading games...</p>
                 </div>
               ) : games.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {games.map((game) => {
                     const playerScore = game.isTeamA ? game.teamAScore : game.teamBScore;
                     const opponentScore = game.isTeamA ? game.teamBScore : game.teamAScore;
@@ -772,71 +792,63 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                     const lost = playerScore !== null && opponentScore !== null && playerScore < opponentScore;
 
                     return (
-                      <div key={game.id} className="border border-subtle rounded-lg p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-sm font-medium text-muted">
-                                {game.slot?.replace(/_/g, ' ') || 'Game'}
-                              </span>
-                              {game.isForfeit ? (
-                                <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                  Forfeit
-                                </span>
-                              ) : game.isComplete ? (
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  won ? 'bg-green-100 text-green-800' : lost ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {won ? 'Won' : lost ? 'Lost' : 'Complete'}
-                                </span>
-                              ) : (
-                                <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  In Progress
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-4 text-sm mb-2">
-                              <div>
-                                <span className="font-medium text-primary">{game.playerTeam?.name || 'Your Team'}</span>
-                                {game.playerTeam?.club?.name && (
-                                  <span className="ml-2 text-muted">({game.playerTeam.club.name})</span>
-                                )}
-                              </div>
-                              <span className="text-muted">vs</span>
-                              <div>
-                                <span className="font-medium text-primary">{game.opponentTeam?.name || 'Opponent'}</span>
-                                {game.opponentTeam?.club?.name && (
-                                  <span className="ml-2 text-muted">({game.opponentTeam.club.name})</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {!game.isForfeit && playerScore !== null && opponentScore !== null && (
-                              <div className="text-lg font-semibold text-primary mb-2">
-                                {playerScore} - {opponentScore}
-                              </div>
-                            )}
-
-                            {game.partner && (
-                              <div className="text-sm text-muted mb-2">
-                                Partner: <span className="font-medium text-secondary">
-                                  {game.partner.firstName && game.partner.lastName
-                                    ? `${game.partner.firstName} ${game.partner.lastName}`
-                                    : game.partner.name || 'Unknown'}
-                                </span>
-                                {game.partner.dupr && (
-                                  <span className="ml-2">({game.partner.dupr} DUPR)</span>
-                                )}
-                              </div>
-                            )}
-
-                            <div className="text-xs text-muted">
-                              {game.tournament?.name && `${game.tournament.name} • `}
-                              {game.stop?.name} • {new Date(game.createdAt).toLocaleDateString()}
-                            </div>
-                          </div>
+                      <div key={game.id} className="border-l-4 border-subtle bg-surface-1 hover:bg-surface-2 transition-colors p-3">
+                        {/* Tournament, Stop, Date */}
+                        <div className="text-xs text-muted mb-1.5">
+                          {game.tournament?.name && `${game.tournament.name} • `}
+                          {game.stop?.name} • {new Date(game.createdAt).toLocaleDateString()}
                         </div>
+
+                        {/* Slot */}
+                        <div className="text-sm font-medium text-secondary mb-1.5">
+                          {game.slot?.replace(/_/g, ' ') || 'Game'}
+                        </div>
+
+                        {/* Teams */}
+                        <div className="flex items-center gap-2 text-sm mb-1.5">
+                          <span className="font-medium text-primary">
+                            {game.playerTeam?.name || 'Your Team'}
+                          </span>
+                          <span className="text-muted">vs</span>
+                          <span className="font-medium text-primary">
+                            {game.opponentTeam?.name || 'Opponent'}
+                          </span>
+                        </div>
+
+                        {/* Result and Score */}
+                        <div className="flex items-center gap-2 mb-1.5">
+                          {game.isForfeit ? (
+                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                              Forfeit
+                            </span>
+                          ) : game.isComplete ? (
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              won ? 'bg-green-100 text-green-800' : lost ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {won ? 'Won' : lost ? 'Lost' : 'Complete'}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                              In Progress
+                            </span>
+                          )}
+                          {!game.isForfeit && playerScore !== null && opponentScore !== null && (
+                            <span className="text-base font-semibold text-primary">
+                              {playerScore} - {opponentScore}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Partner */}
+                        {game.partner && (
+                          <div className="text-sm text-muted">
+                            Partner: <span className="font-medium text-secondary">
+                              {game.partner.firstName && game.partner.lastName
+                                ? `${game.partner.firstName} ${game.partner.lastName}`
+                                : game.partner.name || 'Unknown'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -847,7 +859,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                   <p className="text-sm">Game data will appear here once you play matches</p>
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>
