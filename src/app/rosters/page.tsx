@@ -833,16 +833,23 @@ function BracketRosterEditor({
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
                   {player.paymentMethod === 'STRIPE' && (
-                    <span className="chip chip-success text-[10px] px-2 py-0.5" title="Paid via Stripe">Paid</span>
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                      style={{ backgroundColor: '#22c55e', color: 'white' }}
+                      title="Paid via Stripe"
+                    >
+                      Paid
+                    </span>
                   )}
                   {player.paymentMethod === 'MANUAL' && onPaymentToggle && (
                     <button
                       type="button"
                       onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
-                      className="chip chip-info text-[10px] px-2 py-0.5 hover:opacity-75 transition-opacity cursor-pointer"
+                      className="text-[10px] px-2 py-0.5 rounded-full font-medium hover:opacity-80 transition-opacity cursor-pointer"
+                      style={{ backgroundColor: '#4ade80', color: 'white' }}
                       title="Click to mark as unpaid"
                     >
-                      Paid Ext.
+                      Paid X.
                     </button>
                   )}
                   {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
