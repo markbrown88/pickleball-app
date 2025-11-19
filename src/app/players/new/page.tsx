@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { PlayerEditForm } from '@/components/PlayerEditForm';
 import { useAdminUser } from '@/app/admin/AdminContext';
@@ -10,12 +10,23 @@ const CLUBS_ENDPOINT = '/api/admin/clubs?sort=name:asc';
 
 export default function PlayerNewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const admin = useAdminUser();
 
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [clubs, setClubs] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Build the back URL with preserved filter parameters
+  const getBackUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    searchParams.forEach((value, key) => {
+      params.set(key, value);
+    });
+    const queryString = params.toString();
+    return `/players${queryString ? `?${queryString}` : ''}`;
+  }, [searchParams]);
 
   const notify = useCallback((message: string | null, type: 'error' | 'info') => {
     if (type === 'error') {
@@ -89,7 +100,7 @@ export default function PlayerNewPage() {
           handleInfo('Player created successfully');
           // Redirect to players list after successful creation
           setTimeout(() => {
-            router.push('/players');
+            router.push(getBackUrl());
           }, 1500);
           return true;
         }
@@ -111,7 +122,7 @@ export default function PlayerNewPage() {
       {/* Header with Back Button */}
       <div className="flex items-center gap-4 mb-8">
         <button
-          onClick={() => router.push('/players')}
+          onClick={() => router.push(getBackUrl())}
           className="btn btn-ghost flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />

@@ -110,6 +110,19 @@ export default function PlayersPage() {
     router.replace(`/players${queryString ? `?${queryString}` : ''}`, { scroll: false });
   }, [router]);
 
+  // Helper to build query string with current filter state for navigation
+  const buildFilterQueryString = useCallback(() => {
+    const params = new URLSearchParams();
+    if (playerSearch) params.set('search', playerSearch);
+    if (playersClubFilter) params.set('clubId', playersClubFilter);
+    if (registrationStatusFilter) params.set('regStatus', registrationStatusFilter);
+    if (showDisabledPlayers) params.set('showDisabled', 'true');
+    const sort = `${playerSort.col}:${playerSort.dir}`;
+    if (sort !== 'lastName:asc') params.set('sort', sort);
+    const queryString = params.toString();
+    return queryString ? `?${queryString}` : '';
+  }, [playerSearch, playersClubFilter, registrationStatusFilter, showDisabledPlayers, playerSort]);
+
   const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch, showDisabled: boolean = showDisabledPlayers, regStatus: string = registrationStatusFilter) => {
     const requestId = playersRequestRef.current + 1;
     playersRequestRef.current = requestId;
@@ -295,7 +308,7 @@ export default function PlayersPage() {
             <div className="text-sm text-muted">Total Players</div>
           </div>
           {(admin.isAppAdmin || admin.isTournamentAdmin) && (
-            <button className="btn btn-primary" onClick={() => router.push('/players/new')}>Add Player</button>
+            <button className="btn btn-primary" onClick={() => router.push(`/players/new${buildFilterQueryString()}`)}>Add Player</button>
           )}
         </div>
       </header>
@@ -450,7 +463,7 @@ export default function PlayersPage() {
                     <div className="flex items-center gap-2 justify-end">
                       <button
                         aria-label="Edit player"
-                        onClick={() => router.push(`/players/${p.id}/edit`)}
+                        onClick={() => router.push(`/players/${p.id}/edit${buildFilterQueryString()}`)}
                         title="Edit"
                         className="text-secondary hover:text-secondary-hover p-1"
                       >

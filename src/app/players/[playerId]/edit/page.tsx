@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { PlayerEditForm } from '@/components/PlayerEditForm';
 import type { UserProfile } from '@/types';
@@ -11,6 +11,7 @@ const CLUBS_ENDPOINT = '/api/admin/clubs?sort=name:asc';
 export default function PlayerEditPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const playerId = params.playerId as string;
 
   const [err, setErr] = useState<string | null>(null);
@@ -18,6 +19,16 @@ export default function PlayerEditPage() {
   const [player, setPlayer] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [clubs, setClubs] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Build the back URL with preserved filter parameters
+  const getBackUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    searchParams.forEach((value, key) => {
+      params.set(key, value);
+    });
+    const queryString = params.toString();
+    return `/players${queryString ? `?${queryString}` : ''}`;
+  }, [searchParams]);
 
   const notify = useCallback((message: string | null, type: 'error' | 'info') => {
     if (type === 'error') {
@@ -117,7 +128,7 @@ export default function PlayerEditPage() {
       <div className="max-w-3xl mx-auto">
         <div className="card text-center space-y-4">
           <h1 className="text-2xl font-semibold text-primary">Player Not Found</h1>
-          <button onClick={() => router.push('/players')} className="btn btn-secondary">
+          <button onClick={() => router.push(getBackUrl())} className="btn btn-secondary">
             Back to Players
           </button>
         </div>
@@ -130,7 +141,7 @@ export default function PlayerEditPage() {
       {/* Header with Back Button */}
       <div className="flex items-center gap-4 mb-8">
         <button
-          onClick={() => router.push('/players')}
+          onClick={() => router.push(getBackUrl())}
           className="btn btn-ghost flex items-center gap-2"
         >
           <ArrowLeft className="w-4 h-4" />
