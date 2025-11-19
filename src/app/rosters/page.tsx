@@ -47,6 +47,7 @@ type ClubRoster = {
   clubId: string;
   clubName: string;
   captainAccessToken: string | null;
+  isManagedByUser: boolean;
   brackets: BracketRoster[];
 };
 
@@ -345,7 +346,11 @@ function RosterDetails({
         {roster.clubs.map((club) => (
           <div key={club.clubId} className="border-2 border-border-medium rounded-lg overflow-hidden bg-surface-1">
             <button
-              className="w-full px-6 py-4 flex items-center justify-between text-left bg-surface-2 hover:bg-surface-1 transition-colors"
+              className={`w-full px-6 py-4 flex items-center justify-between text-left transition-colors ${
+                club.isManagedByUser
+                  ? 'bg-brand-secondary/5 hover:bg-brand-secondary/10'
+                  : 'bg-surface-2 hover:bg-surface-1'
+              }`}
               onClick={() => toggleClub(club.clubId)}
             >
               <div className="flex items-center justify-between gap-4 flex-1">
@@ -357,7 +362,7 @@ function RosterDetails({
                     <h3 className="text-lg font-semibold text-primary">{club.clubName}</h3>
                   </div>
                 </div>
-                {club.captainAccessToken && (
+                {club.captainAccessToken && club.isManagedByUser && (
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <span className="text-xs text-muted">Captain Portal:</span>
                     <a
@@ -380,6 +385,7 @@ function RosterDetails({
                   club={club}
                   hasMultipleStops={hasMultipleStops}
                   maxTeamSize={roster.maxTeamSize ?? null}
+                  readOnly={!club.isManagedByUser}
                   onSaved={onSaved}
                   onError={onError}
                 />
@@ -398,6 +404,7 @@ function ClubRosterEditor({
   club,
   hasMultipleStops,
   maxTeamSize,
+  readOnly = false,
   onSaved,
   onError,
 }: {
@@ -406,6 +413,7 @@ function ClubRosterEditor({
   club: ClubRoster;
   hasMultipleStops: boolean;
   maxTeamSize: number | null;
+  readOnly?: boolean;
   onSaved: () => void | Promise<void>;
   onError: (message: string) => void;
 }) {
@@ -572,8 +580,8 @@ function ClubRosterEditor({
 
     return (
       <div className="space-y-4">
-        {/* Copy from Previous Button - only show for multiple stops */}
-        {hasMultipleStops && previousStop && (
+        {/* Copy from Previous Button - only show for multiple stops and when not read-only */}
+        {hasMultipleStops && previousStop && !readOnly && (
           <div className="flex justify-end">
             <button
               className="btn btn-secondary text-sm"
@@ -608,7 +616,8 @@ function ClubRosterEditor({
                 list={list}
                 onChange={(next) => setStopTeamRoster(stop.stopId, bracket.teamId, next)}
                 excludeIdsAcrossStop={excludeWithinStop}
-                onPaymentToggle={(playerId, currentMethod) => togglePaymentStatus(stop.stopId, playerId, currentMethod)}
+                readOnly={readOnly}
+                onPaymentToggle={readOnly ? undefined : (playerId, currentMethod) => togglePaymentStatus(stop.stopId, playerId, currentMethod)}
               />
             );
           })}
@@ -667,29 +676,31 @@ function ClubRosterEditor({
         ))
       )}
 
-      <div className="pt-6 flex items-center gap-3 border-t-2 border-border-medium">
-        <button
-          className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? (
-            <>
+      {!readOnly && (
+        <div className="pt-6 flex items-center gap-3 border-t-2 border-border-medium">
+          <button
+            className="btn btn-primary flex items-center gap-2 disabled:opacity-50"
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <div className="loading-spinner w-4 h-4" />
+                Saving…
+              </>
+            ) : (
+              'Save All Rosters'
+            )}
+          </button>
+          {saving && (
+            <div className="flex items-center gap-2 text-sm text-muted">
               <div className="loading-spinner w-4 h-4" />
-              Saving…
-            </>
-          ) : (
-            'Save All Rosters'
+              <span>Updating all stop rosters…</span>
+            </div>
           )}
-        </button>
-        {saving && (
-          <div className="flex items-center gap-2 text-sm text-muted">
-            <div className="loading-spinner w-4 h-4" />
-            <span>Updating all stop rosters…</span>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -702,6 +713,7 @@ function BracketRosterEditor({
   list,
   onChange,
   excludeIdsAcrossStop,
+  readOnly = false,
   onPaymentToggle,
 }: {
   title: string;
@@ -711,6 +723,7 @@ function BracketRosterEditor({
   list: PlayerLite[];
   onChange: (players: PlayerLite[]) => void;
   excludeIdsAcrossStop: string[];
+  readOnly?: boolean;
   onPaymentToggle?: (playerId: string, currentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID') => void;
 }) {
   const [term, setTerm] = useState('');
@@ -772,16 +785,17 @@ function BracketRosterEditor({
         <h4 className="text-sm font-semibold text-primary label-caps">{title}</h4>
       </div>
 
-      <div className="relative mt-4">
-        <input
-          className="input w-full"
-          placeholder="🔍 Search players (min 3 chars)"
-          value={term}
-          onChange={(event) => setTerm(event.target.value)}
-          onFocus={() => { if (options.length) setOpen(true); }}
-          onBlur={() => setTimeout(() => setOpen(false), 120)}
-        />
-        {open && options.length > 0 && (
+      {!readOnly && (
+        <div className="relative mt-4">
+          <input
+            className="input w-full"
+            placeholder="🔍 Search players (min 3 chars)"
+            value={term}
+            onChange={(event) => setTerm(event.target.value)}
+            onFocus={() => { if (options.length) setOpen(true); }}
+            onBlur={() => setTimeout(() => setOpen(false), 120)}
+          />
+          {open && options.length > 0 && (
           <ul className="absolute z-10 mt-2 w-full bg-surface-1 border-2 border-secondary rounded-lg shadow-xl overflow-hidden">
             {options.map((player) => (
               <li
@@ -821,8 +835,9 @@ function BracketRosterEditor({
               </li>
             )}
           </ul>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-3 mt-4">
         <div className="text-xs font-semibold text-muted label-caps">Current Roster</div>
@@ -832,7 +847,7 @@ function BracketRosterEditor({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
-                  {player.paymentMethod === 'STRIPE' && (
+                  {onPaymentToggle && player.paymentMethod === 'STRIPE' && (
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-medium"
                       style={{ backgroundColor: '#22c55e', color: 'white' }}
@@ -841,7 +856,7 @@ function BracketRosterEditor({
                       Paid
                     </span>
                   )}
-                  {player.paymentMethod === 'MANUAL' && onPaymentToggle && (
+                  {onPaymentToggle && player.paymentMethod === 'MANUAL' && (
                     <button
                       type="button"
                       onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
@@ -873,13 +888,15 @@ function BracketRosterEditor({
                   <span>Age: <span className="font-semibold text-secondary">{player.age ?? 'N/A'}</span></span>
                 </div>
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost text-xs px-2 py-1 text-error hover:bg-error/10"
-                onClick={() => removePlayer(player.id)}
-              >
-                Remove
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="btn btn-ghost text-xs px-2 py-1 text-error hover:bg-error/10"
+                  onClick={() => removePlayer(player.id)}
+                >
+                  Remove
+                </button>
+              )}
             </li>
           ))}
           {list.length === 0 && (

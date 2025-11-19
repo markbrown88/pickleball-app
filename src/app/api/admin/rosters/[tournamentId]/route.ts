@@ -38,6 +38,7 @@ type ClubRoster = {
   clubId: string;
   clubName: string;
   captainAccessToken: string | null;
+  isManagedByUser: boolean;
   brackets: BracketRoster[];
 };
 
@@ -253,13 +254,19 @@ export async function GET(
         clubsMap.get(clubId)!.teams.push(team);
       }
 
-      // Filter clubs based on user role
-      const allowedClubs = Array.from(clubsMap.values()).filter((club) => {
-        // App admins and tournament admins see all clubs
-        if (isAppAdmin || isTournamentAdmin) return true;
-        // Captains only see their clubs
-        return captainClubIds.has(club.clubId);
-      });
+      // Filter and sort clubs based on user role
+      let allowedClubs = Array.from(clubsMap.values());
+
+      // Captains see all clubs, but their clubs come first
+      if (isCaptain && !isAppAdmin && !isTournamentAdmin) {
+        allowedClubs = allowedClubs.slice().sort((a, b) => {
+          const aIsCaptainClub = captainClubIds.has(a.clubId);
+          const bIsCaptainClub = captainClubIds.has(b.clubId);
+          if (aIsCaptainClub && !bIsCaptainClub) return -1;
+          if (!aIsCaptainClub && bIsCaptainClub) return 1;
+          return 0;
+        });
+      }
 
       const clubs: ClubRoster[] = allowedClubs.map((club) => {
         const brackets: BracketRoster[] = club.teams.map((team) => ({
@@ -276,6 +283,7 @@ export async function GET(
           clubId: club.clubId,
           clubName: club.clubName,
           captainAccessToken: null, // No TournamentClub link, so no access token
+          isManagedByUser: captainClubIds.has(club.clubId) || isAppAdmin || isTournamentAdmin,
           brackets,
         };
       });
@@ -331,13 +339,19 @@ export async function GET(
       stopRosterMap.set(key, current);
     }
 
-    // Filter clubs based on user role
-    const allowedClubs = tournament.clubs.filter((link) => {
-      // App admins and tournament admins see all clubs
-      if (isAppAdmin || isTournamentAdmin) return true;
-      // Captains only see their clubs
-      return captainClubIds.has(link.clubId);
-    });
+    // Filter and sort clubs based on user role
+    let allowedClubs = tournament.clubs;
+
+    // Captains see all clubs, but their clubs come first
+    if (isCaptain && !isAppAdmin && !isTournamentAdmin) {
+      allowedClubs = tournament.clubs.slice().sort((a, b) => {
+        const aIsCaptainClub = captainClubIds.has(a.clubId);
+        const bIsCaptainClub = captainClubIds.has(b.clubId);
+        if (aIsCaptainClub && !bIsCaptainClub) return -1;
+        if (!aIsCaptainClub && bIsCaptainClub) return 1;
+        return 0;
+      });
+    }
 
     const clubs: ClubRoster[] = allowedClubs.map((link) => {
       const clubTeams = teams.filter((team) => team.clubId === link.clubId);
@@ -356,6 +370,7 @@ export async function GET(
         clubId: link.clubId,
         clubName: link.club?.name ?? 'Club',
         captainAccessToken: link.captainAccessToken ?? null,
+        isManagedByUser: captainClubIds.has(link.clubId) || isAppAdmin || isTournamentAdmin,
         brackets,
       };
     });
