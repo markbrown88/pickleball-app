@@ -127,7 +127,8 @@ export function TournamentCard({
         </div>
         <div className="flex flex-col items-end gap-2">
           <span className={statusBadge.className}>{statusBadge.label}</span>
-          {playerBadge && <span className={playerBadge.className}>{playerBadge.label}</span>}
+          {/* Only show player badge at top level for single-stop tournaments */}
+          {playerBadge && !hasMultipleStops && <span className={playerBadge.className}>{playerBadge.label}</span>}
         </div>
       </div>
 
@@ -167,14 +168,23 @@ export function TournamentCard({
       {tournament.stops.length > 0 && (
         <div className="text-sm text-muted">
           <p className="font-medium text-secondary mb-1">Schedule:</p>
-          {tournament.stops.map((stop) => (
-            <div key={stop.id} className="flex items-center justify-between py-1">
-              <span>{stop.name}</span>
-              <span className="text-xs">
-                {stop.startAt ? formatDateUTC(stop.startAt) : 'TBD'}
-              </span>
-            </div>
-          ))}
+          {tournament.stops.map((stop) => {
+            const isRegisteredForStop = registeredStopIds.includes(stop.id);
+            return (
+              <div key={stop.id} className="flex items-center justify-between py-1">
+                <div className="flex items-center gap-2">
+                  <span>{stop.name}</span>
+                  {/* Show registered badge for multi-stop tournaments */}
+                  {hasMultipleStops && isRegisteredForStop && playerBadge && (
+                    <span className={`${playerBadge.className} text-xs`}>{playerBadge.label}</span>
+                  )}
+                </div>
+                <span className="text-xs">
+                  {stop.startAt ? formatDateUTC(stop.startAt) : 'TBD'}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
