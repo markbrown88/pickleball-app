@@ -165,6 +165,7 @@ export function getNavigationItems(): NavItem[] {
       roles: ['app-admin', 'tournament-admin', 'event-manager', 'captain'],
       children: [
         { href: '/tournaments', label: 'Setup', roles: ['app-admin', 'tournament-admin'] },
+        { href: '/tournaments/registrations', label: 'Registrations', roles: ['app-admin', 'tournament-admin'] },
         { href: '/rosters', label: 'Rosters', roles: ['app-admin', 'tournament-admin', 'captain'] },
         { href: '/manager', label: 'Match Control', roles: ['app-admin', 'event-manager'] },
         { href: '/dashboard/payments', label: 'Payments', roles: ['app-admin'] },

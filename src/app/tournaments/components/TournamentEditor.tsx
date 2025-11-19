@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { TournamentDetailsTab } from './tabs/TournamentDetailsTab';
 import { RegistrationSettingsTab, type EditorRowWithRegistration } from './tabs/RegistrationSettingsTab';
-import { RegistrationsTab } from './tabs/RegistrationsTab';
-import { InvitationsTab } from './tabs/InvitationsTab';
 import { StopsLocationsTab } from './tabs/StopsLocationsTab';
 import { ClubsCaptainsTab } from './tabs/ClubsCaptainsTab';
 import { BracketsTab } from './tabs/BracketsTab';
@@ -93,7 +91,7 @@ export type Club = {
   phone?: string | null;
 };
 
-type Tab = 'details' | 'registration' | 'registrations' | 'invitations' | 'stops' | 'clubs' | 'brackets' | 'access' | 'advanced';
+type Tab = 'details' | 'registration' | 'stops' | 'clubs' | 'brackets' | 'access' | 'advanced';
 
 type TournamentEditorProps = {
   tournamentId: Id;
@@ -139,8 +137,6 @@ export function TournamentEditor({
     { id: 'details' as const, label: 'Tournament Details' },
     { id: 'registration' as const, label: 'Registration Settings' },
     { id: 'advanced' as const, label: 'Advanced Configuration', hidden: !showAdvancedConfig },
-    { id: 'registrations' as const, label: 'Registrations' },
-    { id: 'invitations' as const, label: 'Invitations' },
     { id: 'stops' as const, label: 'Location(s) & Dates', hidden: !tournamentShowsStops },
     { id: 'clubs' as const, label: clubsTabLabel, hidden: !tournamentRequiresClubs },
     { id: 'brackets' as const, label: 'Brackets', hidden: !tournamentShowsBrackets || !editor.hasBrackets },
@@ -220,14 +216,6 @@ export function TournamentEditor({
             pricingModel={editorWithReg.pricingModel}
             isTeamTournament={tournamentIsTeam}
           />
-        )}
-
-        {activeTab === 'registrations' && (
-          <RegistrationsTab tournamentId={tournamentId} />
-        )}
-
-        {activeTab === 'invitations' && (
-          <InvitationsTab tournamentId={tournamentId} searchPlayers={searchPlayers} />
         )}
 
         {activeTab === 'stops' && (
