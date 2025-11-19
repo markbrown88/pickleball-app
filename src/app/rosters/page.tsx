@@ -846,54 +846,50 @@ function BracketRosterEditor({
       <div className="space-y-3 mt-4">
         <ul className="space-y-2">
           {list.map((player) => (
-            <li key={player.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-2 border border-border-subtle hover:border-border-medium transition-colors">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
-                  {onPaymentToggle && player.paymentMethod === 'STRIPE' && (
-                    <span
-                      className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                      style={{ backgroundColor: '#059669', color: 'white' }}
-                      title="Paid via Stripe"
-                    >
-                      Paid
-                    </span>
-                  )}
-                  {onPaymentToggle && player.paymentMethod === 'MANUAL' && (
-                    <button
-                      type="button"
-                      onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
-                      className="text-[10px] px-2 py-0.5 rounded-full font-medium hover:opacity-80 transition-opacity cursor-pointer"
-                      style={{ backgroundColor: '#10b981', color: 'white' }}
-                      title="Click to mark as unpaid"
-                    >
-                      Paid X.
-                    </button>
-                  )}
-                  {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
-                    <button
-                      type="button"
-                      onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
-                      className="text-[10px] px-2 py-0.5 text-muted hover:text-secondary transition-colors cursor-pointer"
-                      title="Click to mark as paid externally"
-                    >
-                      💰
-                    </button>
-                  )}
+            <li key={player.id} className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-3 flex-1">
+                <span className="font-semibold text-sm text-secondary">{labelPL(player)}</span>
+                {onPaymentToggle && player.paymentMethod === 'STRIPE' && (
                   <span
                     className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                    style={{
-                      backgroundColor: player.gender === 'MALE' ? '#3b82f6' : '#db2777',
-                      color: 'white'
-                    }}
+                    style={{ backgroundColor: '#059669', color: 'white' }}
+                    title="Paid via Stripe"
                   >
-                    {player.gender === 'MALE' ? 'M' : 'F'}
+                    Paid
                   </span>
-                </div>
-                <div className="text-xs text-muted mt-1 flex items-center gap-3">
-                  <span>DUPR: <span className="font-semibold text-secondary">{player.dupr ?? 'N/A'}</span></span>
-                  <span>Age: <span className="font-semibold text-secondary">{player.age ?? 'N/A'}</span></span>
-                </div>
+                )}
+                {onPaymentToggle && player.paymentMethod === 'MANUAL' && (
+                  <button
+                    type="button"
+                    onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
+                    className="text-[10px] px-2 py-0.5 rounded-full font-medium hover:opacity-80 transition-opacity cursor-pointer"
+                    style={{ backgroundColor: '#10b981', color: 'white' }}
+                    title="Click to mark as unpaid"
+                  >
+                    Paid X.
+                  </button>
+                )}
+                {player.paymentMethod === 'UNPAID' && onPaymentToggle && (
+                  <button
+                    type="button"
+                    onClick={() => onPaymentToggle(player.id, player.paymentMethod)}
+                    className="text-[10px] px-2 py-0.5 text-muted hover:text-secondary transition-colors cursor-pointer"
+                    title="Click to mark as paid externally"
+                  >
+                    💰
+                  </button>
+                )}
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                  style={{
+                    backgroundColor: player.gender === 'MALE' ? '#3b82f6' : '#db2777',
+                    color: 'white'
+                  }}
+                >
+                  {player.gender === 'MALE' ? 'M' : 'F'}
+                </span>
+                <span className="text-xs text-muted">DUPR: <span className="font-semibold text-secondary">{player.dupr ?? 'N/A'}</span></span>
+                <span className="text-xs text-muted">Age: <span className="font-semibold text-secondary">{player.age ?? 'N/A'}</span></span>
               </div>
               {!readOnly && (
                 <button
