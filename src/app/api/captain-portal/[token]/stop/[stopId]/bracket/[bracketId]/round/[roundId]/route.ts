@@ -257,23 +257,43 @@ export async function GET(request: Request, { params }: Params) {
         if (entry.slot === 'MENS_DOUBLES') {
           players.push({
             id: entry.player1.id,
-            name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+            name: (() => {
+              const fn = (entry.player1.firstName ?? '').trim();
+              const ln = (entry.player1.lastName ?? '').trim();
+              const nameParts = [fn, ln].filter(Boolean);
+              return nameParts.join(' ') || entry.player1.name || 'Unknown';
+            })(),
             gender: entry.player1.gender
           });
           players.push({
             id: entry.player2.id,
-            name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+            name: (() => {
+              const fn = (entry.player2.firstName ?? '').trim();
+              const ln = (entry.player2.lastName ?? '').trim();
+              const nameParts = [fn, ln].filter(Boolean);
+              return nameParts.join(' ') || entry.player2.name || 'Unknown';
+            })(),
             gender: entry.player2.gender
           });
         } else if (entry.slot === 'WOMENS_DOUBLES') {
           players.push({
             id: entry.player1.id,
-            name: entry.player1.name || `${entry.player1.firstName || ''} ${entry.player1.lastName || ''}`.trim(),
+            name: (() => {
+              const fn = (entry.player1.firstName ?? '').trim();
+              const ln = (entry.player1.lastName ?? '').trim();
+              const nameParts = [fn, ln].filter(Boolean);
+              return nameParts.join(' ') || entry.player1.name || 'Unknown';
+            })(),
             gender: entry.player1.gender
           });
           players.push({
             id: entry.player2.id,
-            name: entry.player2.name || `${entry.player2.firstName || ''} ${entry.player2.lastName || ''}`.trim(),
+            name: (() => {
+              const fn = (entry.player2.firstName ?? '').trim();
+              const ln = (entry.player2.lastName ?? '').trim();
+              const nameParts = [fn, ln].filter(Boolean);
+              return nameParts.join(' ') || entry.player2.name || 'Unknown';
+            })(),
             gender: entry.player2.gender
           });
         }
