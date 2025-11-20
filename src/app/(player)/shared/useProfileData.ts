@@ -225,13 +225,18 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
     setCountryOther(isKnownCountry ? '' : country);
 
     // Handle birthday - it may come as a Date object or ISO string from API
+    // Note: API may serialize Date as string, so we need to handle both cases
     let birthdayStr = fortyYearsAgoISO();
     if (profile.birthday) {
-      if (profile.birthday instanceof Date) {
-        birthdayStr = dateToLocalYMD(profile.birthday);
-      } else if (typeof profile.birthday === 'string') {
+      // Check runtime type (JSON serialization converts Date to string)
+      // Use 'as unknown' to bypass TypeScript's type narrowing since JSON serialization
+      // can convert Date to string at runtime
+      const birthdayValue: unknown = profile.birthday as unknown;
+      if (typeof birthdayValue === 'string') {
         // Parse ISO string and convert to YYYY-MM-DD
-        birthdayStr = profile.birthday.slice(0, 10);
+        birthdayStr = (birthdayValue as string).slice(0, 10);
+      } else if (birthdayValue instanceof Date) {
+        birthdayStr = dateToLocalYMD(birthdayValue);
       }
     }
     setBirthday(birthdayStr);

@@ -18,9 +18,7 @@ export async function GET(req: NextRequest) {
     const registrations = await prisma.tournamentRegistration.findMany({
       where: {
         playerId,
-        status: {
-          in: ['REGISTERED', 'PENDING']
-        }
+        status: 'REGISTERED' // Only show registered tournaments (not withdrawn/rejected)
       },
       include: {
         tournament: {
