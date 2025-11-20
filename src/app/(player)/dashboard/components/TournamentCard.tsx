@@ -174,9 +174,9 @@ export function TournamentCard({
               <div key={stop.id} className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2">
                   <span>{stop.name}</span>
-                  {/* Show registered badge for multi-stop tournaments */}
-                  {hasMultipleStops && isRegisteredForStop && playerBadge && (
-                    <span className={`${playerBadge.className} text-xs`}>{playerBadge.label}</span>
+                  {/* Show registered badge for multi-stop tournaments if player is registered for this stop */}
+                  {hasMultipleStops && isRegisteredForStop && (
+                    <span className="chip chip-success text-xs">Registered</span>
                   )}
                 </div>
                 <span className="text-xs">
