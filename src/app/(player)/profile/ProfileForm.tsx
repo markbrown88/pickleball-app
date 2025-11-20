@@ -6,7 +6,6 @@ import {
   CA_PROVINCES,
   US_STATES,
   CountrySel,
-  fortyYearsAgoISO,
   useProfileFormState,
 } from '@/app/(player)/shared/useProfileData';
 
@@ -106,20 +105,13 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         setCountryOther(profile.country);
         setCountrySel('Other');
       }
-      if (profile.birthday) {
-        const birthdayStr = profile.birthday instanceof Date 
-          ? profile.birthday.toISOString().slice(0, 10)
-          : '';
-        setBirthday(birthdayStr);
-      }
+      // Birthday is handled by hydrateFromProfile, no need to set it again here
       // Initialize club search with current club name
       if (profile.club) {
         setClubSearch(profile.club.name);
       }
-    } else {
-      setBirthday(fortyYearsAgoISO());
     }
-  }, [hydrateFromProfile, profile, setBirthday, setCountryOther, setCountrySel]);
+  }, [hydrateFromProfile, profile, setCountryOther, setCountrySel]);
 
   // Fetch tournaments, games, and stats data
   useEffect(() => {
@@ -800,7 +792,13 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                         {/* Tournament, Stop, Date */}
                         <div className="text-xs text-muted mb-1.5">
                           {game.tournament?.name && `${game.tournament.name} • `}
-                          {game.stop?.name} • {new Date(game.createdAt).toLocaleDateString()}
+                          {game.stop?.name} • {
+                            game.endedAt 
+                              ? new Date(game.endedAt).toLocaleDateString()
+                              : game.startedAt 
+                              ? new Date(game.startedAt).toLocaleDateString()
+                              : new Date(game.createdAt).toLocaleDateString()
+                          }
                         </div>
 
                         {/* Slot */}

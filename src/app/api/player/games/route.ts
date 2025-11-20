@@ -128,6 +128,12 @@ export async function GET(req: NextRequest) {
           if (seenGames.has(game.id)) continue;
           seenGames.add(game.id);
 
+          // Skip games that haven't started yet (no startedAt date)
+          // Only show games that have actually started or are complete
+          if (!game.startedAt && !game.isComplete) {
+            continue;
+          }
+
           // Skip games from forfeited matches (game scores are invalid)
           const isForfeit = match.forfeitTeam !== null;
 
@@ -171,8 +177,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Sort by creation date (newest first)
-    gamesData.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Sort by game date (endedAt > startedAt > createdAt) - most recent first
+    gamesData.sort((a, b) => {
+      const dateA = a.endedAt ? new Date(a.endedAt).getTime() 
+        : a.startedAt ? new Date(a.startedAt).getTime() 
+        : new Date(a.createdAt).getTime();
+      const dateB = b.endedAt ? new Date(b.endedAt).getTime() 
+        : b.startedAt ? new Date(b.startedAt).getTime() 
+        : new Date(b.createdAt).getTime();
+      return dateB - dateA; // Descending order (newest first)
+    });
 
     return NextResponse.json({ games: gamesData });
   } catch (error) {

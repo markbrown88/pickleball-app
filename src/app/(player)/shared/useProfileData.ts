@@ -216,7 +216,7 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
   });
   const [countrySel, setCountrySel] = useState<CountrySel>('Canada');
   const [countryOther, setCountryOther] = useState('');
-  const [birthday, setBirthday] = useState<string>(fortyYearsAgoISO());
+  const [birthday, setBirthday] = useState<string>(''); // Default to empty string
 
   const hydrateFromProfile = useCallback((profile: UserProfile & ProfileBase) => {
     const country = (profile.country || 'Canada') as string;
@@ -226,16 +226,21 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
 
     // Handle birthday - it may come as a Date object or ISO string from API
     // Note: API may serialize Date as string, so we need to handle both cases
-    let birthdayStr = fortyYearsAgoISO();
+    let birthdayStr = ''; // Default to empty string, not 40 years ago
     if (profile.birthday) {
       // Check runtime type (JSON serialization converts Date to string)
       // Use 'as unknown' to bypass TypeScript's type narrowing since JSON serialization
       // can convert Date to string at runtime
       const birthdayValue: unknown = profile.birthday as unknown;
-      if (typeof birthdayValue === 'string') {
+      if (typeof birthdayValue === 'string' && birthdayValue.trim() !== '') {
         // Parse ISO string and convert to YYYY-MM-DD
-        birthdayStr = (birthdayValue as string).slice(0, 10);
-      } else if (birthdayValue instanceof Date) {
+        // Handle both full ISO strings and YYYY-MM-DD format
+        const dateStr = birthdayValue.slice(0, 10);
+        // Validate it's a valid date string
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          birthdayStr = dateStr;
+        }
+      } else if (birthdayValue instanceof Date && !isNaN(birthdayValue.getTime())) {
         birthdayStr = dateToLocalYMD(birthdayValue);
       }
     }
