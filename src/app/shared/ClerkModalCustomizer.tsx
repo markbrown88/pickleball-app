@@ -15,10 +15,14 @@ export function ClerkModalCustomizer() {
       }
       lastUpdateRef.current = now;
 
-      // Find Clerk modal cards (works for both sign-in and sign-up)
-      const clerkCards = document.querySelectorAll('[class*="cl-card"]');
+      // Find Clerk modal card boxes - only target the outer container
+      const clerkCardBoxes = document.querySelectorAll('[class*="cl-cardBox"]');
       
-      clerkCards.forEach((card) => {
+      clerkCardBoxes.forEach((cardBox) => {
+        // Find the inner .cl-card element (this is where we want to add the logo)
+        const card = cardBox.querySelector('.cl-card');
+        if (!card) return;
+        
         // Skip if we've already processed this card and it's still the same
         const cardId = card.getAttribute('data-klyng-card-id') || Math.random().toString(36);
         card.setAttribute('data-klyng-card-id', cardId);
@@ -35,35 +39,56 @@ export function ClerkModalCustomizer() {
         }
 
         // ===== LOGO HANDLING =====
-        // Remove ALL images first, then add our single logo
+        // Always check and ensure we have exactly one logo
         const allImages = Array.from(card.querySelectorAll('img'));
-        allImages.forEach((img) => {
+        const ourLogos = allImages.filter(img => img.classList.contains('klyng-cup-logo'));
+        const otherImages = allImages.filter(img => !img.classList.contains('klyng-cup-logo'));
+        
+        // Remove all non-custom logos
+        otherImages.forEach((img) => {
           img.remove();
         });
-
+        
+        // If we have multiple custom logos, keep only the first one
+        if (ourLogos.length > 1) {
+          for (let i = 1; i < ourLogos.length; i++) {
+            ourLogos[i].remove();
+          }
+        }
+        
         // Remove any logo containers/boxes from Clerk
-        const logoContainers = card.querySelectorAll('[class*="logoBox"], [class*="logoContainer"], [class*="logo"]');
+        const logoContainers = card.querySelectorAll('[class*="logoBox"], [class*="logoContainer"]');
         logoContainers.forEach((container) => {
           container.remove();
         });
 
-        // Now add our single custom logo
-        const cardContent = card.firstElementChild;
-        if (cardContent) {
-          const logo = document.createElement('img');
-          logo.src = '/images/klyng-cup.png';
-          logo.alt = 'Klyng Cup';
-          logo.className = 'klyng-cup-logo';
-          logo.setAttribute('data-klyng-logo', 'true');
-          logo.style.cssText = `
-            display: block !important;
-            width: 200px;
-            height: auto;
-            max-height: 65px;
-            margin: 0 auto;
-            object-fit: contain;
-          `;
-          card.insertBefore(logo, cardContent);
+        // Ensure we have exactly one logo
+        const finalLogo = card.querySelector('.klyng-cup-logo');
+        if (!finalLogo) {
+          // Add our logo
+          const cardContent = card.firstElementChild;
+          if (cardContent) {
+            const logo = document.createElement('img');
+            logo.src = '/images/klyng-cup.png';
+            logo.alt = 'Klyng Cup';
+            logo.className = 'klyng-cup-logo';
+            logo.setAttribute('data-klyng-logo', 'true');
+            logo.style.cssText = `
+              display: block !important;
+              width: 200px;
+              height: auto;
+              max-height: 65px;
+              margin: 0 auto;
+              object-fit: contain;
+            `;
+            card.insertBefore(logo, cardContent);
+          }
+        } else {
+          // Ensure our logo is positioned correctly
+          const cardContent = card.firstElementChild;
+          if (cardContent && finalLogo !== cardContent && finalLogo.parentElement === card) {
+            card.insertBefore(finalLogo, cardContent);
+          }
         }
 
         // ===== TEXT CUSTOMIZATION =====
