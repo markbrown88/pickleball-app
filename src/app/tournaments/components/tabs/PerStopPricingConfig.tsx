@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatDateRangeUTC } from '@/lib/utils';
 
 export type Stop = {
   id: string;
@@ -74,14 +75,6 @@ export function PerStopPricingConfig({ stops, pricing, onPricingChange }: PerSto
     return cleaned;
   };
 
-  // Format date for display
-  const formatDate = (date: Date): string => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
 
   if (stops.length === 0) {
     return (
@@ -111,7 +104,12 @@ export function PerStopPricingConfig({ stops, pricing, onPricingChange }: PerSto
           >
             <div className="flex-1">
               <div className="font-medium text-secondary">{stop.name}</div>
-              <div className="text-xs text-muted">{formatDate(stop.startAt)}</div>
+              <div className="text-xs text-muted">
+                {formatDateRangeUTC(
+                  stop.startAt instanceof Date ? stop.startAt.toISOString() : stop.startAt,
+                  (stop as any).endAt instanceof Date ? (stop as any).endAt.toISOString() : (stop as any).endAt || null
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-lg text-secondary">$</span>

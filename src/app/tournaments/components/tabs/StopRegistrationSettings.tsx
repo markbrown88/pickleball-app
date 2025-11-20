@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatDateRangeUTC } from '@/lib/utils';
 
 export type Stop = {
   id: string;
@@ -18,7 +19,7 @@ type StopRegistrationSettingsProps = {
 export function StopRegistrationSettings({ stops, onStopsChange }: StopRegistrationSettingsProps) {
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
 
-  // Format date for display
+  // Format date for display (for single dates like deadlines)
   const formatDate = (date: Date): string => {
     return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
@@ -145,7 +146,10 @@ export function StopRegistrationSettings({ stops, onStopsChange }: StopRegistrat
                   <div className="flex items-center gap-3">
                     <div className="font-medium text-secondary">{stop.name}</div>
                     <div className="text-xs text-muted">
-                      {formatDate(stop.startAt)}
+                      {formatDateRangeUTC(
+                        stop.startAt instanceof Date ? stop.startAt.toISOString() : stop.startAt,
+                        (stop as any).endAt instanceof Date ? (stop as any).endAt.toISOString() : (stop as any).endAt || null
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 mt-1">

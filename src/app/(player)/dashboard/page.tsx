@@ -450,19 +450,10 @@ export default function DashboardPage() {
                             <span className="font-medium">Stop:</span> {assignment.stopName}
                             {assignment.stopStartAt && (
                               <span className="ml-1">
-                                ({new Date(assignment.stopStartAt).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                })})
+                                ({formatDateRangeUTC(assignment.stopStartAt, assignment.stopEndAt)})
                               </span>
                             )}
                           </div>
-                          {assignment.bracketName && (
-                            <div>
-                              <span className="font-medium">Bracket:</span> {assignment.bracketName}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>

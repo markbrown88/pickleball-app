@@ -27,15 +27,15 @@ function parseDateUTC(dateString: string | null | undefined): Date | null {
 
 /**
  * Format a single date using standardized format
- * Format: "Aug 23, 2025"
+ * Format: "Nov. 23, 2025"
  */
 function formatSingleDate(date: Date): string {
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
   const day = date.getUTCDate();
   
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthNames = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.',
+                     'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
   
   return `${monthNames[month]} ${day}, ${year}`;
 }
@@ -53,9 +53,10 @@ export function formatDateUTC(dateString: string | null | undefined): string {
 
 /**
  * Format a date range using standardized format
- * Same year: "Aug 23 – Aug 24, 2025"
- * Different years: "Dec 23, 2025 – Jan 23, 2026"
- * Same day: "Aug 23, 2025"
+ * Same month: "Nov. 21 - 23, 2025"
+ * Different months, same year: "Nov. 21 - Dec. 23, 2025"
+ * Different years: "Nov. 21, 2025 - Jan. 23, 2026"
+ * Same day: "Nov. 21, 2025"
  */
 export function formatDateRangeUTC(start?: string | null, end?: string | null): string {
   if (!start && !end) return '—';
@@ -80,14 +81,19 @@ export function formatDateRangeUTC(start?: string | null, end?: string | null): 
   const startDay = startDate.getUTCDate();
   const endDay = endDate.getUTCDate();
   
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthNames = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.',
+                     'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
   
   // Different years - show year for both
   if (startYear !== endYear) {
-    return `${monthNames[startMonth]} ${startDay}, ${startYear} – ${monthNames[endMonth]} ${endDay}, ${endYear}`;
+    return `${monthNames[startMonth]} ${startDay}, ${startYear} - ${monthNames[endMonth]} ${endDay}, ${endYear}`;
   }
   
-  // Same year - show year only at the end
-  return `${monthNames[startMonth]} ${startDay} – ${monthNames[endMonth]} ${endDay}, ${startYear}`;
+  // Same month - only show month once: "Nov. 21 - 23, 2025"
+  if (startMonth === endMonth) {
+    return `${monthNames[startMonth]} ${startDay} - ${endDay}, ${startYear}`;
+  }
+  
+  // Different months, same year - show both months: "Nov. 21 - Dec. 23, 2025"
+  return `${monthNames[startMonth]} ${startDay} - ${monthNames[endMonth]} ${endDay}, ${startYear}`;
 }

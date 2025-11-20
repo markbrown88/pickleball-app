@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatDateUTC } from '@/lib/utils';
+import { formatDateRangeUTC } from '@/lib/utils';
 
 type TournamentStatus = 'OPEN' | 'INVITE_ONLY' | 'CLOSED';
 type RegistrationType = 'FREE' | 'PAID';
@@ -180,7 +180,7 @@ export function TournamentCard({
                   )}
                 </div>
                 <span className="text-xs">
-                  {stop.startAt ? formatDateUTC(stop.startAt) : 'TBD'}
+                  {stop.startAt ? formatDateRangeUTC(stop.startAt, stop.endAt) : 'TBD'}
                 </span>
               </div>
             );

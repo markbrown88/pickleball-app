@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { formatDateRangeUTC } from '@/lib/utils';
 
 export type Stop = {
   id: string;
@@ -201,13 +202,6 @@ export function CapacityManagementConfig({
     });
   }, [allRows, filterStop, filterBracket, filterClub, isTeamTournament]);
 
-  // Format date for display
-  const formatDate = (date: Date): string => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
 
   if (stops.length === 0 || brackets.length === 0) {
     return (
@@ -256,7 +250,10 @@ export function CapacityManagementConfig({
             <option value="">All Stops ({stops.length})</option>
             {stops.map((stop) => (
               <option key={stop.id} value={stop.id}>
-                {stop.name} - {formatDate(stop.startAt)}
+                {stop.name} - {formatDateRangeUTC(
+                  stop.startAt instanceof Date ? stop.startAt.toISOString() : stop.startAt,
+                  (stop as any).endAt instanceof Date ? (stop as any).endAt.toISOString() : (stop as any).endAt || null
+                )}
               </option>
             ))}
           </select>
