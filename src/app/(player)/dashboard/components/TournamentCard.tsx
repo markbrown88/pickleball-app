@@ -194,7 +194,7 @@ export function TournamentCard({
           href={`/tournament/${tournament.id}`}
           className="btn btn-ghost btn-sm flex-1"
         >
-          View Details
+          View Scores
         </Link>
 
         {needsPayment && registrationId && (

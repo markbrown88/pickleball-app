@@ -426,7 +426,7 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Scores</a>
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Scores</a>
                     </div>
 
                     <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
@@ -527,7 +527,7 @@ export async function sendWithdrawalConfirmationEmail(params: WithdrawalConfirma
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-right: 10px;">View Tournament</a>
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-right: 10px;">View Scores</a>
                       <a href="${baseUrl}/dashboard" style="display: inline-block; background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Tournaments</a>
                     </div>
 
@@ -1427,7 +1427,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Scores</a>
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Scores</a>
                     </div>
 
                     <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
@@ -1717,7 +1717,7 @@ export async function sendRefundConfirmationEmail(params: RefundConfirmationEmai
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-right: 10px;">View Tournament</a>
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-right: 10px;">View Scores</a>
                       <a href="${baseUrl}/dashboard" style="display: inline-block; background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Tournaments</a>
                     </div>
 
@@ -2152,7 +2152,7 @@ export async function sendWaitlistConfirmationEmail(params: WaitlistConfirmation
                     </div>
 
                     <div style="text-align: center; margin: 30px 0;">
-                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Tournament Details</a>
+                      <a href="${tournamentLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">View Scores</a>
                     </div>
 
                     <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
