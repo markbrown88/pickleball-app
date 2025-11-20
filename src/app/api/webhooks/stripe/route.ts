@@ -378,10 +378,13 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
                 stopId,
                 teamId: team.id,
                 playerId: registration.playerId,
+                paymentMethod: 'STRIPE', // Mark as paid via Stripe
               },
-              update: {}, // No update needed if exists
+              update: {
+                paymentMethod: 'STRIPE', // Update payment method if entry already exists
+              },
             });
-            console.log(`Created roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}`);
+            console.log(`Created roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId} with STRIPE payment`);
           } catch (rosterError) {
             console.error(`Failed to create roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}:`, rosterError);
             // Don't throw - roster creation failure shouldn't fail payment processing
@@ -1015,10 +1018,13 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
                 stopId,
                 teamId: team.id,
                 playerId: registration.playerId,
+                paymentMethod: 'STRIPE', // Mark as paid via Stripe
               },
-              update: {}, // No update needed if exists
+              update: {
+                paymentMethod: 'STRIPE', // Update payment method if entry already exists
+              },
             });
-            console.log(`Created roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}`);
+            console.log(`Created roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId} with STRIPE payment`);
           } catch (rosterError) {
             console.error(`Failed to create roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}:`, rosterError);
             // Don't throw - roster creation failure shouldn't fail payment processing

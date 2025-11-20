@@ -126,6 +126,13 @@ export function ymdToDateString(y?: number | null, m?: number | null, d?: number
   return `${y}-${mm}-${dd}`;
 }
 
+export function dateToLocalYMD(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 type ProfileSetupUser = {
   firstName?: string | null;
   lastName?: string | null;
@@ -216,8 +223,8 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
     const isKnownCountry = country === 'Canada' || country === 'USA';
     setCountrySel(isKnownCountry ? (country as CountrySel) : 'Other');
     setCountryOther(isKnownCountry ? '' : country);
-    const birthdayStr = profile.birthday instanceof Date 
-      ? profile.birthday.toISOString().slice(0, 10)
+    const birthdayStr = profile.birthday instanceof Date
+      ? dateToLocalYMD(profile.birthday)
       : fortyYearsAgoISO();
     setBirthday(birthdayStr);
     setForm({

@@ -381,9 +381,10 @@ export async function POST(req: NextRequest) {
     if (birthday) {
       const date = new Date(birthday);
       if (!isNaN(date.getTime())) {
-        birthdayYear = date.getFullYear();
-        birthdayMonth = date.getMonth() + 1;
-        birthdayDay = date.getDate();
+        // Use UTC methods to avoid timezone shifting
+        birthdayYear = date.getUTCFullYear();
+        birthdayMonth = date.getUTCMonth() + 1;
+        birthdayDay = date.getUTCDate();
         birthdayDate = date;
       }
     }
@@ -518,9 +519,10 @@ export async function PUT(req: NextRequest) {
       if (birthday && birthday.trim() !== '') {
         const date = new Date(birthday);
         if (!isNaN(date.getTime())) {
-          birthdayYear = date.getFullYear();
-          birthdayMonth = date.getMonth() + 1;
-          birthdayDay = date.getDate();
+          // Use UTC methods to avoid timezone shifting
+          birthdayYear = date.getUTCFullYear();
+          birthdayMonth = date.getUTCMonth() + 1;
+          birthdayDay = date.getUTCDate();
           birthdayDate = date;
         }
       } else {

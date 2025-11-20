@@ -62,6 +62,24 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     await prisma.$transaction(async (tx) => {
+      // Fetch existing payment methods before deleting
+      const existingEntries = await tx.stopTeamPlayer.findMany({
+        where: {
+          stopId,
+          teamId
+        },
+        select: {
+          playerId: true,
+          paymentMethod: true
+        }
+      });
+
+      // Create a map of playerId -> paymentMethod
+      const paymentMethodMap = new Map<string, 'STRIPE' | 'MANUAL' | 'UNPAID'>();
+      existingEntries.forEach(entry => {
+        paymentMethodMap.set(entry.playerId, entry.paymentMethod);
+      });
+
       // Remove existing roster for this team/stop
       await tx.stopTeamPlayer.deleteMany({
         where: {
@@ -70,13 +88,15 @@ export async function PUT(request: Request, { params }: Params) {
         }
       });
 
-      // Add new roster entries
+      // Add new roster entries, preserving payment methods
       if (playerIds.length > 0) {
         await tx.stopTeamPlayer.createMany({
           data: playerIds.map(playerId => ({
             stopId,
             teamId,
-            playerId
+            playerId,
+            // Preserve existing payment method, default to UNPAID for new entries
+            paymentMethod: paymentMethodMap.get(playerId) || 'UNPAID'
           })),
           skipDuplicates: true
         });
