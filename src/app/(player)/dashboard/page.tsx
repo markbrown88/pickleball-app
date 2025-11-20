@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { PlayerRegistration, Tournament, TournamentsResponse, UserProfile } from '@/types';
 import type { DashboardOverview, PlayerAssignment } from './types';
 import { TournamentCard, type TournamentCardData } from './components/TournamentCard';
-import { formatDateUTC } from '@/lib/utils';
+import { formatDateUTC, formatDateRangeUTC } from '@/lib/utils';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 
 const PROFILE_ENDPOINT = '/api/auth/user';

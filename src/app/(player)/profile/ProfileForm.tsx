@@ -290,12 +290,14 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                       key={value}
                       type="button"
                       onClick={() => handleChange('gender', value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all text-white ${
-                        form.gender === value ? 'shadow-md scale-105' : 'opacity-70 hover:opacity-100'
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        form.gender === value
+                          ? 'text-white shadow-md'
+                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                       }`}
-                      style={{
+                      style={form.gender === value ? {
                         backgroundColor: value === 'MALE' ? '#3b82f6' : '#db2777',
-                      }}
+                      } : undefined}
                     >
                       {value === 'MALE' ? 'Male' : 'Female'}
                     </button>
@@ -554,7 +556,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                 <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted">
                   <div className="flex items-center gap-2">
                     <span
-                      className="chip text-white text-xs font-medium px-2 py-0.5"
+                      className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold text-white"
                       style={{
                         backgroundColor: form.gender === 'MALE' ? '#3b82f6' : '#db2777',
                       }}
