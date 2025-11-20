@@ -254,12 +254,17 @@ export function ClerkModalCustomizer() {
     const observer = new MutationObserver((mutations) => {
       // Only trigger if there are actual changes to cards or images
       const hasRelevantChanges = mutations.some(mutation => {
-        const target = mutation.target as Element;
+        // Check if target is an Element (not a text node)
+        if (!(mutation.target instanceof Element)) return false;
+        
+        const target = mutation.target;
         const isCard = target.classList?.toString().includes('cl-card');
         const hasCard = target.querySelector('[class*="cl-card"]');
-        const hasNewImages = Array.from(mutation.addedNodes).some(node => 
-          (node as Element)?.tagName === 'IMG' || (node as Element)?.querySelector('img')
-        );
+        const hasNewImages = Array.from(mutation.addedNodes).some(node => {
+          // Check if node is an Element
+          if (!(node instanceof Element)) return false;
+          return node.tagName === 'IMG' || node.querySelector('img');
+        });
         return isCard || hasCard || hasNewImages;
       });
       

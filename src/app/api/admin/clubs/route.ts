@@ -62,9 +62,9 @@ export async function GET(req: Request) {
       currentPlayer.tournamentAdminLinks.length > 0 ||
       currentPlayer.TournamentEventManager.length > 0;
 
-    if (!currentPlayer.isAppAdmin && !isTournamentAdmin) {
-      return NextResponse.json({ error: 'Access denied. Admin access required.' }, { status: 403 });
-    }
+    // Allow all authenticated users to read clubs (for profile page club selection)
+    // Only restrict write operations (POST, PUT, DELETE) to admins
+    // This GET endpoint is read-only, so we allow all authenticated users
 
     const url = new URL(req.url);
     const sortParam = url.searchParams.get('sort'); // e.g. "name:asc"
@@ -90,8 +90,8 @@ export async function GET(req: Request) {
         }
       : {};
 
-    // Tournament Admins can only see their own club
-    if (!currentPlayer.isAppAdmin && isTournamentAdmin) {
+    // Tournament Admins can only see their own club (if they're not app admins)
+    if (!currentPlayer.isAppAdmin && isTournamentAdmin && currentPlayer.clubId) {
       where.id = currentPlayer.clubId;
     }
 
