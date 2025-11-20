@@ -314,7 +314,6 @@ export default function Home() {
                             <SignUpButton 
                               mode="modal" 
                               forceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
-                              signInForceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
                             >
                               <button className="btn btn-secondary flex-1">
                                 Register Now!
@@ -670,7 +669,6 @@ export default function Home() {
                           <SignUpButton 
                             mode="modal" 
                             forceRedirectUrl={`/register/${tournament.id}`}
-                            signInForceRedirectUrl={`/register/${tournament.id}`}
                           >
                             <button className="btn btn-secondary flex-1">
                               Register Now!
