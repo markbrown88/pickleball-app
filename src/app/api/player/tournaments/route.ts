@@ -88,13 +88,6 @@ export async function GET(req: NextRequest) {
                 createdAt: true
               }
             }
-          },
-          select: {
-            id: true,
-            name: true,
-            startAt: true,
-            endAt: true,
-            tournament: true
           }
         },
         team: {
