@@ -59,12 +59,6 @@ export async function GET(req: NextRequest) {
       },
       include: {
         tournament: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            createdAt: true
-          },
           include: {
             stops: {
               select: {
