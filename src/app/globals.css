@@ -639,11 +639,22 @@ li:has(.nav-link.active) > span[class*="border-brand-secondary"],
   }
 }
 
-/* Hide Clerk's default logo rendering */
+/* Hide Clerk's default logo rendering - be very aggressive */
 [class*="cl-card"] [class*="logoBox"],
 [class*="cl-card"] [class*="logoContainer"],
-[class*="cl-card"] img[src*="klyng-cup"]:not(.klyng-cup-logo) {
+[class*="cl-card"] [class*="logo"]:not(.klyng-cup-logo),
+[class*="cl-card"] img[src*="klyng-cup"]:not(.klyng-cup-logo),
+[class*="cl-card"] img[alt*="Klyng"]:not(.klyng-cup-logo),
+[class*="cl-card"] img[alt*="klyng"]:not(.klyng-cup-logo),
+[class*="cl-card"] img:not(.klyng-cup-logo) {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  left: -9999px !important;
 }
 
 

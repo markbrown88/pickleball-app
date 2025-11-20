@@ -1,7 +1,6 @@
 'use client';
 import { SignIn } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function SignInPage() {
   const searchParams = useSearchParams();
@@ -9,27 +8,6 @@ export default function SignInPage() {
   const signUpUrl = redirectUrl !== '/dashboard'
     ? `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`
     : '/sign-up';
-
-  useEffect(() => {
-    const updateText = () => {
-      const title = document.querySelector('[class*="cl-card"] [class*="headerTitle"]');
-      const subtitle = document.querySelector('[class*="cl-card"] [class*="headerSubtitle"]');
-      
-      if (title) {
-        (title as HTMLElement).style.display = 'none';
-      }
-      
-      if (subtitle) {
-        (subtitle as HTMLElement).textContent = 'Welcome back! Please sign in to continue';
-      }
-    };
-
-    updateText();
-    const observer = new MutationObserver(updateText);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => observer.disconnect();
-  }, []);
   
   return (
     <div className="p-6">

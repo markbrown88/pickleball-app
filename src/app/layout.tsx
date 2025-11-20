@@ -3,7 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Plus_Jakarta_Sans, Outfit } from "next/font/google";
 import "./globals.css";
 import { ModalProvider } from "./shared/ModalContext";
-import { ClerkLogoInjector } from "./shared/ClerkLogoInjector";
+import { ClerkModalCustomizer } from "./shared/ClerkModalCustomizer";
 
 const plusJakartaSans = Plus_Jakarta_Sans({ 
   variable: "--font-plus-jakarta-sans", 
@@ -109,7 +109,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${plusJakartaSans.variable} ${outfit.variable} antialiased`} suppressHydrationWarning>
-          <ClerkLogoInjector />
+          <ClerkModalCustomizer />
           <ModalProvider>
             {children}
           </ModalProvider>

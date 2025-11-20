@@ -124,7 +124,12 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         const tournamentsRes = await fetchWithActAs('/api/player/tournaments');
         if (tournamentsRes.ok) {
           const tournamentsData = await tournamentsRes.json();
+          console.log('Tournaments API response:', tournamentsData);
           setTournaments(tournamentsData.tournaments || []);
+        } else {
+          console.error('Failed to fetch tournaments:', tournamentsRes.status, tournamentsRes.statusText);
+          const errorText = await tournamentsRes.text();
+          console.error('Tournaments error response:', errorText);
         }
 
         // Fetch games
@@ -149,6 +154,11 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
 
     fetchData();
   }, [profile]);
+
+  // Debug: Log tournaments state
+  useEffect(() => {
+    console.log('Tournaments state updated:', tournaments);
+  }, [tournaments]);
 
   const handleChange = useCallback(<K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));

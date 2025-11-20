@@ -15,10 +15,13 @@ export async function GET(req: NextRequest) {
     const playerId = effectivePlayer.targetPlayerId;
 
     // Find tournaments via registrations (new system)
+    // Include all statuses except explicitly rejected/withdrawn
     const registrations = await prisma.tournamentRegistration.findMany({
       where: {
         playerId,
-        status: 'REGISTERED' // Only show registered tournaments (not withdrawn/rejected)
+        status: {
+          in: ['REGISTERED', 'PENDING', 'PAID', 'COMPLETED'] // Show all active/paid registrations
+        }
       },
       include: {
         tournament: {
