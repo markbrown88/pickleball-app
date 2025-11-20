@@ -175,11 +175,19 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     // Create roster for lineup selection (only this team's players)
-    const roster = stopTeamPlayers.map(stp => ({
-      id: stp.player.id,
-      name: stp.player.name || `${stp.player.firstName || ''} ${stp.player.lastName || ''}`.trim(),
-      gender: stp.player.gender
-    }));
+    const roster = stopTeamPlayers.map(stp => {
+      // Build name with proper fallback: firstName + lastName, then name, then 'Unknown'
+      const fn = (stp.player.firstName ?? '').trim();
+      const ln = (stp.player.lastName ?? '').trim();
+      const nameParts = [fn, ln].filter(Boolean);
+      const name = nameParts.join(' ') || stp.player.name || 'Unknown';
+      
+      return {
+        id: stp.player.id,
+        name,
+        gender: stp.player.gender
+      };
+    });
 
     // Get lineups from the old system
     const myTeamLineup = round.lineups.find(l => l.teamId === team.id);
