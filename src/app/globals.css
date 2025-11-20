@@ -657,6 +657,12 @@ li:has(.nav-link.active) > span[class*="border-brand-secondary"],
   left: -9999px !important;
 }
 
+/* Ensure line breaks render in subtitles */
+[class*="cl-card"] [class*="headerSubtitle"],
+[class*="cl-card"] [class*="subtitle"] {
+  white-space: pre-line;
+}
+
 
 /* Toast Styles */
 .toast {

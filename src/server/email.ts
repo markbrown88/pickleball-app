@@ -78,7 +78,7 @@ export async function sendCaptainInviteEmail(to: string, link: string) {
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -86,7 +86,7 @@ export async function sendCaptainInviteEmail(to: string, link: string) {
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0; margin-top: 20px;">
+                  <td style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0; margin-top: 20px;">
                     <div style="font-size: 48px; margin-bottom: 10px;">👨‍✈️</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Team Captain Access</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Manage your team</p>
@@ -200,7 +200,7 @@ export async function sendTournamentInviteEmail(params: TournamentInviteEmailPar
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -208,7 +208,7 @@ export async function sendTournamentInviteEmail(params: TournamentInviteEmailPar
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">You're Invited!</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Tournament Registration</p>
                   </td>
@@ -469,7 +469,7 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -477,7 +477,7 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">✓</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Registration Confirmed!</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">You're all set</p>
@@ -588,7 +588,7 @@ export async function sendWithdrawalConfirmationEmail(params: WithdrawalConfirma
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -596,7 +596,7 @@ export async function sendWithdrawalConfirmationEmail(params: WithdrawalConfirma
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">👋</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Registration Cancelled</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">We're sorry to see you go</p>
@@ -719,7 +719,7 @@ export async function sendWaitlistSpotAvailableEmail(params: WaitlistSpotAvailab
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -727,7 +727,7 @@ export async function sendWaitlistSpotAvailableEmail(params: WaitlistSpotAvailab
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">🔥</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">A Spot Opened Up!</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">You're next on the waitlist</p>
@@ -890,7 +890,7 @@ export async function sendAdminNotificationEmail(params: AdminNotificationEmailP
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1496,7 +1496,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1504,7 +1504,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">💳</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Payment Confirmed!</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Your payment has been processed</p>
@@ -1662,7 +1662,7 @@ export async function sendPaymentFailedEmail(params: PaymentFailedEmailParams) {
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1670,7 +1670,7 @@ export async function sendPaymentFailedEmail(params: PaymentFailedEmailParams) {
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Payment Failed</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Action required</p>
@@ -1811,7 +1811,7 @@ export async function sendRefundConfirmationEmail(params: RefundConfirmationEmai
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1819,7 +1819,7 @@ export async function sendRefundConfirmationEmail(params: RefundConfirmationEmai
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">💰</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Refund Processed</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Your refund has been issued</p>
@@ -2119,7 +2119,7 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -2127,7 +2127,7 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">⏰</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Complete Your Payment</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Your registration is waiting</p>
@@ -2264,7 +2264,7 @@ export async function sendWaitlistConfirmationEmail(params: WaitlistConfirmation
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr>
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -2272,7 +2272,7 @@ export async function sendWaitlistConfirmationEmail(params: WaitlistConfirmation
 
                 <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 0px 20px 15px; text-align: center; border-radius: 0;">
                     <div style="font-size: 48px; margin-bottom: 10px;">📋</div>
                     <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">You're on the Waitlist!</h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">Position #${position}</p>

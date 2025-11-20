@@ -37,7 +37,6 @@ export function ClerkModalCustomizer() {
         // ===== LOGO HANDLING =====
         // Count images
         const allImages = Array.from(card.querySelectorAll('img'));
-        const ourLogo = card.querySelector('.klyng-cup-logo');
         const otherImages = allImages.filter(img => !img.classList.contains('klyng-cup-logo'));
         
         // If there are other images, remove them
@@ -189,29 +188,48 @@ export function ClerkModalCustomizer() {
 
         // Always hide title and update text, even if Clerk resets it
         if (title) {
-          (title as HTMLElement).style.display = 'none';
-          (title as HTMLElement).style.visibility = 'hidden';
-          (title as HTMLElement).style.height = '0';
-          (title as HTMLElement).style.margin = '0';
-          (title as HTMLElement).style.padding = '0';
+          (title as HTMLElement).style.cssText = 'display: none !important; visibility: hidden !important; height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important;';
+          // Also try removing it from the DOM flow
+          (title as HTMLElement).setAttribute('aria-hidden', 'true');
         }
         
         if (subtitle) {
-          const expectedText = isSignUp 
+          // Use \n for line breaks since we're using white-space: pre-line
+          const expectedTextHTML = isSignUp 
             ? 'Welcome!<br /><br />Please create your account below.'
             : 'Welcome back!<br />Please sign in to continue';
           
+          const expectedTextPlain = isSignUp 
+            ? 'Welcome!\n\nPlease create your account below.'
+            : 'Welcome back!\nPlease sign in to continue';
+          
           const currentText = (subtitle as HTMLElement).innerHTML || (subtitle as HTMLElement).textContent || '';
           
-          // Check if text needs updating
-          const isCorrect = isSignUp 
-            ? currentText.includes('Welcome!') && currentText.includes('create your account')
-            : currentText.includes('Welcome back') && currentText.includes('sign in to continue');
+          // Check if text needs updating - be more lenient with the check
+          const hasWelcome = currentText.includes('Welcome');
+          const hasCorrectContent = isSignUp 
+            ? currentText.includes('create your account')
+            : currentText.includes('sign in to continue');
           
-          if (!isCorrect) {
-            // Use innerHTML for both to allow line breaks
-            (subtitle as HTMLElement).innerHTML = expectedText;
+          // Check if line break is present (either <br or \n)
+          const hasLineBreak = currentText.includes('<br') || currentText.includes('\n');
+          
+          // Always update if it doesn't have both parts or doesn't have the line break
+          const needsUpdate = !hasWelcome || !hasCorrectContent || !hasLineBreak;
+          
+          if (needsUpdate) {
+            // Try innerHTML first (for <br /> tags)
+            (subtitle as HTMLElement).innerHTML = expectedTextHTML;
             (subtitle as HTMLElement).style.display = 'block';
+            (subtitle as HTMLElement).style.whiteSpace = 'pre-line';
+            
+            // If that doesn't work, try textContent with \n
+            setTimeout(() => {
+              const checkText = (subtitle as HTMLElement).innerHTML || (subtitle as HTMLElement).textContent || '';
+              if (!checkText.includes('<br') && !checkText.includes('\n')) {
+                (subtitle as HTMLElement).textContent = expectedTextPlain;
+              }
+            }, 100);
           }
         }
 
