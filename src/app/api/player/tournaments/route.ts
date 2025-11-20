@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
 
@@ -9,9 +10,42 @@ import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
  */
 export async function GET(req: NextRequest) {
   try {
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     // Support Act As functionality
     const actAsPlayerId = getActAsHeaderFromRequest(req);
-    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    let effectivePlayer;
+    
+    try {
+      effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    } catch (actAsError) {
+      console.log('Tournaments API: Act As error, using real player:', actAsError);
+      // If Act As fails, get the real player
+      const realPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: { id: true }
+      });
+      
+      if (!realPlayer) {
+        return NextResponse.json(
+          { error: 'Player profile not found' },
+          { status: 404 }
+        );
+      }
+      
+      effectivePlayer = {
+        realUserId: userId,
+        realPlayerId: realPlayer.id,
+        isActingAs: false,
+        targetPlayerId: realPlayer.id,
+        isAppAdmin: false
+      };
+    }
+
     const playerId = effectivePlayer.targetPlayerId;
 
     // Find tournaments via registrations (new system)
@@ -213,8 +247,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ tournaments });
   } catch (error) {
     console.error('Error fetching player tournaments:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Error details:', { errorMessage, errorStack });
     return NextResponse.json(
-      { error: 'Failed to fetch player tournaments' },
+      { error: 'Failed to fetch player tournaments', details: errorMessage },
       { status: 500 }
     );
   }
