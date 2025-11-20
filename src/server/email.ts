@@ -78,7 +78,7 @@ export async function sendCaptainInviteEmail(to: string, link: string) {
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -200,7 +200,7 @@ export async function sendTournamentInviteEmail(params: TournamentInviteEmailPar
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -469,7 +469,7 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -588,7 +588,7 @@ export async function sendWithdrawalConfirmationEmail(params: WithdrawalConfirma
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -719,7 +719,7 @@ export async function sendWaitlistSpotAvailableEmail(params: WaitlistSpotAvailab
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -890,7 +890,7 @@ export async function sendAdminNotificationEmail(params: AdminNotificationEmailP
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1496,7 +1496,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1662,7 +1662,7 @@ export async function sendPaymentFailedEmail(params: PaymentFailedEmailParams) {
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1811,7 +1811,7 @@ export async function sendRefundConfirmationEmail(params: RefundConfirmationEmai
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -2119,7 +2119,7 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -2264,7 +2264,7 @@ export async function sendWaitlistConfirmationEmail(params: WaitlistConfirmation
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #1e40af;">
+                <tr style="background-color: #111827;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>

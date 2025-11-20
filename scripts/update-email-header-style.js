@@ -8,15 +8,14 @@ console.log('Updating email header styles...\n');
 
 let updateCount = 0;
 
-// Pattern 1: Add dark blue background to logo <tr>
-// Find: <tr> followed by <td> with the logo
-const logoTrPattern = /(<tr>)\s+(<td style="padding: 30px 30px 0 30px; text-align: center;">)\s+(<img src="https:\/\/klyngcup\.com\/images\/klyng-cup\.png")/g;
-const logoTrReplacement = '<tr style="background-color: #1e40af;">\n                  $2\n                    $3';
+// Pattern 1: Update logo <tr> background color to #111827
+const logoTrPattern = /<tr style="background-color: #1e40af;">/g;
+const logoTrReplacement = '<tr style="background-color: #111827;">';
 
 const logoMatches = content.match(logoTrPattern);
 if (logoMatches) {
   content = content.replace(logoTrPattern, logoTrReplacement);
-  console.log(`✓ Added dark blue background to ${logoMatches.length} logo sections`);
+  console.log(`✓ Updated logo background to #111827 for ${logoMatches.length} sections`);
   updateCount += logoMatches.length;
 }
 

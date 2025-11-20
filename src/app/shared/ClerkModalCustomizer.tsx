@@ -35,52 +35,35 @@ export function ClerkModalCustomizer() {
         }
 
         // ===== LOGO HANDLING =====
-        // Count images
+        // Remove ALL images first, then add our single logo
         const allImages = Array.from(card.querySelectorAll('img'));
-        const otherImages = allImages.filter(img => !img.classList.contains('klyng-cup-logo'));
-        
-        // If there are other images, remove them
-        if (otherImages.length > 0) {
-          otherImages.forEach((img) => {
-            img.remove();
-          });
-        }
-
-        // Remove any logo containers/boxes from Clerk (but keep our logo)
-        const logoContainers = card.querySelectorAll('[class*="logoBox"], [class*="logoContainer"]');
-        logoContainers.forEach((container) => {
-          // Only remove if it doesn't contain our logo
-          if (!container.querySelector('.klyng-cup-logo')) {
-            container.remove();
-          }
+        allImages.forEach((img) => {
+          img.remove();
         });
 
-        // Now ensure we have exactly one logo
-        const finalLogoCheck = card.querySelector('.klyng-cup-logo');
-        if (!finalLogoCheck) {
-          const cardContent = card.firstElementChild;
-          if (cardContent) {
-            const logo = document.createElement('img');
-            logo.src = '/images/klyng-cup.png';
-            logo.alt = 'Klyng Cup';
-            logo.className = 'klyng-cup-logo';
-            logo.setAttribute('data-klyng-logo', 'true');
-            logo.style.cssText = `
-              display: block !important;
-              width: 200px;
-              height: auto;
-              max-height: 65px;
-              margin: 0 auto;
-              object-fit: contain;
-            `;
-            card.insertBefore(logo, cardContent);
-          }
-        } else {
-          // Ensure our logo is positioned correctly
-          const cardContent = card.firstElementChild;
-          if (cardContent && finalLogoCheck !== cardContent && finalLogoCheck.parentElement === card) {
-            card.insertBefore(finalLogoCheck, cardContent);
-          }
+        // Remove any logo containers/boxes from Clerk
+        const logoContainers = card.querySelectorAll('[class*="logoBox"], [class*="logoContainer"], [class*="logo"]');
+        logoContainers.forEach((container) => {
+          container.remove();
+        });
+
+        // Now add our single custom logo
+        const cardContent = card.firstElementChild;
+        if (cardContent) {
+          const logo = document.createElement('img');
+          logo.src = '/images/klyng-cup.png';
+          logo.alt = 'Klyng Cup';
+          logo.className = 'klyng-cup-logo';
+          logo.setAttribute('data-klyng-logo', 'true');
+          logo.style.cssText = `
+            display: block !important;
+            width: 200px;
+            height: auto;
+            max-height: 65px;
+            margin: 0 auto;
+            object-fit: contain;
+          `;
+          card.insertBefore(logo, cardContent);
         }
 
         // ===== TEXT CUSTOMIZATION =====
@@ -196,11 +179,11 @@ export function ClerkModalCustomizer() {
         if (subtitle) {
           // Use \n for line breaks since we're using white-space: pre-line
           const expectedTextHTML = isSignUp 
-            ? 'Welcome!<br /><br />Please create your account below.'
+            ? 'Welcome!<br />Please create your account below.'
             : 'Welcome back!<br />Please sign in to continue';
           
           const expectedTextPlain = isSignUp 
-            ? 'Welcome!\n\nPlease create your account below.'
+            ? 'Welcome!\nPlease create your account below.'
             : 'Welcome back!\nPlease sign in to continue';
           
           const currentText = (subtitle as HTMLElement).innerHTML || (subtitle as HTMLElement).textContent || '';
