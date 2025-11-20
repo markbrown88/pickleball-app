@@ -36,6 +36,13 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
       }
 
+      // Construct birthday from year/month/day if birthday Date is null but fields exist
+      let birthday = player.birthday;
+      if (!birthday && player.birthdayYear && player.birthdayMonth && player.birthdayDay) {
+        // Create Date from year/month/day (use UTC to avoid timezone issues)
+        birthday = new Date(Date.UTC(player.birthdayYear, player.birthdayMonth - 1, player.birthdayDay));
+      }
+
       // Format response to match UserProfile type
       const response = {
         id: player.id,
@@ -52,7 +59,7 @@ export async function GET(req: Request) {
         clubRatingSingles: player.clubRatingSingles,
         clubRatingDoubles: player.clubRatingDoubles,
         age: player.age,
-        birthday: player.birthday,
+        birthday: birthday,
         city: player.city,
         region: player.region,
         country: player.country,
@@ -192,6 +199,13 @@ export async function PUT(req: Request) {
         }
       });
 
+      // Construct birthday from year/month/day if birthday Date is null but fields exist
+      let birthday = player.birthday;
+      if (!birthday && player.birthdayYear && player.birthdayMonth && player.birthdayDay) {
+        // Create Date from year/month/day (use UTC to avoid timezone issues)
+        birthday = new Date(Date.UTC(player.birthdayYear, player.birthdayMonth - 1, player.birthdayDay));
+      }
+
       // Format response to match UserProfile type
       const response = {
         id: player.id,
@@ -208,7 +222,7 @@ export async function PUT(req: Request) {
         clubRatingSingles: player.clubRatingSingles,
         clubRatingDoubles: player.clubRatingDoubles,
         age: player.age,
-        birthday: player.birthday,
+        birthday: birthday,
         city: player.city,
         region: player.region,
         country: player.country,

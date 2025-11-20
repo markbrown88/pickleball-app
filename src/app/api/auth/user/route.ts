@@ -241,6 +241,13 @@ export async function GET(req: NextRequest) {
       !finalPlayer.lastName || 
       !finalPlayer.clubId;
 
+    // Construct birthday from year/month/day if birthday Date is null but fields exist
+    let birthday = finalPlayer.birthday;
+    if (!birthday && finalPlayer.birthdayYear && finalPlayer.birthdayMonth && finalPlayer.birthdayDay) {
+      // Create Date from year/month/day (use UTC to avoid timezone issues)
+      birthday = new Date(Date.UTC(finalPlayer.birthdayYear, finalPlayer.birthdayMonth - 1, finalPlayer.birthdayDay));
+    }
+
     return NextResponse.json({
       id: finalPlayer.id,
       clerkUserId: finalPlayer.clerkUserId,
@@ -258,7 +265,7 @@ export async function GET(req: NextRequest) {
       displayAge: finalPlayer.displayAge,
       displayLocation: finalPlayer.displayLocation,
       age: finalPlayer.age,
-      birthday: finalPlayer.birthday,
+      birthday: birthday,
       city: finalPlayer.city,
       region: finalPlayer.region,
       country: finalPlayer.country,

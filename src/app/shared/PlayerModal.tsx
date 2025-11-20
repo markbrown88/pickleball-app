@@ -41,12 +41,19 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
   useEffect(() => {
     if (player) {
       // Convert birthday to YYYY/MM/DD format
+      // Check both birthday Date field and year/month/day fields
       let birthday = '';
       if (player.birthday) {
         const date = new Date(player.birthday);
         const year = date.getFullYear().toString();
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
         const day = date.getDate().toString().padStart(2, '0');
+        birthday = `${year}/${month}/${day}`;
+      } else if ((player as any).birthdayYear && (player as any).birthdayMonth && (player as any).birthdayDay) {
+        // Fallback to year/month/day fields if Date field is null
+        const year = String((player as any).birthdayYear);
+        const month = String((player as any).birthdayMonth).padStart(2, '0');
+        const day = String((player as any).birthdayDay).padStart(2, '0');
         birthday = `${year}/${month}/${day}`;
       }
       

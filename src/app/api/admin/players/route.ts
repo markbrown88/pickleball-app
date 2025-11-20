@@ -313,6 +313,13 @@ export async function POST(req: NextRequest) {
 
     const { y, m, d } = parseBirthdayStr(body?.birthday);
 
+    // Construct birthday Date from year/month/day if provided
+    let birthdayDate: Date | null = null;
+    if (y && m && d) {
+      // Use UTC to avoid timezone issues
+      birthdayDate = new Date(Date.UTC(y, m - 1, d));
+    }
+
     const dupr = typeof body?.dupr === 'number' && Number.isFinite(body.dupr)
       ? body.dupr
       : body?.dupr
@@ -341,6 +348,7 @@ export async function POST(req: NextRequest) {
           birthdayYear: y,
           birthdayMonth: m,
           birthdayDay: d,
+          birthday: birthdayDate, // Also set the Date field for consistency
         },
         include: { club: true }
       });

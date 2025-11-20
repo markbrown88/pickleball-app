@@ -271,6 +271,13 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     const displayAge = body.displayAge !== undefined ? body.displayAge : true;
     const displayLocation = body.displayLocation !== undefined ? body.displayLocation : true;
 
+    // Construct birthday Date from year/month/day if provided
+    let birthdayDate: Date | null = null;
+    if (y && m && d) {
+      // Use UTC to avoid timezone issues
+      birthdayDate = new Date(Date.UTC(y, m - 1, d));
+    }
+
     try {
       const updated = await prisma.player.update({
         where: { id: playerId },
@@ -295,6 +302,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           birthdayYear: y,
           birthdayMonth: m,
           birthdayDay: d,
+          birthday: birthdayDate, // Also set the Date field for consistency
         },
         include: { club: true },
       });
