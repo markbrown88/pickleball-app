@@ -212,128 +212,254 @@ export default function Home() {
       {/* Hero Section */}
       <section className="py-20 bg-surface-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-12 items-start">
             {/* Left side - Content */}
             <div className="text-center lg:text-left">
               <h1 className="text-5xl md:text-7xl font-bold text-primary mb-6">
                 Battle of the Clubs
           </h1>
               <p className="text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-12 leading-relaxed">
-                A high-stakes, high-fun, co-ed interclub league where pride, teamwork, and performance take center court. 
+                A high-stakes, high-fun, co-ed interclub league where pride, teamwork, and performance take center court.
                 Pickleball clubs compete in a customizable multi-stop championship series unlike anything else in the sport.
               </p>
-              
-              {/* Klyng Cup-Pickleplex Tournament Card */}
-              {(() => {
-                const klyngCupPickleplex = tournaments.find((t: Tournament) => 
-                  t.name.toLowerCase().includes('klyng cup') && 
-                  (t.name.toLowerCase().includes('pickleplex') || t.name.toLowerCase().includes('pickle plex'))
-                );
-                
-                if (klyngCupPickleplex) {
-                  const nextStop = getNextStop(klyngCupPickleplex);
-                  const isMultiStop = klyngCupPickleplex.stops && klyngCupPickleplex.stops.length > 1;
-                  const isInviteOnly = klyngCupPickleplex.registrationStatus === 'INVITE_ONLY';
-                  
-                  return (
-                    <div className="max-w-2xl mx-auto lg:mx-0">
-                      <p className="text-sm text-white mb-2 font-bold uppercase">Upcoming Tournament</p>
-                      <div className="card hover:shadow-lg transition-shadow duration-300">
-                        <div className="flex items-start justify-between mb-4">
-                          <h3 className="text-xl font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>
-                            {klyngCupPickleplex.name}
-                          </h3>
-                        {klyngCupPickleplex.status && (
-                          <span className={`chip ${getStatusChip(klyngCupPickleplex.status)}`}>
-                            {klyngCupPickleplex.status}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {klyngCupPickleplex.description && (
-                        <p className="text-muted text-sm mb-4 line-clamp-2">
-                          {klyngCupPickleplex.description}
-                        </p>
-                      )}
-                      
-                      <div className="space-y-2 mb-6">
-                        {isMultiStop && nextStop ? (
-                          <>
-                            <div className="flex items-center text-secondary">
-                              <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              <span className="text-sm">Next Stop: {nextStop.name}</span>
-                            </div>
-                            {nextStop.startAt && (
-                              <div className="flex items-center text-secondary">
-                                <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <span className="text-sm tabular">
-                                  {formatDateRangeUTC(nextStop.startAt, nextStop.endAt)}
-                                </span>
-                              </div>
+
+              {/* Two Tournament Cards Side by Side */}
+              <div className="max-w-2xl mx-auto lg:mx-0">
+                <p className="text-sm text-white mb-2 font-bold uppercase">Upcoming Tournaments</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Klyng Cup-Pickleplex Tournament Card */}
+                  {(() => {
+                    const klyngCupPickleplex = tournaments.find((t: Tournament) =>
+                      t.name.toLowerCase().includes('klyng cup') &&
+                      (t.name.toLowerCase().includes('pickleplex') || t.name.toLowerCase().includes('pickle plex'))
+                    );
+
+                    if (klyngCupPickleplex) {
+                      const nextStop = getNextStop(klyngCupPickleplex);
+                      const isMultiStop = klyngCupPickleplex.stops && klyngCupPickleplex.stops.length > 1;
+                      const isInviteOnly = klyngCupPickleplex.registrationStatus === 'INVITE_ONLY';
+
+                      return (
+                        <div className="card hover:shadow-lg transition-shadow duration-300">
+                          <div className="flex items-start justify-between mb-4">
+                            <h3 className="text-lg font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>
+                              {klyngCupPickleplex.name}
+                            </h3>
+                            {klyngCupPickleplex.status && (
+                              <span className={`chip ${getStatusChip(klyngCupPickleplex.status)} text-xs`}>
+                                {klyngCupPickleplex.status}
+                              </span>
                             )}
-                          </>
-                        ) : (
-                          <>
-                            {klyngCupPickleplex.location && (
-                              <div className="flex items-center text-secondary">
-                                <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span className="text-sm">{klyngCupPickleplex.location}</span>
-                              </div>
+                          </div>
+
+                          {klyngCupPickleplex.description && (
+                            <p className="text-muted text-sm mb-4 line-clamp-2">
+                              {klyngCupPickleplex.description}
+                            </p>
+                          )}
+
+                          <div className="space-y-2 mb-6">
+                            {isMultiStop && nextStop ? (
+                              <>
+                                <div className="flex items-center text-secondary">
+                                  <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  <span className="text-xs">Next Stop: {nextStop.name}</span>
+                                </div>
+                                {nextStop.startAt && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-xs tabular">
+                                      {formatDateRangeUTC(nextStop.startAt, nextStop.endAt)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {klyngCupPickleplex.location && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span className="text-xs">{klyngCupPickleplex.location}</span>
+                                  </div>
+                                )}
+                                {klyngCupPickleplex.startDate && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-xs tabular">
+                                      {formatDateRangeUTC(klyngCupPickleplex.startDate, klyngCupPickleplex.endDate)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
                             )}
-                            {klyngCupPickleplex.startDate && (
-                              <div className="flex items-center text-secondary">
-                                <svg className="w-4 h-4 mr-2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <span className="text-sm tabular">
-                                  {formatDateRangeUTC(klyngCupPickleplex.startDate, klyngCupPickleplex.endDate)}
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <Link 
-                          href={`/tournament/${klyngCupPickleplex.id}`}
-                          className="btn btn-primary flex-1"
-                        >
-                          View Results
-                        </Link>
-                        {!isInviteOnly && (
-                          <SignedOut>
-                            <SignUpButton 
-                              mode="modal" 
-                              forceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Link
+                              href={`/tournament/${klyngCupPickleplex.id}`}
+                              className="btn btn-primary flex-1 text-sm py-2"
                             >
-                              <button className="btn btn-secondary flex-1">
-                                Register Now!
-                              </button>
-                            </SignUpButton>
-                          </SignedOut>
-                        )}
-                      </div>
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+                              View Results
+                            </Link>
+                            {!isInviteOnly && (
+                              <>
+                                <SignedOut>
+                                  <SignUpButton
+                                    mode="modal"
+                                    forceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
+                                  >
+                                    <button className="btn btn-secondary flex-1 text-sm py-2">
+                                      Register!
+                                    </button>
+                                  </SignUpButton>
+                                </SignedOut>
+                                <SignedIn>
+                                  <Link
+                                    href={`/register/${klyngCupPickleplex.id}`}
+                                    className="btn btn-secondary flex-1 text-sm py-2"
+                                  >
+                                    Register!
+                                  </Link>
+                                </SignedIn>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Klyng Cup Grand Finale Tournament Card */}
+                  {(() => {
+                    const klyngCupGrandFinale = tournaments.find((t: Tournament) =>
+                      t.name.toLowerCase().includes('klyng cup') &&
+                      (t.name.toLowerCase().includes('grand finale') || t.name.toLowerCase().includes('finale'))
+                    );
+
+                    if (klyngCupGrandFinale) {
+                      const nextStop = getNextStop(klyngCupGrandFinale);
+                      const isMultiStop = klyngCupGrandFinale.stops && klyngCupGrandFinale.stops.length > 1;
+                      const isInviteOnly = klyngCupGrandFinale.registrationStatus === 'INVITE_ONLY';
+
+                      return (
+                        <div className="card hover:shadow-lg transition-shadow duration-300">
+                          <div className="flex items-start justify-between mb-4">
+                            <h3 className="text-lg font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>
+                              {klyngCupGrandFinale.name}
+                            </h3>
+                            {klyngCupGrandFinale.status && (
+                              <span className={`chip ${getStatusChip(klyngCupGrandFinale.status)} text-xs`}>
+                                {klyngCupGrandFinale.status}
+                              </span>
+                            )}
+                          </div>
+
+                          {klyngCupGrandFinale.description && (
+                            <p className="text-muted text-sm mb-4 line-clamp-2">
+                              {klyngCupGrandFinale.description}
+                            </p>
+                          )}
+
+                          <div className="space-y-2 mb-6">
+                            {isMultiStop && nextStop ? (
+                              <>
+                                <div className="flex items-center text-secondary">
+                                  <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  <span className="text-xs">Next Stop: {nextStop.name}</span>
+                                </div>
+                                {nextStop.startAt && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-xs tabular">
+                                      {formatDateRangeUTC(nextStop.startAt, nextStop.endAt)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {klyngCupGrandFinale.location && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span className="text-xs">{klyngCupGrandFinale.location}</span>
+                                  </div>
+                                )}
+                                {klyngCupGrandFinale.startDate && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-xs tabular">
+                                      {formatDateRangeUTC(klyngCupGrandFinale.startDate, klyngCupGrandFinale.endDate)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Link
+                              href={`/tournament/${klyngCupGrandFinale.id}`}
+                              className="btn btn-primary flex-1 text-sm py-2"
+                            >
+                              View Results
+                            </Link>
+                            {!isInviteOnly && (
+                              <>
+                                <SignedOut>
+                                  <SignUpButton
+                                    mode="modal"
+                                    forceRedirectUrl={`/register/${klyngCupGrandFinale.id}`}
+                                  >
+                                    <button className="btn btn-secondary flex-1 text-sm py-2">
+                                      Register!
+                                    </button>
+                                  </SignUpButton>
+                                </SignedOut>
+                                <SignedIn>
+                                  <Link
+                                    href={`/register/${klyngCupGrandFinale.id}`}
+                                    className="btn btn-secondary flex-1 text-sm py-2"
+                                  >
+                                    Register!
+                                  </Link>
+                                </SignedIn>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
             </div>
 
             {/* Right side - Photo */}
-            <div className="relative">
-              <div className="relative h-96 lg:h-[500px] rounded-2xl overflow-hidden shadow-2xl">
-                <div 
+            <div className="relative w-full lg:w-[450px]">
+              <div className="relative h-[600px] rounded-2xl overflow-hidden shadow-2xl">
+                <div
                   className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                   style={{ backgroundImage: 'url(/images/klyngcup-trophy.jpeg)' }}
                 ></div>

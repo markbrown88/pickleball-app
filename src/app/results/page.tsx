@@ -29,9 +29,17 @@ export default function TournamentsPage() {
       if (response.ok) {
         const data = await response.json();
         const items = Array.isArray(data?.tournaments) ? data.tournaments : [];
-        // Filter to only show OPEN tournaments (exclude CLOSED)
-        const openTournaments = items.filter((t: Tournament) => t.registrationStatus === 'OPEN');
-        setTournaments(openTournaments);
+        // Filter to show OPEN and INVITE_ONLY tournaments (past, ongoing, and upcoming)
+        const openTournaments = items.filter((t: Tournament) =>
+          t.registrationStatus === 'OPEN' || t.registrationStatus === 'INVITE_ONLY'
+        );
+        // Sort by start date, most recent first
+        const sorted = openTournaments.sort((a: Tournament, b: Tournament) => {
+          const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+          const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+          return dateB - dateA; // Most recent first
+        });
+        setTournaments(sorted);
       } else {
         setError('Failed to load tournaments');
       }

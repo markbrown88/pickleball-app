@@ -463,11 +463,20 @@ export function TeamFormatManager({
 
     setLoading(prev => ({ ...prev, [stopId]: true }));
     try {
+      // Convert datetime-local value (local time) to ISO string (UTC)
+      // datetime-local format: "YYYY-MM-DDTHH:mm"
+      // We need to explicitly parse it as local time and convert to UTC
+      const [date, time] = deadlineValue.split('T');
+      const [year, month, day] = date.split('-').map(Number);
+      const [hours, minutes] = time.split(':').map(Number);
+      const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+      const isoString = localDate.toISOString();
+
       const response = await fetchWithActAs(`/api/admin/stops/${stopId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lineupDeadline: deadlineValue,
+          lineupDeadline: isoString,
         }),
       });
 
@@ -475,6 +484,9 @@ export function TeamFormatManager({
         const error = await response.json();
         throw new Error(error.error || 'Failed to save lineup deadline');
       }
+
+      // Force reload the schedule to refresh tournament data with the new deadline
+      await loadSchedule(stopId, true);
 
       onInfo('Lineup deadline saved successfully');
     } catch (e) {
