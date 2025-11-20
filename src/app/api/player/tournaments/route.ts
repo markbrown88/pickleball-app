@@ -64,6 +64,17 @@ export async function GET(req: NextRequest) {
             name: true,
             type: true,
             createdAt: true
+          },
+          include: {
+            stops: {
+              select: {
+                startAt: true,
+                endAt: true
+              },
+              orderBy: {
+                startAt: 'asc'
+              }
+            }
           }
         }
       },
@@ -160,18 +171,40 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Get earliest stop date for sorting (prefer startAt, fallback to endAt)
+        // Get tournament start/end dates from all stops
+        let startDate: Date | null = null;
+        let endDate: Date | null = null;
         let sortDate = reg.registeredAt;
-        if (stopIds.length > 0) {
+        
+        if (reg.tournament.stops.length > 0) {
+          // Get earliest start date and latest end date from all stops
+          const allStops = reg.tournament.stops;
+          const startDates = allStops.map(s => s.startAt).filter(Boolean) as Date[];
+          const endDates = allStops.map(s => s.endAt || s.startAt).filter(Boolean) as Date[];
+          
+          if (startDates.length > 0) {
+            startDate = startDates.reduce((earliest, current) => 
+              current < earliest ? current : earliest
+            );
+            sortDate = startDate;
+          }
+          
+          if (endDates.length > 0) {
+            endDate = endDates.reduce((latest, current) => 
+              current > latest ? current : latest
+            );
+          }
+        } else if (stopIds.length > 0) {
+          // Fallback: fetch stops if not included
           const stops = await prisma.stop.findMany({
             where: { id: { in: stopIds } },
             select: { startAt: true, endAt: true },
             orderBy: { startAt: 'asc' }
           });
-          if (stops.length > 0 && stops[0].startAt) {
-            sortDate = stops[0].startAt;
-          } else if (stops.length > 0 && stops[0].endAt) {
-            sortDate = stops[0].endAt;
+          if (stops.length > 0) {
+            startDate = stops[0].startAt;
+            endDate = stops[stops.length - 1].endAt || stops[stops.length - 1].startAt;
+            sortDate = stops[0].startAt || stops[0].endAt || reg.registeredAt;
           }
         }
 
@@ -181,6 +214,8 @@ export async function GET(req: NextRequest) {
           type: reg.tournament.type,
           date: reg.registeredAt,
           sortDate: sortDate,
+          startDate: startDate?.toISOString() || null,
+          endDate: endDate?.toISOString() || null,
           team: teamInfo
         });
       }
@@ -191,13 +226,36 @@ export async function GET(req: NextRequest) {
       const tournamentId = entry.stop.tournament.id;
       const stopDate = entry.stop.startAt || entry.stop.endAt || entry.createdAt;
       
+      // Get tournament start/end dates from all stops
+      let startDate: Date | null = null;
+      let endDate: Date | null = null;
+      if (entry.stop.tournament.stops.length > 0) {
+        const allStops = entry.stop.tournament.stops;
+        const startDates = allStops.map(s => s.startAt).filter(Boolean) as Date[];
+        const endDates = allStops.map(s => s.endAt || s.startAt).filter(Boolean) as Date[];
+        
+        if (startDates.length > 0) {
+          startDate = startDates.reduce((earliest, current) => 
+            current < earliest ? current : earliest
+          );
+        }
+        
+        if (endDates.length > 0) {
+          endDate = endDates.reduce((latest, current) => 
+            current > latest ? current : latest
+          );
+        }
+      }
+      
       if (!tournamentMap.has(tournamentId)) {
         tournamentMap.set(tournamentId, {
           id: entry.stop.tournament.id,
           name: entry.stop.tournament.name,
           type: entry.stop.tournament.type,
           date: entry.createdAt,
-          sortDate: stopDate,
+          sortDate: startDate || stopDate || entry.createdAt,
+          startDate: startDate?.toISOString() || null,
+          endDate: endDate?.toISOString() || null,
           team: {
             id: entry.team.id,
             name: entry.team.name,
@@ -214,9 +272,16 @@ export async function GET(req: NextRequest) {
             club: entry.team.club
           };
         }
+        // Update dates if not already set
+        if (!existing.startDate && startDate) {
+          existing.startDate = startDate.toISOString();
+        }
+        if (!existing.endDate && endDate) {
+          existing.endDate = endDate.toISOString();
+        }
         // Update sortDate if this stop is earlier (for better sorting)
-        if (stopDate && (!existing.sortDate || new Date(stopDate) < new Date(existing.sortDate))) {
-          existing.sortDate = stopDate;
+        if (startDate && (!existing.sortDate || startDate < new Date(existing.sortDate))) {
+          existing.sortDate = startDate;
         }
       }
     }

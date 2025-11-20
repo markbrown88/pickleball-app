@@ -12,6 +12,7 @@ import {
 import type { UserProfile } from '@/types';
 import Image from 'next/image';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
+import { formatDateRangeUTC } from '@/lib/utils';
 
 type ClubOption = {
   id: string;
@@ -761,10 +762,11 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                 ) : tournaments.length > 0 ? (
                   <div className="space-y-3">
                     {tournaments.map((tournament) => {
-                      const tournamentDate = tournament.date || tournament.sortDate;
-                      const dateDisplay = tournamentDate 
-                        ? new Date(tournamentDate).toLocaleDateString()
-                        : 'Date TBD';
+                      const dateDisplay = tournament.startDate && tournament.endDate
+                        ? formatDateRangeUTC(tournament.startDate, tournament.endDate)
+                        : tournament.startDate
+                          ? formatDateRangeUTC(tournament.startDate, null)
+                          : 'Date TBD';
                       return (
                         <div key={tournament.id} className="border border-subtle rounded-lg p-4">
                           <div className="flex items-start justify-between">
@@ -775,7 +777,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                               </p>
                               {tournament.team && (
                                 <p className="text-sm text-secondary mt-1">
-                                  Team: {tournament.team.name} {tournament.team.club && `(${tournament.team.club.name})`}
+                                  Team: {tournament.team.name}
                                 </p>
                               )}
                             </div>
