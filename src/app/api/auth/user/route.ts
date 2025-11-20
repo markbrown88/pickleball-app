@@ -532,16 +532,60 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Update player profile
-    const updateData = {
-      ...(firstName && { firstName: firstName.trim() }),
-      ...(lastName && { lastName: lastName.trim() }),
-      ...(firstName && lastName && { name: `${firstName.trim()} ${lastName.trim()}` }),
+    // Format phone number safely
+    let formattedPhone: string | null = null;
+    if (phone !== undefined) {
+      try {
+        if (phone && typeof phone === 'string' && phone.trim()) {
+          formattedPhone = formatPhoneForStorage(phone);
+        } else {
+          formattedPhone = null;
+        }
+      } catch (phoneError: any) {
+        console.error('Error formatting phone number:', phoneError);
+        // If phone formatting fails, just use null or the original value
+        formattedPhone = null;
+      }
+    }
+
+    // Validate and prepare update data
+    const updateData: any = {};
+    
+    if (firstName !== undefined) {
+      if (typeof firstName === 'string' && firstName.trim()) {
+        updateData.firstName = firstName.trim();
+      } else {
+        updateData.firstName = firstName || null;
+      }
+    }
+    
+    if (lastName !== undefined) {
+      if (typeof lastName === 'string' && lastName.trim()) {
+        updateData.lastName = lastName.trim();
+      } else {
+        updateData.lastName = lastName || null;
+      }
+    }
+    
+    // Update name if both firstName and lastName are provided
+    if (firstName !== undefined && lastName !== undefined) {
+      const first = typeof firstName === 'string' ? firstName.trim() : firstName || '';
+      const last = typeof lastName === 'string' ? lastName.trim() : lastName || '';
+      if (first && last) {
+        updateData.name = `${first} ${last}`;
+      } else if (first || last) {
+        updateData.name = first || last;
+      }
+    }
+    
+    // Add other fields
+    const finalUpdateData = {
+      ...updateData,
       ...(gender && { gender }),
       ...(clubId !== undefined && clubId && clubId.trim() !== '' && { clubId: clubId.trim() }),
       ...(email !== undefined && { email: email?.trim() || null }),
       ...(phone !== undefined && {
-        phone: phone ? formatPhoneForStorage(phone) : null,
+        phone: formattedPhone,
       }),
       ...(city !== undefined && { city: city?.trim() || null }),
       ...(region !== undefined && { region: region?.trim() || null }),
@@ -555,11 +599,9 @@ export async function PUT(req: NextRequest) {
       })
     };
     
-    
-    
     const updatedPlayer = await prisma.player.update({
       where: { clerkUserId: userId },
-      data: updateData,
+      data: finalUpdateData,
       include: {
         club: {
           select: {
@@ -591,10 +633,25 @@ export async function PUT(req: NextRequest) {
       club: updatedPlayer.club,
       isAppAdmin: updatedPlayer.isAppAdmin
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating user profile:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      code: error?.code,
+      meta: error?.meta,
+      stack: error?.stack
+    });
+    
+    // Return more detailed error information in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? error?.message || 'Failed to update user profile'
+      : 'Failed to update user profile';
+    
     return NextResponse.json(
-      { error: 'Failed to update user profile' },
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined
+      },
       { status: 500 }
     );
   }

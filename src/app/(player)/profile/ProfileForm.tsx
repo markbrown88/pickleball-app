@@ -290,14 +290,16 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                       key={value}
                       type="button"
                       onClick={() => handleChange('gender', value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all text-white ${
                         form.gender === value
-                          ? 'text-white shadow-md'
-                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                          ? 'shadow-md'
+                          : 'opacity-50 hover:opacity-75'
                       }`}
-                      style={form.gender === value ? {
-                        backgroundColor: value === 'MALE' ? '#3b82f6' : '#db2777',
-                      } : undefined}
+                      style={{
+                        backgroundColor: form.gender === value
+                          ? (value === 'MALE' ? '#3b82f6' : '#db2777')
+                          : '#374151'
+                      }}
                     >
                       {value === 'MALE' ? 'Male' : 'Female'}
                     </button>
@@ -822,8 +824,8 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                               Forfeit
                             </span>
                           ) : game.isComplete ? (
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              won ? 'bg-green-100 text-green-800' : lost ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              won ? 'bg-green-500 text-white' : lost ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-800'
                             }`}>
                               {won ? 'Won' : lost ? 'Lost' : 'Complete'}
                             </span>
