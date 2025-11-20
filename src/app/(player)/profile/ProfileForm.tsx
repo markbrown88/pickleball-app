@@ -760,11 +760,13 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                           <div>
                             <h4 className="font-medium text-primary">{tournament.name}</h4>
                             <p className="text-sm text-muted mt-1">
-                              {tournament.type.replace('_', ' ')} • {new Date(tournament.date).toLocaleDateString()}
+                              {tournament.type.replace(/_/g, ' ')} • {new Date(tournament.date).toLocaleDateString()}
                             </p>
-                            <p className="text-sm text-secondary mt-1">
-                              Team: {tournament.team.name} ({tournament.team.club.name})
-                            </p>
+                            {tournament.team && (
+                              <p className="text-sm text-secondary mt-1">
+                                Team: {tournament.team.name} {tournament.team.club && `(${tournament.team.club.name})`}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -829,11 +831,11 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                             }`}>
                               {won ? 'Won' : lost ? 'Lost' : 'Complete'}
                             </span>
-                          ) : (
+                          ) : game.startedAt ? (
                             <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                               In Progress
                             </span>
-                          )}
+                          ) : null}
                           {!game.isForfeit && playerScore !== null && opponentScore !== null && (
                             <span className="text-base font-semibold text-primary">
                               {playerScore} - {opponentScore}
