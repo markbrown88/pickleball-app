@@ -223,9 +223,17 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
     const isKnownCountry = country === 'Canada' || country === 'USA';
     setCountrySel(isKnownCountry ? (country as CountrySel) : 'Other');
     setCountryOther(isKnownCountry ? '' : country);
-    const birthdayStr = profile.birthday instanceof Date
-      ? dateToLocalYMD(profile.birthday)
-      : fortyYearsAgoISO();
+
+    // Handle birthday - it may come as a Date object or ISO string from API
+    let birthdayStr = fortyYearsAgoISO();
+    if (profile.birthday) {
+      if (profile.birthday instanceof Date) {
+        birthdayStr = dateToLocalYMD(profile.birthday);
+      } else if (typeof profile.birthday === 'string') {
+        // Parse ISO string and convert to YYYY-MM-DD
+        birthdayStr = profile.birthday.slice(0, 10);
+      }
+    }
     setBirthday(birthdayStr);
     setForm({
       firstName: profile.firstName || '',
