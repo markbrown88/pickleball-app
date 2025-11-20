@@ -96,7 +96,16 @@ export async function GET(req: NextRequest) {
                 id: true,
                 name: true,
                 type: true,
-                createdAt: true
+                createdAt: true,
+                stops: {
+                  select: {
+                    startAt: true,
+                    endAt: true
+                  },
+                  orderBy: {
+                    startAt: 'asc'
+                  }
+                }
               }
             }
           }
