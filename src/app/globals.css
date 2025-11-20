@@ -639,6 +639,14 @@ li:has(.nav-link.active) > span[class*="border-brand-secondary"],
   }
 }
 
+/* Hide Clerk's default logo rendering */
+[class*="cl-card"] [class*="logoBox"],
+[class*="cl-card"] [class*="logoContainer"],
+[class*="cl-card"] img[src*="klyng-cup"]:not(.klyng-cup-logo) {
+  display: none !important;
+}
+
+
 /* Toast Styles */
 .toast {
   position: fixed;

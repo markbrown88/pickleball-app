@@ -80,12 +80,12 @@ export const TOURNAMENT_TYPE_CONFIG: Record<TournamentType, TournamentTypeConfig
   DOUBLE_ELIMINATION: {
     displayName: 'Double Elimination',
     requiresClubs: true,
-    showsStops: false, // Uses default stop internally (only one stop)
+    showsStops: true, // Show location/dates tab to configure venue and tournament dates
     showsBrackets: true, // Has multiple brackets
-    allowsMultipleStops: false,
+    allowsMultipleStops: false, // Only one location/stop allowed
     isTeamTournament: false,
     allowedPricingModels: ['TOURNAMENT_WIDE', 'PER_BRACKET'],
-    requiresStopSelection: false, // Skip stop selection in registration (only one default stop)
+    requiresStopSelection: false, // Skip stop selection in registration (only one stop)
     requiresBracketSelection: true, // Bracket selection required
     defaultStopName: 'Main Tournament',
     defaultBracketName: 'DEFAULT',
@@ -94,12 +94,12 @@ export const TOURNAMENT_TYPE_CONFIG: Record<TournamentType, TournamentTypeConfig
   DOUBLE_ELIMINATION_CLUBS: {
     displayName: 'Double Elimination Clubs',
     requiresClubs: true,
-    showsStops: false, // Uses default stop internally (only one stop)
+    showsStops: true, // Show location/dates tab to configure venue and tournament dates
     showsBrackets: true, // Has multiple brackets
-    allowsMultipleStops: false,
+    allowsMultipleStops: false, // Only one location/stop allowed
     isTeamTournament: true,
     allowedPricingModels: ['TOURNAMENT_WIDE'], // Only tournament-wide since there's only one stop
-    requiresStopSelection: false, // Skip stop selection in registration (only one default stop)
+    requiresStopSelection: false, // Skip stop selection in registration (only one stop)
     requiresBracketSelection: true, // Bracket selection required
     defaultStopName: 'Main Tournament',
     defaultBracketName: 'DEFAULT',

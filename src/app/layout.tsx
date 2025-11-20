@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Plus_Jakarta_Sans, Outfit } from "next/font/google";
 import "./globals.css";
 import { ModalProvider } from "./shared/ModalContext";
+import { ClerkLogoInjector } from "./shared/ClerkLogoInjector";
 
 const plusJakartaSans = Plus_Jakarta_Sans({ 
   variable: "--font-plus-jakarta-sans", 
@@ -35,11 +36,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           card: 'bg-surface-1 border-border-subtle shadow-xl',
           headerTitle: 'text-text-primary font-semibold',
           headerSubtitle: 'text-text-muted',
+          header: 'flex flex-col items-center pb-4',
+          headerLogo: 'mb-4 h-12 w-auto',
           
           // Social buttons
-          socialButtonsBlockButton: 'bg-surface-2 border-border-subtle text-text-primary hover:bg-surface-1 transition-colors',
-          socialButtonsBlockButtonText: 'text-text-primary',
-          socialButtonsBlockButtonArrow: 'text-text-primary',
+          socialButtonsBlockButton: 'bg-surface-2 border-border-subtle hover:bg-surface-1 transition-colors',
+          socialButtonsBlockButtonText: '!text-[#F5F7FA] font-medium',
+          socialButtonsBlockButtonArrow: '!text-[#F5F7FA]',
           
           // Dividers
           dividerLine: 'bg-border-subtle',
@@ -63,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           footerActionText: 'text-text-muted',
           // Logo container
           logoBox: 'flex justify-center mb-4',
-          logoImage: 'h-12 w-auto',
+          logoImage: 'h-12 w-auto max-w-[200px] object-contain',
           
           // Identity preview
           identityPreviewText: 'text-text-primary',
@@ -100,14 +103,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           },
         },
         layout: {
-          logoPlacement: 'top',
-          logoImageUrl: '/images/klyng-cup.png',
           socialButtonsPlacement: 'top',
         },
       }}
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${plusJakartaSans.variable} ${outfit.variable} antialiased`} suppressHydrationWarning>
+          <ClerkLogoInjector />
           <ModalProvider>
             {children}
           </ModalProvider>
