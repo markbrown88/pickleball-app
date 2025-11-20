@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useReducer, useState } from 'react';
-import { useAuth, useUser, SignInButton } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -337,20 +337,6 @@ export default function DashboardPage() {
       alert('Failed to join waitlist');
     }
   };
-
-  if (!isSignedIn) {
-    return (
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div className="card text-center space-y-4">
-          <h1 className="text-2xl font-semibold text-primary">Welcome to TournaVerse</h1>
-          <p className="text-muted">Sign in to view your tournaments and manage registrations.</p>
-          <SignInButton>
-            <button className="btn btn-primary">Sign In</button>
-          </SignInButton>
-        </div>
-      </div>
-    );
-  }
 
   if (loading || !userLoaded) {
     return (
