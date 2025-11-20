@@ -43,6 +43,7 @@ interface Match {
   tiebreakerWinnerTeamId?: string | null;
   totalPointsTeamA?: number | null;
   totalPointsTeamB?: number | null;
+  updatedAt?: string | null;
 }
 
 interface Team {
@@ -502,10 +503,52 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     [selectedStop, matchOutcomes]
   );
 
-  const completedMatches = useMemo(
-    () => collectMatchesByStatus(selectedStop, 'completed'),
-    [selectedStop, matchOutcomes]
-  );
+  const completedMatches = useMemo(() => {
+    const matches = collectMatchesByStatus(selectedStop, 'completed');
+    
+    // Sort by completion time: most recently completed first
+    return matches.sort((a, b) => {
+      // Calculate completion time for each match
+      const getCompletionTime = (match: Match): number => {
+        // For forfeits, use match.updatedAt if available, otherwise use latest game time
+        if (match.forfeitTeam && match.updatedAt) {
+          return new Date(match.updatedAt).getTime();
+        }
+        
+        // For regular matches, use the latest game's endedAt or updatedAt
+        const gameTimes = match.games
+          .map(game => {
+            // Prefer endedAt, fallback to updatedAt, then createdAt
+            return game.endedAt 
+              ? new Date(game.endedAt).getTime()
+              : game.updatedAt
+                ? new Date(game.updatedAt).getTime()
+                : game.createdAt
+                  ? new Date(game.createdAt).getTime()
+                  : 0;
+          })
+          .filter(time => time > 0);
+        
+        if (gameTimes.length > 0) {
+          return Math.max(...gameTimes);
+        }
+        
+        // Fallback: use match updatedAt if available
+        if (match.updatedAt) {
+          return new Date(match.updatedAt).getTime();
+        }
+        
+        // Last resort: use 0 (will sort to bottom)
+        return 0;
+      };
+      
+      const timeA = getCompletionTime(a.match);
+      const timeB = getCompletionTime(b.match);
+      
+      // Most recent first (descending order)
+      return timeB - timeA;
+    });
+  }, [selectedStop, matchOutcomes]);
 
   // Fetch tournament-level standings from API
   const [standings, setStandings] = useState<any[]>([]);
