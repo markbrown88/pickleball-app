@@ -167,24 +167,37 @@ export function TournamentCard({
       {/* Dates */}
       {tournament.stops.length > 0 && (
         <div className="text-sm text-muted">
-          <p className="font-medium text-secondary mb-1">Schedule:</p>
-          {tournament.stops.map((stop) => {
-            const isRegisteredForStop = registeredStopIds.includes(stop.id);
-            return (
-              <div key={stop.id} className="flex items-center justify-between py-1">
-                <div className="flex items-center gap-2">
-                  <span>{stop.name}</span>
-                  {/* Show registered badge for multi-stop tournaments if player is registered for this stop */}
-                  {hasMultipleStops && isRegisteredForStop && (
-                    <span className="chip chip-success text-xs">Registered</span>
-                  )}
-                </div>
-                <span className="text-xs">
-                  {stop.startAt ? formatDateRangeUTC(stop.startAt, stop.endAt) : 'TBD'}
-                </span>
-              </div>
-            );
-          })}
+          {tournament.stops.length === 1 ? (
+            // Single stop: show date on same line as "Schedule:"
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-secondary">Schedule:</span>
+              <span className="text-xs">
+                {tournament.stops[0].startAt ? formatDateRangeUTC(tournament.stops[0].startAt, tournament.stops[0].endAt) : 'TBD'}
+              </span>
+            </div>
+          ) : (
+            // Multiple stops: show each stop with name
+            <>
+              <p className="font-medium text-secondary mb-1">Schedule:</p>
+              {tournament.stops.map((stop) => {
+                const isRegisteredForStop = registeredStopIds.includes(stop.id);
+                return (
+                  <div key={stop.id} className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2">
+                      <span>{stop.name}</span>
+                      {/* Show registered badge for multi-stop tournaments if player is registered for this stop */}
+                      {hasMultipleStops && isRegisteredForStop && (
+                        <span className="chip chip-success text-xs">Registered</span>
+                      )}
+                    </div>
+                    <span className="text-xs">
+                      {stop.startAt ? formatDateRangeUTC(stop.startAt, stop.endAt) : 'TBD'}
+                    </span>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
 

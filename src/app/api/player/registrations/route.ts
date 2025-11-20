@@ -107,6 +107,25 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // For team-based tournaments, also check StopTeamPlayer records
+      // This handles tournaments where players are registered through teams
+      // Always check StopTeamPlayer to ensure we get ALL stops (notes may be incomplete)
+      const stopTeamPlayers = await prisma.stopTeamPlayer.findMany({
+        where: {
+          playerId,
+          stop: {
+            tournamentId: reg.tournamentId,
+          }
+        },
+        select: {
+          stopId: true,
+        }
+      });
+
+      // Merge stop IDs from notes and StopTeamPlayer records
+      const stopTeamStopIds = stopTeamPlayers.map(stp => stp.stopId);
+      stopIds = [...new Set([...stopIds, ...stopTeamStopIds])]; // Combine and dedupe
+
       // Fetch stop details
       const stops = stopIds.length > 0
         ? await prisma.stop.findMany({

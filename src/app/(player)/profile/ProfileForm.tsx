@@ -125,11 +125,15 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         if (tournamentsRes.ok) {
           const tournamentsData = await tournamentsRes.json();
           console.log('Tournaments API response:', tournamentsData);
-          setTournaments(tournamentsData.tournaments || []);
+          const tournamentsList = tournamentsData.tournaments || [];
+          console.log('Tournaments list:', tournamentsList);
+          console.log('Tournaments count:', tournamentsList.length);
+          setTournaments(tournamentsList);
         } else {
           console.error('Failed to fetch tournaments:', tournamentsRes.status, tournamentsRes.statusText);
           const errorText = await tournamentsRes.text();
           console.error('Tournaments error response:', errorText);
+          setTournaments([]);
         }
 
         // Fetch games
@@ -756,23 +760,29 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                   </div>
                 ) : tournaments.length > 0 ? (
                   <div className="space-y-3">
-                    {tournaments.map((tournament) => (
-                      <div key={tournament.id} className="border border-subtle rounded-lg p-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-medium text-primary">{tournament.name}</h4>
-                            <p className="text-sm text-muted mt-1">
-                              {tournament.type.replace(/_/g, ' ')} • {new Date(tournament.date).toLocaleDateString()}
-                            </p>
-                            {tournament.team && (
-                              <p className="text-sm text-secondary mt-1">
-                                Team: {tournament.team.name} {tournament.team.club && `(${tournament.team.club.name})`}
+                    {tournaments.map((tournament) => {
+                      const tournamentDate = tournament.date || tournament.sortDate;
+                      const dateDisplay = tournamentDate 
+                        ? new Date(tournamentDate).toLocaleDateString()
+                        : 'Date TBD';
+                      return (
+                        <div key={tournament.id} className="border border-subtle rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-medium text-primary">{tournament.name}</h4>
+                              <p className="text-sm text-muted mt-1">
+                                {tournament.type?.replace(/_/g, ' ') || 'Tournament'} • {dateDisplay}
                               </p>
-                            )}
+                              {tournament.team && (
+                                <p className="text-sm text-secondary mt-1">
+                                  Team: {tournament.team.name} {tournament.team.club && `(${tournament.team.club.name})`}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted">
