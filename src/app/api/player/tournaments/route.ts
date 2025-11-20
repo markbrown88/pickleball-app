@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       where: {
         playerId,
         status: {
-          in: ['REGISTERED', 'PENDING', 'PAID', 'COMPLETED'] // Show all active/paid registrations
+          in: ['REGISTERED'] // Only show active registrations (not withdrawn or rejected)
         }
       },
       include: {
