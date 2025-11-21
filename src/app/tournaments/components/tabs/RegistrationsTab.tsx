@@ -490,7 +490,7 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                       <div className="text-sm text-muted">{entry.player.email}</div>
                     </td>
                     <td className="p-3 text-sm text-muted">
-                      {new Date(entry.requestedAt).toLocaleDateString()}
+                      {new Date(entry.joinedAt).toLocaleDateString()}
                     </td>
                     <td className="p-3">
                       <span className="chip chip-info text-[10px] px-2 py-0.5">
