@@ -162,7 +162,8 @@ export async function GET(req: NextRequest) {
           city: true,
           region: true,
           country: true,
-          dupr: true,
+          duprDoubles: true,
+          duprSingles: true,
           birthdayYear: true,
           birthdayMonth: true,
           birthdayDay: true,
@@ -196,7 +197,9 @@ export async function GET(req: NextRequest) {
         ...player,
         phone: formatPhoneForDisplay(player.phone),
         age,
-        clubName: player.club?.name || null
+        clubName: player.club?.name || null,
+        // Map duprDoubles to dupr for backward compatibility (will be removed later)
+        dupr: player.duprDoubles ?? null,
       };
     });
 
@@ -331,12 +334,6 @@ export async function POST(req: NextRequest) {
       birthdayDate = new Date(Date.UTC(y, m - 1, d));
     }
 
-    const dupr = typeof body?.dupr === 'number' && Number.isFinite(body.dupr)
-      ? body.dupr
-      : body?.dupr
-        ? Number(body.dupr)
-        : null;
-
     const club = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
     if (!club) {
       return NextResponse.json({ error: 'club not found' }, { status: 404 });
@@ -358,7 +355,6 @@ export async function POST(req: NextRequest) {
           city: body?.city ? squeeze(String(body.city)) : null,
           region: body?.region ? squeeze(String(body.region)) : null,
           country: body?.country ? squeeze(String(body.country)) : 'Canada',
-          dupr: dupr && Number.isFinite(dupr) ? Number(dupr) : null,
           birthdayYear: y,
           birthdayMonth: m,
           birthdayDay: d,

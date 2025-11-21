@@ -81,7 +81,8 @@ export async function GET(req: NextRequest) {
             firstName: true,
             lastName: true,
             name: true,
-            dupr: true
+            duprDoubles: true,
+            duprSingles: true
           }
         },
         player2: {
@@ -90,7 +91,8 @@ export async function GET(req: NextRequest) {
             firstName: true,
             lastName: true,
             name: true,
-            dupr: true
+            duprDoubles: true,
+            duprSingles: true
           }
         }
       },
@@ -164,7 +166,8 @@ export async function GET(req: NextRequest) {
               firstName: partner.firstName,
               lastName: partner.lastName,
               name: partner.name,
-              dupr: partner.dupr
+              // GameSlot enum only includes doubles types, so always use duprDoubles
+              dupr: partner.duprDoubles ?? null
             },
             isTeamA,
             stop: {

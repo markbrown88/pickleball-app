@@ -53,7 +53,8 @@ export async function GET(
             lastName: true,
             name: true,
             gender: true,
-            dupr: true,
+            duprDoubles: true,
+            duprSingles: true,
             age: true
           }
         }
@@ -78,7 +79,7 @@ export async function GET(
         lastName: stp.player.lastName,
         name: stp.player.name,
         gender: stp.player.gender,
-        dupr: stp.player.dupr,
+        dupr: stp.player.duprDoubles ?? null, // Default to doubles DUPR
         age: stp.player.age
       });
     }

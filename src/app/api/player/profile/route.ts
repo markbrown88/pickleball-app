@@ -53,7 +53,7 @@ export async function GET(req: Request) {
         email: player.email,
         phone: formatPhoneForDisplay(player.phone),
         gender: player.gender,
-        dupr: player.dupr,
+        dupr: player.duprDoubles ?? null, // Map duprDoubles to dupr for backward compatibility
         duprSingles: player.duprSingles,
         duprDoubles: player.duprDoubles,
         clubRatingSingles: player.clubRatingSingles,
@@ -265,7 +265,7 @@ export async function PUT(req: Request) {
         email: player.email,
         phone: formatPhoneForDisplay(player.phone),
         gender: player.gender,
-        dupr: player.dupr,
+        dupr: player.duprDoubles ?? null, // Map duprDoubles to dupr for backward compatibility
         duprSingles: player.duprSingles,
         duprDoubles: player.duprDoubles,
         clubRatingSingles: player.clubRatingSingles,

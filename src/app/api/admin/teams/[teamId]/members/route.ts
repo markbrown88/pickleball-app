@@ -14,7 +14,7 @@ function toPlayerLite(p: any) {
     lastName: p.lastName ?? null,
     name: p.name ?? null,
     gender: p.gender,
-    dupr: p.dupr ?? null,
+    dupr: p.duprDoubles ?? null, // Default to doubles DUPR
     age: p.age ?? null,
     clubId: p.clubId ?? null,
   };

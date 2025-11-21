@@ -52,7 +52,6 @@ model Player {
   region                 String?
   country                String?                  @default("Canada")
   age                    Int?
-  dupr                   Float?
   duprSingles            Float?
   duprDoubles            Float?
   clubRatingSingles      Float?

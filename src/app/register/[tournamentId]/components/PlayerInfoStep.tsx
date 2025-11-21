@@ -202,8 +202,16 @@ export function PlayerInfoStep({
               className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
                 playerInfo.gender === 'MALE'
                   ? 'bg-primary text-primary-content shadow-sm'
-                  : 'text-black hover:bg-surface-4'
+                  : 'hover:bg-surface-4'
               }`}
+              style={
+                playerInfo.gender !== 'MALE'
+                  ? {
+                      backgroundColor: 'var(--text-muted)',
+                      color: 'var(--brand-primary)'
+                    }
+                  : undefined
+              }
             >
               Male
             </button>
@@ -213,8 +221,16 @@ export function PlayerInfoStep({
               className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
                 playerInfo.gender === 'FEMALE'
                   ? 'bg-primary text-primary-content shadow-sm'
-                  : 'text-black hover:bg-surface-4'
+                  : 'hover:bg-surface-4'
               }`}
+              style={
+                playerInfo.gender !== 'FEMALE'
+                  ? {
+                      backgroundColor: 'var(--text-muted)',
+                      color: 'var(--brand-primary)'
+                    }
+                  : undefined
+              }
             >
               Female
             </button>

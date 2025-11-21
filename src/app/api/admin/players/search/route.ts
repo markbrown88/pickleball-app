@@ -160,7 +160,8 @@ export async function GET(req: Request) {
         lastName: true,
         name: true,
         gender: true,
-        dupr: true,
+        duprDoubles: true,
+        duprSingles: true,
         age: true,
       },
     });

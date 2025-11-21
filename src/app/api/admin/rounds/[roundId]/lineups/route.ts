@@ -141,7 +141,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
             lastName: true,
             name: true,
             gender: true,
-            dupr: true,
+            duprDoubles: true,
+            duprSingles: true,
             birthdayYear: true,
             birthdayMonth: true,
             birthdayDay: true,
@@ -170,7 +171,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
         lastName: p.lastName,
         name: p.name ?? label(p),
         gender: p.gender,
-        dupr: p.dupr ?? null,
+        dupr: p.duprDoubles ?? null, // Default to doubles DUPR for lineup generation
         age: computeAge(p.birthdayYear, p.birthdayMonth, p.birthdayDay),
       });
       rosterByTeam.set(r.teamId, arr);
@@ -284,7 +285,8 @@ async function generateLineupsForRound(roundId: string, prismaClient: typeof pri
         select: {
           id: true,
           gender: true,
-          dupr: true,
+          duprDoubles: true,
+          duprSingles: true,
         },
       },
     },
@@ -294,7 +296,7 @@ async function generateLineupsForRound(roundId: string, prismaClient: typeof pri
   const rosterByTeam = new Map<string, Array<{ id: string; gender: Gender; dupr: number | null }>>();
   rosters.forEach((row) => {
     const bucket = rosterByTeam.get(row.teamId) ?? [];
-    bucket.push({ id: row.player.id, gender: row.player.gender, dupr: row.player.dupr ?? null });
+    bucket.push({ id: row.player.id, gender: row.player.gender, dupr: row.player.duprDoubles ?? null });
     rosterByTeam.set(row.teamId, bucket);
   });
 

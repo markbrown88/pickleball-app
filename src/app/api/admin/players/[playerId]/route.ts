@@ -117,7 +117,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       email: player.email,
       phone: formatPhoneForDisplay(player.phone),
       gender: player.gender,
-      dupr: player.dupr,
+      dupr: player.duprDoubles ?? null, // Map duprDoubles to dupr for backward compatibility
       duprSingles: player.duprSingles,
       duprDoubles: player.duprDoubles,
       clubRatingSingles: player.clubRatingSingles,
@@ -295,7 +295,6 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           country,
           phone,
           email,
-          dupr: typeof body.dupr === 'number' && Number.isFinite(body.dupr) ? body.dupr : null,
           duprSingles,
           duprDoubles,
           clubRatingSingles,

@@ -55,7 +55,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ play
         country: true,
         phone: true,
         email: true,
-        dupr: true,
+        duprDoubles: true,
+        duprSingles: true,
         birthdayYear: true,
         birthdayMonth: true,
         birthdayDay: true,
@@ -132,7 +133,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ play
         country: player.country,
         phone: player.phone,
         email: player.email,
-        dupr: player.dupr,
+        dupr: player.duprDoubles ?? null, // Map duprDoubles to dupr for backward compatibility
         birthdayYear: player.birthdayYear,
         birthdayMonth: player.birthdayMonth,
         birthdayDay: player.birthdayDay,

@@ -75,13 +75,15 @@ export async function GET(req: NextRequest) {
         player1: {
           select: {
             id: true,
-            dupr: true
+            duprDoubles: true,
+            duprSingles: true
           }
         },
         player2: {
           select: {
             id: true,
-            dupr: true
+            duprDoubles: true,
+            duprSingles: true
           }
         }
       }
@@ -133,7 +135,7 @@ export async function GET(req: NextRequest) {
             createdAt: game.createdAt,
             gamesPerMatch,
             gameNumberInMatch: index + 1,
-            partnerDupr: partner.dupr,
+            partnerDupr: partner.duprDoubles ?? null, // Default to doubles DUPR
             opponentAvgDupr: null // Will be calculated if needed
           });
         });

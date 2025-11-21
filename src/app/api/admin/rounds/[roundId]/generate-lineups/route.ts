@@ -10,7 +10,8 @@ interface Player {
   lastName?: string | null;
   name?: string | null;
   gender: Gender;
-  dupr?: number | null;
+  duprDoubles?: number | null;
+  duprSingles?: number | null;
 }
 
 interface RosterPlayer extends Player {
@@ -79,7 +80,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
             lastName: true,
             name: true,
             gender: true,
-            dupr: true
+            duprDoubles: true,
+            duprSingles: true
           }
         }
       },
@@ -196,11 +198,14 @@ function generateOptimalLineup(roster: RosterPlayer[]): LineupEntry[] {
   // Sort players by DUPR (higher is better) or by name if no DUPR
   const sortPlayers = (players: RosterPlayer[]) => {
     return [...players].sort((a, b) => {
-      if (a.dupr && b.dupr) {
-        return b.dupr - a.dupr; // Higher DUPR first
+      // Use duprDoubles for sorting (default to doubles)
+      const aDupr = (a as any).duprDoubles ?? null;
+      const bDupr = (b as any).duprDoubles ?? null;
+      if (aDupr && bDupr) {
+        return bDupr - aDupr; // Higher DUPR first
       }
-      if (a.dupr && !b.dupr) return -1;
-      if (!a.dupr && b.dupr) return 1;
+      if (aDupr && !bDupr) return -1;
+      if (!aDupr && bDupr) return 1;
       // If no DUPR, sort by name
       const nameA = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.name || '';
       const nameB = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.name || '';

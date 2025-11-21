@@ -28,7 +28,8 @@ export async function GET(request: Request, { params }: Params) {
             firstName: true,
             lastName: true,
             gender: true,
-            dupr: true
+            duprDoubles: true,
+            duprSingles: true
           }
         }
       }
@@ -40,7 +41,7 @@ export async function GET(request: Request, { params }: Params) {
       firstName: stp.player.firstName,
       lastName: stp.player.lastName,
       gender: stp.player.gender,
-      dupr: stp.player.dupr
+      dupr: stp.player.duprDoubles ?? null // Default to doubles DUPR
     }));
 
     return NextResponse.json({ items: roster });
