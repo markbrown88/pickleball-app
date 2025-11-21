@@ -10,7 +10,7 @@ type PlayerLite = {
   lastName: string | null;
   name: string | null;
   gender: 'MALE' | 'FEMALE';
-  dupr: number | null;
+  dupr: number | null; // Using duprDoubles, kept as 'dupr' for backward compatibility
   age: number | null;
   hasPaid: boolean;
   paymentMethod: 'STRIPE' | 'MANUAL' | 'UNPAID';
@@ -79,7 +79,7 @@ function toPlayerLite(
     lastName: player.lastName ?? null,
     name: player.name ?? null,
     gender: player.gender,
-    dupr: player.dupr ?? null,
+    dupr: player.duprDoubles ?? player.dupr ?? null, // Prefer duprDoubles, fallback to dupr
     age: player.age ?? null,
     hasPaid: paymentMethod === 'STRIPE' || paymentMethod === 'MANUAL',
     paymentMethod,

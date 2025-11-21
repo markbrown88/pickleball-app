@@ -195,26 +195,29 @@ export function PlayerInfoStep({
           <label className="block text-sm font-semibold text-secondary mb-2">
             Sex <span className="text-error">*</span>
           </label>
-          <div className="flex gap-2">
-            {(['MALE', 'FEMALE'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => updateField('gender', value)}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  playerInfo.gender === value
-                    ? 'shadow-md text-white'
-                    : 'opacity-50 hover:opacity-75 bg-gray-100 text-gray-700'
-                } ${errors.gender ? 'border-2 border-error' : ''}`}
-                style={{
-                  backgroundColor: playerInfo.gender === value
-                    ? (value === 'MALE' ? '#3b82f6' : '#db2777')
-                    : undefined
-                }}
-              >
-                {value === 'MALE' ? 'Male' : 'Female'}
-              </button>
-            ))}
+          <div className={`flex bg-surface-3 rounded-lg p-1 ${errors.gender ? 'border border-error' : ''}`}>
+            <button
+              type="button"
+              onClick={() => updateField('gender', 'MALE')}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
+                playerInfo.gender === 'MALE'
+                  ? 'bg-primary text-primary-content shadow-sm'
+                  : 'text-black hover:bg-surface-4'
+              }`}
+            >
+              Male
+            </button>
+            <button
+              type="button"
+              onClick={() => updateField('gender', 'FEMALE')}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
+                playerInfo.gender === 'FEMALE'
+                  ? 'bg-primary text-primary-content shadow-sm'
+                  : 'text-black hover:bg-surface-4'
+              }`}
+            >
+              Female
+            </button>
           </div>
           {errors.gender && <p className="text-xs text-error mt-1">{errors.gender}</p>}
         </div>
@@ -227,7 +230,7 @@ export function PlayerInfoStep({
             Cancel
           </button>
         )}
-        <button type="submit" className="btn btn-primary px-8 ml-auto">
+        <button type="submit" className="btn btn-secondary px-8 ml-auto">
           Continue to Stop Selection
         </button>
       </div>

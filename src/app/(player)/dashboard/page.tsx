@@ -239,22 +239,21 @@ export default function DashboardPage() {
     const past: TournamentCardData[] = [];
 
     tournaments.forEach((tournament) => {
-      // Show tournament if:
-      // 1. Registration is OPEN, OR
-      // 2. Player is already registered for it
       const isPlayerRegistered = !!registrations[tournament.id];
-      const isRegistrationOpen = tournament.registrationStatus === 'OPEN';
-
-      if (!isPlayerRegistered && !isRegistrationOpen) {
-        // Skip closed/invite-only tournaments that player is not registered for
-        return;
-      }
-
+      const isRegistrationOpen = tournament.registrationStatus === 'OPEN' || tournament.registrationStatus === 'INVITE_ONLY';
       const endDate = tournament.endDate ? new Date(tournament.endDate) : null;
-      if (endDate && endDate < now) {
-        past.push(tournament);
+      const hasEnded = endDate && endDate < now;
+
+      if (hasEnded) {
+        // Past tab: only show if player participated
+        if (isPlayerRegistered) {
+          past.push(tournament);
+        }
       } else {
-        upcoming.push(tournament);
+        // Upcoming tab: show if OPEN/INVITE_ONLY or player is registered
+        if (isRegistrationOpen || isPlayerRegistered) {
+          upcoming.push(tournament);
+        }
       }
     });
 

@@ -165,7 +165,7 @@ export function BracketSelectionStep({
             Back
           </button>
         </div>
-        <button type="button" onClick={handleNext} className="btn btn-primary px-8">
+        <button type="button" onClick={handleNext} className="btn btn-secondary px-8">
           Continue to Review
         </button>
       </div>

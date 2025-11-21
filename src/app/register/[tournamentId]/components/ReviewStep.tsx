@@ -607,7 +607,7 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
         <button
           type="button"
           onClick={handleSubmit}
-          className="btn btn-primary px-8"
+          className="btn btn-secondary px-8"
           disabled={isSubmitting}
         >
           {isSubmitting ? (

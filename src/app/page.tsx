@@ -52,26 +52,21 @@ export default function Home() {
       const data = await response.json();
       
       if (data.tournaments && Array.isArray(data.tournaments)) {
-        const now = new Date(); // Current local time
-        
-        // Filter to show OPEN and INVITE_ONLY tournaments that haven't ended yet
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        // Filter to show OPEN and INVITE_ONLY tournaments that ended within the last 30 days
         const futureTournaments = data.tournaments.filter((t: Tournament) => {
           // Must be OPEN or INVITE_ONLY
           if (t.registrationStatus !== 'OPEN' && t.registrationStatus !== 'INVITE_ONLY') return false;
-          
-          // Check if tournament hasn't ended yet
+
+          // Check if tournament ended more than 30 days ago
           if (t.endDate) {
             const endDate = new Date(t.endDate);
-            return endDate > now;
+            return endDate > thirtyDaysAgo;
           }
-          
-          // If no endDate, check startDate
-          if (t.startDate) {
-            const startDate = new Date(t.startDate);
-            return startDate > now;
-          }
-          
-          // If no dates, include it (shouldn't happen but be safe)
+
+          // If no endDate, include it
           return true;
         });
         
