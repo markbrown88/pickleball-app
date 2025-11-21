@@ -505,13 +505,6 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                       >
                         Promote
                       </button>
-                      <button
-                        className="btn btn-ghost btn-sm text-error"
-                        onClick={() => handleRemoveFromWaitlist(entry.id)}
-                        disabled={processing === entry.id}
-                      >
-                        Remove
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -583,7 +576,7 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
           <details
             key={section.id}
             className="rounded-lg border border-border-subtle bg-surface-1"
-            defaultOpen={idx === 0}
+            {...(idx === 0 ? { open: true } : {})}
           >
             <summary className="cursor-pointer px-4 py-3 font-semibold text-primary flex items-center justify-between">
               <span>{section.label}</span>
