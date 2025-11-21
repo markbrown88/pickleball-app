@@ -267,7 +267,7 @@ export function ProfileSetup({ user, clubs, onSave, loading }: ProfileSetupFormP
           <label className="block text-sm font-medium text-muted mb-1">Birthday (optional)</label>
           <input
             type="date"
-            className="input"
+            className="input w-full sm:max-w-[240px]"
             value={formData.birthday}
             onChange={(event) => setFormData((prev) => ({ ...prev, birthday: event.target.value }))}
           />

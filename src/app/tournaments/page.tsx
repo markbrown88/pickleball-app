@@ -637,7 +637,8 @@ export default function AdminPage() {
   const editingTournament = editingTournamentId ? editorById[editingTournamentId] : null;
 
   return (
-    <section className="min-h-screen bg-app p-6 space-y-6 max-w-7xl mx-auto">
+    <section className="min-h-screen bg-app py-6">
+      <div className="page-container space-y-6">
       {/* Header Card */}
       <header className="card">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -710,6 +711,7 @@ export default function AdminPage() {
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateTournament}
       />
+      </div>
     </section>
   );
 }

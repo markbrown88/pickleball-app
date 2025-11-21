@@ -102,7 +102,7 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
               name="birthday"
               value={formData.birthday}
               onChange={handleChange}
-              className="input w-full"
+              className="input w-full sm:max-w-[240px]"
               required
             />
           </div>

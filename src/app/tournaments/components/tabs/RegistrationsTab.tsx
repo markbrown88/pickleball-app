@@ -278,6 +278,246 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
     return <div className="text-center text-muted py-8">Failed to load registrations</div>;
   }
 
+  const renderRegistrationsContent = () => (
+    <div className="space-y-2">
+      {/* Manual Register Button */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <span className="text-sm text-muted sm:hidden">
+          Need to add someone manually?
+        </span>
+        <button
+          className="btn btn-primary w-full sm:w-auto"
+          onClick={() => setShowManualRegisterModal(true)}
+        >
+          + Manual Register Player
+        </button>
+      </div>
+
+      {data.registrations.length === 0 ? (
+        <div className="card text-center py-8 text-muted">No registrations yet</div>
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="md:overflow-x-visible overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead className="bg-surface-1">
+                <tr>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Status</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Payment</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Registered</th>
+                  <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.registrations.map((reg) => (
+                  <tr key={reg.id} className="border-t border-border-subtle hover:bg-surface-1">
+                    <td className="p-3">
+                      <div className="font-medium text-primary">{reg.player.name}</div>
+                      <div className="text-sm text-muted">{reg.player.email}</div>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`chip ${
+                          reg.status === 'REGISTERED'
+                            ? 'chip-success'
+                            : reg.status === 'WITHDRAWN'
+                            ? 'chip-muted'
+                            : 'chip-error'
+                        }`}
+                      >
+                        {reg.status}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      {tournamentRegistrationType === 'FREE' ? (
+                        <span className="chip chip-success">
+                          Free
+                        </span>
+                      ) : (
+                        <span
+                          className={`chip ${
+                            reg.paymentStatus === 'PAID' || reg.paymentStatus === 'COMPLETED'
+                              ? 'chip-success'
+                              : reg.paymentStatus === 'PENDING'
+                              ? 'chip-warning'
+                              : reg.paymentStatus === 'REFUNDED'
+                              ? 'chip-info'
+                              : 'chip-error'
+                          }`}
+                        >
+                          {reg.paymentStatus === 'PAID' || reg.paymentStatus === 'COMPLETED' ? 'Paid' : reg.paymentStatus}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3 text-sm text-muted">
+                      {new Date(reg.registeredAt).toLocaleDateString()}
+                    </td>
+                    <td className="p-3 text-right space-x-2">
+                      {(reg.status === 'REGISTERED' || reg.status === 'REJECTED' || reg.status === 'WITHDRAWN') && (
+                        <>
+                          {reg.status === 'REGISTERED' && (
+                            <button
+                              className="btn btn-error btn-sm"
+                              onClick={() => {
+                                setRejectingRegistration(reg);
+                                setShowRejectModal(true);
+                              }}
+                            >
+                              Reject
+                            </button>
+                          )}
+                          <button
+                            className="btn btn-ghost btn-sm text-error"
+                            onClick={async () => {
+                              if (!confirm(`Delete registration for ${reg.player.name}? This cannot be undone.`)) {
+                                return;
+                              }
+                              try {
+                                setProcessing(reg.id);
+                                const response = await fetch(
+                                  `/api/admin/tournaments/${tournamentId}/registrations/${reg.id}`,
+                                  { method: 'DELETE' }
+                                );
+                                if (!response.ok) {
+                                  const error = await response.json();
+                                  alert(error.error || 'Failed to delete registration');
+                                  return;
+                                }
+                                await loadData();
+                                alert('Registration deleted successfully');
+                              } catch (error) {
+                                console.error('Error deleting registration:', error);
+                                alert('Failed to delete registration');
+                              } finally {
+                                setProcessing(null);
+                              }
+                            }}
+                            disabled={processing === reg.id}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderRequestsContent = () => (
+    <div className="space-y-2">
+      {data.inviteRequests.length === 0 ? (
+        <div className="card text-center py-8 text-muted">No invite requests</div>
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="md:overflow-x-visible overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead className="bg-surface-1">
+                <tr>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Club</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Requested</th>
+                  <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.inviteRequests.map((request) => (
+                  <tr key={request.id} className="border-t border-border-subtle hover:bg-surface-1">
+                    <td className="p-3">
+                      <div className="font-medium text-primary">{request.player.name}</div>
+                      <div className="text-sm text-muted">{request.player.email}</div>
+                    </td>
+                    <td className="p-3 text-sm text-muted">{request.club?.name || '—'}</td>
+                    <td className="p-3 text-sm text-muted">
+                      {new Date(request.requestedAt).toLocaleDateString()}
+                    </td>
+                    <td className="p-3 text-right space-x-2">
+                      <button
+                        className="btn btn-success btn-sm"
+                        onClick={() => handleApproveInvite(request.id)}
+                        disabled={processing === request.id}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm text-error"
+                        onClick={() => handleRejectInvite(request.id)}
+                        disabled={processing === request.id}
+                      >
+                        Reject
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderWaitlistContent = () => (
+    <div className="space-y-2">
+      {data.waitlist.length === 0 ? (
+        <div className="card text-center py-8 text-muted">No players on the waitlist</div>
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="md:overflow-x-visible overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead className="bg-surface-1">
+                <tr>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Requested</th>
+                  <th className="text-left p-3 text-sm font-medium text-secondary">Priority</th>
+                  <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.waitlist.map((entry) => (
+                  <tr key={entry.id} className="border-t border-border-subtle hover:bg-surface-1">
+                    <td className="p-3">
+                      <div className="font-medium text-primary">{entry.player.name}</div>
+                      <div className="text-sm text-muted">{entry.player.email}</div>
+                    </td>
+                    <td className="p-3 text-sm text-muted">
+                      {new Date(entry.requestedAt).toLocaleDateString()}
+                    </td>
+                    <td className="p-3">
+                      <span className="chip chip-info text-[10px] px-2 py-0.5">
+                        {entry.priority || 'Standard'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right space-x-2">
+                      <button
+                        className="btn btn-success btn-sm"
+                        onClick={() => handlePromoteFromWaitlist(entry.id)}
+                        disabled={processing === entry.id}
+                      >
+                        Promote
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm text-error"
+                        onClick={() => handleRemoveFromWaitlist(entry.id)}
+                        disabled={processing === entry.id}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
   return (
     <div className="space-y-6">
       {/* Summary Cards */}

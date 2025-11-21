@@ -167,6 +167,20 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
                   </svg>
                 </button>
 
+                {/* Mobile logo - centered */}
+                <div className="md:hidden flex-1 flex justify-center">
+                  <Link href="/">
+                    <Image
+                      src="/images/klyng-cup.png"
+                      alt="Klyng Cup"
+                      width={80}
+                      height={43}
+                      className="h-8 w-auto"
+                      priority
+                    />
+                  </Link>
+                </div>
+
                 <div className="flex items-center gap-3">
                   {toolbarContent}
                   {showActAs && (

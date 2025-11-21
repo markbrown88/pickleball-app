@@ -106,7 +106,8 @@ export default function TournamentRegistrationsPage() {
   ];
 
   return (
-    <section className="min-h-screen bg-app p-6 space-y-6 max-w-7xl mx-auto">
+    <section className="min-h-screen bg-app py-6">
+      <div className="page-container space-y-6">
       {/* Header Card */}
       <header className="card">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -171,6 +172,7 @@ export default function TournamentRegistrationsPage() {
           </div>
         </div>
       )}
+      </div>
     </section>
   );
 }

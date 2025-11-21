@@ -172,7 +172,7 @@ export function ProfilePageView() {
 
   if (!isSignedIn) {
     return (
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="page-container max-w-3xl space-y-6">
         <div className="card text-center space-y-4">
           <h1 className="text-2xl font-semibold text-primary">Welcome back</h1>
           <p className="text-muted">Sign in to manage your profile and registrations.</p>
@@ -186,7 +186,7 @@ export function ProfilePageView() {
 
   if (needsProfileSetup) {
     return (
-      <div className="space-y-6">
+      <div className="page-container space-y-6">
         <header className="space-y-2 text-center">
           <h1 className="text-3xl font-semibold text-primary">Complete Your Profile</h1>
           <p className="text-muted">
@@ -202,7 +202,7 @@ export function ProfilePageView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-container space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-primary mb-2">Profile</h1>
         <p className="text-muted">Manage your player profile and account details</p>

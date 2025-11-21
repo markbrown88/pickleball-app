@@ -225,7 +225,7 @@ export function OptionalInfoStep({
           <label className="block text-sm font-semibold text-secondary mb-2">Birthday</label>
           <input
             type="date"
-            className="input w-full"
+            className="input w-full sm:max-w-[240px]"
             value={formData.birthday}
             onChange={(e) => updateField('birthday', e.target.value)}
             max={new Date().toISOString().slice(0, 10)}

@@ -323,7 +323,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                     value={birthday}
                     max={new Date().toISOString().slice(0, 10)}
                     onChange={(event) => setBirthday(event.target.value)}
-                    className="input w-full"
+                    className="input w-full sm:max-w-[240px]"
                   />
                 </div>
               </div>
@@ -588,8 +588,8 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
 
           {/* Profile Info */}
           <div className="flex-1">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1 min-w-0">
                 <h1 className="text-2xl font-bold text-primary">{form.firstName} {form.lastName}</h1>
                 <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted">
                   <div className="flex items-center gap-2">
@@ -608,8 +608,24 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                   {profile?.club && <span>🏢 {profile.club.name}</span>}
                 </div>
               </div>
-              <button className="btn btn-ghost" onClick={() => setEditing(true)}>
-                Edit Profile
+              <button
+                className="btn btn-ghost flex items-center gap-2 px-3 py-2 shrink-0 self-end sm:self-start"
+                onClick={() => setEditing(true)}
+                aria-label="Edit profile"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+                <span className="hidden sm:inline">Edit Profile</span>
               </button>
             </div>
           </div>
