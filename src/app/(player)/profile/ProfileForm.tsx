@@ -13,6 +13,7 @@ import type { UserProfile } from '@/types';
 import Image from 'next/image';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import { formatDateRangeUTC } from '@/lib/utils';
+import { GenderSelector } from '@/components/GenderSelector';
 
 type ClubOption = {
   id: string;
@@ -289,30 +290,12 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
               />
             </div>
 
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Gender *</label>
-                <div className="flex gap-2">
-                {(['MALE', 'FEMALE'] as const).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => handleChange('gender', value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all text-white ${
-                        form.gender === value
-                          ? 'shadow-md'
-                          : 'opacity-50 hover:opacity-75'
-                      }`}
-                      style={{
-                        backgroundColor: form.gender === value
-                          ? (value === 'MALE' ? '#3b82f6' : '#db2777')
-                          : '#374151'
-                      }}
-                    >
-                      {value === 'MALE' ? 'Male' : 'Female'}
-                    </button>
-                ))}
-              </div>
-            </div>
+            <GenderSelector
+              value={form.gender}
+              onChange={(value) => handleChange('gender', value)}
+              label="Gender"
+              required
+            />
 
             <div>
                 <label className="block text-sm font-medium text-primary mb-1">Birthday</label>

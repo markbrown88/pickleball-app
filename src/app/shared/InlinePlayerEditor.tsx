@@ -72,15 +72,36 @@ export default function InlinePlayerEditor({ player, clubs, onSave, onCancel }: 
         />
       </td>
       <td className="py-2 pr-4">
-        <select
-          value={form.gender}
-          onChange={(e) => setForm(prev => ({ ...prev, gender: e.target.value as 'MALE' | 'FEMALE' }))}
-          onKeyDown={handleKeyDown}
-          className="input w-full text-sm"
-        >
-          <option value="MALE">M</option>
-          <option value="FEMALE">F</option>
-        </select>
+        <div className="flex bg-surface-3 rounded-lg p-0.5 gap-0.5">
+          <button
+            type="button"
+            onClick={() => setForm(prev => ({ ...prev, gender: 'MALE' }))}
+            onKeyDown={handleKeyDown}
+            className={`flex-1 py-1 px-2 rounded text-xs font-semibold transition-colors ${
+              form.gender === 'MALE' ? 'shadow-sm' : ''
+            }`}
+            style={{
+              backgroundColor: form.gender === 'MALE' ? 'var(--gender-male)' : 'var(--text-muted)',
+              color: form.gender === 'MALE' ? 'var(--gender-male-text)' : 'var(--brand-primary)',
+            }}
+          >
+            M
+          </button>
+          <button
+            type="button"
+            onClick={() => setForm(prev => ({ ...prev, gender: 'FEMALE' }))}
+            onKeyDown={handleKeyDown}
+            className={`flex-1 py-1 px-2 rounded text-xs font-semibold transition-colors ${
+              form.gender === 'FEMALE' ? 'shadow-sm' : ''
+            }`}
+            style={{
+              backgroundColor: form.gender === 'FEMALE' ? 'var(--gender-female)' : 'var(--text-muted)',
+              color: form.gender === 'FEMALE' ? 'var(--gender-female-text)' : 'var(--brand-primary)',
+            }}
+          >
+            F
+          </button>
+        </div>
       </td>
       <td className="py-2 pr-4">
         <select

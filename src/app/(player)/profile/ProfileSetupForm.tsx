@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { CA_PROVINCES, US_STATES, CountrySel } from '@/app/(player)/shared/useProfileData';
 import { formatPhoneInput } from '@/lib/phone';
+import { GenderSelector } from '@/components/GenderSelector';
 
 type ClubOption = {
   id: string;
@@ -92,18 +93,12 @@ export function ProfileSetup({ user, clubs, onSave, loading }: ProfileSetupFormP
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-muted mb-1">Gender</label>
-          <select
-            required
-            className="input"
-            value={formData.gender}
-            onChange={(event) => setFormData((prev) => ({ ...prev, gender: event.target.value as 'MALE' | 'FEMALE' }))}
-          >
-            <option value="MALE">Male</option>
-            <option value="FEMALE">Female</option>
-          </select>
-        </div>
+        <GenderSelector
+          value={formData.gender}
+          onChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}
+          label="Gender"
+          required
+        />
         <div>
           <label className="block text-sm font-medium text-muted mb-1">Club</label>
           <select

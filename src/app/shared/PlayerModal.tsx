@@ -6,6 +6,7 @@ import { Club, Player } from '@/types';
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { playerValidationRules } from '@/lib/validation';
 import { showSuccess, showError } from '@/lib/toast';
+import { GenderSelector } from '@/components/GenderSelector';
 
 interface PlayerModalProps {
   isOpen: boolean;
@@ -267,33 +268,12 @@ export default function PlayerModal({ isOpen, onClose, onSave, player, clubs }: 
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-3">
-                <label className="block text-sm font-medium mb-1">
-                  Gender *
-                </label>
-                <div className="flex bg-gray-100 rounded-lg p-1">
-                  <button
-                    type="button"
-                    onClick={() => handleFieldChange('gender', 'MALE')}
-                    className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
-                      form.gender === 'MALE'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-900 hover:text-gray-900'
-                    }`}
-                  >
-                    Male
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFieldChange('gender', 'FEMALE')}
-                    className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
-                      form.gender === 'FEMALE'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-900 hover:text-gray-900'
-                    }`}
-                  >
-                    Female
-                  </button>
-                </div>
+                <GenderSelector
+                  value={form.gender}
+                  onChange={(value) => handleFieldChange('gender', value)}
+                  label="Gender"
+                  required
+                />
               </div>
 
               <div className="md:col-span-3">

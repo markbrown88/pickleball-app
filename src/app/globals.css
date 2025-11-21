@@ -42,6 +42,17 @@
   --status-info-active: #1877D2;
   --status-info-text: #FFFFFF;
 
+  /* Gender Colors */
+  --gender-male: #3b82f6;
+  --gender-male-hover: #2563eb;
+  --gender-male-active: #1d4ed8;
+  --gender-male-text: #FFFFFF;
+
+  --gender-female: #db2777;
+  --gender-female-hover: #be185d;
+  --gender-female-active: #9f1239;
+  --gender-female-text: #FFFFFF;
+
   /* Dark Mode Neutrals */
   --app-bg: #0B0F14;
   --surface-1: #111827;

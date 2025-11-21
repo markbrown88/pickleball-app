@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatPhoneInput } from '@/lib/phone';
+import { GenderSelector } from '@/components/GenderSelector';
 
 export type PlayerInfo = {
   firstName: string;
@@ -191,52 +192,13 @@ export function PlayerInfoStep({
         </div>
 
         {/* Gender */}
-        <div>
-          <label className="block text-sm font-semibold text-secondary mb-2">
-            Sex <span className="text-error">*</span>
-          </label>
-          <div className={`flex bg-surface-3 rounded-lg p-1 ${errors.gender ? 'border border-error' : ''}`}>
-            <button
-              type="button"
-              onClick={() => updateField('gender', 'MALE')}
-              className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
-                playerInfo.gender === 'MALE'
-                  ? 'bg-primary text-primary-content shadow-sm'
-                  : 'hover:bg-surface-4'
-              }`}
-              style={
-                playerInfo.gender !== 'MALE'
-                  ? {
-                      backgroundColor: 'var(--text-muted)',
-                      color: 'var(--brand-primary)'
-                    }
-                  : undefined
-              }
-            >
-              Male
-            </button>
-            <button
-              type="button"
-              onClick={() => updateField('gender', 'FEMALE')}
-              className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
-                playerInfo.gender === 'FEMALE'
-                  ? 'bg-primary text-primary-content shadow-sm'
-                  : 'hover:bg-surface-4'
-              }`}
-              style={
-                playerInfo.gender !== 'FEMALE'
-                  ? {
-                      backgroundColor: 'var(--text-muted)',
-                      color: 'var(--brand-primary)'
-                    }
-                  : undefined
-              }
-            >
-              Female
-            </button>
-          </div>
-          {errors.gender && <p className="text-xs text-error mt-1">{errors.gender}</p>}
-        </div>
+        <GenderSelector
+          value={playerInfo.gender}
+          onChange={(value) => updateField('gender', value)}
+          label="Sex"
+          required
+          error={errors.gender}
+        />
       </div>
 
       {/* Actions */}

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { UserProfile } from '@/types';
 import { formatPhoneForDisplay, formatPhoneInput } from '@/lib/phone';
+import { GenderSelector } from '@/components/GenderSelector';
 
 interface ProfileEditFormProps {
   profile: UserProfile;
@@ -84,23 +85,12 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
             />
           </div>
 
-          <div>
-            <label htmlFor="gender" className="block text-sm font-medium text-secondary mb-2">
-              Gender *
-            </label>
-            <select
-              id="gender"
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              className="input w-full"
-              required
-            >
-              <option value="">Select...</option>
-              <option value="MALE">Male</option>
-              <option value="FEMALE">Female</option>
-            </select>
-          </div>
+          <GenderSelector
+            value={formData.gender}
+            onChange={(value) => setFormData(prev => ({ ...prev, gender: value }))}
+            label="Gender"
+            required
+          />
 
           <div>
             <label htmlFor="birthday" className="block text-sm font-medium text-secondary mb-2">
