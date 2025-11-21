@@ -170,19 +170,35 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
                 <div className="flex items-center gap-3">
                   {toolbarContent}
                   {showActAs && (
-                    <ActAsDropdown
-                      currentUser={{
-                        id: 'current',
-                        name: displayName,
-                        role: userRole,
-                      }}
-                      availableUsers={availableUsers}
-                    />
+                    <div className="hidden md:block">
+                      <ActAsDropdown
+                        currentUser={{
+                          id: 'current',
+                          name: displayName,
+                          role: userRole,
+                        }}
+                        availableUsers={availableUsers}
+                      />
+                    </div>
                   )}
                   <DynamicUserButton afterSignOutUrl="/" />
                 </div>
               </div>
             </header>
+
+            {/* Mobile Act As Dropdown - Below header */}
+            {showActAs && (
+              <div className="md:hidden bg-surface-1 border-b border-subtle px-4 py-3">
+                <ActAsDropdown
+                  currentUser={{
+                    id: 'current',
+                    name: displayName,
+                    role: userRole,
+                  }}
+                  availableUsers={availableUsers}
+                />
+              </div>
+            )}
 
             <main className="flex-1">
               <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">{children}</div>
