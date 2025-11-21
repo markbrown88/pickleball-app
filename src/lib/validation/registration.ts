@@ -77,10 +77,8 @@ export function validatePlayerInfo(info: PlayerInfo): ValidationError[] {
   }
 
   // Gender validation (required)
-  if (!info.gender || info.gender === '') {
+  if (!info.gender || (info.gender !== 'MALE' && info.gender !== 'FEMALE')) {
     errors.push({ field: 'gender', message: 'Gender selection is required' });
-  } else if (info.gender !== 'MALE' && info.gender !== 'FEMALE') {
-    errors.push({ field: 'gender', message: 'Please select a valid gender option' });
   }
 
   return errors;

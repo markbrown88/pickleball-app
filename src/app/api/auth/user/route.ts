@@ -408,6 +408,7 @@ export async function POST(req: NextRequest) {
     let birthdayMonth = null;
     let birthdayDay = null;
     let birthdayDate = null;
+    let calculatedAge = null;
 
     if (birthday) {
       const date = new Date(birthday);
@@ -417,6 +418,15 @@ export async function POST(req: NextRequest) {
         birthdayMonth = date.getUTCMonth() + 1;
         birthdayDay = date.getUTCDate();
         birthdayDate = date;
+        
+        // Calculate age
+        const today = new Date();
+        let age = today.getFullYear() - birthdayYear;
+        const mm = birthdayMonth - 1;
+        if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < birthdayDay)) {
+          age -= 1;
+        }
+        calculatedAge = age;
       }
     }
 
@@ -444,7 +454,8 @@ export async function POST(req: NextRequest) {
         birthdayYear,
         birthdayMonth,
         birthdayDay,
-        birthday: birthdayDate
+        birthday: birthdayDate,
+        age: calculatedAge // Store calculated age
       },
       include: {
         club: {
@@ -564,6 +575,7 @@ export async function PUT(req: NextRequest) {
     let birthdayDate = existingPlayer.birthday;
 
     // Handle birthday updates
+    let calculatedAge = existingPlayer.age; // Keep existing age if birthday not updated
     if (birthday !== undefined) {
       if (birthday && birthday.trim() !== '') {
         const date = new Date(birthday);
@@ -573,6 +585,15 @@ export async function PUT(req: NextRequest) {
           birthdayMonth = date.getUTCMonth() + 1;
           birthdayDay = date.getUTCDate();
           birthdayDate = date;
+          
+          // Calculate age
+          const today = new Date();
+          let age = today.getFullYear() - birthdayYear;
+          const mm = birthdayMonth - 1;
+          if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < birthdayDay)) {
+            age -= 1;
+          }
+          calculatedAge = age;
         }
       } else {
         // Clear birthday if empty string provided
@@ -580,6 +601,7 @@ export async function PUT(req: NextRequest) {
         birthdayMonth = null;
         birthdayDay = null;
         birthdayDate = null;
+        calculatedAge = null;
       }
     }
 
@@ -652,7 +674,8 @@ export async function PUT(req: NextRequest) {
         birthdayYear,
         birthdayMonth,
         birthdayDay,
-        birthday: birthdayDate
+        birthday: birthdayDate,
+        age: calculatedAge // Store calculated age when birthday is updated
       })
     };
     

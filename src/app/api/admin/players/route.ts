@@ -13,6 +13,19 @@ function validEmail(input?: string | null): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
 }
 
+function computeAge(y?: number | null, m?: number | null, d?: number | null): number | null {
+  if (!y || !m || !d) return null;
+  try {
+    const today = new Date();
+    let age = today.getFullYear() - y;
+    const mm = m - 1;
+    if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < d)) age -= 1;
+    return age;
+  } catch {
+    return null;
+  }
+}
+
 function parseBirthdayStr(s?: string | null): { y: number | null; m: number | null; d: number | null } {
   if (!s) return { y: null, m: null, d: null };
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -174,12 +187,10 @@ export async function GET(req: NextRequest) {
 
     // Add computed fields for admin page
     const playersWithComputedFields = players.map(player => {
-      // Calculate age from birthday
-      let age = null;
-      if (player.birthdayYear) {
-        const currentYear = new Date().getFullYear();
-        age = currentYear - player.birthdayYear;
-      }
+      // Calculate age from birthday (use stored age if available, otherwise calculate)
+      const age = player.birthdayYear && player.birthdayMonth && player.birthdayDay
+        ? computeAge(player.birthdayYear, player.birthdayMonth, player.birthdayDay)
+        : null;
 
       return {
         ...player,
@@ -332,6 +343,9 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+      // Calculate age if birthday is provided
+      const calculatedAge = y && m && d ? computeAge(y, m, d) : null;
+
       const created = await prisma.player.create({
         data: {
           firstName,
@@ -349,19 +363,12 @@ export async function POST(req: NextRequest) {
           birthdayMonth: m,
           birthdayDay: d,
           birthday: birthdayDate, // Also set the Date field for consistency
+          age: calculatedAge, // Store calculated age
         },
         include: { club: true }
       });
 
-      const age = y && m && d ? (() => {
-        const today = new Date();
-        let age = today.getFullYear() - y;
-        const mm = m - 1;
-        if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < d)) age -= 1;
-        return age;
-      })() : null;
-
-      return NextResponse.json({ ...created, age }, { status: 201 });
+      return NextResponse.json({ ...created, age: calculatedAge }, { status: 201 });
     } catch (error: any) {
       if (error?.code === 'P2002') {
         return NextResponse.json({ error: 'A player with that email already exists' }, { status: 409 });

@@ -278,6 +278,9 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       birthdayDate = new Date(Date.UTC(y, m - 1, d));
     }
 
+    // Calculate age if birthday is provided
+    const calculatedAge = y && m && d ? computeAge(y, m, d) : null;
+
     try {
       const updated = await prisma.player.update({
         where: { id: playerId },
@@ -303,6 +306,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           birthdayMonth: m,
           birthdayDay: d,
           birthday: birthdayDate, // Also set the Date field for consistency
+          age: calculatedAge, // Store calculated age
         },
         include: { club: true },
       });
@@ -310,7 +314,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       const withAge = {
         ...updated,
         phone: formatPhoneForDisplay(updated.phone),
-        age: computeAge(y, m, d),
+        age: calculatedAge,
       };
       return NextResponse.json(withAge);
     } catch (updateError: any) {

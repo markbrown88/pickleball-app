@@ -501,25 +501,27 @@ export default function PlayersPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          className="btn btn-ghost"
-          onClick={() => loadPlayersPage(playersPage.take, Math.max(0, playersPage.skip - playersPage.take), `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch)}
-          disabled={playersPage.skip <= 0}
-        >
-          ← Prev
-        </button>
-        <span className="text-sm text-muted">
-          Page {Math.floor(playersPage.skip / playersPage.take) + 1} of {Math.max(1, Math.ceil(playersPage.total / playersPage.take))}
-        </span>
-        <button
-          className="btn btn-ghost"
-          onClick={() => loadPlayersPage(playersPage.take, playersPage.skip + playersPage.take, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch)}
-          disabled={playersPage.skip + playersPage.take >= playersPage.total}
-        >
-          Next →
-        </button>
-      </div>
+      {Math.ceil(playersPage.total / playersPage.take) > 1 && (
+        <div className="flex items-center gap-3">
+          <button
+            className="btn btn-ghost"
+            onClick={() => loadPlayersPage(playersPage.take, Math.max(0, playersPage.skip - playersPage.take), `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch)}
+            disabled={playersPage.skip <= 0}
+          >
+            ← Prev
+          </button>
+          <span className="text-sm text-muted">
+            Page {Math.floor(playersPage.skip / playersPage.take) + 1} of {Math.max(1, Math.ceil(playersPage.total / playersPage.take))}
+          </span>
+          <button
+            className="btn btn-ghost"
+            onClick={() => loadPlayersPage(playersPage.take, playersPage.skip + playersPage.take, `${playerSort.col}:${playerSort.dir}`, playersClubFilter, playerSearch)}
+            disabled={playersPage.skip + playersPage.take >= playersPage.total}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </section>
   );
 }

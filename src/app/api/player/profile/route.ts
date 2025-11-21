@@ -185,7 +185,34 @@ export async function PUT(req: Request) {
     if (city !== undefined) updateData.city = city?.trim() || null;
     if (region !== undefined) updateData.region = region?.trim() || null;
     if (country !== undefined) updateData.country = country || 'Canada';
-    if (birthday !== undefined) updateData.birthday = birthday ? new Date(birthday) : null;
+    
+    // Handle birthday update - extract year/month/day and calculate age
+    if (birthday !== undefined) {
+      const birthdayDate = birthday ? new Date(birthday) : null;
+      updateData.birthday = birthdayDate;
+      
+      if (birthdayDate && !isNaN(birthdayDate.getTime())) {
+        // Extract year/month/day from Date
+        updateData.birthdayYear = birthdayDate.getUTCFullYear();
+        updateData.birthdayMonth = birthdayDate.getUTCMonth() + 1; // getUTCMonth() returns 0-11
+        updateData.birthdayDay = birthdayDate.getUTCDate();
+        
+        // Calculate and store age
+        const today = new Date();
+        let age = today.getFullYear() - updateData.birthdayYear;
+        const mm = updateData.birthdayMonth - 1;
+        if (today.getMonth() < mm || (today.getMonth() === mm && today.getDate() < updateData.birthdayDay)) {
+          age -= 1;
+        }
+        updateData.age = age;
+      } else {
+        // Clear birthday fields if birthday is null
+        updateData.birthdayYear = null;
+        updateData.birthdayMonth = null;
+        updateData.birthdayDay = null;
+        updateData.age = null;
+      }
+    }
 
     // Rating fields - convert strings to floats
     if (duprSingles !== undefined) {
