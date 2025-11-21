@@ -207,10 +207,10 @@ export default function Home() {
       {/* Hero Section */}
       <section className="py-20 bg-surface-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-12 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-8 md:gap-12 items-start">
             {/* Left side - Content */}
             <div className="text-center lg:text-left">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold text-primary mb-6">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-7xl font-bold text-primary mb-6">
                 Battle of the Clubs
           </h1>
               <p className="text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-12 leading-relaxed">
@@ -308,7 +308,7 @@ export default function Home() {
                           <div className="flex gap-2">
                             <Link
                               href={`/tournament/${klyngCupPickleplex.id}`}
-                              className="btn btn-primary flex-1 text-sm py-2"
+                              className="btn btn-primary flex-1 text-sm py-2 min-h-[44px]"
                             >
                               View Results
                             </Link>
@@ -319,7 +319,7 @@ export default function Home() {
                                     mode="modal"
                                     forceRedirectUrl={`/register/${klyngCupPickleplex.id}`}
                                   >
-                                    <button className="btn btn-secondary flex-1 text-sm py-2">
+                                    <button className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]">
                                       Register!
                                     </button>
                                   </SignUpButton>
@@ -327,7 +327,7 @@ export default function Home() {
                                 <SignedIn>
                                   <Link
                                     href={`/register/${klyngCupPickleplex.id}`}
-                                    className="btn btn-secondary flex-1 text-sm py-2"
+                                    className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]"
                                   >
                                     Register!
                                   </Link>
@@ -427,7 +427,7 @@ export default function Home() {
                           <div className="flex gap-2">
                             <Link
                               href={`/tournament/${klyngCupGrandFinale.id}`}
-                              className="btn btn-primary flex-1 text-sm py-2"
+                              className="btn btn-primary flex-1 text-sm py-2 min-h-[44px]"
                             >
                               View Results
                             </Link>
@@ -438,7 +438,7 @@ export default function Home() {
                                     mode="modal"
                                     forceRedirectUrl={`/register/${klyngCupGrandFinale.id}`}
                                   >
-                                    <button className="btn btn-secondary flex-1 text-sm py-2">
+                                    <button className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]">
                                       Register!
                                     </button>
                                   </SignUpButton>
@@ -446,7 +446,7 @@ export default function Home() {
                                 <SignedIn>
                                   <Link
                                     href={`/register/${klyngCupGrandFinale.id}`}
-                                    className="btn btn-secondary flex-1 text-sm py-2"
+                                    className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]"
                                   >
                                     Register!
                                   </Link>
@@ -547,7 +547,7 @@ export default function Home() {
                           <div className="flex gap-2">
                             <Link
                               href={`/tournament/${klyngCupGrand.id}`}
-                              className="btn btn-primary flex-1 text-sm py-2"
+                              className="btn btn-primary flex-1 text-sm py-2 min-h-[44px]"
                             >
                               View Results
                             </Link>
@@ -558,7 +558,7 @@ export default function Home() {
                                     mode="modal"
                                     forceRedirectUrl={`/register/${klyngCupGrand.id}`}
                                   >
-                                    <button className="btn btn-secondary flex-1 text-sm py-2">
+                                    <button className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]">
                                       Register!
                                     </button>
                                   </SignUpButton>
@@ -566,7 +566,7 @@ export default function Home() {
                                 <SignedIn>
                                   <Link
                                     href={`/register/${klyngCupGrand.id}`}
-                                    className="btn btn-secondary flex-1 text-sm py-2"
+                                    className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]"
                                   >
                                     Register!
                                   </Link>
