@@ -25,6 +25,10 @@ type InviteRequestData = {
     name: string;
     email: string | null;
   };
+  club?: {
+    id: string;
+    name: string;
+  } | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   requestedAt: string;
   reviewedAt: string | null;
