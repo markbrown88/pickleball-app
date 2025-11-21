@@ -96,7 +96,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-6 max-w-7xl">
+    <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6 max-w-7xl">
       {/* Left Column - Basic Information & Contact Information */}
       <div className="flex-1 space-y-6">
         {/* Basic Information */}
@@ -284,8 +284,8 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
       </div>
 
       {/* Right Column - Club & Ratings */}
-      <div className="w-80 flex-shrink-0">
-        <div className="card space-y-4 sticky top-6">
+      <div className="w-full lg:w-80 flex-shrink-0">
+        <div className="card space-y-4 lg:sticky lg:top-6">
           <h2 className="text-xl font-semibold text-primary">Club & Ratings</h2>
           <div className="space-y-4">
             <div className="relative" ref={clubDropdownRef}>

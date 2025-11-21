@@ -17,14 +17,14 @@ export function RegistrationStepper({ steps, currentStep, onStepClick }: Registr
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         {steps.map((step, index) => {
           const isComplete = index < currentIndex;
           const isCurrent = index === currentIndex;
           const isClickable = index <= currentIndex;
 
           return (
-            <div key={step.id} className="flex items-center flex-1">
+            <div key={step.id} className="flex flex-col md:flex-row md:items-center flex-1">
               {/* Step Circle */}
               <div className="flex flex-col items-center">
                 <button
@@ -59,7 +59,7 @@ export function RegistrationStepper({ steps, currentStep, onStepClick }: Registr
                 </button>
 
                 {/* Step Label */}
-                <div className="mt-3 text-center max-w-[120px]">
+                <div className="mt-3 text-center max-w-[140px]">
                   <div
                     className={`text-sm font-medium ${isCurrent ? 'text-primary' : 'text-secondary'}`}
                   >
@@ -71,12 +71,19 @@ export function RegistrationStepper({ steps, currentStep, onStepClick }: Registr
 
               {/* Connector Line */}
               {index < steps.length - 1 && (
-                <div
-                  className={`flex-1 h-0.5 mx-4 transition-colors ${
-                    index < currentIndex ? 'bg-success' : 'bg-border-subtle'
-                  }`}
-                  style={{ marginBottom: '60px' }}
-                />
+                <>
+                  <div
+                    className={`hidden md:block flex-1 h-0.5 mx-4 transition-colors ${
+                      index < currentIndex ? 'bg-success' : 'bg-border-subtle'
+                    }`}
+                    style={{ marginBottom: '60px' }}
+                  />
+                  <div
+                    className={`md:hidden w-px h-6 mx-auto my-4 ${
+                      index < currentIndex ? 'bg-success' : 'bg-border-subtle'
+                    }`}
+                  />
+                </>
               )}
             </div>
           );

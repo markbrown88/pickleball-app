@@ -264,7 +264,13 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         </div>
 
         {/* Edit Form - Matching PlayerEditForm layout */}
-        <form onSubmit={(e) => { e.preventDefault(); save(); }} className="flex gap-6 max-w-7xl">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+          className="flex flex-col lg:flex-row gap-6 max-w-7xl"
+        >
           {/* Left Column - Basic Information & Contact Information */}
           <div className="flex-1 space-y-6">
             {/* Basic Information */}
@@ -637,11 +643,11 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                 {/* Ratings Section */}
                 <div>
                   <h3 className="text-lg font-semibold text-primary mb-4">Ratings</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* DUPR Section */}
                     <div className="bg-blue-600 rounded-lg p-4">
                       <h4 className="text-md font-medium text-white mb-3 text-center">DUPR</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="text-center">
                           <div className="text-3xl font-bold text-white">
                             {form.duprSingles || 'NR'}
@@ -660,7 +666,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
                     {/* Club Rating Section */}
                     <div className="bg-blue-600 rounded-lg p-4">
                       <h4 className="text-md font-medium text-white mb-3 text-center">Club Rating</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="text-center">
                           <div className="text-3xl font-bold text-white">
                             {form.clubRatingSingles || 'NR'}

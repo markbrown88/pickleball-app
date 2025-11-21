@@ -87,20 +87,12 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
       const lastName = user.lastName || null;
       const name = firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName || null;
 
-      // Create the player record
-      realPlayer = await prisma.player.create({
-        data: {
-          clerkUserId: user.id,
-          email: userEmail.toLowerCase(),
-          firstName,
-          lastName,
-          name,
-          gender: 'MALE', // Default, can be updated later
-          country: 'Canada', // Default for this application
-          clubId: defaultClub.id, // Required field - assign to first available club
-        },
+      // Check if a player already exists with this email (but no clerkUserId)
+      const existingPlayerByEmail = await prisma.player.findUnique({
+        where: { email: userEmail.toLowerCase() },
         select: {
           id: true,
+          clerkUserId: true,
           isAppAdmin: true,
           firstName: true,
           lastName: true,
@@ -108,7 +100,48 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
         }
       });
 
-      console.log('Layout: Successfully created Player record automatically:', {
+      if (existingPlayerByEmail) {
+        // Update existing player with clerkUserId
+        realPlayer = await prisma.player.update({
+          where: { id: existingPlayerByEmail.id },
+          data: {
+            clerkUserId: user.id,
+            firstName: firstName || existingPlayerByEmail.firstName,
+            lastName: lastName || existingPlayerByEmail.lastName,
+            name: name || existingPlayerByEmail.firstName && existingPlayerByEmail.lastName ? `${existingPlayerByEmail.firstName} ${existingPlayerByEmail.lastName}` : null,
+          },
+          select: {
+            id: true,
+            isAppAdmin: true,
+            firstName: true,
+            lastName: true,
+            clubId: true,
+          }
+        });
+      } else {
+        // Create new player record
+        realPlayer = await prisma.player.create({
+          data: {
+            clerkUserId: user.id,
+            email: userEmail.toLowerCase(),
+            firstName,
+            lastName,
+            name,
+            gender: 'MALE', // Default, can be updated later
+            country: 'Canada', // Default for this application
+            clubId: defaultClub.id, // Required field - assign to first available club
+          },
+          select: {
+            id: true,
+            isAppAdmin: true,
+            firstName: true,
+            lastName: true,
+            clubId: true,
+          }
+        });
+      }
+
+      console.log('Layout: Successfully created/updated Player record automatically:', {
         id: realPlayer.id,
         email: userEmail,
         clerkUserId: user.id

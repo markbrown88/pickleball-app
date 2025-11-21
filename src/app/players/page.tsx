@@ -294,7 +294,7 @@ export default function PlayersPage() {
 
   return (
     <section className="space-y-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-primary">Players</h1>
           <p className="text-muted">
@@ -303,13 +303,15 @@ export default function PlayersPage() {
               : 'Manage player profiles for your club.'}
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
+        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+          <div className="text-left md:text-right">
             <div className="text-2xl font-semibold text-primary">{playersPage.total}</div>
             <div className="text-sm text-muted">Total Players</div>
           </div>
           {(admin.isAppAdmin || admin.isTournamentAdmin) && (
-            <button className="btn btn-primary" onClick={() => router.push(`/players/new${buildFilterQueryString()}`)}>Add Player</button>
+            <button className="btn btn-primary whitespace-nowrap" onClick={() => router.push(`/players/new${buildFilterQueryString()}`)}>
+              Add Player
+            </button>
           )}
         </div>
       </header>
@@ -411,7 +413,82 @@ export default function PlayersPage() {
       </div>
 
       <div className="card">
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-4">
+          {loading && (playersPage.items?.length ?? 0) === 0 && (
+            <div className="text-center text-muted py-6">Loading players...</div>
+          )}
+          {!loading && (playersPage.items?.length ?? 0) === 0 && (
+            <div className="text-center text-muted py-6">No players yet.</div>
+          )}
+          {(playersPage.items ?? []).map((p) => (
+            <div
+              key={p.id}
+              className={`rounded-lg border border-border-subtle p-4 space-y-4 ${p.disabled ? 'opacity-60' : ''}`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-base font-semibold text-primary">
+                    {[p.firstName, p.lastName].filter(Boolean).join(' ') || 'Unnamed Player'}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {p.gender === 'FEMALE' ? 'Female' : 'Male'}
+                    {p.age ? ` • ${p.age} yrs` : ''}
+                  </p>
+                </div>
+                <span
+                  className={`chip text-[10px] px-2 py-0.5 ${
+                    p.clerkUserId ? 'chip-success' : 'chip-muted'
+                  }`}
+                >
+                  {p.clerkUserId ? 'Registered' : 'Profile Only'}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-sm text-secondary">
+                <div className="flex justify-between">
+                  <span className="text-muted">Club</span>
+                  <span className="font-medium text-primary">{p.club?.name ?? '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted">City</span>
+                  <span className="font-medium text-primary">{p.city ?? '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted">Phone</span>
+                  <span className="font-medium text-primary">{formatPhoneForDisplay(p.phone) || '—'}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="btn btn-secondary flex-1"
+                  onClick={() => router.push(`/players/${p.id}/edit${buildFilterQueryString()}`)}
+                >
+                  Edit
+                </button>
+                {admin.isAppAdmin && (
+                  <>
+                    <button
+                      className="btn btn-ghost flex-1"
+                      onClick={() => togglePlayerDisabled(p)}
+                    >
+                      {p.disabled ? 'Enable' : 'Disable'}
+                    </button>
+                    <button
+                      className="btn btn-ghost flex-1 text-error"
+                      onClick={() => removePlayer(p.id)}
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="table">
             <thead>
               <tr>
