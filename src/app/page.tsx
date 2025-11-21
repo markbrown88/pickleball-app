@@ -229,7 +229,13 @@ export default function Home() {
                       (t.name.toLowerCase().includes('pickleplex') || t.name.toLowerCase().includes('pickle plex'))
                     );
 
+                    // Only show if tournament hasn't ended yet
                     if (klyngCupPickleplex) {
+                      const now = new Date();
+                      const endDate = klyngCupPickleplex.endDate ? new Date(klyngCupPickleplex.endDate) : null;
+                      if (endDate && endDate < now) {
+                        return null;
+                      }
                       const nextStop = getNextStop(klyngCupPickleplex);
                       const isMultiStop = klyngCupPickleplex.stops && klyngCupPickleplex.stops.length > 1;
                       const isInviteOnly = klyngCupPickleplex.registrationStatus === 'INVITE_ONLY';
@@ -342,7 +348,13 @@ export default function Home() {
                       (t.name.toLowerCase().includes('grand finale') || t.name.toLowerCase().includes('finale'))
                     );
 
+                    // Only show if tournament hasn't ended yet
                     if (klyngCupGrandFinale) {
+                      const now = new Date();
+                      const endDate = klyngCupGrandFinale.endDate ? new Date(klyngCupGrandFinale.endDate) : null;
+                      if (endDate && endDate < now) {
+                        return null;
+                      }
                       const nextStop = getNextStop(klyngCupGrandFinale);
                       const isMultiStop = klyngCupGrandFinale.stops && klyngCupGrandFinale.stops.length > 1;
                       const isInviteOnly = klyngCupGrandFinale.registrationStatus === 'INVITE_ONLY';
@@ -456,7 +468,13 @@ export default function Home() {
                       !t.name.toLowerCase().includes('finale')
                     );
 
+                    // Only show if tournament hasn't ended yet
                     if (klyngCupGrand) {
+                      const now = new Date();
+                      const endDate = klyngCupGrand.endDate ? new Date(klyngCupGrand.endDate) : null;
+                      if (endDate && endDate < now) {
+                        return null;
+                      }
                       const nextStop = getNextStop(klyngCupGrand);
                       const isMultiStop = klyngCupGrand.stops && klyngCupGrand.stops.length > 1;
                       const isInviteOnly = klyngCupGrand.registrationStatus === 'INVITE_ONLY';
