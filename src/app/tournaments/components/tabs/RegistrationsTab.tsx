@@ -443,14 +443,14 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                     <td className="p-3 text-right space-x-2">
                       <button
                         className="btn btn-success btn-sm"
-                        onClick={() => handleApproveInvite(request.id)}
+                        onClick={() => handleInviteRequest(request.id, 'approve')}
                         disabled={processing === request.id}
                       >
                         Approve
                       </button>
                       <button
                         className="btn btn-ghost btn-sm text-error"
-                        onClick={() => handleRejectInvite(request.id)}
+                        onClick={() => handleInviteRequest(request.id, 'reject')}
                         disabled={processing === request.id}
                       >
                         Reject
@@ -522,6 +522,11 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
       )}
     </div>
   );
+  const mobileSections = [
+    { id: 'registrations', label: `Registrations (${data.registrations.length})`, content: renderRegistrationsContent(), defaultOpen: true },
+    { id: 'requests', label: `Invite Requests (${data.inviteRequests.length})`, content: renderRequestsContent(), defaultOpen: false },
+    { id: 'waitlist', label: `Waitlist (${data.waitlist.length})`, content: renderWaitlistContent(), defaultOpen: false },
+  ];
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -572,134 +577,22 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
         {activeView === 'waitlist' && renderWaitlistContent()}
       </div>
 
-      {activeView === 'requests' && (
-        <div className="space-y-2">
-          {data.inviteRequests.length === 0 ? (
-            <div className="card text-center py-8 text-muted">No invite requests</div>
-          ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-surface-1">
-                  <tr>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Status</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Requested</th>
-                    <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.inviteRequests.map((req) => (
-                    <tr key={req.id} className="border-t border-border-subtle hover:bg-surface-1">
-                      <td className="p-3">
-                        <div className="font-medium text-primary">{req.player.name}</div>
-                        <div className="text-sm text-muted">{req.player.email}</div>
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`chip ${
-                            req.status === 'PENDING'
-                              ? 'chip-warning'
-                              : req.status === 'APPROVED'
-                              ? 'chip-success'
-                              : 'chip-error'
-                          }`}
-                        >
-                          {req.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-sm text-muted">
-                        {new Date(req.requestedAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-3 text-right space-x-2">
-                        {req.status === 'PENDING' && (
-                          <>
-                            <button
-                              className="btn btn-success btn-sm"
-                              onClick={() => handleInviteRequest(req.id, 'approve')}
-                              disabled={processing === req.id}
-                            >
-                              {processing === req.id ? 'Processing...' : 'Approve'}
-                            </button>
-                            <button
-                              className="btn btn-error btn-sm"
-                              onClick={() => handleInviteRequest(req.id, 'reject')}
-                              disabled={processing === req.id}
-                            >
-                              {processing === req.id ? 'Processing...' : 'Reject'}
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeView === 'waitlist' && (
-        <div className="space-y-2">
-          {data.waitlist.length === 0 ? (
-            <div className="card text-center py-8 text-muted">No one on waitlist</div>
-          ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-surface-1">
-                  <tr>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Position</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Status</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Joined</th>
-                    <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.waitlist.map((entry) => (
-                    <tr key={entry.id} className="border-t border-border-subtle hover:bg-surface-1">
-                      <td className="p-3 font-semibold text-primary">#{entry.position}</td>
-                      <td className="p-3">
-                        <div className="font-medium text-primary">{entry.player.name}</div>
-                        <div className="text-sm text-muted">{entry.player.email}</div>
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`chip ${
-                            entry.status === 'ACTIVE'
-                              ? 'chip-info'
-                              : entry.status === 'NOTIFIED'
-                              ? 'chip-warning'
-                              : entry.status === 'PROMOTED'
-                              ? 'chip-success'
-                              : 'chip-muted'
-                          }`}
-                        >
-                          {entry.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-sm text-muted">
-                        {new Date(entry.joinedAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-3 text-right">
-                        {entry.status === 'ACTIVE' && (
-                          <button
-                            className="btn btn-primary btn-sm"
-                            onClick={() => handlePromoteFromWaitlist(entry.id)}
-                            disabled={processing === entry.id}
-                          >
-                            {processing === entry.id ? 'Processing...' : 'Promote'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Mobile accordions */}
+      <div className="md:hidden space-y-3">
+        {mobileSections.map((section, idx) => (
+          <details
+            key={section.id}
+            className="rounded-lg border border-border-subtle bg-surface-1"
+            defaultOpen={idx === 0}
+          >
+            <summary className="cursor-pointer px-4 py-3 font-semibold text-primary flex items-center justify-between">
+              <span>{section.label}</span>
+              <span className="text-sm text-muted">Tap to view</span>
+            </summary>
+            <div className="p-4 border-t border-border-subtle">{section.content}</div>
+          </details>
+        ))}
+      </div>
 
       {/* Manual Register Modal */}
       {showManualRegisterModal && (
