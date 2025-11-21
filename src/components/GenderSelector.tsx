@@ -43,11 +43,13 @@ export function GenderSelector({
           onMouseEnter={(e) => {
             if (!isMale) {
               e.currentTarget.style.backgroundColor = 'var(--surface-2)';
+              e.currentTarget.style.color = 'var(--text-primary)';
             }
           }}
           onMouseLeave={(e) => {
             if (!isMale) {
               e.currentTarget.style.backgroundColor = 'var(--text-muted)';
+              e.currentTarget.style.color = 'var(--brand-primary)';
             }
           }}
         >
@@ -66,11 +68,13 @@ export function GenderSelector({
           onMouseEnter={(e) => {
             if (!isFemale) {
               e.currentTarget.style.backgroundColor = 'var(--surface-2)';
+              e.currentTarget.style.color = 'var(--text-primary)';
             }
           }}
           onMouseLeave={(e) => {
             if (!isFemale) {
               e.currentTarget.style.backgroundColor = 'var(--text-muted)';
+              e.currentTarget.style.color = 'var(--brand-primary)';
             }
           }}
         >

@@ -249,9 +249,9 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
     .join(', ') || '—';
 
   if (editing) {
-  return (
+    return (
       <div className="space-y-6">
-      <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-primary">Edit Profile</h2>
           <div className="flex gap-2">
             <button className="btn btn-primary" onClick={save} disabled={loading}>
@@ -263,255 +263,295 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
           </div>
         </div>
 
-        {/* Edit Form - Similar to PlayerModal styling */}
-        <div className="bg-surface-1 rounded-lg border border-subtle p-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {/* Left Column */}
-            <div className="space-y-6">
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">First Name *</label>
-              <input
-                type="text"
-                value={form.firstName}
-                onChange={(event) => handleChange('firstName', event.target.value)}
-                  className="input w-full"
-                  placeholder="Enter first name"
-              />
+        {/* Edit Form - Matching PlayerEditForm layout */}
+        <form onSubmit={(e) => { e.preventDefault(); save(); }} className="flex gap-6 max-w-7xl">
+          {/* Left Column - Basic Information & Contact Information */}
+          <div className="flex-1 space-y-6">
+            {/* Basic Information */}
+            <div className="card space-y-4">
+              <h2 className="text-xl font-semibold text-primary">Basic Information</h2>
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="sm:col-span-1">
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={form.firstName}
+                    onChange={(event) => handleChange('firstName', event.target.value)}
+                    className="input w-full"
+                    placeholder="Enter first name"
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-1">
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={form.lastName}
+                    onChange={(event) => handleChange('lastName', event.target.value)}
+                    className="input w-full"
+                    placeholder="Enter last name"
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-1">
+                  <GenderSelector
+                    value={form.gender}
+                    onChange={(value) => handleChange('gender', value)}
+                    label="Gender"
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-1">
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Birthday
+                  </label>
+                  <input
+                    type="date"
+                    value={birthday}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) => setBirthday(event.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Last Name *</label>
-              <input
-                type="text"
-                value={form.lastName}
-                onChange={(event) => handleChange('lastName', event.target.value)}
-                  className="input w-full"
-                  placeholder="Enter last name"
-              />
+            {/* Contact Information */}
+            <div className="card space-y-4">
+              <h2 className="text-xl font-semibold text-primary">Contact Information</h2>
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(event) => handleChange('email', event.target.value)}
+                    className="input w-full"
+                    placeholder="Enter email address"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(event) => handleChange('phone', event.target.value)}
+                    className="input w-full"
+                    placeholder="Enter phone number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    value={form.city}
+                    onChange={(event) => handleChange('city', event.target.value)}
+                    className="input w-full"
+                    placeholder="Enter city"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Province/State
+                  </label>
+                  <select
+                    className="input w-full"
+                    value={form.region}
+                    onChange={(event) => handleChange('region', event.target.value)}
+                  >
+                    <option value="">Select {countrySel === 'Canada' ? 'Province' : 'State'}</option>
+                    {(countrySel === 'Canada' ? CA_PROVINCES : US_STATES).map((region) => (
+                      <option key={region} value={region}>
+                        {region}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Country
+                  </label>
+                  {countryOptions}
+                  {countrySel === 'Other' && (
+                    <input
+                      type="text"
+                      value={countryOther}
+                      onChange={(event) => setCountryOther(event.target.value)}
+                      className="input w-full mt-2"
+                      placeholder="Enter country"
+                    />
+                  )}
+                </div>
+              </div>
             </div>
 
-            <GenderSelector
-              value={form.gender}
-              onChange={(value) => handleChange('gender', value)}
-              label="Gender"
-              required
-            />
-
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Birthday</label>
-              <input
-                  type="date"
-                  value={birthday}
-                  max={new Date().toISOString().slice(0, 10)}
-                  onChange={(event) => setBirthday(event.target.value)}
-                  className="input w-full"
-                />
+            {/* Privacy Settings */}
+            <div className="card space-y-4">
+              <h2 className="text-xl font-semibold text-primary">Privacy Settings</h2>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleChange('displayAge', !form.displayAge)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      form.displayAge ? 'bg-secondary' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.displayAge ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-primary">Display Age</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleChange('displayLocation', !form.displayLocation)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      form.displayLocation ? 'bg-secondary' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.displayLocation ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-primary">Display Location</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Primary Club *</label>
+          {/* Right Column - Club & Ratings */}
+          <div className="w-80 flex-shrink-0">
+            <div className="card space-y-4 sticky top-6">
+              <h2 className="text-xl font-semibold text-primary">Club & Ratings</h2>
+              <div className="space-y-4">
                 <div className="relative club-dropdown-container">
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Club *
+                  </label>
                   <input
                     type="text"
                     value={clubSearch}
-                    onChange={(event) => setClubSearch(event.target.value)}
-                    onFocus={() => setShowClubDropdown(true)}
+                    onChange={(event) => {
+                      setClubSearch(event.target.value);
+                      setShowClubDropdown(event.target.value.length >= 3);
+                      if (event.target.value !== clubSearch) {
+                        handleChange('clubId', '');
+                      }
+                    }}
+                    onFocus={() => clubSearch.length >= 3 && setShowClubDropdown(true)}
                     className="input w-full"
-                    placeholder="Type 3+ characters to search clubs"
+                    placeholder="Type 3+ characters to search..."
+                    required
                   />
                   {showClubDropdown && filteredClubs.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 mt-1 w-full bg-surface-1 border border-border-subtle rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {filteredClubs.map((club) => (
-                        <div
+                        <button
                           key={club.id}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-900"
+                          type="button"
                           onClick={() => {
                             handleChange('clubId', club.id);
                             setClubSearch(club.name);
                             setShowClubDropdown(false);
                           }}
+                          className="w-full text-left px-3 py-2 hover:bg-surface-2 text-sm"
                         >
-                    {club.name}{club.city ? ` (${club.city})` : ''}
-                        </div>
-                ))}
+                          {club.name}{club.city ? ` (${club.city})` : ''}
+                        </button>
+                      ))}
                     </div>
                   )}
+                  {clubSearch.length > 0 && clubSearch.length < 3 && (
+                    <p className="text-xs text-muted mt-1">Type at least 3 characters</p>
+                  )}
+                  {!form.clubId && clubSearch.length >= 3 && filteredClubs.length === 0 && clubs.length > 0 && (
+                    <p className="text-xs text-error mt-1">No clubs found matching "{clubSearch}"</p>
+                  )}
                 </div>
-            </div>
-            </div>
 
-            {/* Right Column */}
-            <div className="space-y-6">
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">City</label>
-              <input
-                type="text"
-                value={form.city}
-                onChange={(event) => handleChange('city', event.target.value)}
-                  className="input w-full"
-                  placeholder="Enter city"
-              />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Prov/State</label>
-              <select
-                  className="input w-full"
-                value={form.region}
-                onChange={(event) => handleChange('region', event.target.value)}
-              >
-                <option value="">Select {countrySel === 'Canada' ? 'Province' : 'State'}</option>
-                {(countrySel === 'Canada' ? CA_PROVINCES : US_STATES).map((region) => (
-                  <option key={region} value={region}>
-                    {region}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Country</label>
-              {countryOptions}
-              {countrySel === 'Other' && (
-                <input
-                  type="text"
-                  value={countryOther}
-                  onChange={(event) => setCountryOther(event.target.value)}
-                    className="input w-full mt-2"
-                  placeholder="Enter country"
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    DUPR Singles
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={form.duprSingles || ''}
+                    onChange={(event) => handleChange('duprSingles', event.target.value)}
+                    className="input w-full"
+                    placeholder="e.g., 4.5"
                   />
-                )}
-          </div>
+                </div>
 
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Phone</label>
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={(event) => handleChange('phone', event.target.value)}
-                  className="input w-full"
-                  placeholder="Enter phone number"
-              />
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-primary mb-1">Email *</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(event) => handleChange('email', event.target.value)}
-                  className="input w-full"
-                  placeholder="Enter email address"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Ratings Section */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-primary mb-4">Ratings</h3>
-            <div className="grid grid-cols-4 gap-4">
-              {/* DUPR Singles */}
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">DUPR Singles</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="8"
-                  value={form.duprSingles || ''}
-                  onChange={(event) => handleChange('duprSingles', event.target.value)}
-                  className="input w-full"
-                  placeholder="0.00"
-                />
-              </div>
-              
-              {/* DUPR Doubles */}
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">DUPR Doubles</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="8"
-                  value={form.duprDoubles || ''}
-                  onChange={(event) => handleChange('duprDoubles', event.target.value)}
-                  className="input w-full"
-                  placeholder="0.00"
-                />
-              </div>
-              
-              {/* Club Rating Singles */}
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Club Singles</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="10"
-                  value={form.clubRatingSingles || ''}
-                  onChange={(event) => handleChange('clubRatingSingles', event.target.value)}
-                  className="input w-full"
-                  placeholder="0.0"
-                />
-              </div>
-              
-              {/* Club Rating Doubles */}
-              <div>
-                <label className="block text-sm font-medium text-muted mb-1">Club Doubles</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="10"
-                  value={form.clubRatingDoubles || ''}
-                  onChange={(event) => handleChange('clubRatingDoubles', event.target.value)}
-                  className="input w-full"
-                  placeholder="0.0"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Privacy Settings */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-primary mb-4">Privacy</h3>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleChange('displayAge', !form.displayAge)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    form.displayAge ? 'bg-secondary' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      form.displayAge ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    DUPR Doubles
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={form.duprDoubles || ''}
+                    onChange={(event) => handleChange('duprDoubles', event.target.value)}
+                    className="input w-full"
+                    placeholder="e.g., 5.0"
                   />
-                </button>
-                <span className="text-sm font-medium text-primary">Display Age</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleChange('displayLocation', !form.displayLocation)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    form.displayLocation ? 'bg-secondary' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      form.displayLocation ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Club Rating Singles
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={form.clubRatingSingles || ''}
+                    onChange={(event) => handleChange('clubRatingSingles', event.target.value)}
+                    className="input w-full"
+                    placeholder="e.g., 4.0"
                   />
-                </button>
-                <span className="text-sm font-medium text-primary">Display Location</span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">
+                    Club Rating Doubles
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={form.clubRatingDoubles || ''}
+                    onChange={(event) => handleChange('clubRatingDoubles', event.target.value)}
+                    className="input w-full"
+                    placeholder="e.g., 4.5"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </form>
       </div>
     );
   }

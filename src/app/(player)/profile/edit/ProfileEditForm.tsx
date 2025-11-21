@@ -287,33 +287,38 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
       {/* Privacy Settings */}
       <div className="card space-y-4">
         <h2 className="text-xl font-semibold text-primary">Privacy Settings</h2>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="displayAge"
-              name="displayAge"
-              checked={formData.displayAge}
-              onChange={handleChange}
-              className="w-4 h-4"
-            />
-            <label htmlFor="displayAge" className="text-sm text-secondary">
-              Display my age on my profile
-            </label>
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, displayAge: !prev.displayAge }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                formData.displayAge ? 'bg-secondary' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  formData.displayAge ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className="text-sm font-medium text-primary">Display Age</span>
           </div>
-
           <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="displayLocation"
-              name="displayLocation"
-              checked={formData.displayLocation}
-              onChange={handleChange}
-              className="w-4 h-4"
-            />
-            <label htmlFor="displayLocation" className="text-sm text-secondary">
-              Display my location on my profile
-            </label>
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, displayLocation: !prev.displayLocation }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                formData.displayLocation ? 'bg-secondary' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  formData.displayLocation ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className="text-sm font-medium text-primary">Display Location</span>
           </div>
         </div>
       </div>

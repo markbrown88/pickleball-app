@@ -234,11 +234,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
     }
 
-    // Check if player needs profile setup (minimum required: firstName, lastName, clubId)
+    // Check if player needs profile setup (minimum required: firstName, lastName, gender, clubId)
     // This is the minimum required to access the app - other fields can be added later
     const needsProfileSetup = 
       !finalPlayer.firstName || 
       !finalPlayer.lastName || 
+      !finalPlayer.gender ||
       !finalPlayer.clubId;
 
     // Construct birthday from year/month/day if birthday Date is null but fields exist

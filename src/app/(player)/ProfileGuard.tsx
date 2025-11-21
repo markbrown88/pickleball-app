@@ -20,8 +20,8 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userLoaded || !isSignedIn) return;
 
-    // Allow access to profile page even if incomplete
-    if (pathname?.includes('/profile')) {
+    // Allow access to profile and onboarding pages even if incomplete
+    if (pathname?.includes('/profile') || pathname?.includes('/onboarding')) {
       return;
     }
 
@@ -30,13 +30,13 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
       try {
         const response = await fetchWithActAs(PROFILE_ENDPOINT);
         if (response.ok) {
-          const profile: { firstName?: string | null; lastName?: string | null; club?: { id: string } | null } = await response.json();
+          const profile: { firstName?: string | null; lastName?: string | null; gender?: 'MALE' | 'FEMALE' | null; club?: { id: string } | null } = await response.json();
           
-          // Minimum required: firstName, lastName, and clubId
-          const profileIncomplete = !profile.firstName || !profile.lastName || !profile.club;
+          // Minimum required: firstName, lastName, gender, and clubId
+          const profileIncomplete = !profile.firstName || !profile.lastName || !profile.gender || !profile.club;
           
           if (profileIncomplete) {
-            router.push('/profile');
+            router.push('/onboarding');
           }
         }
       } catch (error) {
