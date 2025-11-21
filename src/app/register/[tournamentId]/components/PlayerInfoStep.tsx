@@ -51,7 +51,7 @@ export function PlayerInfoStep({
     }
 
     // Gender is required
-    if (!playerInfo.gender || playerInfo.gender === '') {
+    if (!playerInfo.gender) {
       newErrors.gender = 'Gender selection is required';
     }
 
