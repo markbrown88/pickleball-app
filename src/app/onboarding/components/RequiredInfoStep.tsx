@@ -98,7 +98,6 @@ export function RequiredInfoStep({ formData, clubs, onUpdate, onNext }: Required
             value={formData.firstName}
             onChange={(e) => updateField('firstName', e.target.value)}
             placeholder="John"
-            required
           />
           {errors.firstName && (
             <p className="text-xs text-error mt-1">{errors.firstName}</p>
@@ -116,7 +115,6 @@ export function RequiredInfoStep({ formData, clubs, onUpdate, onNext }: Required
             value={formData.lastName}
             onChange={(e) => updateField('lastName', e.target.value)}
             placeholder="Doe"
-            required
           />
           {errors.lastName && <p className="text-xs text-error mt-1">{errors.lastName}</p>}
         </div>
@@ -131,12 +129,10 @@ export function RequiredInfoStep({ formData, clubs, onUpdate, onNext }: Required
           </label>
           <input
             type="email"
-            className={`input w-full bg-surface-3 ${errors.email ? 'border-error' : ''}`}
+            className={`input w-full ${errors.email ? 'border-error' : ''}`}
             value={formData.email}
             onChange={(e) => updateField('email', e.target.value)}
             placeholder="john.doe@example.com"
-            required
-            readOnly={!!formData.email} // Pre-filled from Clerk, but allow editing if needed
           />
           {errors.email && <p className="text-xs text-error mt-1">{errors.email}</p>}
         </div>
@@ -159,7 +155,6 @@ export function RequiredInfoStep({ formData, clubs, onUpdate, onNext }: Required
             className={`input w-full ${errors.clubId ? 'border-error' : ''}`}
             value={formData.clubId}
             onChange={(e) => updateField('clubId', e.target.value)}
-            required
           >
             <option value="">Select Club</option>
             {clubs.map((club) => (

@@ -184,7 +184,7 @@ export function OnboardingFlow({ player, userEmail, clubs }: OnboardingFlowProps
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 pb-12">
-        <div className="bg-surface-2 border border-border-subtle rounded-lg p-6">
+        <div className="bg-surface-2 border border-border-subtle rounded-lg p-6 register-form">
           {currentStep === 'required' && (
             <RequiredInfoStep
               formData={formData}
