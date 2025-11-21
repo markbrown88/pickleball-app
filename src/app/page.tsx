@@ -221,7 +221,7 @@ export default function Home() {
               {/* Three Tournament Cards Side by Side */}
               <div className="max-w-2xl mx-auto lg:mx-0">
                 <p className="text-sm text-white mb-2 font-bold uppercase">Upcoming Tournaments</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Klyng Cup-Pickleplex Tournament Card */}
                   {(() => {
                     const klyngCupPickleplex = tournaments.find((t: Tournament) =>
