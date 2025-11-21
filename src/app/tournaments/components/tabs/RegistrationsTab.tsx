@@ -494,7 +494,7 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
                     </td>
                     <td className="p-3">
                       <span className="chip chip-info text-[10px] px-2 py-0.5">
-                        {entry.priority || 'Standard'}
+                        Position {entry.position}
                       </span>
                     </td>
                     <td className="p-3 text-right space-x-2">
