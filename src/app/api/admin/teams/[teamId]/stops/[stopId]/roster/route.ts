@@ -41,6 +41,7 @@ export async function PUT(request: Request, { params }: Params) {
         name: true,
         startAt: true,
         endAt: true,
+        tournamentId: true,
       }
     });
 
@@ -62,11 +63,11 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     await prisma.$transaction(async (tx) => {
-      // Fetch existing payment methods before deleting
-      const existingEntries = await tx.stopTeamPlayer.findMany({
+      // Step 1: Fetch existing payment methods for ALL players on this stop (across all teams)
+      // This preserves payment status when moving players between teams
+      const allStopEntries = await tx.stopTeamPlayer.findMany({
         where: {
           stopId,
-          teamId
         },
         select: {
           playerId: true,
@@ -74,13 +75,56 @@ export async function PUT(request: Request, { params }: Params) {
         }
       });
 
-      // Create a map of playerId -> paymentMethod
+      // Create a map of playerId -> paymentMethod from ALL teams for this stop
       const paymentMethodMap = new Map<string, 'STRIPE' | 'MANUAL' | 'UNPAID'>();
-      existingEntries.forEach(entry => {
-        paymentMethodMap.set(entry.playerId, entry.paymentMethod);
+      allStopEntries.forEach(entry => {
+        // Keep the first payment method found (should be consistent, but prioritize non-UNPAID)
+        const existing = paymentMethodMap.get(entry.playerId);
+        if (!existing || existing === 'UNPAID') {
+          paymentMethodMap.set(entry.playerId, entry.paymentMethod);
+        }
       });
 
-      // Remove existing roster for this team/stop
+      // Step 2: For players not found in existing roster entries, check their registration payment status
+      const playersNeedingPaymentCheck = playerIds.filter(playerId => !paymentMethodMap.has(playerId));
+      
+      if (playersNeedingPaymentCheck.length > 0) {
+        // Fetch paid registrations for these players for this tournament
+        const paidRegistrations = await tx.tournamentRegistration.findMany({
+          where: {
+            playerId: { in: playersNeedingPaymentCheck },
+            tournamentId: stop.tournamentId,
+            paymentStatus: {
+              in: ['PAID', 'COMPLETED'],
+            },
+          },
+          select: {
+            playerId: true,
+            notes: true,
+            paymentStatus: true,
+          },
+        });
+
+        // Check if each paid registration includes this stop
+        for (const registration of paidRegistrations) {
+          let stopIds: string[] = [];
+          if (registration.notes) {
+            try {
+              const notes = JSON.parse(registration.notes);
+              stopIds = notes.stopIds || [];
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+
+          // If this stop is in the registration, mark player as paid via STRIPE
+          if (stopIds.includes(stopId)) {
+            paymentMethodMap.set(registration.playerId, 'STRIPE');
+          }
+        }
+      }
+
+      // Step 3: Remove existing roster for this team/stop
       await tx.stopTeamPlayer.deleteMany({
         where: {
           stopId,
@@ -88,14 +132,15 @@ export async function PUT(request: Request, { params }: Params) {
         }
       });
 
-      // Add new roster entries, preserving payment methods
+      // Step 4: Add new roster entries, preserving payment methods
       if (playerIds.length > 0) {
         await tx.stopTeamPlayer.createMany({
           data: playerIds.map(playerId => ({
             stopId,
             teamId,
             playerId,
-            // Preserve existing payment method, default to UNPAID for new entries
+            // Preserve payment method from any existing roster entry for this stop,
+            // or from paid registration, or default to UNPAID
             paymentMethod: paymentMethodMap.get(playerId) || 'UNPAID'
           })),
           skipDuplicates: true

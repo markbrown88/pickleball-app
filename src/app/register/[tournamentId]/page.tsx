@@ -40,6 +40,7 @@ export default async function RegisterPage({ params }: PageProps) {
     lastName: string;
     email: string;
     phone: string;
+    gender: 'MALE' | 'FEMALE' | '';
   } | null = null;
 
   let effectivePlayerId: string | null = null;
@@ -80,6 +81,7 @@ export default async function RegisterPage({ params }: PageProps) {
           lastName: true,
           email: true,
           phone: true,
+          gender: true,
         },
       });
 
@@ -89,6 +91,7 @@ export default async function RegisterPage({ params }: PageProps) {
           lastName: player.lastName || '',
           email: player.email || clerkEmail, // Use player email, fallback to Clerk email
           phone: player.phone || '',
+          gender: player.gender === 'MALE' || player.gender === 'FEMALE' ? player.gender : '',
         };
       }
 
@@ -125,6 +128,9 @@ export default async function RegisterPage({ params }: PageProps) {
               lastName: notes.playerInfo.lastName || '',
               email: notes.playerInfo.email || clerkEmail,
               phone: notes.playerInfo.phone || '',
+              gender: notes.playerInfo.gender && (notes.playerInfo.gender === 'MALE' || notes.playerInfo.gender === 'FEMALE') 
+                ? notes.playerInfo.gender 
+                : '',
             };
           }
           
@@ -176,6 +182,7 @@ export default async function RegisterPage({ params }: PageProps) {
         lastName: clerkUser?.lastName || '',
         email: clerkEmail,
         phone: '',
+        gender: '',
       };
     }
   }

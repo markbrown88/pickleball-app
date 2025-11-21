@@ -1,96 +1,93 @@
 import { PrismaClient } from '@prisma/client';
-import * as dotenv from 'dotenv';
-import path from 'path';
+import { config } from 'dotenv';
+import { resolve } from 'path';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+config({ path: resolve(process.cwd(), '.env.local') });
 
 const prisma = new PrismaClient();
 
-async function deletePlayer(playerId: string) {
-  console.log(`\n${'='.repeat(80)}`);
-  console.log(`DELETING PLAYER: ${playerId}`);
-  console.log('='.repeat(80));
-
-  // Check if player exists
-  const player = await prisma.player.findUnique({
-    where: { id: playerId },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      clerkUserId: true,
-    },
-  });
-
-  if (!player) {
-    console.log(`❌ Player not found`);
-    return;
-  }
-
-  console.log(`Name: ${player.firstName || ''} ${player.lastName || ''}`.trim() || 'N/A');
-  console.log(`Email: ${player.email || 'No email'}`);
-  console.log(`Clerk User ID: ${player.clerkUserId || 'No Clerk account'}`);
-
-  // Check for dependencies
-  const rosterCount = await prisma.stopTeamPlayer.count({ where: { playerId } });
-  const lineupP1Count = await prisma.lineupEntry.count({ where: { player1Id: playerId } });
-  const lineupP2Count = await prisma.lineupEntry.count({ where: { player2Id: playerId } });
-  const registrationCount = await prisma.tournamentRegistration.count({ where: { playerId } });
-  const captainCount = await prisma.tournamentCaptain.count({ where: { playerId } });
-  const adminCount = await prisma.tournamentAdmin.count({ where: { playerId } });
-  const eventManagerStopCount = await prisma.stop.count({ where: { eventManagerId: playerId } });
-  const eventManagerTournamentCount = await prisma.tournamentEventManager.count({ where: { playerId } });
-
-  console.log(`\nDependencies:`);
-  console.log(`  - Roster entries: ${rosterCount}`);
-  console.log(`  - Lineup entries: ${lineupP1Count + lineupP2Count}`);
-  console.log(`  - Registrations: ${registrationCount}`);
-  console.log(`  - Captain roles: ${captainCount}`);
-  console.log(`  - Admin roles: ${adminCount}`);
-  console.log(`  - Event manager stops: ${eventManagerStopCount}`);
-  console.log(`  - Event manager tournaments: ${eventManagerTournamentCount}`);
-
-  const totalDependencies = rosterCount + lineupP1Count + lineupP2Count + registrationCount + 
-    captainCount + adminCount + eventManagerStopCount + eventManagerTournamentCount;
-
-  if (totalDependencies > 0) {
-    console.log(`\n⚠️  WARNING: This player has ${totalDependencies} dependencies!`);
-    console.log(`   Deleting will cascade delete or set null on these records.`);
-    console.log(`   This action cannot be undone!`);
-  }
-
-  // Delete the player (Prisma will handle cascading deletes based on schema)
+async function deletePlayer() {
   try {
+    const playerId = process.argv[2];
+    
+    if (!playerId) {
+      console.log('Usage: npx tsx scripts/delete-player.ts <playerId>');
+      process.exit(1);
+    }
+
+    console.log(`\n=== Deleting Player: ${playerId} ===\n`);
+
+    // Verify player exists
+    const player = await prisma.player.findUnique({
+      where: { id: playerId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        name: true,
+        email: true,
+        clerkUserId: true,
+      },
+    });
+
+    if (!player) {
+      console.log(`❌ Player not found`);
+      await prisma.$disconnect();
+      return;
+    }
+
+    console.log(`Player to delete:`);
+    console.log(`   Name: ${player.name || `${player.firstName} ${player.lastName}`}`);
+    console.log(`   Email: ${player.email || 'None'}`);
+    console.log(`   Clerk User ID: ${player.clerkUserId || 'None'}`);
+
+    // Check for any relationships
+    const rosterEntries = await prisma.stopTeamPlayer.count({
+      where: { playerId },
+    });
+    const lineupEntriesP1 = await prisma.lineupEntry.count({
+      where: { player1Id: playerId },
+    });
+    const lineupEntriesP2 = await prisma.lineupEntry.count({
+      where: { player2Id: playerId },
+    });
+    const registrations = await prisma.tournamentRegistration.count({
+      where: { playerId },
+    });
+    const teamMemberships = await prisma.teamPlayer.count({
+      where: { playerId },
+    });
+    const captainTeams = await prisma.team.count({
+      where: { captainId: playerId },
+    });
+
+    console.log(`\nRelationships:`);
+    console.log(`   Roster Entries: ${rosterEntries}`);
+    console.log(`   Lineup Entries (P1): ${lineupEntriesP1}`);
+    console.log(`   Lineup Entries (P2): ${lineupEntriesP2}`);
+    console.log(`   Registrations: ${registrations}`);
+    console.log(`   Team Memberships: ${teamMemberships}`);
+    console.log(`   Teams as Captain: ${captainTeams}`);
+
+    if (rosterEntries > 0 || lineupEntriesP1 > 0 || lineupEntriesP2 > 0 || 
+        registrations > 0 || teamMemberships > 0 || captainTeams > 0) {
+      console.log(`\n⚠️  WARNING: Player has relationships! This deletion may fail or cause issues.`);
+      console.log(`   Consider merging instead of deleting.`);
+    }
+
+    // Delete the player
     await prisma.player.delete({
       where: { id: playerId },
     });
-    console.log(`\n✅ Player deleted successfully!`);
-  } catch (error: any) {
-    console.error(`\n❌ Error deleting player:`, error.message);
-    throw error;
-  }
-}
 
-async function main() {
-  const args = process.argv.slice(2);
-  
-  if (args.length === 0) {
-    console.error('Usage: npx tsx scripts/delete-player.ts <playerId>');
-    console.error('Example: npx tsx scripts/delete-player.ts cmi3qkpm90001l804zzaz90vc');
-    process.exit(1);
-  }
+    console.log(`\n✅ Successfully deleted player ${playerId}`);
 
-  const playerId = args[0];
-
-  try {
-    await deletePlayer(playerId);
-  } catch (error) {
-    console.error('\n❌ Error:', error);
-    process.exit(1);
-  } finally {
     await prisma.$disconnect();
+  } catch (error) {
+    console.error('Error:', error);
+    await prisma.$disconnect();
+    process.exit(1);
   }
 }
 
-main();
+deletePlayer();

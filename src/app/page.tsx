@@ -215,7 +215,7 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-12 items-start">
             {/* Left side - Content */}
             <div className="text-center lg:text-left">
-              <h1 className="text-5xl md:text-7xl font-bold text-primary mb-6">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold text-primary mb-6">
                 Battle of the Clubs
           </h1>
               <p className="text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-12 leading-relaxed">
@@ -223,10 +223,10 @@ export default function Home() {
                 Pickleball clubs compete in a customizable multi-stop championship series unlike anything else in the sport.
               </p>
 
-              {/* Two Tournament Cards Side by Side */}
+              {/* Three Tournament Cards Side by Side */}
               <div className="max-w-2xl mx-auto lg:mx-0">
                 <p className="text-sm text-white mb-2 font-bold uppercase">Upcoming Tournaments</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Klyng Cup-Pickleplex Tournament Card */}
                   {(() => {
                     const klyngCupPickleplex = tournaments.find((t: Tournament) =>
@@ -452,13 +452,127 @@ export default function Home() {
                     }
                     return null;
                   })()}
+
+                  {/* Klyng Cup -Grand Tournament Card */}
+                  {(() => {
+                    const klyngCupGrand = tournaments.find((t: Tournament) =>
+                      t.name.toLowerCase().includes('klyng cup') &&
+                      t.name.toLowerCase().includes('grand') &&
+                      !t.name.toLowerCase().includes('finale')
+                    );
+
+                    if (klyngCupGrand) {
+                      const nextStop = getNextStop(klyngCupGrand);
+                      const isMultiStop = klyngCupGrand.stops && klyngCupGrand.stops.length > 1;
+                      const isInviteOnly = klyngCupGrand.registrationStatus === 'INVITE_ONLY';
+
+                      return (
+                        <div className="card hover:shadow-lg transition-shadow duration-300">
+                          <div className="flex items-start justify-between mb-4">
+                            <h3 className="text-lg font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>
+                              {klyngCupGrand.name}
+                            </h3>
+                            {klyngCupGrand.status && (
+                              <span className={`chip ${getStatusChip(klyngCupGrand.status)} text-xs`}>
+                                {klyngCupGrand.status}
+                              </span>
+                            )}
+                          </div>
+
+                          {klyngCupGrand.description && (
+                            <p className="text-muted text-sm mb-4 line-clamp-2">
+                              {klyngCupGrand.description}
+                            </p>
+                          )}
+
+                          <div className="space-y-2 mb-6">
+                            {isMultiStop && nextStop ? (
+                              <>
+                                <div className="flex items-center text-secondary">
+                                  <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  <span className="text-xs">Next Stop: {nextStop.name}</span>
+                                </div>
+                                {nextStop.startAt && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-xs tabular">
+                                      {formatDateRangeUTC(nextStop.startAt, nextStop.endAt)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {klyngCupGrand.location && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span className="text-xs">{klyngCupGrand.location}</span>
+                                  </div>
+                                )}
+                                {klyngCupGrand.startDate && (
+                                  <div className="flex items-center text-secondary">
+                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-xs tabular">
+                                      {formatDateRangeUTC(klyngCupGrand.startDate, klyngCupGrand.endDate)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Link
+                              href={`/tournament/${klyngCupGrand.id}`}
+                              className="btn btn-primary flex-1 text-sm py-2"
+                            >
+                              View Results
+                            </Link>
+                            {!isInviteOnly && (
+                              <>
+                                <SignedOut>
+                                  <SignUpButton
+                                    mode="modal"
+                                    forceRedirectUrl={`/register/${klyngCupGrand.id}`}
+                                  >
+                                    <button className="btn btn-secondary flex-1 text-sm py-2">
+                                      Register!
+                                    </button>
+                                  </SignUpButton>
+                                </SignedOut>
+                                <SignedIn>
+                                  <Link
+                                    href={`/register/${klyngCupGrand.id}`}
+                                    className="btn btn-secondary flex-1 text-sm py-2"
+                                  >
+                                    Register!
+                                  </Link>
+                                </SignedIn>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             </div>
 
             {/* Right side - Photo */}
             <div className="relative w-full lg:w-[450px]">
-              <div className="relative h-[600px] rounded-2xl overflow-hidden shadow-2xl">
+              <div className="relative h-[300px] sm:h-[400px] lg:h-[600px] rounded-2xl overflow-hidden shadow-2xl">
                 <div
                   className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                   style={{ backgroundImage: 'url(/images/klyngcup-trophy.jpeg)' }}
@@ -478,7 +592,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Photo 1 - Competitive Match */}
-            <div className="relative h-80 rounded-lg overflow-hidden shadow-lg group">
+            <div className="relative h-56 md:h-72 lg:h-80 rounded-lg overflow-hidden shadow-lg group">
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng1.jpg)' }}
@@ -495,7 +609,7 @@ export default function Home() {
             </div>
 
             {/* Photo 2 - Team Spirit */}
-            <div className="relative h-80 rounded-lg overflow-hidden shadow-lg group">
+            <div className="relative h-56 md:h-72 lg:h-80 rounded-lg overflow-hidden shadow-lg group">
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng4.jpg)' }}
@@ -512,7 +626,7 @@ export default function Home() {
             </div>
 
             {/* Photo 3 - Championship */}
-            <div className="relative h-80 rounded-lg overflow-hidden shadow-lg group">
+            <div className="relative h-56 md:h-72 lg:h-80 rounded-lg overflow-hidden shadow-lg group">
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng3.jpg)' }}
@@ -680,7 +794,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-primary mb-6">
-              Upcoming Klyng Cup Tournaments
+              Current Klyng Cup Tournaments
           </h2>
             <p className="text-xl text-muted max-w-3xl mx-auto">
               Join the excitement! Register for upcoming tournaments and start your journey to the championship.
@@ -927,7 +1041,7 @@ export default function Home() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Photo 1 */}
-            <div className="relative h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
+            <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng5.jpg)' }}
@@ -944,7 +1058,7 @@ export default function Home() {
             </div>
 
             {/* Photo 2 */}
-            <div className="relative h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
+            <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng6.jpg)' }}
@@ -961,7 +1075,7 @@ export default function Home() {
             </div>
 
             {/* Photo 3 */}
-            <div className="relative h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
+            <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng7.jpg)' }}
@@ -978,7 +1092,7 @@ export default function Home() {
             </div>
 
             {/* Photo 4 */}
-            <div className="relative h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
+            <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
               <div 
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng8.jpg)' }}
@@ -1044,7 +1158,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-surface-1 border-t border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-4 md:gap-8">
             <div>
               <h3 className="text-xl font-bold text-primary mb-4">Klyng Cup</h3>
               <p className="text-muted mb-4">

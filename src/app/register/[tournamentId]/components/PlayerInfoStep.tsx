@@ -8,6 +8,7 @@ export type PlayerInfo = {
   lastName: string;
   email: string;
   phone: string;
+  gender: 'MALE' | 'FEMALE' | '';
 };
 
 type PlayerInfoStepProps = {
@@ -47,6 +48,11 @@ export function PlayerInfoStep({
     // Phone is optional - only validate format if provided
     if (playerInfo.phone?.trim() && !/^[\d\s\-\+\(\)]+$/.test(playerInfo.phone)) {
       newErrors.phone = 'Please enter a valid phone number';
+    }
+
+    // Gender is required
+    if (!playerInfo.gender || playerInfo.gender === '') {
+      newErrors.gender = 'Gender selection is required';
     }
 
     setErrors(newErrors);
@@ -152,8 +158,8 @@ export function PlayerInfoStep({
         </div>
       </div>
 
-      {/* Email and Phone on same line */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Email, Phone, and Gender on same line */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Email */}
         <div>
           <label className="block text-sm font-semibold text-secondary mb-2">
@@ -182,6 +188,35 @@ export function PlayerInfoStep({
             placeholder="(555) 123-4567"
           />
           {errors.phone && <p className="text-xs text-error mt-1">{errors.phone}</p>}
+        </div>
+
+        {/* Gender */}
+        <div>
+          <label className="block text-sm font-semibold text-secondary mb-2">
+            Sex <span className="text-error">*</span>
+          </label>
+          <div className="flex gap-2">
+            {(['MALE', 'FEMALE'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => updateField('gender', value)}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  playerInfo.gender === value
+                    ? 'shadow-md text-white'
+                    : 'opacity-50 hover:opacity-75 bg-gray-100 text-gray-700'
+                } ${errors.gender ? 'border-2 border-error' : ''}`}
+                style={{
+                  backgroundColor: playerInfo.gender === value
+                    ? (value === 'MALE' ? '#3b82f6' : '#db2777')
+                    : undefined
+                }}
+              >
+                {value === 'MALE' ? 'Male' : 'Female'}
+              </button>
+            ))}
+          </div>
+          {errors.gender && <p className="text-xs text-error mt-1">{errors.gender}</p>}
         </div>
       </div>
 

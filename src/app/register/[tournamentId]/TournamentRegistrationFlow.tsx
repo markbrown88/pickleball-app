@@ -47,6 +47,7 @@ export type PlayerInfo = {
   lastName: string;
   email: string;
   phone: string;
+  gender: 'MALE' | 'FEMALE' | '';
 };
 
 export type RegistrationData = {
@@ -88,6 +89,7 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, regi
     lastName: pendingPlayerInfo.lastName || '',
     email: pendingPlayerInfo.email || '',
     phone: pendingPlayerInfo.phone || '',
+    gender: '' as 'MALE' | 'FEMALE' | '',
   } : null;
   
   const [registrationData, setRegistrationData] = useState<RegistrationData>({
@@ -96,6 +98,7 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, regi
       lastName: '',
       email: '',
       phone: '',
+      gender: '',
     },
     selectedStopIds: initialStopIds,
     selectedBrackets: initialBrackets,

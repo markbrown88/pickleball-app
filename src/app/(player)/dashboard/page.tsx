@@ -556,8 +556,8 @@ export default function DashboardPage() {
                       <th className="text-left p-3 text-sm font-medium text-secondary">Registration Details</th>
                       <th className="text-left p-3 text-sm font-medium text-secondary">Registration Status</th>
                       <th className="text-left p-3 text-sm font-medium text-secondary">Payment Status</th>
-                      <th className="text-left p-3 text-sm font-medium text-secondary">Amount</th>
-                      <th className="text-left p-3 text-sm font-medium text-secondary">Registered</th>
+                      <th className="hidden sm:table-cell text-left p-3 text-sm font-medium text-secondary">Amount</th>
+                      <th className="hidden sm:table-cell text-left p-3 text-sm font-medium text-secondary">Registered</th>
                       <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
                     </tr>
                   </thead>
@@ -595,12 +595,12 @@ export default function DashboardPage() {
                         <td className="p-3">
                           {registration.paymentStatus ? getPaymentStatusBadge(registration.paymentStatus) : '-'}
                         </td>
-                        <td className="p-3">
+                        <td className="hidden sm:table-cell p-3">
                           <span className="font-medium">
                             {formatAmount(registration.amountPaid, registration.registrationType)}
                           </span>
                         </td>
-                        <td className="p-3 text-sm text-muted">
+                        <td className="hidden sm:table-cell p-3 text-sm text-muted">
                           {new Date(registration.registeredAt).toLocaleDateString()}
                         </td>
                         <td className="p-3 text-right">

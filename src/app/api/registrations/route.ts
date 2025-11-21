@@ -149,6 +149,9 @@ export async function POST(request: NextRequest) {
       lastName: sanitizeInput(playerInfo.lastName),
       email: sanitizeInput(playerInfo.email).toLowerCase(),
       phone: playerInfo.phone ? formatPhoneForStorage(playerInfo.phone) : null,
+      gender: playerInfo.gender && (playerInfo.gender === 'MALE' || playerInfo.gender === 'FEMALE') 
+        ? playerInfo.gender 
+        : 'MALE', // Default to MALE if not provided or invalid
     };
 
     // Check for duplicate registration
@@ -294,7 +297,7 @@ export async function POST(request: NextRequest) {
             lastName: sanitizedPlayerInfo.lastName,
             email: sanitizedPlayerInfo.email,
             phone: sanitizedPlayerInfo.phone,
-            gender: 'MALE', // Default, can be updated later
+            gender: sanitizedPlayerInfo.gender,
             clubId: clubIdForNewPlayer,
             clerkUserId: userId || null, // Link to Clerk user if logged in
           },
@@ -305,6 +308,7 @@ export async function POST(request: NextRequest) {
           firstName: string;
           lastName: string;
           phone: string | null;
+          gender?: 'MALE' | 'FEMALE';
           email?: string;
           clerkUserId?: string;
         } = {
@@ -312,6 +316,11 @@ export async function POST(request: NextRequest) {
           lastName: sanitizedPlayerInfo.lastName,
           phone: sanitizedPlayerInfo.phone,
         };
+
+        // Update gender if provided
+        if (sanitizedPlayerInfo.gender) {
+          updateData.gender = sanitizedPlayerInfo.gender;
+        }
 
         // Only update email if it's different (email is unique)
         if (player.email !== sanitizedPlayerInfo.email) {

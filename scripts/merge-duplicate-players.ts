@@ -1,256 +1,296 @@
 import { PrismaClient } from '@prisma/client';
-import * as dotenv from 'dotenv';
-import path from 'path';
+import { config } from 'dotenv';
+import { resolve } from 'path';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+config({ path: resolve(process.cwd(), '.env.local') });
 
 const prisma = new PrismaClient();
 
-/**
- * Merges two duplicate player records
- * @param fromPlayerId - Player ID to merge FROM (will be deleted)
- * @param toPlayerId - Player ID to merge TO (will be kept)
- */
-async function mergePlayers(fromPlayerId: string, toPlayerId: string) {
-  console.log(`\n${'='.repeat(80)}`);
-  console.log(`MERGING PLAYERS`);
-  console.log('='.repeat(80));
-  console.log(`From: ${fromPlayerId} (will be deleted)`);
-  console.log(`To: ${toPlayerId} (will be kept)\n`);
-
-  // Verify both players exist
-  const fromPlayer = await prisma.player.findUnique({
-    where: { id: fromPlayerId },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      clerkUserId: true,
-    },
-  });
-
-  const toPlayer = await prisma.player.findUnique({
-    where: { id: toPlayerId },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      clerkUserId: true,
-    },
-  });
-
-  if (!fromPlayer) {
-    throw new Error(`From player ${fromPlayerId} not found`);
-  }
-  if (!toPlayer) {
-    throw new Error(`To player ${toPlayerId} not found`);
-  }
-
-  console.log(`From: ${fromPlayer.firstName} ${fromPlayer.lastName} (${fromPlayer.email || 'no email'})`);
-  console.log(`To: ${toPlayer.firstName} ${toPlayer.lastName} (${toPlayer.email || 'no email'})`);
-
-  if (fromPlayer.clerkUserId) {
-    console.warn(`⚠️  WARNING: From player has Clerk account (${fromPlayer.clerkUserId}). This will be lost!`);
-  }
-  if (!toPlayer.clerkUserId) {
-    console.warn(`⚠️  WARNING: To player has no Clerk account. Make sure this is correct!`);
-  }
-
-  // Count what will be transferred
-  const lineupP1Count = await prisma.lineupEntry.count({ where: { player1Id: fromPlayerId } });
-  const lineupP2Count = await prisma.lineupEntry.count({ where: { player2Id: fromPlayerId } });
-  const rosterCount = await prisma.stopTeamPlayer.count({ where: { playerId: fromPlayerId } });
-  const registrationCount = await prisma.tournamentRegistration.count({ where: { playerId: fromPlayerId } });
-  const captainCount = await prisma.tournamentCaptain.count({ where: { playerId: fromPlayerId } });
-  const adminCount = await prisma.tournamentAdmin.count({ where: { playerId: fromPlayerId } });
-  const eventManagerStopCount = await prisma.stop.count({ where: { eventManagerId: fromPlayerId } });
-  const eventManagerTournamentCount = await prisma.tournamentEventManager.count({ where: { playerId: fromPlayerId } });
-
-  console.log(`\nItems to transfer:`);
-  console.log(`  - Lineup entries (as Player 1): ${lineupP1Count}`);
-  console.log(`  - Lineup entries (as Player 2): ${lineupP2Count}`);
-  console.log(`  - Roster entries: ${rosterCount}`);
-  console.log(`  - Registrations: ${registrationCount}`);
-  console.log(`  - Captain roles: ${captainCount}`);
-  console.log(`  - Admin roles: ${adminCount}`);
-  console.log(`  - Event manager stops: ${eventManagerStopCount}`);
-  console.log(`  - Event manager tournaments: ${eventManagerTournamentCount}`);
-
-  // Check for conflicts
-  console.log(`\nChecking for conflicts...`);
-  
-  // Check for duplicate roster entries
-  const fromRosters = await prisma.stopTeamPlayer.findMany({
-    where: { playerId: fromPlayerId },
-    select: { stopId: true, teamId: true },
-  });
-  
-  const toRosters = await prisma.stopTeamPlayer.findMany({
-    where: { playerId: toPlayerId },
-    select: { stopId: true, teamId: true },
-  });
-
-  const rosterConflicts = fromRosters.filter(fr => 
-    toRosters.some(tr => tr.stopId === fr.stopId && tr.teamId === fr.teamId)
-  );
-
-  if (rosterConflicts.length > 0) {
-    console.log(`  ⚠️  Found ${rosterConflicts.length} duplicate roster entries (will skip)`);
-  }
-
-  // Check for duplicate captain roles
-  const fromCaptains = await prisma.tournamentCaptain.findMany({
-    where: { playerId: fromPlayerId },
-    select: { tournamentId: true },
-  });
-  
-  const toCaptains = await prisma.tournamentCaptain.findMany({
-    where: { playerId: toPlayerId },
-    select: { tournamentId: true },
-  });
-
-  const captainConflicts = fromCaptains.filter(fc => 
-    toCaptains.some(tc => tc.tournamentId === fc.tournamentId)
-  );
-
-  if (captainConflicts.length > 0) {
-    console.log(`  ⚠️  Found ${captainConflicts.length} duplicate captain roles (will skip)`);
-  }
-
-  // Perform the merge in a transaction
-  console.log(`\nStarting merge transaction...`);
-  
-  await prisma.$transaction(async (tx) => {
-    // 1. Transfer lineup entries (as Player 1)
-    if (lineupP1Count > 0) {
-      await tx.lineupEntry.updateMany({
-        where: { player1Id: fromPlayerId },
-        data: { player1Id: toPlayerId },
-      });
-      console.log(`  ✓ Transferred ${lineupP1Count} lineup entries (as Player 1)`);
-    }
-
-    // 2. Transfer lineup entries (as Player 2)
-    if (lineupP2Count > 0) {
-      await tx.lineupEntry.updateMany({
-        where: { player2Id: fromPlayerId },
-        data: { player2Id: toPlayerId },
-      });
-      console.log(`  ✓ Transferred ${lineupP2Count} lineup entries (as Player 2)`);
-    }
-
-    // 3. Transfer roster entries (skip duplicates)
-    if (rosterCount > 0) {
-      const fromRosterIds = fromRosters.map(r => ({ stopId: r.stopId, teamId: r.teamId }));
-      const toRosterIds = toRosters.map(r => ({ stopId: r.stopId, teamId: r.teamId }));
-      
-      const uniqueRosters = fromRosterIds.filter(fr => 
-        !toRosterIds.some(tr => tr.stopId === fr.stopId && tr.teamId === fr.teamId)
-      );
-
-      for (const roster of uniqueRosters) {
-        await tx.stopTeamPlayer.updateMany({
-          where: {
-            stopId: roster.stopId,
-            teamId: roster.teamId,
-            playerId: fromPlayerId,
-          },
-          data: { playerId: toPlayerId },
-        });
-      }
-      console.log(`  ✓ Transferred ${uniqueRosters.length} roster entries (skipped ${rosterConflicts.length} duplicates)`);
-    }
-
-    // 4. Transfer registrations
-    if (registrationCount > 0) {
-      await tx.tournamentRegistration.updateMany({
-        where: { playerId: fromPlayerId },
-        data: { playerId: toPlayerId },
-      });
-      console.log(`  ✓ Transferred ${registrationCount} registrations`);
-    }
-
-    // 5. Transfer captain roles (skip duplicates)
-    if (captainCount > 0) {
-      const fromCaptainTournamentIds = fromCaptains.map(c => c.tournamentId);
-      const toCaptainTournamentIds = toCaptains.map(c => c.tournamentId);
-      
-      const uniqueCaptains = fromCaptains.filter(fc => 
-        !toCaptainTournamentIds.includes(fc.tournamentId)
-      );
-
-      for (const captain of uniqueCaptains) {
-        await tx.tournamentCaptain.updateMany({
-          where: {
-            tournamentId: captain.tournamentId,
-            playerId: fromPlayerId,
-          },
-          data: { playerId: toPlayerId },
-        });
-      }
-      console.log(`  ✓ Transferred ${uniqueCaptains.length} captain roles (skipped ${captainConflicts.length} duplicates)`);
-    }
-
-    // 6. Transfer admin roles
-    if (adminCount > 0) {
-      await tx.tournamentAdmin.updateMany({
-        where: { playerId: fromPlayerId },
-        data: { playerId: toPlayerId },
-      });
-      console.log(`  ✓ Transferred ${adminCount} admin roles`);
-    }
-
-    // 7. Transfer event manager stop roles
-    if (eventManagerStopCount > 0) {
-      await tx.stop.updateMany({
-        where: { eventManagerId: fromPlayerId },
-        data: { eventManagerId: toPlayerId },
-      });
-      console.log(`  ✓ Transferred ${eventManagerStopCount} event manager stop roles`);
-    }
-
-    // 8. Transfer event manager tournament roles
-    if (eventManagerTournamentCount > 0) {
-      await tx.tournamentEventManager.updateMany({
-        where: { playerId: fromPlayerId },
-        data: { playerId: toPlayerId },
-      });
-      console.log(`  ✓ Transferred ${eventManagerTournamentCount} event manager tournament roles`);
-    }
-
-    // 9. Delete the old player record
-    await tx.player.delete({
-      where: { id: fromPlayerId },
-    });
-    console.log(`  ✓ Deleted old player record`);
-  });
-
-  console.log(`\n✅ Merge completed successfully!`);
+interface MergePair {
+  oldId: string; // No email account to delete
+  newId: string; // Email account to keep
+  name: string;
 }
 
-// Main execution
-async function main() {
-  const args = process.argv.slice(2);
-  
-  if (args.length !== 2) {
-    console.error('Usage: npx tsx scripts/merge-duplicate-players.ts <fromPlayerId> <toPlayerId>');
-    console.error('Example: npx tsx scripts/merge-duplicate-players.ts cmh7rgafv0005l804xifim71g cmi0hr3um0001l204jhzhrvxa');
-    process.exit(1);
+const merges: MergePair[] = [
+  {
+    oldId: 'cmfpbp7ez0013rdn0lurlnqbe', // Drew Carrick - no email
+    newId: 'cmi4x0udp0001ld04wx1r282b', // Drew Carrick - drew.carrick@gmail.com
+    name: 'Drew Carrick'
+  },
+  {
+    oldId: 'cmh8225p7000dr0j4ogqdxox9', // Amelia Perri - no email
+    newId: 'cmi7qvn9q0001jj04pej03z1g', // Amelia Perri - ameliaperri@gmail.com
+    name: 'Amelia Perri'
+  },
+  {
+    oldId: 'cmh8229f80035r0j4pk0zuo0g', // John Travis - no email
+    newId: 'cmi4shved0001l504bnkg6b4r', // John Travis - m3jb@hotmail.com
+    name: 'John Travis'
+  },
+  {
+    oldId: 'cmh828beo002jr0awdmo2c3am', // Gilbert de Avila - no email
+    newId: 'cmi56bbpn0001jx04tb893wkt', // Gilbert de Avila - qst2@rogers.com
+    name: 'Gilbert de Avila'
+  },
+  {
+    oldId: 'cmhawluhp0027jr04h5lfzaaa', // Nancy Corcoran - no email
+    newId: 'cmi6f8kny0001l804npqwxp0s', // Nancy Corcoran - ncorcoran@rogers.com
+    name: 'Nancy Corcoran'
   }
+];
 
-  const [fromPlayerId, toPlayerId] = args;
-
+async function mergePlayers() {
   try {
-    await mergePlayers(fromPlayerId, toPlayerId);
-  } catch (error) {
-    console.error('\n❌ Error during merge:', error);
-    process.exit(1);
-  } finally {
+    console.log(`\n=== Merging Duplicate Players ===\n`);
+
+    for (const merge of merges) {
+      console.log(`\n🔄 Merging ${merge.name}:`);
+      console.log(`   Old (to delete): ${merge.oldId}`);
+      console.log(`   New (to keep): ${merge.newId}`);
+
+      // Verify players exist
+      const oldPlayer = await prisma.player.findUnique({
+        where: { id: merge.oldId },
+        select: { id: true, email: true, clerkUserId: true }
+      });
+
+      const newPlayer = await prisma.player.findUnique({
+        where: { id: merge.newId },
+        select: { id: true, email: true, clerkUserId: true }
+      });
+
+      if (!oldPlayer) {
+        console.log(`   ⚠️  Old player not found, skipping...`);
+        continue;
+      }
+
+      if (!newPlayer) {
+        console.log(`   ⚠️  New player not found, skipping...`);
+        continue;
+      }
+
+      // Check for roster entries
+      const rosterEntries = await prisma.stopTeamPlayer.findMany({
+        where: { playerId: merge.oldId }
+      });
+      console.log(`   Found ${rosterEntries.length} roster entries`);
+
+      // Check for lineup entries (as player1)
+      const lineupEntriesP1 = await prisma.lineupEntry.findMany({
+        where: { player1Id: merge.oldId }
+      });
+      console.log(`   Found ${lineupEntriesP1.length} lineup entries as player1`);
+
+      // Check for lineup entries (as player2)
+      const lineupEntriesP2 = await prisma.lineupEntry.findMany({
+        where: { player2Id: merge.oldId }
+      });
+      console.log(`   Found ${lineupEntriesP2.length} lineup entries as player2`);
+
+      // Check for team memberships
+      const teamMemberships = await prisma.teamPlayer.findMany({
+        where: { playerId: merge.oldId }
+      });
+      console.log(`   Found ${teamMemberships.length} team memberships`);
+
+      // Check for registrations
+      const registrations = await prisma.tournamentRegistration.findMany({
+        where: { playerId: merge.oldId }
+      });
+      console.log(`   Found ${registrations.length} registrations`);
+
+      // Check for captain teams
+      const captainTeams = await prisma.team.findMany({
+        where: { captainId: merge.oldId }
+      });
+      console.log(`   Found ${captainTeams.length} teams as captain`);
+
+      // Check for captain invites
+      const captainInvites = await prisma.captainInvite.findMany({
+        where: { playerId: merge.oldId }
+      });
+      console.log(`   Found ${captainInvites.length} captain invites`);
+
+      // Check for tournament admins
+      const tournamentAdmins = await prisma.tournamentAdmin.findMany({
+        where: { playerId: merge.oldId }
+      });
+      console.log(`   Found ${tournamentAdmins.length} tournament admin roles`);
+
+      // Check for tournament captains
+      const tournamentCaptains = await prisma.tournamentCaptain.findMany({
+        where: { playerId: merge.oldId }
+      });
+      console.log(`   Found ${tournamentCaptains.length} tournament captain roles`);
+
+      // Check for event manager roles
+      const eventManagers = await prisma.tournamentEventManager.findMany({
+        where: { playerId: merge.oldId }
+      });
+      console.log(`   Found ${eventManagers.length} event manager roles`);
+
+      // Check for stop managers
+      const stopManagers = await prisma.stop.findMany({
+        where: { eventManagerId: merge.oldId }
+      });
+      console.log(`   Found ${stopManagers.length} stops managed`);
+
+      // Check for club directors (via clubsAsDirector relation)
+      const playerWithClubs = await prisma.player.findUnique({
+        where: { id: merge.oldId },
+        select: {
+          clubsAsDirector: {
+            select: { id: true }
+          }
+        }
+      });
+      const clubDirectorsCount = playerWithClubs?.clubsAsDirector?.length || 0;
+      console.log(`   Found ${clubDirectorsCount} club director roles`);
+
+      // Check for tiebreaker decisions
+      const tiebreakerDecisions = await prisma.match.findMany({
+        where: { tiebreakerDecidedById: merge.oldId }
+      });
+      console.log(`   Found ${tiebreakerDecisions.length} tiebreaker decisions`);
+
+      // Perform the merge in a transaction
+      await prisma.$transaction(async (tx) => {
+        // Update roster entries
+        if (rosterEntries.length > 0) {
+          await tx.stopTeamPlayer.updateMany({
+            where: { playerId: merge.oldId },
+            data: { playerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${rosterEntries.length} roster entries`);
+        }
+
+        // Update lineup entries (player1)
+        if (lineupEntriesP1.length > 0) {
+          await tx.lineupEntry.updateMany({
+            where: { player1Id: merge.oldId },
+            data: { player1Id: merge.newId }
+          });
+          console.log(`   ✅ Updated ${lineupEntriesP1.length} lineup entries (player1)`);
+        }
+
+        // Update lineup entries (player2)
+        if (lineupEntriesP2.length > 0) {
+          await tx.lineupEntry.updateMany({
+            where: { player2Id: merge.oldId },
+            data: { player2Id: merge.newId }
+          });
+          console.log(`   ✅ Updated ${lineupEntriesP2.length} lineup entries (player2)`);
+        }
+
+        // Update team memberships
+        if (teamMemberships.length > 0) {
+          await tx.teamPlayer.updateMany({
+            where: { playerId: merge.oldId },
+            data: { playerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${teamMemberships.length} team memberships`);
+        }
+
+        // Update registrations
+        if (registrations.length > 0) {
+          await tx.tournamentRegistration.updateMany({
+            where: { playerId: merge.oldId },
+            data: { playerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${registrations.length} registrations`);
+        }
+
+        // Update captain teams
+        if (captainTeams.length > 0) {
+          await tx.team.updateMany({
+            where: { captainId: merge.oldId },
+            data: { captainId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${captainTeams.length} teams as captain`);
+        }
+
+        // Update captain invites
+        if (captainInvites.length > 0) {
+          await tx.captainInvite.updateMany({
+            where: { playerId: merge.oldId },
+            data: { playerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${captainInvites.length} captain invites`);
+        }
+
+        // Update tournament admins
+        if (tournamentAdmins.length > 0) {
+          await tx.tournamentAdmin.updateMany({
+            where: { playerId: merge.oldId },
+            data: { playerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${tournamentAdmins.length} tournament admin roles`);
+        }
+
+        // Update tournament captains
+        if (tournamentCaptains.length > 0) {
+          await tx.tournamentCaptain.updateMany({
+            where: { playerId: merge.oldId },
+            data: { playerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${tournamentCaptains.length} tournament captain roles`);
+        }
+
+        // Update event managers
+        if (eventManagers.length > 0) {
+          await tx.tournamentEventManager.updateMany({
+            where: { playerId: merge.oldId },
+            data: { playerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${eventManagers.length} event manager roles`);
+        }
+
+        // Update stop managers
+        if (stopManagers.length > 0) {
+          await tx.stop.updateMany({
+            where: { eventManagerId: merge.oldId },
+            data: { eventManagerId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${stopManagers.length} stops managed`);
+        }
+
+        // Update club directors (via Club model)
+        if (clubDirectorsCount > 0) {
+          await tx.club.updateMany({
+            where: { directorId: merge.oldId },
+            data: { directorId: merge.newId }
+          });
+          console.log(`   ✅ Updated ${clubDirectorsCount} club director roles`);
+        }
+
+        // Update tiebreaker decisions
+        if (tiebreakerDecisions.length > 0) {
+          await tx.match.updateMany({
+            where: { tiebreakerDecidedById: merge.oldId },
+            data: { tiebreakerDecidedById: merge.newId }
+          });
+          console.log(`   ✅ Updated ${tiebreakerDecisions.length} tiebreaker decisions`);
+        }
+
+        // Delete the old player
+        await tx.player.delete({
+          where: { id: merge.oldId }
+        });
+        console.log(`   ✅ Deleted old player ${merge.oldId}`);
+      });
+
+      console.log(`   ✅ Successfully merged ${merge.name}`);
+    }
+
+    console.log(`\n✅ All merges completed successfully!\n`);
+
     await prisma.$disconnect();
+  } catch (error) {
+    console.error('Error:', error);
+    await prisma.$disconnect();
+    process.exit(1);
   }
 }
 
-main();
-
+mergePlayers();

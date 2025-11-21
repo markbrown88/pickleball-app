@@ -97,7 +97,7 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
                 {/* Mobile close button */}
                 <button
                   onClick={() => setIsMobileNavOpen(false)}
-                  className="md:hidden p-1 rounded-md text-muted hover:text-primary hover:bg-surface-2 transition-colors"
+                  className="md:hidden p-2 rounded-md text-muted hover:text-primary hover:bg-surface-2 transition-colors"
                   aria-label="Close navigation menu"
                 >
                   <svg

@@ -381,6 +381,7 @@ export default function PlayersPage() {
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
                   type="checkbox"
+                  className="w-5 h-5"
                   checked={showDisabledPlayers}
                   onChange={(e) => {
                     const checked = e.target.checked;
@@ -418,11 +419,11 @@ export default function PlayersPage() {
                 <SortableTh label="First Name" onClick={() => clickSortPlayers('firstName')} active={playerSort.col === 'firstName'} dir={playerSort.dir} />
                 <SortableTh label="Last Name" onClick={() => clickSortPlayers('lastName')} active={playerSort.col === 'lastName'} dir={playerSort.dir} />
                 <SortableTh label="Sex" onClick={() => clickSortPlayers('gender')} active={playerSort.col === 'gender'} dir={playerSort.dir} />
-                <SortableTh label="Primary Club" onClick={() => clickSortPlayers('clubName')} active={playerSort.col === 'clubName'} dir={playerSort.dir} />
+                <SortableTh label="Primary Club" onClick={() => clickSortPlayers('clubName')} active={playerSort.col === 'clubName'} dir={playerSort.dir} className="hidden sm:table-cell" />
                 <SortableTh label="Age" onClick={() => clickSortPlayers('age')} active={playerSort.col === 'age'} dir={playerSort.dir} />
-                <SortableTh label="City" onClick={() => clickSortPlayers('city')} active={playerSort.col === 'city'} dir={playerSort.dir} />
-                <SortableTh label="Phone" onClick={() => clickSortPlayers('phone')} active={playerSort.col === 'phone'} dir={playerSort.dir} />
-                <th className="py-2 pr-4 select-none">
+                <SortableTh label="City" onClick={() => clickSortPlayers('city')} active={playerSort.col === 'city'} dir={playerSort.dir} className="hidden sm:table-cell" />
+                <SortableTh label="Phone" onClick={() => clickSortPlayers('phone')} active={playerSort.col === 'phone'} dir={playerSort.dir} className="hidden sm:table-cell" />
+                <th className="hidden sm:table-cell py-2 pr-4 select-none">
                   <span className="text-primary font-medium">Status</span>
                 </th>
                 <th className="py-2 pr-2 w-10"></th>
@@ -449,13 +450,13 @@ export default function PlayersPage() {
                   </td>
                   <td className="py-2 pr-4 text-muted">{p.lastName ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted">{p.gender === 'FEMALE' ? 'F' : 'M'}</td>
-                  <td className="py-2 pr-4 text-muted">{p.club?.name ?? '—'}</td>
+                  <td className="hidden sm:table-cell py-2 pr-4 text-muted">{p.club?.name ?? '—'}</td>
                   <td className="py-2 pr-4 text-muted tabular">{p.age ?? '—'}</td>
-                  <td className="py-2 pr-4 text-muted">{p.city ?? '—'}</td>
-                  <td className="py-2 pr-4 text-muted">
+                  <td className="hidden sm:table-cell py-2 pr-4 text-muted">{p.city ?? '—'}</td>
+                  <td className="hidden sm:table-cell py-2 pr-4 text-muted">
                     {formatPhoneForDisplay(p.phone) || '—'}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td className="hidden sm:table-cell py-2 pr-4">
                     {p.clerkUserId ? (
                       <span className="chip chip-success text-[10px] px-2 py-0.5">Registered</span>
                     ) : (
@@ -524,9 +525,9 @@ export default function PlayersPage() {
   );
 }
 
-function SortableTh({ label, onClick, active, dir }: { label: string; onClick: () => void; active: boolean; dir: 'asc' | 'desc' }) {
+function SortableTh({ label, onClick, active, dir, className = '' }: { label: string; onClick: () => void; active: boolean; dir: 'asc' | 'desc'; className?: string }) {
   return (
-    <th className="py-2 pr-4 select-none">
+    <th className={`py-2 pr-4 select-none ${className}`}>
       <button className="inline-flex items-center gap-1 text-primary hover:text-secondary font-medium" onClick={onClick} title="Sort">
         <span>{label}</span>
         <span className="text-xs text-muted">{active ? (dir === 'asc' ? '▲' : '▼') : '↕'}</span>

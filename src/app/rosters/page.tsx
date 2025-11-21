@@ -180,7 +180,7 @@ export default function AdminRostersPage() {
               </label>
               <select
                 id="roster-tournament"
-                className="input min-w-[280px]"
+                className="input min-w-0 sm:min-w-[280px]"
                 value={selectedId}
                 onChange={(event) => {
                   const newId = event.target.value;
@@ -595,7 +595,7 @@ function ClubRosterEditor({
         )}
 
         {/* Bracket Rosters Grid */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {club.brackets.map((bracket) => {
             const list = rosters[stop.stopId]?.[bracket.teamId] ?? [];
             // Exclude players from other teams within THIS stop only
@@ -800,7 +800,7 @@ function BracketRosterEditor({
             onBlur={() => setTimeout(() => setOpen(false), 120)}
           />
           {open && options.length > 0 && (
-          <ul className="absolute z-10 mt-2 w-full bg-surface-1 border-2 border-secondary rounded-lg shadow-xl overflow-hidden">
+          <ul className="absolute z-10 mt-2 w-full max-h-60 overflow-y-auto bg-surface-1 border-2 border-secondary rounded-lg shadow-xl">
             {options.map((player) => (
               <li
                 key={player.id}
