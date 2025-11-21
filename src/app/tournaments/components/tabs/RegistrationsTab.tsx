@@ -541,8 +541,8 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border-subtle">
-        <nav className="flex gap-1 -mb-px">
+      <div className="border-b border-border-subtle hidden md:block">
+        <nav className="flex flex-wrap gap-1 -mb-px px-6 overflow-x-auto">
           <button
             className={`tab-button ${activeView === 'registrations' ? 'active' : ''}`}
             onClick={() => setActiveView('registrations')}
@@ -565,131 +565,12 @@ export function RegistrationsTab({ tournamentId }: RegistrationsTabProps) {
       </div>
 
       {/* Content */}
-      {activeView === 'registrations' && (
-        <div className="space-y-2">
-          {/* Manual Register Button */}
-          <div className="flex justify-end">
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowManualRegisterModal(true)}
-            >
-              + Manual Register Player
-            </button>
-          </div>
-
-          {data.registrations.length === 0 ? (
-            <div className="card text-center py-8 text-muted">No registrations yet</div>
-          ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-surface-1">
-                  <tr>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Status</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Payment</th>
-                    <th className="text-left p-3 text-sm font-medium text-secondary">Registered</th>
-                    <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.registrations.map((reg) => (
-                    <tr key={reg.id} className="border-t border-border-subtle hover:bg-surface-1">
-                      <td className="p-3">
-                        <div className="font-medium text-primary">{reg.player.name}</div>
-                        <div className="text-sm text-muted">{reg.player.email}</div>
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`chip ${
-                            reg.status === 'REGISTERED'
-                              ? 'chip-success'
-                              : reg.status === 'WITHDRAWN'
-                              ? 'chip-muted'
-                              : 'chip-error'
-                          }`}
-                        >
-                          {reg.status}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        {tournamentRegistrationType === 'FREE' ? (
-                          <span className="chip chip-success">
-                            Free
-                          </span>
-                        ) : (
-                          <span
-                            className={`chip ${
-                              reg.paymentStatus === 'PAID' || reg.paymentStatus === 'COMPLETED'
-                                ? 'chip-success'
-                                : reg.paymentStatus === 'PENDING'
-                                ? 'chip-warning'
-                                : reg.paymentStatus === 'REFUNDED'
-                                ? 'chip-info'
-                                : 'chip-error'
-                            }`}
-                          >
-                            {reg.paymentStatus === 'PAID' || reg.paymentStatus === 'COMPLETED' ? 'Paid' : reg.paymentStatus}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-sm text-muted">
-                        {new Date(reg.registeredAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-3 text-right space-x-2">
-                        {(reg.status === 'REGISTERED' || reg.status === 'REJECTED' || reg.status === 'WITHDRAWN') && (
-                          <>
-                            {reg.status === 'REGISTERED' && (
-                              <button
-                                className="btn btn-error btn-sm"
-                                onClick={() => {
-                                  setRejectingRegistration(reg);
-                                  setShowRejectModal(true);
-                                }}
-                              >
-                                Reject
-                              </button>
-                            )}
-                            <button
-                              className="btn btn-ghost btn-sm text-error"
-                              onClick={async () => {
-                                if (!confirm(`Delete registration for ${reg.player.name}? This cannot be undone.`)) {
-                                  return;
-                                }
-                                try {
-                                  setProcessing(reg.id);
-                                  const response = await fetch(
-                                    `/api/admin/tournaments/${tournamentId}/registrations/${reg.id}`,
-                                    { method: 'DELETE' }
-                                  );
-                                  if (!response.ok) {
-                                    const error = await response.json();
-                                    alert(error.error || 'Failed to delete registration');
-                                    return;
-                                  }
-                                  await loadData();
-                                  alert('Registration deleted successfully');
-                                } catch (error) {
-                                  console.error('Error deleting registration:', error);
-                                  alert('Failed to delete registration');
-                                } finally {
-                                  setProcessing(null);
-                                }
-                              }}
-                              disabled={processing === reg.id}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Desktop Content */}
+      <div className="hidden md:block px-6 py-6 min-h-[400px]">
+        {activeView === 'registrations' && renderRegistrationsContent()}
+        {activeView === 'requests' && renderRequestsContent()}
+        {activeView === 'waitlist' && renderWaitlistContent()}
+      </div>
 
       {activeView === 'requests' && (
         <div className="space-y-2">

@@ -141,23 +141,25 @@ export function StopSelectionStep({
       {/* Club Selection (Team Tournaments Only) */}
       {isTeamTournament && clubs.length > 0 && (
         <div className="p-4 bg-surface-3 rounded">
-          <label className="block text-sm font-semibold text-secondary mb-2">
-            Select the club you are representing in this tournament <span className="text-error">*</span>
-          </label>
-          <select
-            className="input w-full md:w-96"
-            value={selectedClubId || ''}
-            onChange={(e) => onClubUpdate(e.target.value)}
-          >
-            <option value="">-- Choose a club --</option>
-            {clubs.map((club) => (
-              <option key={club.id} value={club.id}>
-                {club.name}
-                {club.city && club.region && ` (${club.city}, ${club.region})`}
-                {club.city && !club.region && ` (${club.city})`}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="block text-sm font-semibold text-secondary">
+              Select the club you are representing in this tournament <span className="text-error">*</span>
+            </label>
+            <select
+              className="input w-full sm:max-w-sm"
+              value={selectedClubId || ''}
+              onChange={(e) => onClubUpdate(e.target.value)}
+            >
+              <option value="">-- Choose a club --</option>
+              {clubs.map((club) => (
+                <option key={club.id} value={club.id}>
+                  {club.name}
+                  {club.city && club.region && ` (${club.city}, ${club.region})`}
+                  {club.city && !club.region && ` (${club.city})`}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="text-xs text-muted mt-2">
             Note: You'll play for this club in all the stops you select below.
           </p>
