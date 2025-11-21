@@ -291,10 +291,16 @@ export async function POST(request: NextRequest) {
           ? (selectedClubId || null)
           : null;
         
+        // Construct name from firstName and lastName
+        const constructedName = [sanitizedPlayerInfo.firstName, sanitizedPlayerInfo.lastName]
+          .filter(Boolean)
+          .join(' ') || null;
+
         player = await tx.player.create({
           data: {
             firstName: sanitizedPlayerInfo.firstName,
             lastName: sanitizedPlayerInfo.lastName,
+            name: constructedName,
             email: sanitizedPlayerInfo.email,
             phone: sanitizedPlayerInfo.phone,
             gender: sanitizedPlayerInfo.gender,
@@ -303,10 +309,16 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
+        // Construct name from firstName and lastName
+        const constructedName = [sanitizedPlayerInfo.firstName, sanitizedPlayerInfo.lastName]
+          .filter(Boolean)
+          .join(' ') || null;
+
         // Update existing player info with registration data
         const updateData: {
           firstName: string;
           lastName: string;
+          name: string | null;
           phone: string | null;
           gender?: 'MALE' | 'FEMALE';
           email?: string;
@@ -314,6 +326,7 @@ export async function POST(request: NextRequest) {
         } = {
           firstName: sanitizedPlayerInfo.firstName,
           lastName: sanitizedPlayerInfo.lastName,
+          name: constructedName,
           phone: sanitizedPlayerInfo.phone,
         };
 

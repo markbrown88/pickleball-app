@@ -402,7 +402,6 @@ export default function PlayersPage() {
                       showDisabled: checked ? 'true' : ''
                     });
                   }}
-                  className="w-4 h-4"
                 />
                 <span className="text-muted">Show disabled players</span>
               </label>

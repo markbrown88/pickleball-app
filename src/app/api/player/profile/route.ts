@@ -154,6 +154,28 @@ export async function PUT(req: Request) {
 
     if (firstName !== undefined) updateData.firstName = firstName?.trim() || null;
     if (lastName !== undefined) updateData.lastName = lastName?.trim() || null;
+    
+    // Update name field if firstName or lastName changed
+    if (firstName !== undefined || lastName !== undefined) {
+      const fn = firstName !== undefined ? (firstName?.trim() || null) : undefined;
+      const ln = lastName !== undefined ? (lastName?.trim() || null) : undefined;
+      
+      // Get current values if not provided
+      if (fn === undefined || ln === undefined) {
+        const currentPlayer = await prisma.player.findUnique({
+          where: { id: playerId },
+          select: { firstName: true, lastName: true },
+        });
+        const finalFirstName = fn !== undefined ? fn : (currentPlayer?.firstName || null);
+        const finalLastName = ln !== undefined ? ln : (currentPlayer?.lastName || null);
+        const nameParts = [finalFirstName, finalLastName].filter(Boolean);
+        updateData.name = nameParts.length > 0 ? nameParts.join(' ') : null;
+      } else {
+        const nameParts = [fn, ln].filter(Boolean);
+        updateData.name = nameParts.length > 0 ? nameParts.join(' ') : null;
+      }
+    }
+    
     if (email !== undefined) updateData.email = email?.trim() || null;
     if (phone !== undefined) {
       updateData.phone = phone ? formatPhoneForStorage(phone) : null;
