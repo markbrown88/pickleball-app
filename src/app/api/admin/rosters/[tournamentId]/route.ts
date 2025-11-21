@@ -79,7 +79,7 @@ function toPlayerLite(
     lastName: player.lastName ?? null,
     name: player.name ?? null,
     gender: player.gender,
-    dupr: player.duprDoubles ?? player.dupr ?? null, // Prefer duprDoubles, fallback to dupr
+    dupr: player.duprDoubles ?? player.duprSingles ?? null, // Prefer duprDoubles, fallback to duprSingles
     age: player.age ?? null,
     hasPaid: paymentMethod === 'STRIPE' || paymentMethod === 'MANUAL',
     paymentMethod,

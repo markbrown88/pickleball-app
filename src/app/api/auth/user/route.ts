@@ -700,7 +700,7 @@ export async function PUT(req: NextRequest) {
       email: updatedPlayer.email,
       phone: formatPhoneForDisplay(updatedPlayer.phone),
       gender: updatedPlayer.gender,
-      dupr: updatedPlayer.dupr,
+      dupr: updatedPlayer.duprDoubles ?? updatedPlayer.duprSingles ?? null,
       duprSingles: updatedPlayer.duprSingles,
       duprDoubles: updatedPlayer.duprDoubles,
       clubRatingSingles: updatedPlayer.clubRatingSingles,
