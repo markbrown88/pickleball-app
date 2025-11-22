@@ -106,17 +106,17 @@ export default function ManagerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-app p-6">
+      <section className="space-y-6">
         <div className="card p-8 flex items-center justify-center gap-3">
           <div className="loading-spinner" />
           <span className="text-muted">Loading tournaments...</span>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="min-h-screen bg-app p-6 space-y-6">
+    <section className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold text-primary">Event Manager</h1>
@@ -183,6 +183,6 @@ export default function ManagerPage() {
           onInfo={(msg) => setInfo(msg)}
         />
       ) : null}
-    </div>
+    </section>
   );
 }

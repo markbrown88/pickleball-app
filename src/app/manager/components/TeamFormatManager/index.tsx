@@ -1370,7 +1370,7 @@ export function TeamFormatManager({
                                 type="datetime-local"
                                 value={lineupDeadlines[stop.stopId] || ''}
                                 onChange={(e) => setLineupDeadlines(prev => ({ ...prev, [stop.stopId]: e.target.value }))}
-                                className="input input-sm text-xs w-full sm:w-auto"
+                                className="input input-sm text-xs w-full min-w-0 lg:max-w-xs"
                               />
                               <button
                                 className="btn btn-sm btn-secondary disabled:opacity-50"

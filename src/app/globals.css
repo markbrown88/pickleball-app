@@ -377,21 +377,21 @@ small, .text-muted {
   max-width: 72rem;
   margin-left: auto;
   margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 @media (min-width: 640px) {
   .page-container {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 
 @media (min-width: 1024px) {
   .page-container {
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 
