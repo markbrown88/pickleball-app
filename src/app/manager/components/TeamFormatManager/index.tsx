@@ -1337,7 +1337,7 @@ export function TeamFormatManager({
 
                 return (
                   <div>
-                    <div className="flex items-center justify-between mb-6 p-4 bg-surface-2 rounded-lg border border-border-subtle">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6 p-4 bg-surface-2 rounded-lg border border-border-subtle">
                       <div>
                         <div className="flex items-center gap-3 mb-1">
                           <h3 className="text-sm font-semibold text-primary">
@@ -1353,7 +1353,7 @@ export function TeamFormatManager({
                           <span>{totalGames} Games</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4 w-full lg:w-auto lg:justify-end">
                         {stopHasAnyGameStarted ? (
                           // After tournament has started: just show the deadline (non-editable)
                           stop.lineupDeadline && (
@@ -1363,15 +1363,14 @@ export function TeamFormatManager({
                           )
                         ) : (
                           // Before tournament starts: show editable deadline
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1 w-full">
                             <label className="text-xs font-medium text-muted">Lineup Deadline</label>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                               <input
                                 type="datetime-local"
                                 value={lineupDeadlines[stop.stopId] || ''}
                                 onChange={(e) => setLineupDeadlines(prev => ({ ...prev, [stop.stopId]: e.target.value }))}
-                                className="input input-sm text-xs"
-                                style={{ minWidth: '200px' }}
+                                className="input input-sm text-xs w-full sm:w-auto"
                               />
                               <button
                                 className="btn btn-sm btn-secondary disabled:opacity-50"
@@ -1688,7 +1687,7 @@ export function TeamFormatManager({
                                                         )}
 
                                                         {/* Manager Actions */}
-                                                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
                                                       {!match.forfeitTeam && !isDecided && (matchStatus === 'needs_decision' || (matchStatus === 'tied_pending' && totalPointsDisagree(match.totalPointsTeamA, match.totalPointsTeamB))) && (
                                                             <button
                                                               className="btn btn-xs btn-secondary flex-1 sm:flex-none"
@@ -1708,9 +1707,9 @@ export function TeamFormatManager({
                                                             </button>
                                                           )}
                                                       {!match.forfeitTeam && !isDecided && (
-                                                            <div className="flex gap-2 flex-1 sm:flex-none">
+                                                            <div className="flex flex-col gap-2 w-full">
                                                               <button
-                                                                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error flex-1 sm:flex-none"
+                                                                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error w-full sm:w-auto"
                                                                 style={{ fontSize: '0.675rem', whiteSpace: 'nowrap', overflow: 'visible' }}
                                                                 disabled={resolvingMatch === `${match.id}-forfeitA`}
                                                                 onClick={() => forfeitMatch(match, 'A')}
@@ -1718,7 +1717,7 @@ export function TeamFormatManager({
                                                                 {resolvingMatch === `${match.id}-forfeitA` ? 'Processing...' : `Forfeit ${match.teamA?.name || 'Team A'}`}
                                                               </button>
                                                               <button
-                                                                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error flex-1 sm:flex-none"
+                                                                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error w-full sm:w-auto"
                                                                 style={{ fontSize: '0.675rem', whiteSpace: 'nowrap', overflow: 'visible' }}
                                                                 disabled={resolvingMatch === `${match.id}-forfeitB`}
                                                                 onClick={() => forfeitMatch(match, 'B')}
