@@ -242,7 +242,44 @@ export default function AdminClubsPage() {
       )}
 
       <div className="card">
-        <div className="overflow-x-auto">
+        {/* Mobile list */}
+        <div className="md:hidden space-y-3">
+          {loading && clubs.length === 0 && (
+            <div className="text-center py-6 text-muted">Loading…</div>
+          )}
+          {!loading && sortedClubs.length === 0 && (
+            <div className="text-center py-6 text-muted">No clubs yet.</div>
+          )}
+          {sortedClubs.map((club) => (
+            <div
+              key={club.id}
+              className="border border-border-subtle rounded-lg p-4 flex items-center justify-between gap-3"
+            >
+              <span className="font-semibold text-primary truncate">{club.fullName}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="btn btn-ghost btn-sm px-2"
+                  onClick={() => handleEditClub(club)}
+                  title="Edit"
+                >
+                  ✎
+                </button>
+                {admin.isAppAdmin && (
+                  <button
+                    aria-label="Delete club"
+                    onClick={() => removeClub(club.id)}
+                    title="Delete"
+                    className="text-error hover:text-error-hover p-1"
+                  >
+                    <TrashIcon />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="table">
             <thead>
               <tr>

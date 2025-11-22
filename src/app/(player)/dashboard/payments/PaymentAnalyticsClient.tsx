@@ -238,9 +238,9 @@ export function PaymentAnalyticsClient({
 
       {/* Recent Payments */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <h2 className="text-xl font-semibold">Recent Payments</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setPaymentFilter('ALL')}
               className={`btn btn-sm ${paymentFilter === 'ALL' ? 'btn-primary' : 'btn-ghost'}`}

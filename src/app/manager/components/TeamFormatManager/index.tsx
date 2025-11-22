@@ -1459,7 +1459,7 @@ export function TeamFormatManager({
                             return (
                               <div key={`${round.id}-${renderKey}-${updateKey}`} className="border-2 border-border-medium rounded-lg overflow-hidden bg-surface-1">
                                 <div
-                                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-surface-2 transition-colors bg-surface-2"
+                                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-4 cursor-pointer hover:bg-surface-2 transition-colors bg-surface-2"
                                   onClick={() => toggleRound(round.id)}
                                 >
                                   <div className="flex items-center gap-3">
@@ -1477,7 +1477,7 @@ export function TeamFormatManager({
                                       <span className="chip chip-warning text-[10px] px-2 py-0.5">In Progress</span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                                     {previousRoundAvailable && !roundHasStarted && (
                                       <button
                                         className="btn btn-ghost text-xs"

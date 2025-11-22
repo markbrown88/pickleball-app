@@ -191,7 +191,7 @@ export const GameScoreBox = memo(function GameScoreBox({
       'border-border-medium bg-surface-2'
     }`}>
       {/* Game Header */}
-      <div className={`px-4 py-2 flex items-center justify-between ${
+      <div className={`px-4 py-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${
         isCompleted ? 'bg-surface-2' :
         isInProgress ? 'bg-warning/10' :
         'bg-surface-1'
@@ -250,8 +250,8 @@ export const GameScoreBox = memo(function GameScoreBox({
       </div>
 
       {/* Game Body - Players and Scores */}
-      <div className="p-4 space-y-3 overflow-visible">
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center min-w-0">
+      <div className="p-4 space-y-4 overflow-visible">
+        <div className="flex flex-col gap-4 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center min-w-0">
           {/* Team A Side */}
           <div className={`text-sm min-w-0 ${
             isCompleted && teamAWon ? 'text-success font-semibold' : 'text-secondary'
@@ -260,7 +260,7 @@ export const GameScoreBox = memo(function GameScoreBox({
           </div>
 
           {/* Scores */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 sm:justify-center">
             {isCompleted ? (
               <>
                 <div className={`text-2xl font-bold tabular ${

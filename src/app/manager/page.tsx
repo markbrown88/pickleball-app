@@ -117,19 +117,19 @@ export default function ManagerPage() {
 
   return (
     <div className="min-h-screen bg-app p-6 space-y-6">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="space-y-1">
           <h1 className="text-3xl font-bold text-primary">Event Manager</h1>
-          <p className="text-muted mt-1">Manage lineups and scores for your assigned tournament stops</p>
+          <p className="text-muted">Manage lineups and scores for your assigned tournament stops</p>
         </div>
         {tournaments.length > 1 && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end w-full md:w-auto">
             <label htmlFor="manager-tournament" className="text-sm font-semibold text-secondary label-caps">
               Tournament:
             </label>
             <select
               id="manager-tournament"
-              className="input min-w-[280px]"
+              className="input w-full sm:max-w-sm"
               value={selectedTournamentId}
               onChange={(e) => {
                 const newId = e.target.value;

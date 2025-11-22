@@ -222,7 +222,7 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
       title={club ? 'Edit Club' : 'Add Club'}
       size="xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* General Error Display */}
         {errors.general && (
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -231,13 +231,13 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
         )}
 
         {/* Club Logo and Basic Info */}
-        <div className="flex gap-6">
+        <div className="bg-surface-2 rounded-lg p-4 grid gap-4 lg:grid-cols-[200px,1fr]">
           {/* Club Logo - Landscape */}
-          <div className="flex-shrink-0">
-            <label className="block text-sm font-medium mb-3">
+          <div className="space-y-3">
+            <label className="block text-sm font-medium">
               Club Logo
             </label>
-            <div className="w-64 h-20 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 overflow-hidden">
+            <div className="w-full max-w-xs h-24 bg-surface-1 rounded-lg flex items-center justify-center border-2 border-dashed border-border-medium overflow-hidden">
               {form.logo ? (
                 <img 
                   src={form.logo} 
@@ -245,7 +245,7 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
                   className="w-full h-full object-contain"
                 />
               ) : (
-                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               )}
@@ -259,30 +259,30 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             />
             <button
               type="button"
-              className="btn btn-sm btn-ghost mt-2"
+              className="btn btn-sm btn-ghost"
               onClick={triggerFileUpload}
             >
               {form.logo ? 'Change Logo' : 'Upload Logo'}
             </button>
-            <p className="text-xs mt-1">JPG, PNG up to 2MB</p>
+            <p className="text-xs text-muted">JPG, PNG up to 2MB</p>
           </div>
 
           {/* Basic Info Fields */}
-          <div className="flex-1 space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          Full Name *
-        </label>
-        <input
-          type="text"
-          value={form.fullName}
-          onChange={(e) => handleFieldChange('fullName', e.target.value)}
-          onBlur={() => handleFieldBlur('fullName')}
-          className={`input w-full ${errors.fullName ? 'border-red-500' : ''}`}
-          placeholder="Enter full club name"
-        />
-        {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
-      </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Full Name *
+              </label>
+              <input
+                type="text"
+                value={form.fullName}
+                onChange={(e) => handleFieldChange('fullName', e.target.value)}
+                onBlur={() => handleFieldBlur('fullName')}
+                className={`input w-full ${errors.fullName ? 'border-red-500' : ''}`}
+                placeholder="Enter full club name"
+              />
+              {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
+            </div>
 
             <div>
               <label className="block text-sm font-medium mb-1">
@@ -312,16 +312,16 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
                   placeholder="Type 3+ characters to search players"
                 />
                 {showDirectorDropdown && filteredPlayers.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-surface-1 border border-border-medium rounded-md shadow-lg max-h-60 overflow-auto">
                     {filteredPlayers.map((player) => {
                       const fullName = `${player.firstName || ''} ${player.lastName || ''}`.trim();
                       return (
                         <div
                           key={player.id}
-                          className="px-4 py-2 hover:bg-blue-50 cursor-pointer text-gray-900 font-medium"
+                          className="px-4 py-2 hover:bg-surface-2 cursor-pointer text-secondary font-medium"
                           onClick={() => selectDirector(player)}
                         >
-                          {fullName || `${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Unknown Player'}
+                          {fullName || 'Unknown Player'}
                         </div>
                       );
                     })}
@@ -334,73 +334,75 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
         </div>
 
         {/* Address */}
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Address *
-          </label>
-          <input
-            type="text"
-            value={form.address}
-            onChange={(e) => handleFieldChange('address', e.target.value)}
-            onBlur={() => handleFieldBlur('address')}
-            className={`input w-full ${errors.address ? 'border-red-500' : ''}`}
-            placeholder="Enter club address"
-          />
-          {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
-        </div>
-
-        {/* Location */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-surface-2 rounded-lg p-4 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">
-              City *
+              Address *
             </label>
             <input
               type="text"
-              value={form.city}
-              onChange={(e) => handleFieldChange('city', e.target.value)}
-              onBlur={() => handleFieldBlur('city')}
-              className={`input w-full ${errors.city ? 'border-red-500' : ''}`}
-              placeholder="Enter city"
+              value={form.address}
+              onChange={(e) => handleFieldChange('address', e.target.value)}
+              onBlur={() => handleFieldBlur('address')}
+              className={`input w-full ${errors.address ? 'border-red-500' : ''}`}
+              placeholder="Enter club address"
             />
-            {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
+            {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Prov/State *
-            </label>
-            <input
-              type="text"
-              value={form.region}
-              onChange={(e) => handleFieldChange('region', e.target.value)}
-              onBlur={() => handleFieldBlur('region')}
-              className={`input w-full ${errors.region ? 'border-red-500' : ''}`}
-              placeholder="Enter prov/state"
-            />
-            {errors.region && <p className="text-red-500 text-sm mt-1">{errors.region}</p>}
-          </div>
+          {/* Location */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                City *
+              </label>
+              <input
+                type="text"
+                value={form.city}
+                onChange={(e) => handleFieldChange('city', e.target.value)}
+                onBlur={() => handleFieldBlur('city')}
+                className={`input w-full ${errors.city ? 'border-red-500' : ''}`}
+                placeholder="Enter city"
+              />
+              {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Country *
-            </label>
-            <select
-              value={form.country}
-              onChange={(e) => handleFieldChange('country', e.target.value)}
-              onBlur={() => handleFieldBlur('country')}
-              className={`input w-full ${errors.country ? 'border-red-500' : ''}`}
-            >
-              <option value="Canada">Canada</option>
-              <option value="USA">USA</option>
-              <option value="Other">Other</option>
-            </select>
-            {errors.country && <p className="text-red-500 text-sm mt-1">{errors.country}</p>}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Prov/State *
+              </label>
+              <input
+                type="text"
+                value={form.region}
+                onChange={(e) => handleFieldChange('region', e.target.value)}
+                onBlur={() => handleFieldBlur('region')}
+                className={`input w-full ${errors.region ? 'border-red-500' : ''}`}
+                placeholder="Enter prov/state"
+              />
+              {errors.region && <p className="text-red-500 text-sm mt-1">{errors.region}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Country *
+              </label>
+              <select
+                value={form.country}
+                onChange={(e) => handleFieldChange('country', e.target.value)}
+                onBlur={() => handleFieldBlur('country')}
+                className={`input w-full ${errors.country ? 'border-red-500' : ''}`}
+              >
+                <option value="Canada">Canada</option>
+                <option value="USA">USA</option>
+                <option value="Other">Other</option>
+              </select>
+              {errors.country && <p className="text-red-500 text-sm mt-1">{errors.country}</p>}
+            </div>
           </div>
         </div>
 
         {/* Contact Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-surface-2 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">
               Email *
@@ -432,8 +434,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
         </div>
 
         {/* Description */}
-        <div>
-          <label className="block text-sm font-medium mb-1">
+        <div className="bg-surface-2 rounded-lg p-4 space-y-2">
+          <label className="block text-sm font-medium">
             Description
           </label>
           <textarea
@@ -445,14 +447,14 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             placeholder="Enter club description (max 300 characters)"
             maxLength={300}
           />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <div className="flex justify-between text-xs text-muted">
             <span>{form.description.length}/300 characters</span>
           </div>
-          {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
+          {errors.description && <p className="text-red-500 text-sm">{errors.description}</p>}
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+        <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
           <button
             type="button"
             onClick={onClose}

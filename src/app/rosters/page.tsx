@@ -169,19 +169,19 @@ export default function AdminRostersPage() {
     <section className="min-h-screen bg-app py-6">
       <div className="page-container space-y-6">
       <header className="card">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
             <h1 className="text-2xl font-bold text-primary">Tournament Rosters</h1>
-            <p className="text-sm text-muted mt-1">{headline}</p>
+            <p className="text-sm text-muted">{headline}</p>
           </div>
           {tournaments.length > 1 && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end w-full md:w-auto">
               <label htmlFor="roster-tournament" className="text-sm font-semibold text-secondary label-caps">
                 Tournament:
               </label>
               <select
                 id="roster-tournament"
-                className="input min-w-0 sm:min-w-[280px]"
+                className="input w-full sm:max-w-sm"
                 value={selectedId}
                 onChange={(event) => {
                   const newId = event.target.value;
@@ -349,36 +349,35 @@ function RosterDetails({
         {roster.clubs.map((club) => (
           <div key={club.clubId} className="border-2 border-border-medium rounded-lg overflow-hidden bg-surface-1">
             <button
-              className={`w-full px-6 py-4 flex items-center justify-between text-left transition-colors ${
+              className={`w-full px-6 py-4 flex flex-col gap-3 text-left transition-colors ${
                 club.isManagedByUser
                   ? 'bg-brand-secondary/5 hover:bg-brand-secondary/10'
                   : 'bg-surface-2 hover:bg-surface-1'
               }`}
               onClick={() => toggleClub(club.clubId)}
             >
-              <div className="flex items-center justify-between gap-4 flex-1">
-                <div className="flex items-center gap-3">
-                  <div className={`transform transition-transform text-secondary ${openClubIds.has(club.clubId) ? 'rotate-90' : ''}`}>
-                    ▶
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-primary">{club.clubName}</h3>
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className={`transform transition-transform text-secondary ${openClubIds.has(club.clubId) ? 'rotate-90' : ''}`}>
+                  ▶
                 </div>
-                {club.captainAccessToken && club.isManagedByUser && (
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-xs text-muted">Captain Portal:</span>
-                    <a
-                      href={`/captain/${club.captainAccessToken}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-2 py-1 text-xs bg-surface-1 border border-border-medium rounded font-mono text-info hover:text-info-hover hover:border-info transition-colors"
-                    >
-                      {typeof window !== 'undefined' ? `${window.location.origin}/captain/${club.captainAccessToken}` : `/captain/${club.captainAccessToken}`}
-                    </a>
-                  </div>
-                )}
+                <h3 className="text-lg font-semibold text-primary">{club.clubName}</h3>
               </div>
+              {club.captainAccessToken && club.isManagedByUser && (
+                <div
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-xs text-muted">Captain Portal:</span>
+                  <a
+                    href={`/captain/${club.captainAccessToken}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2 py-1 text-xs bg-surface-1 border border-border-medium rounded font-mono text-info hover:text-info-hover hover:border-info transition-colors break-all"
+                  >
+                    {typeof window !== 'undefined' ? `${window.location.origin}/captain/${club.captainAccessToken}` : `/captain/${club.captainAccessToken}`}
+                  </a>
+                </div>
+              )}
             </button>
             {openClubIds.has(club.clubId) && (
               <div className="bg-app border-t border-border-subtle px-6 py-6">
@@ -637,7 +636,10 @@ function ClubRosterEditor({
         <div>
           {/* Tab Navigation */}
           <div className="border-b border-border-subtle mb-6">
-            <nav className="flex gap-1 -mb-px" aria-label="Stop tabs">
+            <nav
+              className="flex gap-2 overflow-x-auto pb-2 -mb-px snap-x snap-mandatory"
+              aria-label="Stop tabs"
+            >
               {stops.map((stop) => {
                 const isActive = selectedStopId === stop.stopId;
                 const locationText = stop.locationName ? ` @ ${stop.locationName}` : '';
@@ -650,7 +652,7 @@ function ClubRosterEditor({
                       setSelectedStopId(stop.stopId);
                       saveActiveStopTab(tournamentId, club.clubId, stop.stopId);
                     }}
-                    className={`tab-button ${isActive ? 'active' : ''}`}
+                    className={`tab-button whitespace-nowrap snap-start ${isActive ? 'active' : ''}`}
                   >
                     <div className="flex flex-col items-start">
                       <span>{stop.stopName || 'Stop'}{locationText}</span>
