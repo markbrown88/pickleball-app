@@ -11,7 +11,6 @@ type Params = { tournamentId: string };
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   try {
     const { tournamentId } = await ctx.params;
-    console.log('Public API: Fetching standings for tournament:', tournamentId);
     
     // Cache standings data (5 minute TTL for public viewing)
     const standings = await getCached(
@@ -29,16 +28,30 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
             },
             matchesA: {
               include: {
-                games: true
+                games: true,
+                round: {
+                  select: {
+                    stopId: true
+                  }
+                }
               }
             },
             matchesB: {
               include: {
-                games: true
+                games: true,
+                round: {
+                  select: {
+                    stopId: true
+                  }
+                }
               }
             }
           }
         });
+
+        const KLYNG_CUP_PICKLEPLEX_ID = 'cmh7qeb1t0000ju04udwe7w8w';
+        const PICKLEPLEX_BELLEVILLE_CLUB_ID = 'cmfwjxyqn0001rdxtr8v9fmdj';
+        const KLYNG_CUP_FIRST_STOP_ID = 'cmh7rtx2x000hl804yn12dfw9';
 
         const standings = teams.map(team => {
           // Combine all matches (both as teamA and teamB)
@@ -50,10 +63,15 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           let wins = 0;
           let losses = 0;
           let points = 0;
+          const isBellevilleTeam =
+            team.tournamentId === KLYNG_CUP_PICKLEPLEX_ID &&
+            team.clubId === PICKLEPLEX_BELLEVILLE_CLUB_ID;
           
           realMatches.forEach(match => {
             let winner: 'A' | 'B' | null = null;
             let isForfeit = false;
+            const matchStopId = match.round?.stopId ?? null;
+            const suppressPoints = isBellevilleTeam && matchStopId === KLYNG_CUP_FIRST_STOP_ID;
 
             if (match.forfeitTeam) {
               isForfeit = true;
@@ -78,14 +96,22 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               if (teamBScore > teamAScore) winner = 'B';
             }
 
-            if(winner) {
-                if( (winner === 'A' && match.teamAId === team.id) || (winner === 'B' && match.teamBId === team.id) ) {
-                    wins++;
-                    points += 3;
-                } else {
-                    losses++;
-                    points += isForfeit ? 0 : 1;
+            if (winner) {
+              const teamWon =
+                (winner === 'A' && match.teamAId === team.id) ||
+                (winner === 'B' && match.teamBId === team.id);
+
+              if (teamWon) {
+                wins++;
+                if (!suppressPoints) {
+                  points += 3;
                 }
+              } else {
+                losses++;
+                if (!suppressPoints && !isForfeit) {
+                  points += 1;
+                }
+              }
             }
           });
           
@@ -103,40 +129,18 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           };
         });
 
-        // SPECIAL CASE: Pickleplex Belleville gets 0 points for "KLYNG CUP - pickleplex" tournament
-        const KLYNG_CUP_PICKLEPLEX_ID = 'cmh7qeb1t0000ju04udwe7w8w';
-        const PICKLEPLEX_BELLEVILLE_CLUB_ID = 'cmfwjxyqn0001rdxtr8v9fmdj';
-
-        const adjustedStandings = standings.map(standing => {
-          // If this is the Klyng Cup Pickleplex tournament and the team is from Pickleplex Belleville
-          if (
-            standing.tournamentId === KLYNG_CUP_PICKLEPLEX_ID &&
-            standing.clubId === PICKLEPLEX_BELLEVILLE_CLUB_ID
-          ) {
-            // Set their points to 0 for standings display
-            return {
-              ...standing,
-              points: 0,
-              wins: 0,
-              losses: standing.matches_played
-            };
-          }
-          return standing;
-        });
-
         // Sort by points (descending), then by team name (ascending)
-        adjustedStandings.sort((a, b) => {
+        standings.sort((a, b) => {
           if (b.points !== a.points) {
             return b.points - a.points;
           }
           return a.team_name.localeCompare(b.team_name);
         });
 
-        console.log('Public API: Calculated standings (with Belleville adjustment):', adjustedStandings);
 
-        return adjustedStandings;
+        return standings;
       },
-      CACHE_TTL.STANDINGS // 5 minutes
+      CACHE_TTL.STANDINGS
     );
     
     return NextResponse.json(standings);

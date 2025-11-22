@@ -28,7 +28,6 @@ let isConnected = false;
 if (redis) {
   redis.on('connect', () => {
     isConnected = true;
-    console.log('[Cache] Connected to Redis');
   });
 
   redis.on('error', (err) => {
@@ -38,15 +37,12 @@ if (redis) {
 
   redis.on('close', () => {
     isConnected = false;
-    console.log('[Cache] Redis connection closed');
   });
 
   // Attempt to connect (but don't block if it fails)
   redis.connect().catch((err) => {
     console.warn('[Cache] Failed to connect to Redis (proceeding without cache):', err.message);
   });
-} else {
-  console.log('[Cache] Redis disabled via REDIS_DISABLED environment variable');
 }
 
 /**
@@ -65,7 +61,7 @@ export const CACHE_TTL = {
 
   // Change during events
   STOPS: 300,               // 5 minutes
-  STANDINGS: 300,           // 5 minutes
+  STANDINGS: 60,            // 1 minute
   SCHEDULE: 60,             // 1 minute
   GAMES: 30,                // 30 seconds
   SCORES: 30,               // 30 seconds (real-time updates)
@@ -134,7 +130,6 @@ export async function invalidateCache(pattern: string): Promise<void> {
 
     if (keys.length > 0) {
       await redis.del(...keys);
-      console.log(`[Cache] Invalidated ${keys.length} keys matching: ${pattern}`);
     }
   } catch (err) {
     console.warn('[Cache] Error invalidating cache:', err);
