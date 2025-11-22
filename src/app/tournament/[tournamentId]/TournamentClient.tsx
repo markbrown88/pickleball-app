@@ -215,7 +215,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   const loadLineupsForStop = async (stopId: string) => {
     // For now, just log that we would load lineups
     // In a real implementation, this would load team lineups
-    console.log('Would load lineups for stop:', stopId);
   };
 
   const toTimestamp = (value?: string | null) => (value ? new Date(value).getTime() : null);
@@ -557,13 +556,10 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   const fetchTournamentStandings = useCallback(async (tournamentId: string) => {
     setStandingsLoading(true);
     try {
-      console.log('Fetching standings for tournament:', tournamentId);
       const response = await fetch(`/api/public/tournaments/${tournamentId}/standings`);
-      console.log('Standings response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Standings data:', data);
         setStandings(data);
       } else {
         const errorText = await response.text();
@@ -580,17 +576,13 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
   // Load standings when tournament changes
   useEffect(() => {
-    console.log('Tournament effect running, tournament:', tournament);
     if (tournament?.id) {
-      console.log('Fetching standings for tournament ID:', tournament.id);
       fetchTournamentStandings(tournament.id);
     } else {
-      console.log('No tournament ID available');
     }
   }, [tournament?.id, fetchTournamentStandings]);
 
   // Transform API data to match expected format
-  console.log('Raw standings data:', standings);
   const transformedStandings = standings.map(standing => ({
     team: {
       id: standing.team_id,
@@ -603,7 +595,6 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     wins: standing.wins,
     losses: standing.losses
   }));
-  console.log('Transformed standings:', transformedStandings);
 
   const combinedStandingsRaw = Array.from(
     transformedStandings.reduce((map, standing) => {
@@ -681,19 +672,12 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     }))
     .sort((a, b) => a.bracketName.localeCompare(b.bracketName)); // Sort brackets alphabetically
 
-  console.log('Combined standings:', combinedStandings);
-  console.log('Bracket standings:', bracketStandings);
 
   const formatStopDates = (stop: Stop) => {
     const cached = stopDataCache[stop.id];
     const startRaw = cached?.startAt ?? stop.startAt ?? null;
     const endRaw = cached?.endAt ?? stop.endAt ?? null;
 
-    console.log('Raw date strings:', { startRaw, endRaw });
-    console.log('Parsed dates:', { 
-      start: startRaw ? new Date(startRaw) : null, 
-      end: endRaw ? new Date(endRaw) : null 
-    });
 
     return formatDateRangeUTC(startRaw, endRaw);
   };

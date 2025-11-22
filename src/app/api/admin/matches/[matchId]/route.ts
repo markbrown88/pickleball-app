@@ -42,7 +42,6 @@ async function invalidateMatchCache(matchId: string) {
 
     if (match?.round.stopId) {
       await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
-      console.log(`[Cache] Invalidated schedule cache for stop: ${match.round.stopId}`);
     }
   } catch (err) {
     console.warn('[Cache] Failed to invalidate match cache:', err);
@@ -293,12 +292,10 @@ async function updateMatchTeams(matchId: string, body: MatchUpdateBody) {
 }
 
 async function handleForfeit(matchId: string, body: ForfeitBody) {
-  console.log(`[FORFEIT] Starting forfeit process for match ${matchId}, forfeitTeam: ${body.forfeitTeam}`);
   
   try {
     // Validate forfeit team value
     if (body.forfeitTeam !== null && body.forfeitTeam !== 'A' && body.forfeitTeam !== 'B') {
-      console.log(`[FORFEIT] Invalid forfeitTeam value: ${body.forfeitTeam}`);
       return bad('forfeitTeam must be "A", "B", or null');
     }
 
@@ -316,20 +313,16 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
     });
 
     if (!match) {
-      console.log(`[FORFEIT] Match not found: ${matchId}`);
       return bad('Match not found', 404);
     }
 
     if (match.isBye) {
-      console.log(`[FORFEIT] Cannot forfeit BYE match: ${matchId}`);
       return bad('Cannot forfeit a BYE match', 400);
     }
 
-    console.log(`[FORFEIT] Match found: ${matchId}, Team A: ${match.teamA?.name}, Team B: ${match.teamB?.name}`);
 
     // If forfeitTeam is null, just clear the forfeit
     if (body.forfeitTeam === null) {
-      console.log(`[FORFEIT] Clearing forfeit for match ${matchId}`);
       await prisma.match.update({
         where: { id: matchId },
         data: {
@@ -350,7 +343,6 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
     }
 
     // Handle actual forfeit - mark all games as complete and give win to non-forfeiting team
-    console.log(`[FORFEIT] Processing forfeit: Team ${body.forfeitTeam} forfeits`);
     
     // Get all games for this match
     const games = await prisma.game.findMany({
@@ -361,11 +353,9 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
       }
     });
 
-    console.log(`[FORFEIT] Found ${games.length} games for match ${matchId}`);
 
     // Update the match with forfeit information and current timestamp
     const currentTime = new Date();
-    console.log(`[FORFEIT] Updating match ${matchId} with forfeitTeam: ${body.forfeitTeam}, updatedAt: ${currentTime.toISOString()}`);
     
     const updatedMatch = await prisma.match.update({
       where: { id: matchId },
@@ -380,16 +370,13 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
       }
     });
     
-    console.log(`[FORFEIT] Match updated successfully:`, updatedMatch);
 
     // Mark all games for this match as complete with appropriate scores
-    console.log(`[FORFEIT] Updating games for match ${matchId} (${match.teamA?.name} vs ${match.teamB?.name})`);
     
     // Determine winning team based on forfeit
     const winningTeamId = body.forfeitTeam === 'A' ? match.teamB?.id : match.teamA?.id;
     const losingTeamId = body.forfeitTeam === 'A' ? match.teamA?.id : match.teamB?.id;
     
-    console.log(`[FORFEIT] Match ${matchId}: Winner=${winningTeamId}, Loser=${losingTeamId}`);
     
     // Set the forfeit time for all games
     const forfeitTime = currentTime;
@@ -410,7 +397,6 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
       }
     });
 
-    console.log(`[FORFEIT] Successfully processed forfeit for match ${matchId}`);
 
     await evaluateMatchTiebreaker(prisma, matchId);
 
@@ -436,7 +422,6 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
 
 async function decideMatchByPoints(matchId: string) {
   try {
-    console.log(`[DECIDE_BY_POINTS] Starting for match ${matchId}`);
     
     const match = await prisma.match.findUnique({
       where: { id: matchId },
@@ -448,24 +433,18 @@ async function decideMatchByPoints(matchId: string) {
     });
 
     if (!match) {
-      console.log(`[DECIDE_BY_POINTS] Match not found: ${matchId}`);
       return bad('Match not found', 404);
     }
 
-    console.log(`[DECIDE_BY_POINTS] Match found: ${match.teamA?.name} vs ${match.teamB?.name}`);
-    console.log(`[DECIDE_BY_POINTS] Current status: ${match.tiebreakerStatus}`);
 
     const standardGames = match.games.filter((g) =>
       ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'].includes(g.slot ?? ''),
     );
 
-    console.log(`[DECIDE_BY_POINTS] Found ${standardGames.length} standard games`);
     standardGames.forEach((g, i) => {
-      console.log(`[DECIDE_BY_POINTS] Game ${i}: ${g.slot} - ${g.teamAScore} vs ${g.teamBScore}`);
     });
 
     if (standardGames.length !== 4 || standardGames.some((g) => g.teamAScore == null || g.teamBScore == null)) {
-      console.log(`[DECIDE_BY_POINTS] Not all games complete - cannot decide`);
       return bad('Standard games must be completed before deciding by points.');
     }
 
@@ -482,11 +461,9 @@ async function decideMatchByPoints(matchId: string) {
       { pointsA: 0, pointsB: 0, winsA: 0, winsB: 0 },
     );
 
-    console.log(`[DECIDE_BY_POINTS] Tally: ${tally.pointsA} points vs ${tally.pointsB} points (${tally.winsA} wins vs ${tally.winsB} wins)`);
 
     // Check if points are equal - if so, can't decide by points
     if (tally.pointsA === tally.pointsB) {
-      console.log(`[DECIDE_BY_POINTS] Points are equal - cannot decide`);
       return bad('Total points are tied; a tiebreaker game is required.');
     }
 
@@ -494,8 +471,6 @@ async function decideMatchByPoints(matchId: string) {
     const winnerTeamId = tally.pointsA > tally.pointsB ? match.teamAId : match.teamBId;
     const winnerName = tally.pointsA > tally.pointsB ? match.teamA?.name : match.teamB?.name;
 
-    console.log(`[DECIDE_BY_POINTS] Winner: ${winnerName} (${winnerTeamId})`);
-    console.log(`[DECIDE_BY_POINTS] Setting status to DECIDED_POINTS`);
 
     const updatedMatch = await prisma.match.update({
       where: { id: matchId },
@@ -515,11 +490,9 @@ async function decideMatchByPoints(matchId: string) {
       },
     });
 
-    console.log(`[DECIDE_BY_POINTS] Match updated:`, updatedMatch);
 
     // DO NOT call evaluateMatchTiebreaker here - it will recalculate and override DECIDED_POINTS status
     // The match is now in a decided state and should not be re-evaluated
-    console.log(`[DECIDE_BY_POINTS] Match decided by total points`);
 
     return NextResponse.json({
       ok: true,

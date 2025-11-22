@@ -201,19 +201,15 @@ function convertMatch(
       } else if (round.bracketType === 'LOSER' && targetRound.bracketType === 'LOSER') {
         nextMatchId = matchId;
       } else if (round.bracketType === 'LOSER' && targetRound.bracketType === 'FINALS') {
-        console.log(`[BracketTransformer] LOSER match ${match.id.slice(0,8)} -> FINALS match ${matchId.slice(0,8)}`);
         nextMatchId = matchId;
       } else if (round.bracketType === 'WINNER' && targetRound.bracketType === 'FINALS') {
-        console.log(`[BracketTransformer] WINNER match ${match.id.slice(0,8)} -> FINALS match ${matchId.slice(0,8)}`);
         nextMatchId = matchId;
       } else if (round.bracketType === 'FINALS' && targetRound.bracketType === 'FINALS') {
         // Finals 1 -> Finals 2 (bracket reset)
         // Only show this link if Finals 2 has teams assigned (bracket reset triggered)
         if (m.teamA && m.teamB) {
-          console.log(`[BracketTransformer] FINALS match ${match.id.slice(0,8)} -> FINALS 2 match ${matchId.slice(0,8)} (bracket reset)`);
           nextMatchId = matchId;
         } else {
-          console.log(`[BracketTransformer] FINALS 2 exists but no teams yet - not showing as next match`);
         }
       }
     }
@@ -382,10 +378,6 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   const loserRounds = rounds.filter(r => r && r.bracketType === 'LOSER');
   const finalsRounds = rounds.filter(r => r && r.bracketType === 'FINALS');
 
-  console.log(`[BracketTransformer] Processing ${rounds.length} total rounds:`);
-  console.log(`  Winner rounds: ${winnerRounds.length}`);
-  console.log(`  Loser rounds: ${loserRounds.length}`);
-  console.log(`  Finals rounds: ${finalsRounds.length}`);
 
   // Convert matches
   const upperMatches: TournamentBracketMatch[] = [];
@@ -394,13 +386,8 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   // Winner bracket (upper)
   winnerRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
-    console.log(`BracketTransformer: Processing winner round ${idx + 1} (depth ${round.depth}) with ${round.matches.length} matches`);
     round.matches.forEach(match => {
       if (match && match.id) {
-        console.log(`BracketTransformer: Converting winner match ${match.id}:`, {
-          teamA: match.teamA?.name || 'TBD',
-          teamB: match.teamB?.name || 'TBD',
-        });
         const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
           upperMatches.push(converted);
@@ -412,16 +399,10 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   // Loser bracket (lower)
   loserRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
-    console.log(`BracketTransformer: Processing loser round ${idx} (depth ${round.depth}) with ${round.matches.length} matches`);
     round.matches.forEach(match => {
       if (match && match.id) {
-        console.log(`BracketTransformer: Converting loser match ${match.id.slice(0, 8)}:`, {
-          teamA: match.teamA?.name || 'TBD',
-          teamB: match.teamB?.name || 'TBD',
-        });
         const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
-          console.log(`  -> nextMatchId: ${converted.nextMatchId?.slice(0, 8) || 'NULL'}`);
           lowerMatches.push(converted);
         }
       }
@@ -434,7 +415,6 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
 
   sortedFinalsRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
-    console.log(`BracketTransformer: Processing finals round ${idx + 1} (depth ${round.depth}) with ${round.matches.length} matches`);
     round.matches.forEach(match => {
       if (match && match.id) {
         // For bracket reset: Only show Finals 2 (depth 0) if teams are assigned
@@ -442,17 +422,11 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
         const shouldShowFinals2 = !isFinals2 || (match.teamA && match.teamB);
 
         if (shouldShowFinals2) {
-          console.log(`BracketTransformer: Converting finals match ${match.id.slice(0, 8)}:`, {
-            depth: round.depth,
-            teamA: match.teamA?.name || 'TBD',
-            teamB: match.teamB?.name || 'TBD',
-          });
           const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
           if (converted) {
             upperMatches.push(converted);
           }
         } else {
-          console.log(`BracketTransformer: Skipping Finals 2 (no teams assigned yet)`);
         }
       }
     });
@@ -505,7 +479,6 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
     return true;
   });
 
-  console.log(`[BracketTransformer] Final counts - Upper: ${finalUpper.length}, Lower: ${finalLower.length}`);
 
   return {
     upper: finalUpper,

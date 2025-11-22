@@ -342,7 +342,6 @@ export async function POST(
       // Collect non-BYE matches from first winner round
       const nonByeMatches = firstWinnerRound.matches.filter(m => !m.isBye);
       
-      console.log(`[Bracket Link] First loser round: ${nonByeMatches.length} non-BYE matches from ${firstWinnerRound.matches.length} total matches`);
       
       // Pair losers from non-BYE matches into loser round matches
       // Check each loser match to see if it was already marked as BYE during generation
@@ -370,7 +369,6 @@ export async function POST(
                   sourceMatchBId: null, // No opponent - BYE
                 },
               });
-              console.log(`[Bracket Link] Loser Match ${i} (BYE): Loser of Match ${sourceMatch.bracketPosition} gets BYE`);
             }
             winnerLoserIdx++;
           }
@@ -391,7 +389,6 @@ export async function POST(
                   sourceMatchBId: sourceBMatchId,
                 },
               });
-              console.log(`[Bracket Link] Loser Match ${i}: Loser of Match ${matchA.bracketPosition} vs Loser of Match ${matchB.bracketPosition}`);
             }
             winnerLoserIdx += 2;
           }
@@ -417,13 +414,11 @@ export async function POST(
           const isLastLoserRound = loserRoundIdx === loserRounds.length - 1;
           const isLastWinnerRound = winnerRoundIdx === winnerRounds.length - 1;
 
-          console.log(`[Bracket Link] Loser Round ${loserRoundIdx} (Drop Round): Pairing winners from LB Round ${loserRoundIdx - 1} with losers from WB Round ${winnerRoundIdx}${isLastLoserRound ? ' (FINAL)' : ''}`);
 
           // Special handling: Last winner round should ONLY drop to last loser round
           // For intermediate loser rounds, they just get winners from previous loser round advancing
           const shouldSkipWinnerDrops = isLastWinnerRound && !isLastLoserRound;
           if (shouldSkipWinnerDrops) {
-            console.log(`[Bracket Link]   NOTE: Skipping WB drops (last WB round reserved for LB final) - only advancing LB winners`);
           }
 
           // We need to pair:
@@ -469,9 +464,7 @@ export async function POST(
               });
 
               if (prevMatchId && winnerLoserMatchId) {
-                console.log(`[Bracket Link] Loser Match ${i}: Winner of LB Match ${prevMatch.bracketPosition}${prevMatch.isBye ? ' (BYE)' : ''} vs Loser of WB Match ${winnerLosers[winnerLoserIdx-1].bracketPosition} (crossed)`);
               } else if (prevMatchId) {
-                console.log(`[Bracket Link] Loser Match ${i}: Winner of LB Match ${prevMatch.bracketPosition}${prevMatch.isBye ? ' (BYE)' : ''} advances (no WB opponent)`);
               }
             }
           }
@@ -494,7 +487,6 @@ export async function POST(
                   sourceMatchBId: winnerFinalMatchId, // Loser from winner bracket final
                 },
               });
-              console.log(`[Bracket Link] LB Final: Winner of LB Match ${prevMatch.bracketPosition} vs Loser of WB Final`);
             }
           } else if (isLastLoserRound && loserRound.matches.length === 1) {
             // Last loser round already has sourceMatchAId from the loop above
@@ -518,13 +510,11 @@ export async function POST(
                   sourceMatchBId: winnerFinalMatchId, // Loser from winner bracket final
                 },
               });
-              console.log(`[Bracket Link] LB Final: Added Loser of WB Final as sourceMatchBId`);
             }
           }
         } else {
           // Advance round: winners from previous loser round advance (pair winners)
           // Example: L4 = Winner L2 vs Winner L3
-          console.log(`[Bracket Link] Loser Round ${loserRoundIdx} (Advance Round): Pairing winners from LB Round ${loserRoundIdx - 1}`);
           
           const prevLoserWinners = prevLoserRound.matches.filter(m => !m.isBye);
 
@@ -550,7 +540,6 @@ export async function POST(
                     sourceMatchBId: sourceBMatchId, // Will be null if only one source
                   },
                 });
-                console.log(`[Bracket Link] Loser Match ${matchIdx}: Winner of LB Match ${sourceA.bracketPosition}${sourceB ? ` vs Winner of LB Match ${sourceB.bracketPosition}` : ' (advances)'}`);
               }
             }
           }
@@ -581,7 +570,6 @@ export async function POST(
                     sourceMatchBId: winnerFinalMatchId, // Loser from winner bracket final
                   },
                 });
-                console.log(`[Bracket Link] LB Final (Advance Round): Added Loser of WB Final as sourceMatchBId`);
               }
             }
           }
@@ -618,7 +606,6 @@ export async function POST(
               sourceMatchBId: loserFinalMatchId, // Loser bracket champion
             },
           });
-          console.log(`[Bracket Link] Finals 1: Winner of WB Final vs Winner of LB Final`);
         }
       }
 
@@ -638,14 +625,12 @@ export async function POST(
               sourceMatchBId: null, // No second source
             },
           });
-          console.log(`[Bracket Link] Finals 2: Bracket reset from Finals 1`);
         }
       }
     }
 
     // AUTO-COMPLETE BYE MATCHES: After all matches are created and linked,
     // auto-complete any BYE matches that have a team assigned and advance winners
-    console.log('[Bracket Generation] Auto-completing BYE matches...');
     const byeMatches = await prisma.match.findMany({
       where: {
         round: { stopId: stop.id },
@@ -659,7 +644,6 @@ export async function POST(
     });
 
     for (const byeMatch of byeMatches) {
-      console.log(`[Bracket Generation] Auto-completing BYE match ${byeMatch.id} (${byeMatch.round?.bracketType} bracket)...`);
 
       // Set winner
       await prisma.match.update({
@@ -698,7 +682,6 @@ export async function POST(
           where: { id: child.id },
           data: { teamAId: byeMatch.teamAId },
         });
-        console.log(`[Bracket Generation]   → Advanced to ${child.round?.bracketType} match ${child.id} as Team A`);
       }
 
       for (const child of targetChildrenB) {
@@ -706,13 +689,10 @@ export async function POST(
           where: { id: child.id },
           data: { teamBId: byeMatch.teamAId },
         });
-        console.log(`[Bracket Generation]   → Advanced to ${child.round?.bracketType} match ${child.id} as Team B`);
       }
 
-      console.log(`[Bracket Generation] ✓ BYE match ${byeMatch.id} completed, winner: ${byeMatch.teamAId}`);
     }
 
-    console.log(`[Bracket Generation] Auto-completed ${byeMatches.length} BYE matches`);
 
     // Update tournament with gamesPerMatch setting (only for team-based tournaments)
     if (!isClubBased) {

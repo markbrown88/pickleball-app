@@ -90,7 +90,6 @@ export function MatchupDragDropExample() {
         throw new Error('Failed to save matchups');
       }
 
-      console.log('Matchups saved successfully');
     } catch (error) {
       console.error('Error saving matchups:', error);
       throw error;

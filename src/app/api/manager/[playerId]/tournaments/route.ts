@@ -51,7 +51,6 @@ export async function GET(
     try {
       effectivePlayer = await getEffectivePlayer(actAsPlayerId);
     } catch (actAsError) {
-      console.log('Manager tournaments API: Act As error, using real player:', actAsError);
       // If Act As fails (e.g., invalid player ID), try to get the real player without Act As
       try {
         effectivePlayer = await getEffectivePlayer(null);

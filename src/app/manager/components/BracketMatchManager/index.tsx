@@ -73,8 +73,6 @@ export function BracketMatchManager({
   async function loadBracketData() {
     try {
       setLoading(true);
-      console.log('BracketManager: Loading bracket data for stop:', stopId);
-      console.log('📍 [CLEANUP START] Starting bracket data load and cleanup check...');
 
       // Add cache-busting timestamp to force fresh data
       const timestamp = Date.now();
@@ -88,22 +86,10 @@ export function BracketMatchManager({
       const data = await response.json();
       // data is an array of rounds, not an object with a rounds property
       const roundsData = Array.isArray(data) ? data : [];
-      console.log('BracketManager: Loaded rounds:', roundsData.length, 'rounds');
-      console.log('📍 [CLEANUP CHECK] Loaded', roundsData.length, 'rounds, starting cleanup check...');
       
       // Log ALL matches to verify winner progression
       roundsData.forEach((round: any, idx: number) => {
-        console.log(`=== Round ${idx + 1} (${round.matches.length} matches, bracketType: ${round.bracketType}, depth: ${round.depth}) ===`);
         round.matches.forEach((match: any) => {
-          console.log(`Round ${idx + 1} Match ${match.id}:`, {
-            teamA: match.teamA?.name || 'TBD',
-            teamB: match.teamB?.name || 'TBD',
-            winnerId: match.winnerId,
-            sourceMatchAId: match.sourceMatchAId,
-            sourceMatchBId: match.sourceMatchBId,
-            gamesComplete: match.games?.filter((g: any) => g.isComplete).length || 0,
-            totalGames: match.games?.length || 0,
-          });
         });
       });
       
@@ -156,7 +142,6 @@ export function BracketMatchManager({
       // This handles cases where matches completed before auto-complete was implemented
       // Only check once to prevent infinite loops
       if (!advancementCheckedRef.current) {
-        console.log('Checking for matches that need winner advancement...');
         advancementCheckedRef.current = true; // Mark as checked IMMEDIATELY to prevent repeated checks
         let matchesNeedingAdvancement = 0;
 
@@ -165,20 +150,9 @@ export function BracketMatchManager({
           const hasWinner = !!match.winnerId;
           const hasSourceLinks = !!(match.sourceMatchAId || match.sourceMatchBId);
           
-          console.log(`Match ${match.id}:`, {
-            hasWinner,
-            winnerId: match.winnerId,
-            hasSourceLinks,
-            sourceMatchAId: match.sourceMatchAId,
-            sourceMatchBId: match.sourceMatchBId,
-            isBye: match.isBye,
-            teamA: match.teamA?.name || 'TBD',
-            teamB: match.teamB?.name || 'TBD',
-          });
           
           // Handle BYE matches: automatically complete them if they haven't been completed yet
           if (match.isBye && match.teamA && !match.winnerId) {
-            console.log(`🔄 BYE match ${match.id}: Auto-completing with winner ${match.teamA.id}`);
             matchesNeedingAdvancement++;
             fetch(`/api/admin/matches/${match.id}/complete`, {
               method: 'POST',
@@ -191,7 +165,6 @@ export function BracketMatchManager({
                 return response.json();
               })
               .then(result => {
-                console.log(`✅ BYE match ${match.id} completion result:`, result);
                 // Reload bracket data after a short delay to show updated teams
                 setTimeout(() => {
                   loadBracketData();
@@ -212,19 +185,6 @@ export function BracketMatchManager({
                 m.sourceMatchAId === match.id || m.sourceMatchBId === match.id
               );
             
-            console.log(`Match ${match.id} (isBye: ${match.isBye}) has ${childMatches.length} child matches`, {
-              winnerId: match.winnerId,
-              winnerName: match.teamA?.id === match.winnerId ? match.teamA?.name : match.teamB?.name,
-              sourceMatchAId: match.sourceMatchAId,
-              sourceMatchBId: match.sourceMatchBId,
-              childMatches: childMatches.map(c => ({
-                id: c.id,
-                teamA: c.teamA?.name || 'TBD',
-                teamB: c.teamB?.name || 'TBD',
-                sourceMatchAId: c.sourceMatchAId,
-                sourceMatchBId: c.sourceMatchBId,
-              })),
-            });
             
             const needsAdvancement = childMatches.some(child => {
               const needsTeamA = child.sourceMatchAId === match.id && (!child.teamA || child.teamA.name === 'TBD');
@@ -234,7 +194,6 @@ export function BracketMatchManager({
 
             if (needsAdvancement) {
               matchesNeedingAdvancement++;
-              console.log(`⚠️ Match ${match.id} (isBye: ${match.isBye}) has winner ${match.winnerId} but children haven't advanced. Triggering completion...`);
               // Trigger match completion to advance winner
               fetch(`/api/admin/matches/${match.id}/complete`, {
                 method: 'POST',
@@ -249,7 +208,6 @@ export function BracketMatchManager({
                   return response.json();
                 })
                 .then(result => {
-                  console.log(`✅ Match ${match.id} completion result:`, result);
                   // Reload bracket data after a short delay to show updated teams
                   setTimeout(() => {
                     loadBracketData();
@@ -264,7 +222,6 @@ export function BracketMatchManager({
         }
         }
 
-        console.log(`Found ${matchesNeedingAdvancement} matches that need winner advancement`);
       }
 
       // Extract lineups from games and populate the lineups state

@@ -28,7 +28,6 @@ export async function POST(req: NextRequest, ctx: CtxPromise) {
     try {
       effectivePlayer = await getEffectivePlayer(actAsPlayerId);
     } catch (actAsError) {
-      console.log('Register API: Act As error, using real player:', actAsError);
       // If Act As fails, get the real player
       const realPlayer = await prisma.player.findUnique({
         where: { clerkUserId: userId },
@@ -176,12 +175,6 @@ export async function POST(req: NextRequest, ctx: CtxPromise) {
     // Send confirmation email to player (non-blocking)
     if (playerDetails?.email && tournamentDetails) {
       try {
-        console.log('[Registration] Attempting to send confirmation email', {
-          playerEmail: playerDetails.email,
-          playerName: playerDetails.name || `${playerDetails.firstName} ${playerDetails.lastName}`,
-          tournamentName: tournament.name,
-          hasResendKey: !!process.env.RESEND_API_KEY,
-        });
 
         const playerName =
           playerDetails.name ||
@@ -210,17 +203,11 @@ export async function POST(req: NextRequest, ctx: CtxPromise) {
           registrationDate: registration.registeredAt,
         });
 
-        console.log('[Registration] Confirmation email sent successfully');
       } catch (emailError) {
         console.error('[Registration] Failed to send confirmation email:', emailError);
         // Don't fail the registration if email fails
       }
     } else {
-      console.log('[Registration] Skipping email - missing data', {
-        hasPlayerEmail: !!playerDetails?.email,
-        hasTournamentDetails: !!tournamentDetails,
-        playerEmail: playerDetails?.email || 'N/A',
-      });
     }
 
     // Send notification email to tournament admins
@@ -357,7 +344,6 @@ export async function DELETE(req: NextRequest, ctx: CtxPromise) {
     try {
       effectivePlayer = await getEffectivePlayer(actAsPlayerId);
     } catch (actAsError) {
-      console.log('Withdraw API: Act As error, using real player:', actAsError);
       // If Act As fails, get the real player
       const realPlayer = await prisma.player.findUnique({
         where: { clerkUserId: userId },

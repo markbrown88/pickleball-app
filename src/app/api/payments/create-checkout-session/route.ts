@@ -156,18 +156,6 @@ export async function POST(request: NextRequest) {
     // Note: The actual amount charged will be calculated below using calculatedAmount,
     // which respects newlySelectedStopIds if newStopsTotal is missing
     
-    console.log('Payment calculation debug:', {
-      registrationId: registrationId,
-      pricingModel,
-      registrationCostInCents: registration.tournament.registrationCost,
-      registrationCostInDollars,
-      stopIds: registrationDetails.stopIds,
-      brackets: registrationDetails.brackets,
-      isUpdate: registrationDetails.newStopsTotal !== undefined,
-      newStopsTotal: registrationDetails.newStopsTotal,
-      existingAmountPaid: registrationDetails.existingAmountPaid,
-      amountToCharge,
-    });
     
     // If updating existing registration, use pre-calculated new stops amount
     // Otherwise, calculate from scratch
@@ -181,13 +169,6 @@ export async function POST(request: NextRequest) {
       tax = registrationDetails.newStopsTax || 0;
       calculatedAmount = registrationDetails.newStopsTotal;
       
-      console.log('Using pre-calculated new stops amount:', {
-        registrationId: registrationId,
-        subtotal,
-        tax,
-        total: calculatedAmount,
-        existingAmountPaid: registrationDetails.existingAmountPaid,
-      });
     } else {
       // Calculate from scratch
       // IMPORTANT: If this is an update to existing registration but newStopsTotal is missing,
@@ -220,18 +201,6 @@ export async function POST(request: NextRequest) {
         ? registrationDetails.newStopsTotal
         : (registrationDetails.expectedAmount ?? storedAmountInDollars);
       
-      console.log('Amount validation debug:', {
-        registrationId: registrationId,
-        subtotal,
-        tax,
-        calculatedAmount,
-        expectedAmount,
-        storedAmountInDollars,
-        amountPaidInCents: registration.amountPaid,
-        difference: Math.abs(calculatedAmount - expectedAmount),
-        usingNewlySelectedStops: registrationDetails.newlySelectedStopIds !== undefined,
-        stopsToCalculate,
-      });
       
       if (Math.abs(calculatedAmount - expectedAmount) > 0.01) {
         console.error('Amount mismatch:', {
@@ -278,16 +247,6 @@ export async function POST(request: NextRequest) {
     // Construct base URL from request
     const baseUrl = getBaseUrl(request);
     
-    console.log('[Checkout Session] Creating Stripe checkout session:', {
-      registrationId,
-      tournamentId: registration.tournamentId,
-      tournamentName: registration.tournament.name,
-      playerEmail: registration.player.email,
-      amount,
-      baseUrl,
-      lineItemsCount: lineItems.length,
-      timestamp: new Date().toISOString(),
-    });
     
     // Create Stripe Checkout Session
     let session;
@@ -310,14 +269,6 @@ export async function POST(request: NextRequest) {
         client_reference_id: registrationId,
       });
       
-      console.log('[Checkout Session] Stripe session created successfully:', {
-        sessionId: session.id,
-        sessionUrl: session.url,
-        sessionStatus: session.status,
-        paymentIntentId: session.payment_intent,
-        sessionMode: session.mode,
-        timestamp: new Date().toISOString(),
-      });
     } catch (stripeError: any) {
       console.error('[Checkout Session] Stripe API error:', {
         error: stripeError.message,
@@ -345,11 +296,6 @@ export async function POST(request: NextRequest) {
           paymentStatus: 'PENDING',
         },
       });
-      console.log('[Checkout Session] Registration updated with session ID:', {
-        registrationId,
-        sessionId: session.id,
-        timestamp: new Date().toISOString(),
-      });
     } catch (dbError: any) {
       console.error('[Checkout Session] Database update error:', {
         error: dbError.message,
@@ -365,12 +311,6 @@ export async function POST(request: NextRequest) {
       url: session.url,
     };
     
-    console.log('[Checkout Session] Returning response:', {
-      hasUrl: !!responseData.url,
-      sessionId: responseData.sessionId,
-      registrationId,
-      timestamp: new Date().toISOString(),
-    });
 
     return NextResponse.json(responseData);
 

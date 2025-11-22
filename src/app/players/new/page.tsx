@@ -55,7 +55,6 @@ export default function PlayerNewPage() {
         const clubsList = Array.isArray(data) 
           ? data.map((club: any) => ({ id: club.id, name: club.name }))
           : [];
-        console.log(`Loaded ${clubsList.length} clubs`);
         setClubs(clubsList);
       } catch (error) {
         console.error('Error loading clubs:', error);

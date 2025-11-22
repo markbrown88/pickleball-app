@@ -15,7 +15,6 @@ async function retryDatabaseOperation<T>(
       return await operation();
     } catch (error) {
       if (i === maxRetries - 1) throw error;
-      console.log(`Database operation failed, retrying in ${delay}ms... (attempt ${i + 1}/${maxRetries})`);
       await new Promise(resolve => setTimeout(resolve, delay));
       delay *= 2; // Exponential backoff
     }

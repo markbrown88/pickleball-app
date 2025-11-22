@@ -197,7 +197,6 @@ export async function POST(req: Request) {
       data: createData,
     });
 
-    console.log('Club created successfully:', created);
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     console.error('Error creating club:', error);

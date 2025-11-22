@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
     try {
       effectivePlayer = await getEffectivePlayer(actAsPlayerId);
     } catch (actAsError) {
-      console.log('Registrations API: Act As error, using real player:', actAsError);
       // If Act As fails, get the real player
       const realPlayer = await prisma.player.findUnique({
         where: { clerkUserId: userId },

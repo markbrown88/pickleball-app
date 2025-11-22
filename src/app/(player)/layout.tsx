@@ -141,11 +141,6 @@ export default async function PlayerLayout({ children }: { children: ReactNode }
         });
       }
 
-      console.log('Layout: Successfully created/updated Player record automatically:', {
-        id: realPlayer.id,
-        email: userEmail,
-        clerkUserId: user.id
-      });
     } catch (createError: any) {
       console.error('Layout: Error creating Player record automatically:', createError);
       // If creation fails, redirect to homepage (not sign-in to avoid redirect loop)

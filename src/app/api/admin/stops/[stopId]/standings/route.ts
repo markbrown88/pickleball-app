@@ -176,7 +176,6 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         const forfeitTeam = match.forfeitTeam;
         
         if (forfeitTeam) {
-          console.log(`[STANDINGS] Match ${match.id} has forfeit: Team ${forfeitTeam} forfeited (${match.teamA?.name} vs ${match.teamB?.name})`);
           
           // Handle forfeit - team that didn't forfeit gets the win
           rowA.played++;
@@ -189,14 +188,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
             rowB.losses++;
             rowA.points += GAME_WIN_POINTS; // 3 points for win
             rowB.points += GAME_FORFEIT_POINTS; // 0 points for forfeit
-            console.log(`[STANDINGS] Team A (${match.teamA?.name}) gets win, Team B (${match.teamB?.name}) gets loss`);
           } else {
             // Team A forfeited, Team B wins
             rowB.wins++;
             rowA.losses++;
             rowB.points += GAME_WIN_POINTS; // 3 points for win
             rowA.points += GAME_FORFEIT_POINTS; // 0 points for forfeit
-            console.log(`[STANDINGS] Team B (${match.teamB?.name}) gets win, Team A (${match.teamA?.name}) gets loss`);
           }
         }
 

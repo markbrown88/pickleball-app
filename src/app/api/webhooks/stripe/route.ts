@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
 
   // Log webhook secret info (first few chars only for security)
   const secretPrefix = process.env.STRIPE_WEBHOOK_SECRET.substring(0, 10);
-  console.log('[Webhook] Using webhook secret:', `${secretPrefix}...`);
 
   let event: Stripe.Event;
 
@@ -71,7 +70,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log('Received Stripe event:', event.type);
 
   try {
     // Handle different event types
@@ -97,7 +95,6 @@ export async function POST(request: NextRequest) {
         break;
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
     }
 
     return NextResponse.json({ received: true });
@@ -115,7 +112,6 @@ export async function POST(request: NextRequest) {
  * Handle successful checkout session completion
  */
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-  console.log('Processing checkout.session.completed:', session.id);
 
   const registrationId = session.metadata?.registrationId || session.client_reference_id;
 
@@ -384,7 +380,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
                 paymentMethod: 'STRIPE', // Update payment method if entry already exists
               },
             });
-            console.log(`Created roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId} with STRIPE payment`);
           } catch (rosterError) {
             console.error(`Failed to create roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}:`, rosterError);
             // Don't throw - roster creation failure shouldn't fail payment processing
@@ -537,20 +532,17 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         clubName,
       });
 
-      console.log(`Payment receipt email sent for registration ${registrationId}`);
     } catch (emailError) {
       console.error('Failed to send payment receipt email:', emailError);
     }
   }
 
-  console.log(`Registration ${registrationId} marked as PAID`);
 }
 
 /**
  * Handle expired checkout session
  */
 async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
-  console.log('Processing checkout.session.expired:', session.id);
 
   const registrationId = session.metadata?.registrationId || session.client_reference_id;
 
@@ -630,20 +622,17 @@ async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
         location,
       });
 
-      console.log(`Payment failed email sent for registration ${registrationId}`);
     } catch (emailError) {
       console.error('Failed to send payment failed email:', emailError);
     }
   }
 
-  console.log(`Registration ${registrationId} checkout session expired`);
 }
 
 /**
  * Handle successful payment intent
  */
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  console.log('Processing payment_intent.succeeded:', paymentIntent.id);
 
   // First try to find registration by paymentIntentId stored in notes
   let registration = await prisma.tournamentRegistration.findFirst({
@@ -817,7 +806,6 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
   }
 
   if (!registration) {
-    console.log('No matching registration found for payment intent:', paymentIntent.id);
     return;
   }
 
@@ -1024,7 +1012,6 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
                 paymentMethod: 'STRIPE', // Update payment method if entry already exists
               },
             });
-            console.log(`Created roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId} with STRIPE payment`);
           } catch (rosterError) {
             console.error(`Failed to create roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}:`, rosterError);
             // Don't throw - roster creation failure shouldn't fail payment processing
@@ -1177,20 +1164,17 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
         clubName,
       });
 
-      console.log(`Payment receipt email sent for registration ${registration.id}`);
     } catch (emailError) {
       console.error('Failed to send payment receipt email:', emailError);
     }
   }
 
-  console.log(`Payment confirmed for registration ${registration.id}`);
 }
 
 /**
  * Handle failed payment intent
  */
 async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
-  console.log('Processing payment_intent.payment_failed:', paymentIntent.id);
 
   // Find registration by matching amount and recent registrations
   const registration = await prisma.tournamentRegistration.findFirst({
@@ -1236,7 +1220,6 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
   });
 
   if (!registration) {
-    console.log('No matching registration found for payment intent:', paymentIntent.id);
     return;
   }
 
@@ -1279,20 +1262,17 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
         location,
       });
 
-      console.log(`Payment failed email sent for registration ${registration.id}`);
     } catch (emailError) {
       console.error('Failed to send payment failed email:', emailError);
     }
   }
 
-  console.log(`Payment failed for registration ${registration.id}`);
 }
 
 /**
  * Handle refunded charge
  */
 async function handleChargeRefunded(charge: Stripe.Charge) {
-  console.log('Processing charge.refunded:', charge.id);
 
   if (!charge.payment_intent) {
     console.error('No payment intent ID in refunded charge');
@@ -1330,7 +1310,6 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
   });
 
   if (!registration) {
-    console.log('No matching registration found for refunded charge:', charge.id);
     return;
   }
 
@@ -1367,11 +1346,9 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
         reason: 'Refund processed',
       });
 
-      console.log(`Refund confirmation email sent for registration ${registration.id}`);
     } catch (emailError) {
       console.error('Failed to send refund confirmation email:', emailError);
     }
   }
 
-  console.log(`Registration ${registration.id} refunded`);
 }

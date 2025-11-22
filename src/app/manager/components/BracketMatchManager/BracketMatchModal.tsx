@@ -74,22 +74,11 @@ export function BracketMatchModal({
   onError,
   onInfo,
 }: BracketMatchModalProps) {
-  console.log('BracketMatchModal RENDERED - Version 2.0', {
-    matchId: match?.id,
-    hasMatch: !!match,
-    timestamp: new Date().toISOString(),
-  });
   const [updating, setUpdating] = useState(false);
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
   // Initialize localGames from match.games, but ensure we always have the latest
   const [localGames, setLocalGames] = useState<Game[]>(() => {
     const initialGames = match?.games || [];
-    console.log('BracketMatchModal: Initial state', {
-      matchId: match?.id,
-      hasMatch: !!match,
-      gamesFromMatch: match?.games?.length || 0,
-      initialGamesLength: initialGames.length,
-    });
     return initialGames;
   });
 
@@ -104,17 +93,6 @@ export function BracketMatchModal({
 
     const gamesArray = Array.isArray(match.games) ? match.games : [];
 
-    console.log('BracketMatchModal: Syncing localGames from match.games', {
-      matchId: match.id,
-      gamesCount: gamesArray.length,
-      serverData: gamesArray.map(g => ({
-        id: g.id,
-        isComplete: g.isComplete,
-        startedAt: g.startedAt,
-        teamAScore: g.teamAScore,
-        teamBScore: g.teamBScore,
-      })),
-    });
 
     // Always sync from server to ensure we have latest data (scores, statuses, etc.)
     // This fixes the issue where closing/reopening modal showed stale data
@@ -126,10 +104,8 @@ export function BracketMatchModal({
 
   // Game control functions
   const startGame = useCallback(async (gameId: string) => {
-    console.log('BracketMatchModal: Starting game', gameId);
     try {
       const updatedGame = await gameControls.startGame(gameId);
-      console.log('BracketMatchModal: Game started successfully', updatedGame);
 
       // Update local state optimistically - create new array reference to trigger re-render
       setLocalGames(prev => {
@@ -138,7 +114,6 @@ export function BracketMatchModal({
             ? { ...g, startedAt: updatedGame.startedAt || new Date().toISOString(), isComplete: false }
             : g
         );
-        console.log('BracketMatchModal: Updated localGames after start', updated.find(g => g.id === gameId));
         return [...updated]; // Force new array reference
       });
       
@@ -177,12 +152,6 @@ export function BracketMatchModal({
               ? { ...g, isComplete: true, endedAt: updatedGame.endedAt || new Date().toISOString(), teamAScore, teamBScore }
               : g
           );
-          console.log('BracketMatchModal: Updated localGames after ending game', {
-            gameId,
-            updatedGame: updated.find(g => g.id === gameId),
-            totalGames: updated.length,
-            completedGames: updated.filter(g => g.isComplete).length,
-          });
           return [...updated]; // Force new array reference
         });
         
@@ -217,7 +186,6 @@ export function BracketMatchModal({
   }, [gameControls]);
 
   const updateGameScore = useCallback(async (gameId: string, teamAScore: number | null, teamBScore: number | null) => {
-    console.log('BracketMatchModal: Updating score', { gameId, teamAScore, teamBScore });
     
     // Update local state immediately (optimistic update) - create new array and objects
     setLocalGames(prev => {
@@ -226,11 +194,6 @@ export function BracketMatchModal({
           ? { ...g, teamAScore, teamBScore } // Create new object
           : g
       );
-      console.log('BracketMatchModal: Updated localGames after score update', {
-        gameId,
-        updatedGame: updated.find(g => g.id === gameId),
-        allGames: updated.map(g => ({ id: g.id, scoreA: g.teamAScore, scoreB: g.teamBScore })),
-      });
       return [...updated]; // Force new array reference
     });
 
@@ -402,11 +365,9 @@ export function BracketMatchModal({
 
   const canCompleteMatch = () => {
     if (match.isBye) {
-      console.log('canCompleteMatch: Match is BYE');
       return false;
     }
     if (match.winnerId) {
-      console.log('canCompleteMatch: Match already has winner', match.winnerId);
       return false;
     }
 
@@ -418,15 +379,8 @@ export function BracketMatchModal({
     const bracketCount = new Set(gamesToUse.filter(g => g.bracketId).map(g => g.bracketId)).size;
     const totalExpectedGames = bracketCount * 4;
     
-    console.log('canCompleteMatch check:', {
-      completedGames,
-      bracketCount,
-      totalExpectedGames,
-      totalGames: gamesToUse.length,
-    });
     
     if (completedGames < totalExpectedGames) {
-      console.log('canCompleteMatch: Not all games completed');
       return false;
     }
 
@@ -434,13 +388,6 @@ export function BracketMatchModal({
     const { teamAGameWins, teamBGameWins } = getGameWins();
     const majority = Math.ceil(totalExpectedGames / 2);
     
-    console.log('canCompleteMatch winner check:', {
-      teamAGameWins,
-      teamBGameWins,
-      majority,
-      hasTiebreaker: match.tiebreakerWinnerTeamId !== null,
-      canComplete: teamAGameWins >= majority || teamBGameWins >= majority || match.tiebreakerWinnerTeamId !== null,
-    });
     
     return teamAGameWins >= majority || teamBGameWins >= majority || match.tiebreakerWinnerTeamId !== null;
   };
@@ -453,25 +400,11 @@ export function BracketMatchModal({
     let teamAGameWins = 0;
     let teamBGameWins = 0;
 
-    console.log('=== Calculating game wins (FIXED VERSION) ===');
-    console.log('Calculating game wins for match:', match?.id);
-    console.log('Total games:', gamesToUse.length);
-    console.log('Completed games:', gamesToUse.filter(g => g.isComplete).length);
     
     // Log all games with their details
-    console.log('All games details:', gamesToUse.map(g => ({
-      id: g.id,
-      slot: g.slot,
-      bracket: g.bracket?.name || 'Main',
-      isComplete: g.isComplete,
-      teamAScore: g.teamAScore,
-      teamBScore: g.teamBScore,
-      willBeCounted: g.isComplete && (g.teamAScore !== null || g.teamBScore !== null)
-    })));
 
     for (const game of gamesToUse) {
       if (!game.isComplete) {
-        console.log(`Game ${game.id} (${game.slot}) skipped: not complete`);
         continue;
       }
       
@@ -482,11 +415,9 @@ export function BracketMatchModal({
       
       // If both original scores are null, skip (shouldn't happen for completed games, but handle gracefully)
       if (game.teamAScore === null && game.teamBScore === null) {
-        console.log(`Game ${game.id} (${game.slot}) skipped: both scores are null`);
         continue;
       }
 
-      console.log(`Processing game ${game.id} (${game.slot}): original scores [${game.teamAScore}, ${game.teamBScore}], normalized [${teamAScore}, ${teamBScore}]`);
       
       // Alert if we have a null score that we're fixing
       if (game.teamAScore === null || game.teamBScore === null) {
@@ -495,17 +426,12 @@ export function BracketMatchModal({
 
       if (teamAScore > teamBScore) {
         teamAGameWins++;
-        console.log(`✓ Game ${game.id} (${game.slot}): Team A wins ${teamAScore}-${teamBScore}`);
       } else if (teamBScore > teamAScore) {
         teamBGameWins++;
-        console.log(`✓ Game ${game.id} (${game.slot}): Team B wins ${teamBScore}-${teamAScore}`);
       } else {
-        console.log(`Game ${game.id} (${game.slot}): Tie game ${teamAScore}-${teamBScore} (not counted)`);
       }
     }
 
-    console.log(`=== Final count: Team A: ${teamAGameWins}, Team B: ${teamBGameWins}, Total counted: ${teamAGameWins + teamBGameWins} ===`);
-    console.log(`Expected total: ${gamesToUse.filter(g => g.isComplete).length} completed games`);
 
     // Also track brackets for display purposes (games are grouped by bracket)
     const bracketsByName: Record<string, { teamAWins: number; teamBWins: number }> = {};
@@ -574,14 +500,11 @@ export function BracketMatchModal({
       }
 
       const result = await response.json();
-      console.log('Match completion result:', result);
       
       onInfo('Match completed successfully!');
       // Refresh bracket data first to show winner progression, then close modal
       if (onUpdate) {
-        console.log('Calling onUpdate to refresh bracket...');
         await onUpdate();
-        console.log('Bracket refresh complete');
       }
       onClose();
     } catch (error) {
@@ -596,13 +519,6 @@ export function BracketMatchModal({
   // This ensures the display updates immediately when games are finished
   const { teamAGameWins, teamBGameWins } = (() => {
     const result = getGameWins();
-    console.log('CALCULATING GAME WINS ON RENDER:', { 
-      teamAGameWins: result.teamAGameWins, 
-      teamBGameWins: result.teamBGameWins, 
-      localGamesLength: localGames.length,
-      completedGames: localGames.filter(g => g.isComplete).length,
-      localGamesArray: localGames.map(g => ({ id: g.id, complete: g.isComplete, scoreA: g.teamAScore, scoreB: g.teamBScore })),
-    });
     return result;
   })();
   
@@ -632,17 +548,8 @@ export function BracketMatchModal({
   
   // Auto-complete match when all games are finished and there's a clear winner
   useEffect(() => {
-    console.log('Auto-complete useEffect triggered:', {
-      matchId: match?.id,
-      hasMatch: !!match,
-      winnerId: match?.winnerId,
-      isBye: match?.isBye,
-      forfeitTeam: match?.forfeitTeam,
-      localGamesLength: localGames.length,
-    });
     
     if (!match || match.winnerId || match.isBye || match.forfeitTeam) {
-      console.log('Auto-complete: Skipping - already completed or invalid');
       return; // Already completed or can't complete
     }
 
@@ -652,15 +559,8 @@ export function BracketMatchModal({
     const totalExpectedGames = bracketCount * 4 || gamesToUse.length;
     const completedGames = gamesToUse.filter(g => g.isComplete).length;
 
-    console.log('Auto-complete: Checking completion status:', {
-      completedGames,
-      totalExpectedGames,
-      bracketCount,
-      gamesToUseLength: gamesToUse.length,
-    });
 
     if (completedGames < totalExpectedGames) {
-      console.log('Auto-complete: Not all games complete yet');
       return; // Not all games complete yet
     }
 
@@ -669,26 +569,12 @@ export function BracketMatchModal({
     const majority = Math.ceil(totalExpectedGames / 2);
     const hasClearWinner = winsA >= majority || winsB >= majority;
 
-    console.log('Auto-complete: Checking winner:', {
-      winsA,
-      winsB,
-      majority,
-      hasClearWinner,
-    });
 
     if (!hasClearWinner) {
-      console.log('Auto-complete: No clear winner yet');
       return; // Tie or no clear winner yet
     }
 
     // Auto-complete the match
-    console.log('🔥 AUTO-COMPLETING MATCH:', {
-      matchId: match.id,
-      teamAGameWins: winsA,
-      teamBGameWins: winsB,
-      completedGames,
-      totalExpectedGames,
-    });
 
     handleCompleteMatch();
   }, [localGames, match?.id, match?.winnerId, match?.isBye, match?.forfeitTeam, handleCompleteMatch]);
@@ -701,17 +587,6 @@ export function BracketMatchModal({
     ? match.teamB?.name 
     : null;
   
-  console.log('Button visibility check:', {
-    isDecided,
-    matchStatus,
-    canComplete: canCompleteMatch(),
-    winnerId: match.winnerId,
-    forfeitTeam: match.forfeitTeam,
-    tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
-    showButton: !isDecided && canCompleteMatch(),
-    winnerName,
-    winnerShouldAdvance: !!winnerId,
-  });
 
   const cleanTeamAName = stripBracketSuffix(match.teamA?.name || '');
   const cleanTeamBName = stripBracketSuffix(match.teamB?.name || '');
@@ -854,19 +729,6 @@ export function BracketMatchModal({
             // Fall back to match.games only if localGames is empty (initial state)
             const gamesToRender = localGames.length > 0 ? localGames : (match?.games || []);
             
-            console.log('BracketMatchModal: Rendering games', {
-              matchId: match?.id,
-              matchGamesLength: match?.games?.length || 0,
-              localGamesLength: localGames.length,
-              gamesToRenderLength: gamesToRender.length,
-              games: gamesToRender.map(g => ({
-                id: g.id,
-                slot: g.slot,
-                isComplete: g.isComplete,
-                startedAt: g.startedAt,
-                status: g.isComplete ? 'completed' : (g.startedAt ? 'in_progress' : 'not_started')
-              }))
-            });
             
             if (gamesToRender.length === 0) {
               return (

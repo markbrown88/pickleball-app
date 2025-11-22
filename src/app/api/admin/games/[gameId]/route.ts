@@ -22,13 +22,6 @@ export async function PATCH(
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    console.log('Updating game:', {
-      gameId,
-      slot: currentGame.slot,
-      currentIsComplete: currentGame.isComplete,
-      currentEndedAt: currentGame.endedAt,
-      requestBody: { teamAScore, teamBScore, courtNumber, isComplete, status, startedAt, endedAt }
-    });
 
     // Prepare update data
     const updateData: any = {
@@ -46,15 +39,12 @@ export async function PATCH(
     if (isComplete === false && !startedAt) {
       // Game is being started - set startedAt
       updateData.startedAt = new Date();
-      console.log('Auto-setting startedAt for game start');
     } else if (isComplete === true && !endedAt) {
       // Game is being ended - set endedAt
       updateData.endedAt = new Date();
-      console.log('Auto-setting endedAt for game end');
     }
 
     // Log what we're about to update
-    console.log('Update data being applied:', updateData);
 
     // Update the game with new scores and other fields
     const updatedGame = await prisma.game.update({
@@ -77,10 +67,8 @@ export async function PATCH(
     if (match?.round.stopId) {
       // Invalidate all cached schedule variations for this stop
       await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
-      console.log(`Cache invalidated for stop: ${match.round.stopId}`);
     }
 
-    console.log('Game updated successfully:', updatedGame);
     return NextResponse.json(updatedGame);
   } catch (error) {
     console.error('Error updating game:', error);

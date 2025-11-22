@@ -18,7 +18,6 @@ export async function POST(
   try {
     const { stopId } = await params;
 
-    console.log(`[Fix Bracket] Starting cleanup for stop: ${stopId}`);
 
     // Get all rounds for this stop
     const rounds = await prisma.round.findMany({
@@ -34,13 +33,11 @@ export async function POST(
       },
     });
 
-    console.log(`[Fix Bracket] Found ${rounds.length} rounds`);
 
     const fixes: Array<{ matchId: string; teamId: string; teamName: string; removedFrom: 'A' | 'B' }> = [];
 
     // Find all loser bracket matches
     const loserRounds = rounds.filter(r => r.bracketType === 'LOSER');
-    console.log(`[Fix Bracket] Found ${loserRounds.length} loser rounds`);
 
     for (const loserRound of loserRounds) {
       for (const loserMatch of loserRound.matches) {
@@ -63,7 +60,6 @@ export async function POST(
                 ? sourceMatchA.teamA?.name 
                 : sourceMatchA.teamB?.name;
               
-              console.log(`[Fix Bracket] Removing winner "${winnerName}" (${sourceMatchA.winnerId}) from loser bracket match ${loserMatch.id} as Team A`);
               
               await prisma.match.update({
                 where: { id: loserMatch.id },
@@ -87,7 +83,6 @@ export async function POST(
                 ? sourceMatchB.teamA?.name 
                 : sourceMatchB.teamB?.name;
               
-              console.log(`[Fix Bracket] Removing winner "${winnerName}" (${sourceMatchB.winnerId}) from loser bracket match ${loserMatch.id} as Team B`);
               
               await prisma.match.update({
                 where: { id: loserMatch.id },
@@ -109,7 +104,6 @@ export async function POST(
     // Invalidate cache
     await invalidateCache(`${cacheKeys.stopSchedule(stopId)}*`);
 
-    console.log(`[Fix Bracket] Fixed ${fixes.length} incorrect placements`);
 
     return NextResponse.json({
       success: true,

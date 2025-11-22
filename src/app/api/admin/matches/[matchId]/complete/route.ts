@@ -86,8 +86,6 @@ export async function POST(
         },
       });
 
-      console.log(`[Complete BYE Match] Found ${childMatchesA.length} child matches via sourceMatchAId, ${childMatchesB.length} via sourceMatchBId`);
-      console.log(`[Complete BYE Match] BYE match bracket type: ${match.round?.bracketType}`);
 
       // Filter child matches based on the BYE match's bracket type
       // - Winner bracket BYE → advances to winner/finals bracket
@@ -106,11 +104,9 @@ export async function POST(
         targetChildMatchesB = childMatchesB.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
       }
 
-      console.log(`[Complete BYE Match] Target child matches (${match.round?.bracketType} bracket): ${targetChildMatchesA.length} via A, ${targetChildMatchesB.length} via B`);
 
       // Advance winner to appropriate bracket child matches
       for (const childMatch of targetChildMatchesA) {
-        console.log(`[Complete BYE Match] Advancing winner ${winnerId} to ${match.round?.bracketType} bracket child match ${childMatch.id} as Team A`);
         await prisma.match.update({
           where: { id: childMatch.id },
           data: { teamAId: winnerId },
@@ -118,7 +114,6 @@ export async function POST(
       }
 
       for (const childMatch of targetChildMatchesB) {
-        console.log(`[Complete BYE Match] Advancing winner ${winnerId} to ${match.round?.bracketType} bracket child match ${childMatch.id} as Team B`);
         await prisma.match.update({
           where: { id: childMatch.id },
           data: { teamBId: winnerId },
@@ -128,7 +123,6 @@ export async function POST(
       // Invalidate schedule cache for this stop so bracket updates immediately
       if (match.round?.stopId) {
         await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
-        console.log(`[Complete BYE Match] Cache invalidated for stop: ${match.round.stopId}`);
       }
 
       return NextResponse.json({
@@ -189,8 +183,6 @@ export async function POST(
     const winnerId = teamAWins > teamBWins ? match.teamAId : match.teamBId;
     const loserId = teamAWins > teamBWins ? match.teamBId : match.teamAId;
 
-    console.log(`[Complete Match] Match ${matchId}: Team A wins: ${teamAWins}, Team B wins: ${teamBWins}`);
-    console.log(`[Complete Match] Winner: ${winnerId}, Loser: ${loserId}`);
 
     if (!winnerId) {
       return NextResponse.json(
@@ -207,7 +199,6 @@ export async function POST(
 
     // BRACKET RESET LOGIC: Check if this is Finals 1 in double elimination
     if (match.round?.bracketType === 'FINALS' && match.round?.depth === 1) {
-      console.log(`[Complete Match] Finals 1 completed. Winner: ${winnerId}`);
 
       // Determine if winner is from winner bracket or loser bracket
       // The winner bracket champion is teamA (sourceMatchAId), loser bracket is teamB (sourceMatchBId)
@@ -215,7 +206,6 @@ export async function POST(
 
       if (isLoserBracketChampionWinner) {
         // Loser bracket champion won Finals 1 → Trigger bracket reset (Finals 2)
-        console.log(`[Complete Match] Loser bracket champion won Finals 1. Triggering bracket reset (Finals 2).`);
 
         // Find Finals 2 match (depth === 0, same stopId)
         const finals2Match = await prisma.match.findFirst({
@@ -241,13 +231,11 @@ export async function POST(
               teamBId: match.teamBId, // Loser bracket champion (who just won Finals 1)
             },
           });
-          console.log(`[Complete Match] Finals 2 set up: ${match.teamAId} vs ${match.teamBId}`);
         } else {
           console.error(`[Complete Match] Finals 2 match not found for bracket reset!`);
         }
       } else {
         // Winner bracket champion won Finals 1 → Tournament over (no Finals 2)
-        console.log(`[Complete Match] Winner bracket champion won Finals 1. Tournament complete.`);
       }
     }
 
@@ -275,8 +263,6 @@ export async function POST(
       },
     });
 
-    console.log(`[Complete Match] Found ${childMatchesA.length} child matches via sourceMatchAId, ${childMatchesB.length} via sourceMatchBId`);
-    console.log(`[Complete Match] Match bracket type: ${match.round?.bracketType}, Winner bracket type: WINNER`);
 
     // Separate child matches by bracket type
     const winnerBracketChildMatchesA = childMatchesA.filter(m => m.round?.bracketType === 'WINNER' || m.round?.bracketType === 'FINALS');
@@ -284,8 +270,6 @@ export async function POST(
     const loserBracketChildMatchesA = childMatchesA.filter(m => m.round?.bracketType === 'LOSER');
     const loserBracketChildMatchesB = childMatchesB.filter(m => m.round?.bracketType === 'LOSER');
 
-    console.log(`[Complete Match] Winner bracket children: ${winnerBracketChildMatchesA.length} via A, ${winnerBracketChildMatchesB.length} via B`);
-    console.log(`[Complete Match] Loser bracket children: ${loserBracketChildMatchesA.length} via A, ${loserBracketChildMatchesB.length} via B`);
 
     // Advance winner to appropriate bracket matches
     // - Winner bracket matches → winner advances to winner bracket
@@ -294,7 +278,6 @@ export async function POST(
 
     // Advance winner to winner bracket / finals matches
     for (const childMatch of winnerBracketChildMatchesA) {
-      console.log(`[Complete Match] Advancing winner ${winnerId} to winner/finals bracket child match ${childMatch.id} as Team A`);
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamAId: winnerId },
@@ -302,7 +285,6 @@ export async function POST(
     }
 
     for (const childMatch of winnerBracketChildMatchesB) {
-      console.log(`[Complete Match] Advancing winner ${winnerId} to winner/finals bracket child match ${childMatch.id} as Team B`);
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamBId: winnerId },
@@ -314,7 +296,6 @@ export async function POST(
     if (match.round?.bracketType === 'LOSER') {
       // Advance to loser bracket children
       for (const childMatch of loserBracketChildMatchesA) {
-        console.log(`[Complete Match] Advancing loser bracket winner ${winnerId} to next loser bracket match ${childMatch.id} as Team A`);
         await prisma.match.update({
           where: { id: childMatch.id },
           data: { teamAId: winnerId },
@@ -322,7 +303,6 @@ export async function POST(
       }
 
       for (const childMatch of loserBracketChildMatchesB) {
-        console.log(`[Complete Match] Advancing loser bracket winner ${winnerId} to next loser bracket match ${childMatch.id} as Team B`);
         await prisma.match.update({
           where: { id: childMatch.id },
           data: { teamBId: winnerId },
@@ -332,7 +312,6 @@ export async function POST(
       // Also advance to finals bracket children (for loser bracket final → finals)
       for (const childMatch of winnerBracketChildMatchesA) {
         if (childMatch.round?.bracketType === 'FINALS') {
-          console.log(`[Complete Match] Advancing loser bracket champion ${winnerId} to finals match ${childMatch.id} as Team A`);
           await prisma.match.update({
             where: { id: childMatch.id },
             data: { teamAId: winnerId },
@@ -342,7 +321,6 @@ export async function POST(
 
       for (const childMatch of winnerBracketChildMatchesB) {
         if (childMatch.round?.bracketType === 'FINALS') {
-          console.log(`[Complete Match] Advancing loser bracket champion ${winnerId} to finals match ${childMatch.id} as Team B`);
           await prisma.match.update({
             where: { id: childMatch.id },
             data: { teamBId: winnerId },
@@ -354,7 +332,6 @@ export async function POST(
     // Advance loser to loser bracket matches (only for winner bracket match completions)
     if (match.round?.bracketType === 'WINNER' && loserId) {
       for (const childMatch of loserBracketChildMatchesA) {
-        console.log(`[Complete Match] Advancing loser ${loserId} to loser bracket child match ${childMatch.id} as Team A`);
         await prisma.match.update({
           where: { id: childMatch.id },
           data: { teamAId: loserId },
@@ -362,7 +339,6 @@ export async function POST(
       }
 
       for (const childMatch of loserBracketChildMatchesB) {
-        console.log(`[Complete Match] Advancing loser ${loserId} to loser bracket child match ${childMatch.id} as Team B`);
         await prisma.match.update({
           where: { id: childMatch.id },
           data: { teamBId: loserId },
@@ -397,7 +373,6 @@ export async function POST(
       // Only auto-complete if it's explicitly marked as a BYE match, has teamA, and no winner yet
       // DO NOT auto-complete matches that just happen to have one team - they're waiting for their other source
       if (updatedChild?.isBye && updatedChild?.teamAId && !updatedChild.winnerId) {
-        console.log(`[Complete Match] Auto-completing BYE match ${updatedChild.id} (${updatedChild.round?.bracketType}) - teamA: ${updatedChild.teamAId}`);
 
         // Set winner
         await prisma.match.update({
@@ -436,7 +411,6 @@ export async function POST(
             where: { id: child.id },
             data: { teamAId: updatedChild.teamAId },
           });
-          console.log(`[Complete Match]   → Advanced to ${child.round?.bracketType} match ${child.id} as Team A`);
           // Add to queue to check if this child is also a BYE
           matchesToCheck.push(child);
         }
@@ -446,12 +420,10 @@ export async function POST(
             where: { id: child.id },
             data: { teamBId: updatedChild.teamAId },
           });
-          console.log(`[Complete Match]   → Advanced to ${child.round?.bracketType} match ${child.id} as Team B`);
           // Add to queue to check if this child is also a BYE
           matchesToCheck.push(child);
         }
 
-        console.log(`[Complete Match] ✓ BYE match ${updatedChild.id} completed, winner: ${updatedChild.teamAId}`);
       }
     }
 
@@ -466,7 +438,6 @@ export async function POST(
         });
         
         if (currentMatch?.teamAId === winnerId) {
-          console.log(`[Complete Match] Removing winner ${winnerId} from loser bracket match ${childMatch.id} (Team A)`);
           await prisma.match.update({
             where: { id: childMatch.id },
             data: { teamAId: null },
@@ -481,7 +452,6 @@ export async function POST(
         });
         
         if (currentMatch?.teamBId === winnerId) {
-          console.log(`[Complete Match] Removing winner ${winnerId} from loser bracket match ${childMatch.id} (Team B)`);
           await prisma.match.update({
             where: { id: childMatch.id },
             data: { teamBId: null },
@@ -493,7 +463,6 @@ export async function POST(
     // Invalidate schedule cache for this stop so bracket updates immediately
     if (match.round?.stopId) {
       await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
-      console.log(`[Complete Match] Cache invalidated for stop: ${match.round.stopId}`);
     }
 
     // For double elimination: Handle loser bracket drop

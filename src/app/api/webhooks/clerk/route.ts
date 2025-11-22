@@ -100,12 +100,6 @@ export async function POST(req: NextRequest) {
 
       const email = primaryEmail.email_address.toLowerCase();
 
-      console.log('Processing user.created webhook:', {
-        clerkUserId,
-        email,
-        firstName: first_name,
-        lastName: last_name,
-      });
 
       // Check if a Player record exists with this email (but no clerkUserId)
       const existingPlayer = await prisma.player.findFirst({
@@ -123,7 +117,6 @@ export async function POST(req: NextRequest) {
       });
 
       if (existingPlayer) {
-        console.log('Found existing Player record without Clerk account:', existingPlayer.id);
 
         // Link the Clerk account to the existing Player record
         await prisma.player.update({
@@ -138,7 +131,6 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        console.log('Successfully linked Clerk account to existing Player:', existingPlayer.id);
 
         return NextResponse.json({
           success: true,
@@ -147,8 +139,6 @@ export async function POST(req: NextRequest) {
           clerkUserId,
         });
       } else {
-        console.log('No existing Player found with email:', email);
-        console.log('Creating new Player record for Clerk user');
 
         // Find a default club to assign to the new player
         // Try to find the first club alphabetically, or create a default one if none exists
@@ -184,7 +174,6 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        console.log('Successfully created new Player record:', newPlayer.id, 'with club:', defaultClub.id);
 
         return NextResponse.json({
           success: true,

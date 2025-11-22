@@ -220,7 +220,6 @@ export async function PATCH(
             refundAmount: null,
           });
 
-          console.log('Rejection email sent to player');
         } catch (emailError) {
           console.error('Failed to send rejection email:', emailError);
         }

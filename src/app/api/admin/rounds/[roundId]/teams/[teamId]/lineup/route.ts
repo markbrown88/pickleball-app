@@ -19,7 +19,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
   try {
     const { roundId, teamId } = await ctx.params;
     
-    console.log('API received:', { roundId, teamId });
     
     // Verify round exists
     const round = await prisma.round.findUnique({
@@ -31,7 +30,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
     
-    console.log('Round found:', round);
     
     // Get or create lineup
     const lineup = await prisma.lineup.upsert({

@@ -15,13 +15,6 @@ export async function sendEmail(options: SendEmailOptions) {
   const fromAddress = options.from || process.env.RESEND_FROM_ADDRESS || 'Klyng Cup Tournaments <no-reply@klyngcup.com>';
   
   if (!hasResendKey) {
-    console.log('[DEV: email] Email would be sent:', {
-      to: options.to,
-      subject: options.subject,
-      from: fromAddress,
-      bcc: options.bcc,
-      note: 'RESEND_API_KEY not configured - email not actually sent. Set RESEND_API_KEY in .env.local to enable email sending.'
-    });
     return;
   }
 
@@ -41,13 +34,6 @@ export async function sendEmail(options: SendEmailOptions) {
     
     const result = await resend.emails.send(emailData);
 
-    console.log('[Email sent successfully]', {
-      to: options.to,
-      subject: options.subject,
-      from: fromAddress,
-      bcc: options.bcc,
-      resendId: result.data?.id,
-    });
 
     return result;
   } catch (error) {

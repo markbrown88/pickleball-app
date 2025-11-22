@@ -18,17 +18,14 @@ export async function GET(req: NextRequest) {
 
     // Get the authenticated user ID and email
     const { userId } = await auth();
-    console.log('Auth API: Authenticated user ID:', userId);
 
     if (!userId) {
-      console.log('Auth API: No authenticated user');
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     // Get user email from Clerk
     const clerkUser = await currentUser();
     const userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress;
-    console.log('Auth API: User email from Clerk:', userEmail);
 
     // First, try to find player by Clerk user ID
     let player = await prisma.player.findUnique({
@@ -45,11 +42,9 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    console.log('Auth API: Player found by Clerk ID:', !!player);
 
     // If no player found by Clerk ID, check if one exists with the same email
     if (!player && userEmail) {
-      console.log('Auth API: No player found by Clerk ID, checking by email:', userEmail);
       
       const existingPlayerByEmail = await prisma.player.findUnique({
         where: { email: userEmail },
@@ -66,7 +61,6 @@ export async function GET(req: NextRequest) {
       });
 
       if (existingPlayerByEmail) {
-        console.log('Auth API: Found existing player by email, updating Clerk ID. Player ID:', existingPlayerByEmail.id);
         
         // Update the existing player record with the new Clerk user ID
         player = await prisma.player.update({
@@ -84,20 +78,12 @@ export async function GET(req: NextRequest) {
           }
         });
         
-        console.log('Auth API: Successfully merged user with existing player record. Updated player:', {
-          id: player.id,
-          name: player.name,
-          email: player.email,
-          clerkUserId: player.clerkUserId
-        });
       } else {
-        console.log('Auth API: No existing player found by email either');
       }
     }
 
     // If no player found, create one automatically (fallback if webhook didn't work)
     if (!player && userEmail) {
-      console.log('Auth API: No player record found, creating one automatically for user:', userId);
       
       try {
         // Find a default club to assign to the new player
@@ -144,11 +130,6 @@ export async function GET(req: NextRequest) {
           }
         });
 
-        console.log('Auth API: Successfully created Player record automatically:', {
-          id: player.id,
-          email: player.email,
-          clerkUserId: player.clerkUserId
-        });
         
         // Mark that this player needs profile setup since it was auto-created with defaults
         return NextResponse.json({
@@ -188,7 +169,6 @@ export async function GET(req: NextRequest) {
     }
 
     if (!player) {
-      console.log('Auth API: No player record found for user:', userId);
       return NextResponse.json({ 
         error: 'Player profile not found', 
         needsProfileSetup: true,
@@ -203,7 +183,6 @@ export async function GET(req: NextRequest) {
     try {
       effectivePlayer = await getEffectivePlayer(actAsPlayerId);
     } catch (actAsError) {
-      console.log('Auth API: Act As error, using real player:', actAsError);
       // If Act As fails, just use the real player
       effectivePlayer = {
         realUserId: userId,
@@ -230,7 +209,6 @@ export async function GET(req: NextRequest) {
     });
 
     if (!finalPlayer) {
-      console.log('Auth API: Target player not found:', effectivePlayer.targetPlayerId);
       return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
     }
 

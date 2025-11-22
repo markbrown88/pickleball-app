@@ -194,7 +194,6 @@ export async function POST(req: Request, ctx: CtxPromise) {
             location,
           });
 
-          console.log('Waitlist confirmation email sent');
         }
       } catch (emailError) {
         console.error('Failed to send waitlist confirmation email:', emailError);

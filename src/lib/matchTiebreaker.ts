@@ -260,7 +260,6 @@ export async function evaluateMatchTiebreaker(
   // TRIGGER MATCH COMPLETION: If we just set a winner, trigger the /complete endpoint
   // This will advance teams to child matches
   if (winnerTeamId && !match.winnerId) {
-    console.log(`[Match Tiebreaker] Match ${matchId} winner determined: ${winnerTeamId}. Triggering completion...`);
 
     // Trigger async without awaiting to avoid blocking
     fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/admin/matches/${matchId}/complete`, {
@@ -268,7 +267,6 @@ export async function evaluateMatchTiebreaker(
       headers: { 'Content-Type': 'application/json' },
     }).then(res => {
       if (res.ok) {
-        console.log(`[Match Tiebreaker] ✓ Match ${matchId} completion triggered successfully`);
       } else {
         console.error(`[Match Tiebreaker] Failed to trigger match completion: ${res.status}`);
       }

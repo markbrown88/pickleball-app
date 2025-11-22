@@ -191,13 +191,6 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           },
           rounds: rounds.map((r: any) => {
         // Debug: Log the order of matches for this round
-        console.log(`[SCOREBOARD] Round ${r.idx} matches order:`, r.matches.map((m: any) => ({
-          id: m.id,
-          updatedAt: m.updatedAt?.toISOString(),
-          forfeitTeam: m.forfeitTeam,
-          tiebreakerStatus: m.tiebreakerStatus,
-          tiebreakerWinnerTeamId: m.tiebreakerWinnerTeamId
-        })));
         
         return {
           roundId: r.id,
@@ -215,7 +208,6 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 
           // Debug logging for forfeited matches
           if (match.forfeitTeam) {
-            console.log(`[SCOREBOARD] Forfeited match ${match.id}: forfeitTeam=${match.forfeitTeam}, updatedAt=${match.updatedAt?.toISOString()}`);
           }
 
           return {

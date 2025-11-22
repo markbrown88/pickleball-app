@@ -36,7 +36,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ play
         }
       } catch (actAsError) {
         // If Act As fails, continue with the playerId from URL
-        console.log('Overview API: Act As error, using URL playerId:', actAsError);
       }
     }
 

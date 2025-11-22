@@ -54,7 +54,6 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     });
   } catch (e) {
     // Model doesn't exist yet, use empty array
-    console.log('StopPricing model not found, using empty array');
   }
 
   try {
@@ -64,7 +63,6 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     });
   } catch (e) {
     // Model doesn't exist yet, use empty array
-    console.log('BracketPricing model not found, using empty array');
   }
 
   try {
@@ -79,7 +77,6 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     });
   } catch (e) {
     // Model doesn't exist yet, use empty array
-    console.log('BracketGameTypeConfig model not found, using empty array');
   }
 
   try {
@@ -95,7 +92,6 @@ export async function GET(_req: Request, ctx: CtxPromise) {
     });
   } catch (e) {
     // Model doesn't exist yet, use empty array
-    console.log('StopBracketCapacity model not found, using empty array');
   }
 
   const [stops, brackets, clubs] = await Promise.all([

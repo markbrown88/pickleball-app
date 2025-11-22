@@ -228,7 +228,6 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
       // Registration successful
       if (tournament.registrationType === 'PAID') {
         // Create Stripe Checkout session for payment
-        console.log('[Payment] Creating Stripe checkout session for registration:', data.registrationId);
         
         const paymentResponse = await fetchWithActAs('/api/payments/create-checkout-session', {
           method: 'POST',
@@ -240,14 +239,8 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
           }),
         });
 
-        console.log('[Payment] Checkout session response status:', paymentResponse.status);
         
         const paymentData = await paymentResponse.json();
-        console.log('[Payment] Checkout session response data:', {
-          hasUrl: !!paymentData.url,
-          sessionId: paymentData.sessionId,
-          error: paymentData.error,
-        });
 
         if (!paymentResponse.ok) {
           const errorMsg = paymentData.details 
@@ -269,14 +262,6 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
 
         // Redirect to Stripe Checkout
         if (paymentData.url) {
-          console.log('[Payment] Redirecting to Stripe checkout:', {
-            url: paymentData.url,
-            sessionId: paymentData.sessionId,
-            registrationId: data.registrationId,
-            timestamp: new Date().toISOString(),
-            userAgent: navigator.userAgent,
-            referrer: document.referrer,
-          });
           
           // Store payment URL in case redirect fails (for fallback link)
           setPaymentUrl(paymentData.url);
@@ -364,7 +349,6 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
                 rel="noopener noreferrer"
                 className="btn btn-primary w-full"
                 onClick={() => {
-                  console.log('[Payment] Fallback payment link clicked:', paymentUrl);
                 }}
               >
                 Complete Payment

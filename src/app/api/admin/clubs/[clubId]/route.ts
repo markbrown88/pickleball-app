@@ -77,7 +77,6 @@ export async function PUT(
   }
 
   const body = await req.json().catch(() => ({}));
-  console.log('Club update request:', { clubId, body });
   
   const fullName = String(body.fullName ?? '').trim();
   if (!fullName) return NextResponse.json({ error: 'Full name is required' }, { status: 400 });
@@ -116,7 +115,6 @@ export async function PUT(
       data: updateData,
     });
 
-    console.log('Club updated successfully:', updated);
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error updating club:', error);

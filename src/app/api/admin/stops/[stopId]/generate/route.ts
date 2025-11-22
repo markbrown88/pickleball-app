@@ -145,8 +145,6 @@ export async function POST(req: Request, ctx: Ctx) {
     const bracketGroups = new Map<string, Map<string, Array<{ id: string; name: string }>>>();
     const bracketFilter = normalizeBracketId(body.bracketId);
 
-    console.log(`Found ${stopTeams.length} stop teams`);
-    console.log(`Tournament brackets:`, tournament.brackets.map(b => ({ id: b.id, name: b.name })));
 
     for (const st of stopTeams) {
       if (!st.team) continue;
@@ -171,13 +169,11 @@ export async function POST(req: Request, ctx: Ctx) {
       
       // Skip teams that don't have a valid bracket
       if (!teamBracket) {
-        console.log(`Skipping team ${st.team.name}: No valid bracket found (bracketId: ${st.team.bracketId}, division: ${st.team.division})`);
         continue;
       }
       
       const clubKey = st.team.clubId ?? 'unassigned';
 
-      console.log(`Team: ${st.team.name}, Bracket: ${bracketKey} (${st.team.bracketId}), Division: ${st.team.division}, Club: ${clubKey}`);
 
       // If a specific bracket was requested:
       if (bracketFilter !== undefined && st.team.bracketId !== bracketFilter) continue;
@@ -194,10 +190,6 @@ export async function POST(req: Request, ctx: Ctx) {
       clubGroups.get(clubKey)!.push({ id: st.team.id, name: st.team.name });
     }
 
-    console.log(`Bracket groups:`, Array.from(bracketGroups.entries()).map(([bracket, clubs]) => [
-      bracket, 
-      Array.from(clubs.entries()).map(([club, teams]) => [club, teams.length])
-    ]));
 
     // If no teams hit at all:
     if (bracketGroups.size === 0) {
@@ -265,37 +257,31 @@ export async function POST(req: Request, ctx: Ctx) {
           if (teams.length > 0) {
             // Take the first team from each club
             const team = teams[0];
-            console.log(`Adding team ${team.name} (${team.id}) from club ${clubId} to bracket ${bracketKey}`);
             teamsForBracket.push({
               id: team.id,
               name: team.name,
               clubId: clubId
             });
           } else {
-            console.log(`Warning: Club ${clubId} has no teams in bracket ${bracketKey}`);
           }
         }
         
         // Generate round-robin using team IDs
         const teamIds = teamsForBracket.map(t => t.id);
-        console.log(`Bracket ${bracketKey}: Team IDs for round-robin:`, teamIds);
 
         // Validate that we have valid team IDs
         if (teamIds.length < 2) {
-          console.log(`Skipping bracket ${bracketKey}: Not enough teams (${teamIds.length})`);
           continue;
         }
 
         // Check for null/undefined team IDs
         const invalidIds = teamIds.filter(id => !id || id === 'null' || id === 'undefined');
         if (invalidIds.length > 0) {
-          console.log(`Skipping bracket ${bracketKey}: Invalid team IDs found:`, invalidIds);
           continue;
         }
 
         // Shuffle team order to randomize matchup sequence while maintaining round-robin property
         const shuffledTeamIds = shuffleArray(teamIds);
-        console.log(`Bracket ${bracketKey}: Shuffled team IDs:`, shuffledTeamIds);
 
         const rr = generateRoundRobin(shuffledTeamIds);
         
@@ -308,7 +294,6 @@ export async function POST(req: Request, ctx: Ctx) {
         const missingTeamIds = teamIds.filter(id => !existingTeamIds.has(id));
         
         if (missingTeamIds.length > 0) {
-          console.log(`Skipping bracket ${bracketKey}: Missing team IDs in database:`, missingTeamIds);
           continue;
         }
         

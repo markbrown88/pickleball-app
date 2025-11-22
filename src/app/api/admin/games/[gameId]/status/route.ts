@@ -11,14 +11,11 @@ export async function PATCH(
     const body = await request.json();
     const { status } = body;
 
-    console.log('Status update request:', { gameId, status });
 
     if (!status || !['not_started', 'in_progress', 'completed'].includes(status)) {
-      console.log('Invalid status:', status);
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
-    console.log('Attempting to update game status in database...');
     
     // Map status to appropriate Game fields
     const updateData: any = {};
@@ -54,10 +51,8 @@ export async function PATCH(
     // Invalidate schedule cache for this stop
     if (updatedGame.match?.round?.stopId) {
       await invalidateCache(`${cacheKeys.stopSchedule(updatedGame.match.round.stopId)}*`);
-      console.log(`Cache invalidated for stop: ${updatedGame.match.round.stopId}`);
     }
 
-    console.log('Game status updated successfully:', updatedGame);
     return NextResponse.json(updatedGame);
   } catch (error) {
     console.error('Error updating game status:', error);

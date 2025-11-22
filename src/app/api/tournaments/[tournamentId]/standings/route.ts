@@ -10,7 +10,6 @@ type Params = { tournamentId: string };
 export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   try {
     const { tournamentId } = await ctx.params;
-    console.log('API: Fetching standings for tournament:', tournamentId);
     
     // Query the materialized view for tournament standings
     const standings = await prisma.$queryRaw`
@@ -28,7 +27,6 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       ORDER BY points DESC, team_name ASC
     `;
 
-    console.log('API: Standings query result:', standings);
     
     // Convert BigInt values to regular numbers for JSON serialization
     const serializedStandings = (standings as any[]).map((standing: any) => ({

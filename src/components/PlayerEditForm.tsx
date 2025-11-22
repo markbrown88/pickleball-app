@@ -39,7 +39,6 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
   // Debug: Log clubs when they change
   useEffect(() => {
     if (clubs.length > 0) {
-      console.log(`PlayerEditForm: Loaded ${clubs.length} clubs`);
     }
   }, [clubs]);
 

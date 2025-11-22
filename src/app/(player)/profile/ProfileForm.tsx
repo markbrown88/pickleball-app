@@ -126,10 +126,7 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
         const tournamentsRes = await fetchWithActAs('/api/player/tournaments');
         if (tournamentsRes.ok) {
           const tournamentsData = await tournamentsRes.json();
-          console.log('Tournaments API response:', tournamentsData);
           const tournamentsList = tournamentsData.tournaments || [];
-          console.log('Tournaments list:', tournamentsList);
-          console.log('Tournaments count:', tournamentsList.length);
           setTournaments(tournamentsList);
         } else {
           console.error('Failed to fetch tournaments:', tournamentsRes.status, tournamentsRes.statusText);
@@ -163,7 +160,6 @@ export function ProfileForm({ profile, clubs, loading, onSave, onError, onInfo }
 
   // Debug: Log tournaments state
   useEffect(() => {
-    console.log('Tournaments state updated:', tournaments);
   }, [tournaments]);
 
   const handleChange = useCallback(<K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {

@@ -169,17 +169,14 @@ export function buildMatchOutcome(match: Match | null | undefined): MatchOutcome
   // ============================================
   if (!winnerTeamId) {
     // Debug logging
-    console.log(`[buildMatchOutcome] Match ${match.id}: tiebreakerStatus="${match.tiebreakerStatus}", winnerTeamId="${match.tiebreakerWinnerTeamId}"`);
 
     switch (match.tiebreakerStatus) {
       case 'DECIDED_POINTS':
-        console.log(`  -> Matched DECIDED_POINTS case`);
         // Match decided by total points (admin decision or automatic)
         if (match.tiebreakerWinnerTeamId) {
           winnerTeamId = match.tiebreakerWinnerTeamId;
           decidedBy = 'POINTS';
           status = 'completed';
-          console.log(`  -> Set to completed, winner: ${winnerTeamId}`);
         } else if (totalPointsA !== totalPointsB) {
           // Fallback: derive winner from point totals
           winnerTeamId = totalPointsA > totalPointsB ? teamAId : teamBId;
@@ -301,7 +298,6 @@ export function buildMatchOutcome(match: Match | null | undefined): MatchOutcome
     games: normalizedGames,
   };
 
-  console.log(`[buildMatchOutcome] Match ${match.id} FINAL: status="${outcome.status}", decidedBy="${outcome.decidedBy}", gamesCount=${outcome.games.length}, hasTiebreaker=${outcome.games.some(g => g.game.slot === 'TIEBREAKER')}`);
 
   return outcome;
 }

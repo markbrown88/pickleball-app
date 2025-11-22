@@ -253,7 +253,6 @@ export async function POST(request: NextRequest) {
         const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
         effectivePlayerId = effectivePlayer.targetPlayerId;
       } catch (actAsError) {
-        console.log('Registrations API: Act As error, using real player:', actAsError);
         // If Act As fails, get the real player
         const realPlayer = await prisma.player.findUnique({
           where: { clerkUserId: userId },
@@ -357,14 +356,6 @@ export async function POST(request: NextRequest) {
       const registrationCostInDollars = tournament.registrationCost ? tournament.registrationCost / 100 : 0;
       const pricingModel = tournament.pricingModel || 'TOURNAMENT_WIDE';
       
-      console.log('Registration calculation debug:', {
-        tournamentId,
-        pricingModel,
-        registrationCostInCents: tournament.registrationCost,
-        registrationCostInDollars,
-        stopIds: selectedStopIds,
-        brackets: selectedBrackets,
-      });
       
       const subtotal = calculateRegistrationAmount(
         {
@@ -380,12 +371,6 @@ export async function POST(request: NextRequest) {
       // Calculate tax and total (13% HST for Ontario)
       const { tax, total: registrationAmount } = calculateTotalWithTax(subtotal);
       
-      console.log('Registration amount calculated:', {
-        subtotal,
-        tax,
-        total: registrationAmount,
-        amountPaidInCents: tournament.registrationType === 'FREE' ? 0 : formatAmountForStripe(registrationAmount),
-      });
       
       const amountPaidInCents = tournament.registrationType === 'FREE' 
         ? 0 
@@ -748,7 +733,6 @@ export async function POST(request: NextRequest) {
             clubName,
           });
 
-          console.log('[Registration] Confirmation email sent successfully');
         }
       } catch (emailError) {
         console.error('[Registration] Failed to send confirmation email:', emailError);
@@ -856,7 +840,6 @@ export async function POST(request: NextRequest) {
             clubName,
           });
 
-          console.log('[Registration] Payment reminder email sent successfully');
         }
       } catch (emailError) {
         console.error('[Registration] Failed to send payment reminder email:', emailError);
