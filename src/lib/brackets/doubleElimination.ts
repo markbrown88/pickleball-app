@@ -128,32 +128,40 @@ function createLoserBracket(
   const rounds: BracketRound[] = [];
 
   // Standard double elimination formula
-  // For 3 winner rounds (4,2,1 matches): 4 loser rounds (2 × (3-1) = 4)
-  // For 4 winner rounds (8,4,2,1 matches): 6 loser rounds (2 × (4-1) = 6)
   const loserRoundCount = 2 * (winnerRoundCount - 1);
 
-  // Calculate how many losers will come from first winner round (W0)
-  // Count non-BYE matches in W0 (each produces 1 loser)
   const firstWinnerRound = winnerRounds[0];
-  const losersFromW0 = firstWinnerRound.matches.filter(m => !m.isBye).length;
+  const nonByeMatches = firstWinnerRound.matches.filter(m => !m.isBye);
 
-  // Calculate matches for each round
-  // First loser round has ceil(firstRoundLosers / 2) matches
-  // Then it alternates: same count, then half, then same, then half...
-  let currentMatchCount = Math.max(1, Math.floor(Math.pow(2, winnerRoundCount - 2)));
+  // Base loser round size equals half of first winner round match count (rounded up to handle odd drops)
+  let currentMatchCount = Math.max(
+    1,
+    Math.ceil(nonByeMatches.length / 2) || Math.floor(Math.pow(2, winnerRoundCount - 2))
+  );
 
   for (let roundIdx = 0; roundIdx < loserRoundCount; roundIdx++) {
     const matches: BracketMatch[] = [];
     const isFirstLoserRound = roundIdx === 0;
 
-    // Determine if we need a BYE in L0
-    // BYE is needed when losers from W0 < (L0 matches × 2)
-    const needsByeInL0 = isFirstLoserRound && (losersFromW0 < currentMatchCount * 2);
+    // Track how many losers feed into each L0 slot so we can flag under-filled matches as BYEs.
+    const loserSourcesPerMatch: number[] = [];
+    if (isFirstLoserRound) {
+      for (let i = 0; i < currentMatchCount; i++) {
+        loserSourcesPerMatch[i] = 0;
+      }
+
+      firstWinnerRound.matches.forEach((match, matchIdx) => {
+        if (match.isBye) return;
+        const targetIdx = Math.floor(matchIdx / 2);
+        if (targetIdx < loserSourcesPerMatch.length) {
+          loserSourcesPerMatch[targetIdx] += 1;
+        }
+      });
+    }
 
     for (let matchIdx = 0; matchIdx < currentMatchCount; matchIdx++) {
-      // First match in L0 gets the BYE if needed (standard double-elim practice)
-      // This ensures the "middle" loser from W0 gets the bye
-      const isByeMatch = needsByeInL0 && matchIdx === 0;
+      const isByeMatch =
+        isFirstLoserRound && (loserSourcesPerMatch[matchIdx] ?? 0) < 2;
 
       matches.push({
         teamAId: null,

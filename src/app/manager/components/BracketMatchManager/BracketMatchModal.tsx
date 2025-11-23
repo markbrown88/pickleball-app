@@ -740,18 +740,18 @@ export function BracketMatchModal({
             }
             
             // Group games by bracket
-            const gamesByBracket: Record<string, Game[]> = {};
+            const gamesByBracket = new Map<string, Game[]>();
 
             for (const game of gamesToRender) {
               const bracketKey = game.bracket?.name || 'Main';
-              if (!gamesByBracket[bracketKey]) {
-                gamesByBracket[bracketKey] = [];
+              if (!gamesByBracket.has(bracketKey)) {
+                gamesByBracket.set(bracketKey, []);
               }
-              gamesByBracket[bracketKey].push(game);
+              gamesByBracket.get(bracketKey)!.push(game);
             }
 
-            // Render each bracket's games
-            return Object.entries(gamesByBracket).map(([bracketName, games]) => {
+            // Render each bracket's games in encounter order
+            return Array.from(gamesByBracket.entries()).map(([bracketName, games]) => {
               // Calculate bracket winner
               let teamAWins = 0;
               let teamBWins = 0;
@@ -762,14 +762,22 @@ export function BracketMatchModal({
                 }
               }
 
+              const bracketLabel =
+                bracketName === 'Main'
+                  ? 'Overall Skill Bracket'
+                  : `${bracketName} Skill Bracket`;
+
               return (
                 <div key={bracketName}>
                   {/* Bracket Header */}
-                  {Object.keys(gamesByBracket).length > 1 && (
-                    <h4 className="text-sm font-semibold text-blue-400 mb-3">
-                      {bracketName} Bracket ({teamAWins} - {teamBWins})
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-blue-400">
+                      {bracketLabel}
                     </h4>
-                  )}
+                    <span className="text-xs font-semibold text-gray-300 bg-gray-700/60 px-2 py-0.5 rounded">
+                      {teamAWins} - {teamBWins}
+                    </span>
+                  </div>
 
                   {/* Games in 2-column grid */}
                   <div className="grid gap-4 lg:grid-cols-2">
