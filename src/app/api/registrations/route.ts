@@ -370,11 +370,13 @@ export async function POST(request: NextRequest) {
       
       // Calculate tax and total (13% HST for Ontario)
       const { tax, total: registrationAmount } = calculateTotalWithTax(subtotal);
-      
-      
-      const amountPaidInCents = tournament.registrationType === 'FREE' 
-        ? 0 
-        : formatAmountForStripe(registrationAmount);
+
+
+      // IMPORTANT: Do NOT set amountPaid here for PAID tournaments - it will be set by the webhook when payment is confirmed
+      // Setting it here causes double-counting: expected amount + actual Stripe payment
+      const amountPaidInCents = tournament.registrationType === 'FREE'
+        ? 0
+        : null; // null for PAID tournaments - webhook will set this when payment succeeds
 
       // Check if we're updating an existing registration or creating a new one
       let registration;
@@ -505,7 +507,9 @@ export async function POST(request: NextRequest) {
             playerId: player.id,
             status: 'REGISTERED',
             paymentStatus: tournament.registrationType === 'FREE' ? 'COMPLETED' : 'PENDING',
-            amountPaid: amountPaidInCents,
+            // IMPORTANT: amountPaid should be null for PAID tournaments until webhook confirms payment
+            // Setting it here causes double-counting when webhook adds the Stripe payment amount
+            amountPaid: amountPaidInCents, // null for PAID, 0 for FREE
             notes: JSON.stringify({
               stopIds: selectedStopIds,
               brackets: selectedBrackets,
@@ -825,6 +829,17 @@ export async function POST(request: NextRequest) {
             clubName = club?.name || null;
           }
 
+          // Get expected amount from notes (in dollars), convert to cents for email
+          let expectedAmountInCents = 0;
+          if (registration.notes) {
+            try {
+              const notes = JSON.parse(registration.notes);
+              expectedAmountInCents = notes.expectedAmount ? Math.round(notes.expectedAmount * 100) : 0;
+            } catch (e) {
+              console.error('Failed to parse notes for expected amount:', e);
+            }
+          }
+
           const { sendPaymentReminderEmail } = await import('@/server/email');
           await sendPaymentReminderEmail({
             to: playerDetails.email,
@@ -832,7 +847,7 @@ export async function POST(request: NextRequest) {
             tournamentName: tournamentDetails.name,
             tournamentId: tournamentId,
             registrationId: registration.id,
-            amount: registration.amountPaid ?? 0,
+            amount: expectedAmountInCents, // Use expected amount from notes, not amountPaid (which is null until payment succeeds)
             hoursRemaining: 24, // 24 hours to complete payment
             startDate: stopsWithBrackets.length > 0 ? stopsWithBrackets[0]?.startAt || null : null,
             endDate: stopsWithBrackets.length > 0 ? stopsWithBrackets[stopsWithBrackets.length - 1]?.endAt || null : null,
