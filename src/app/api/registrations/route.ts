@@ -385,7 +385,7 @@ export async function POST(request: NextRequest) {
       let finalSubtotal: number;
       let finalTax: number;
       let finalTotal: number;
-      let finalAmountPaidInCents: number;
+      let finalAmountPaidInCents: number | null;
       
       if (existingRegistrationId) {
         // Update existing registration to include new stops
