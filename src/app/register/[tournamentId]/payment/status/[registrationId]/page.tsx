@@ -47,15 +47,73 @@ export default async function PaymentStatusPage({ params }: PageProps) {
     notFound();
   }
 
-  // Get Stripe session ID from notes if available
+  // Get Stripe session ID and registration details from notes
   let stripeSessionId: string | null = null;
   let paymentIntentId: string | null = registration.paymentId || null;
+  let purchaseDetails: {
+    stops: Array<{ id: string; name: string }>;
+    club: { id: string; name: string } | null;
+    brackets: Array<{ stopId: string; bracketId: string; bracketName: string }>;
+  } | null = null;
 
   if (registration.notes) {
     try {
       const notes = JSON.parse(registration.notes);
       stripeSessionId = notes.stripeSessionId || null;
       paymentIntentId = paymentIntentId || notes.paymentIntentId || null;
+
+      // Extract purchase details from notes
+      const stopIds = notes.stopIds || [];
+      const clubId = notes.clubId || null;
+      const brackets = notes.brackets || [];
+
+      // Fetch stop details
+      const stops = await prisma.stop.findMany({
+        where: { id: { in: stopIds } },
+        select: {
+          id: true,
+          name: true,
+          startAt: true,
+        },
+        orderBy: { startAt: 'asc' },
+      });
+
+      // Fetch club details
+      let club: { id: string; name: string } | null = null;
+      if (clubId) {
+        const clubData = await prisma.club.findUnique({
+          where: { id: clubId },
+          select: { id: true, name: true },
+        });
+        if (clubData) {
+          club = clubData;
+        }
+      }
+
+      // Fetch bracket details
+      const bracketIds = brackets.map((b: any) => b.bracketId).filter(Boolean);
+      const bracketData = await prisma.tournamentBracket.findMany({
+        where: { id: { in: bracketIds } },
+        select: { id: true, name: true },
+      });
+
+      // Map brackets with names
+      const enrichedBrackets = brackets
+        .filter((b: any) => b.bracketId)
+        .map((b: any) => {
+          const bracket = bracketData.find((bd) => bd.id === b.bracketId);
+          return {
+            stopId: b.stopId,
+            bracketId: b.bracketId,
+            bracketName: bracket?.name || 'Unknown Bracket',
+          };
+        });
+
+      purchaseDetails = {
+        stops: stops.map((s) => ({ id: s.id, name: s.name })),
+        club,
+        brackets: enrichedBrackets,
+      };
     } catch (e) {
       console.error('Failed to parse registration notes:', e);
     }
@@ -92,6 +150,7 @@ export default async function PaymentStatusPage({ params }: PageProps) {
       registration={registration}
       stripePayment={stripePayment}
       paymentIntentId={paymentIntentId}
+      purchaseDetails={purchaseDetails}
     />
   );
 }

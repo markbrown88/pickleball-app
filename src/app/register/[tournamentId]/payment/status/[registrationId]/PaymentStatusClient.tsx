@@ -33,9 +33,14 @@ type PaymentStatusClientProps = {
     receipt_url?: string;
   } | null;
   paymentIntentId: string | null;
+  purchaseDetails: {
+    stops: Array<{ id: string; name: string }>;
+    club: { id: string; name: string } | null;
+    brackets: Array<{ stopId: string; bracketId: string; bracketName: string }>;
+  } | null;
 };
 
-export function PaymentStatusClient({ registration, stripePayment, paymentIntentId }: PaymentStatusClientProps) {
+export function PaymentStatusClient({ registration, stripePayment, paymentIntentId, purchaseDetails }: PaymentStatusClientProps) {
   const [isRetrying, setIsRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,14 +183,60 @@ export function PaymentStatusClient({ registration, stripePayment, paymentIntent
                 <span className="text-muted">Registered:</span>
                 <span>{new Date(registration.registeredAt).toLocaleDateString()}</span>
               </div>
+            </div>
 
-              {registration.withdrawnAt && (
+            {/* Purchase Details */}
+            {purchaseDetails && (purchaseDetails.stops.length > 0 || purchaseDetails.club || purchaseDetails.brackets.length > 0) && (
+              <div className="space-y-3 pt-4 border-t border-border-subtle">
+                <h3 className="text-sm font-semibold text-secondary">Registration Details</h3>
+
+                {purchaseDetails.club && (
+                  <div className="flex justify-between">
+                    <span className="text-muted">Club:</span>
+                    <span className="font-medium">{purchaseDetails.club.name}</span>
+                  </div>
+                )}
+
+                {purchaseDetails.stops.length > 0 && (
+                  <div className="flex justify-between items-start">
+                    <span className="text-muted">
+                      {purchaseDetails.stops.length === 1 ? 'Stop:' : 'Stops:'}
+                    </span>
+                    <div className="text-right">
+                      {purchaseDetails.stops.map((stop, index) => (
+                        <div key={stop.id} className="font-medium">
+                          {stop.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {purchaseDetails.brackets.length > 0 && (
+                  <div className="flex justify-between items-start">
+                    <span className="text-muted">
+                      {purchaseDetails.brackets.length === 1 ? 'Bracket:' : 'Brackets:'}
+                    </span>
+                    <div className="text-right">
+                      {purchaseDetails.brackets.map((bracket, index) => (
+                        <div key={`${bracket.stopId}-${bracket.bracketId}`} className="font-medium">
+                          {bracket.bracketName}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {registration.withdrawnAt && (
+              <div className="space-y-3 pt-4 border-t border-border-subtle">
                 <div className="flex justify-between">
                   <span className="text-muted">Withdrawn:</span>
                   <span>{new Date(registration.withdrawnAt).toLocaleDateString()}</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Actions */}
             {(isPending || isFailed) && (
