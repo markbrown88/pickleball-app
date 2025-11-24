@@ -409,7 +409,7 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
     });
   });
 
-  // Finals matches (include with lower bracket so library can locate converging finals)
+  // Finals matches (add to upper bracket; library expects finals in winner column)
   // Sort by depth (higher depth = earlier finals, e.g., Finals 1 before Finals 2)
   const sortedFinalsRounds = [...finalsRounds].sort((a, b) => (b.depth ?? 0) - (a.depth ?? 0));
 
@@ -419,7 +419,7 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
       if (match && match.id) {
         const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
-          lowerMatches.push(converted);
+          upperMatches.push(converted);
         }
       }
     });
