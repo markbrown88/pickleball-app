@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateDoubleEliminationBracket } from '@/lib/brackets';
+import { cacheKeys, invalidateCache } from '@/lib/cache';
 
 export async function POST(
   request: NextRequest,
@@ -378,6 +379,9 @@ export async function POST(
         data: { gamesPerMatch: finalGamesPerMatch },
       });
     }
+
+    // Clear cached schedules for this stop so UI refetches the new bracket immediately
+    await invalidateCache(`${cacheKeys.stopSchedule(stop.id)}*`);
 
     return NextResponse.json({
       success: true,
