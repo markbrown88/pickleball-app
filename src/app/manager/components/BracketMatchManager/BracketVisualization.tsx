@@ -64,16 +64,13 @@ function useWindowSize() {
   useEffect(() => {
     function updateSize() {
       setSize([window.innerWidth, window.innerHeight]);
-    } else {
-      console.info('[BracketVisualization] Rounded bracket data', {
-        upperCount: cleanUpper.length,
-        lowerCount: cleanLower.length,
-        finalsUpper: cleanUpper.filter(m => m?.bracketType === 'FINALS').length,
-      });
     }
-    window.addEventListener('resize', updateSize);
-    updateSize();
-    return () => window.removeEventListener('resize', updateSize);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', updateSize);
+      updateSize();
+      return () => window.removeEventListener('resize', updateSize);
+    }
   }, []);
 
   return size;
