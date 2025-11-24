@@ -19,6 +19,20 @@ type GameData = {
   opponentAvgDupr: number | null;
 };
 
+type MatchInfo = {
+  matchId: string;
+  playerTeamId: string;
+  isTeamA: boolean;
+  isForfeit: boolean;
+  allGames: Array<{
+    id: string;
+    slot: GameSlot | null;
+    teamAScore: number | null;
+    teamBScore: number | null;
+    isComplete: boolean | null;
+  }>;
+};
+
 function formatLabel(p: any): string {
   const fn = (p.firstName ?? '').trim();
   const ln = (p.lastName ?? '').trim();
@@ -91,7 +105,7 @@ export async function GET(req: NextRequest) {
 
     // Collect all games and match data
     const games: GameData[] = [];
-    const matchIds = new Set<string>();
+    const matches = new Map<string, MatchInfo>();
     const seenGames = new Set<string>();
     const partners = new Set<string>();
 
@@ -112,11 +126,27 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        matchIds.add(match.id);
         const isTeamA = match.teamAId === playerTeam.id;
         const isForfeit = match.forfeitTeam !== null;
 
-        // Find games in this match with matching slot
+        // Store complete match info (only once per match)
+        if (!matches.has(match.id)) {
+          matches.set(match.id, {
+            matchId: match.id,
+            playerTeamId: playerTeam.id,
+            isTeamA,
+            isForfeit,
+            allGames: match.games.map(g => ({
+              id: g.id,
+              slot: g.slot,
+              teamAScore: g.teamAScore,
+              teamBScore: g.teamBScore,
+              isComplete: g.isComplete
+            }))
+          });
+        }
+
+        // Find games in this match with matching slot (for player's individual stats)
         const matchGames = match.games.filter(g => g.slot === slot);
 
         matchGames.forEach((game, index) => {
@@ -143,7 +173,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Calculate statistics
-    const stats = calculateStats(games, matchIds, partners);
+    const stats = calculateStats(games, matches, partners);
 
     return NextResponse.json(stats);
   } catch (error) {
@@ -155,54 +185,69 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function calculateStats(games: GameData[], matchIds: Set<string>, partners: Set<string>) {
+function calculateStats(games: GameData[], matches: Map<string, MatchInfo>, partners: Set<string>) {
   // Filter out forfeited games for game-level and point stats
   const validGames = games.filter(g => !g.isForfeit && g.isComplete);
 
-  // Match-level stats (include forfeits for match W/L)
+  // Match-level stats: Determine match winners based on team performance across all slots
   const matchResults = new Map<string, { won: boolean }>();
 
-  // Group games by match to determine match winners
-  const gamesByMatch = new Map<string, GameData[]>();
-  games.forEach(game => {
-    if (!gamesByMatch.has(game.matchId)) {
-      gamesByMatch.set(game.matchId, []);
-    }
-    gamesByMatch.get(game.matchId)!.push(game);
-  });
-
-  // Determine match winners
-  gamesByMatch.forEach((matchGames, matchId) => {
-    // For forfeited matches, check if any game shows who won
-    const firstGame = matchGames[0];
-    if (firstGame.isForfeit) {
-      // In a forfeit, we still count the match W/L
-      // The winner should have been marked somehow, but for now
-      // we'll skip counting forfeit matches for match record
-      // unless we can determine the winner
+  matches.forEach((matchInfo, matchId) => {
+    // Skip forfeited matches for now (would need forfeit logic)
+    if (matchInfo.isForfeit) {
       return;
     }
 
-    // Count games won by player's team
-    let gamesWon = 0;
-    let gamesLost = 0;
-
-    matchGames.forEach(game => {
-      if (!game.isComplete || game.teamAScore === null || game.teamBScore === null) return;
-
-      const playerScore = game.isTeamA ? game.teamAScore : game.teamBScore;
-      const opponentScore = game.isTeamA ? game.teamBScore : game.teamAScore;
-
-      if (playerScore > opponentScore) {
-        gamesWon++;
-      } else if (opponentScore > playerScore) {
-        gamesLost++;
+    // Group all games in the match by slot
+    const gamesBySlot = new Map<GameSlot, Array<typeof matchInfo.allGames[0]>>();
+    matchInfo.allGames.forEach(game => {
+      if (game.slot === null) return; // Skip games without a slot
+      if (!gamesBySlot.has(game.slot)) {
+        gamesBySlot.set(game.slot, []);
       }
+      gamesBySlot.get(game.slot)!.push(game);
     });
 
-    // Determine match winner (best of X)
-    const won = gamesWon > gamesLost;
-    matchResults.set(matchId, { won });
+    // For each slot, determine which team won that slot
+    let slotsWonByPlayerTeam = 0;
+    let slotsWonByOpponent = 0;
+
+    gamesBySlot.forEach((slotGames, slot) => {
+      // Count games won by each team in this slot
+      let playerTeamGamesWon = 0;
+      let opponentGamesWon = 0;
+
+      slotGames.forEach(game => {
+        if (!game.isComplete || game.teamAScore === null || game.teamBScore === null) return;
+
+        const teamAWon = game.teamAScore > game.teamBScore;
+        const teamBWon = game.teamBScore > game.teamAScore;
+
+        if (matchInfo.isTeamA) {
+          if (teamAWon) playerTeamGamesWon++;
+          if (teamBWon) opponentGamesWon++;
+        } else {
+          if (teamBWon) playerTeamGamesWon++;
+          if (teamAWon) opponentGamesWon++;
+        }
+      });
+
+      // The team that won more games in this slot wins the slot
+      if (playerTeamGamesWon > opponentGamesWon) {
+        slotsWonByPlayerTeam++;
+      } else if (opponentGamesWon > playerTeamGamesWon) {
+        slotsWonByOpponent++;
+      }
+      // If tied, slot doesn't count for either team
+    });
+
+    // The team that won more slots wins the match
+    if (slotsWonByPlayerTeam > slotsWonByOpponent) {
+      matchResults.set(matchId, { won: true });
+    } else if (slotsWonByOpponent > slotsWonByPlayerTeam) {
+      matchResults.set(matchId, { won: false });
+    }
+    // If tied in slots, we don't count the match (or could implement tiebreaker logic)
   });
 
   // === CORE STATS ===
@@ -279,19 +324,32 @@ function calculateStats(games: GameData[], matchIds: Set<string>, partners: Set<
   });
 
   // Format-specific match wins/losses
-  gamesByMatch.forEach((matchGames, matchId) => {
+  // For each match, attribute the match W/L to the format(s) the player participated in
+  const playerSlotsPerMatch = new Map<string, Set<GameSlot>>();
+  games.forEach(game => {
+    if (!playerSlotsPerMatch.has(game.matchId)) {
+      playerSlotsPerMatch.set(game.matchId, new Set());
+    }
+    if (game.slot) {
+      playerSlotsPerMatch.get(game.matchId)!.add(game.slot);
+    }
+  });
+
+  playerSlotsPerMatch.forEach((slots, matchId) => {
     const matchResult = matchResults.get(matchId);
     if (!matchResult) return;
 
-    const firstGame = matchGames[0];
-    const format = getFormat(firstGame.slot);
-    if (format) {
-      if (matchResult.won) {
-        formatStats[format].matchesWon++;
-      } else {
-        formatStats[format].matchesLost++;
+    // Attribute the match result to each format the player participated in
+    slots.forEach(slot => {
+      const format = getFormat(slot);
+      if (format) {
+        if (matchResult.won) {
+          formatStats[format].matchesWon++;
+        } else {
+          formatStats[format].matchesLost++;
+        }
       }
-    }
+    });
   });
 
   const totalGames = gamesWon + gamesLost;
