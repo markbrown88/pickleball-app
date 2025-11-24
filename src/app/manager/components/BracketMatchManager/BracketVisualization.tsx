@@ -305,6 +305,20 @@ export function BracketVisualization({
     );
   }
 
+  // Library expects both winner and loser brackets to have at least one match
+  if (cleanUpper.length === 0 || cleanLower.length === 0) {
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700 text-center px-6">
+        <div>
+          <p className="text-gray-300 font-medium">Bracket cannot be rendered</p>
+          <p className="text-gray-400 text-sm mt-2">
+            Double elimination bracket requires both winner and loser brackets. Add more teams or regenerate the bracket.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const allMatchIds = new Set([...cleanUpper.map(m => m.id), ...cleanLower.map(m => m.id)]);
 
   const safeBracketData = {

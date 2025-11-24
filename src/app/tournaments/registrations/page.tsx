@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { RegistrationsTab } from '../components/tabs/RegistrationsTab';
 import { InvitationsTab } from '../components/tabs/InvitationsTab';
 import type { UserProfile } from '@/types';
+import { saveSelectedTournament, getLastSelectedTournament } from '@/lib/tournamentStorage';
 
 type Id = string;
 
@@ -50,9 +51,16 @@ export default function TournamentRegistrationsPage() {
         const data = await api<Tournament[]>('/api/admin/tournaments');
         setTournaments(data);
 
-        // Auto-select first tournament if available
+        // Try to restore last selected tournament, otherwise use first tournament
         if (data.length > 0 && !selectedTournamentId) {
-          setSelectedTournamentId(data[0].id);
+          const lastSelectedId = getLastSelectedTournament();
+          const isLastSelectedAvailable = lastSelectedId && data.some(t => t.id === lastSelectedId);
+
+          if (isLastSelectedAvailable) {
+            setSelectedTournamentId(lastSelectedId);
+          } else {
+            setSelectedTournamentId(data[0].id);
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load tournaments');
@@ -126,7 +134,11 @@ export default function TournamentRegistrationsPage() {
                 id="tournament-select"
                 className="input min-w-[280px]"
                 value={selectedTournamentId ?? ''}
-                onChange={(e) => setSelectedTournamentId(e.target.value)}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  setSelectedTournamentId(newId);
+                  saveSelectedTournament(newId);
+                }}
               >
                 {tournaments.map((t) => (
                   <option key={t.id} value={t.id}>

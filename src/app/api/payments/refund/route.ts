@@ -5,6 +5,11 @@ import { stripe } from '@/lib/stripe/config';
 import { formatAmountFromStripe } from '@/lib/stripe/config';
 import { refundLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
 import type Stripe from 'stripe';
+import {
+  appendRefund,
+  parseRegistrationNotes,
+  stringifyRegistrationNotes,
+} from '@/lib/payments/registrationNotes';
 
 /**
  * POST /api/payments/refund
@@ -206,15 +211,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update registration status
     const isFullRefund = refundAmount === (registration.amountPaid || 0);
-    
+    const remainingAmount = Math.max((registration.amountPaid || 0) - refundAmount, 0);
+    const notesObject = appendRefund(
+      parseRegistrationNotes(registration.notes ?? null),
+      refund.id,
+      refundAmount,
+      reason
+    );
+
     await prisma.tournamentRegistration.update({
       where: { id: registrationId },
       data: {
         paymentStatus: isFullRefund ? 'REFUNDED' : 'PAID', // Partial refunds keep status as PAID
         refundId: refund.id,
         status: isFullRefund ? 'WITHDRAWN' : registration.status, // Full refund = withdrawal
+        amountPaid: remainingAmount,
+        notes: stringifyRegistrationNotes(notesObject),
       },
     });
 

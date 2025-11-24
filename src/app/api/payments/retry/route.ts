@@ -125,6 +125,8 @@ export async function POST(request: NextRequest) {
       };
       expectedAmount?: number;
       pricingModel?: string;
+      newlySelectedStopIds?: string[];
+      newlySelectedBrackets?: Array<{ stopId: string; bracketId: string; gameTypes?: string[] }>;
     } = {};
 
     if (registration.notes) {
@@ -153,10 +155,18 @@ export async function POST(request: NextRequest) {
     };
     
     // Calculate subtotal based on pricing model
-    const subtotal = calculateRegistrationAmount(
-      tournamentWithPricingForCalc,
-      registrationDetails
-    );
+    const billableStopIds =
+      registrationDetails.newlySelectedStopIds && registrationDetails.newlySelectedStopIds.length > 0
+        ? registrationDetails.newlySelectedStopIds
+        : registrationDetails.stopIds || [];
+    const billableBrackets =
+      registrationDetails.newlySelectedBrackets && registrationDetails.newlySelectedBrackets.length > 0
+        ? registrationDetails.newlySelectedBrackets
+        : registrationDetails.brackets || [];
+    const subtotal = calculateRegistrationAmount(tournamentWithPricingForCalc, {
+      stopIds: billableStopIds,
+      brackets: billableBrackets,
+    });
     
     // Calculate tax and total (13% HST for Ontario)
     const { tax, total: calculatedAmount } = calculateTotalWithTax(subtotal);
@@ -202,7 +212,10 @@ export async function POST(request: NextRequest) {
     const lineItems = createLineItems(
       tournamentWithPricing,
       registration.tournament.brackets || [],
-      registrationDetails,
+      {
+        stopIds: billableStopIds,
+        brackets: billableBrackets,
+      },
       subtotal,
       tax,
       registration.player

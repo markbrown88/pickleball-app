@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatDateRangeUTC } from '@/lib/utils';
 import { fetchWithActAs } from '@/lib/fetchWithActAs';
 import { calculateTotalWithTax, getTaxLabel, getTaxRateDisplay } from '@/lib/payments/calculateTax';
+import { calculateRegistrationAmount } from '@/lib/payments/calculateAmount';
 import { formatPhoneForDisplay } from '@/lib/phone';
 
 type Stop = {
@@ -95,45 +96,21 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
     (club) => club.id === registrationData.selectedClubId
   );
 
-  // Calculate pricing
-  // Note: tournament.registrationCost is stored in cents, convert to dollars for display
-  const calculatePrice = (): number => {
-    if (tournament.registrationType === 'FREE') {
-      return 0;
-    }
-
-    // Convert from cents to dollars
-    const baseCostInDollars = tournament.registrationCost ? tournament.registrationCost / 100 : 0;
-
-    switch (tournament.pricingModel) {
-      case 'PER_TOURNAMENT':
-      case 'TOURNAMENT_WIDE':
-        return baseCostInDollars;
-
-      case 'PER_STOP':
-        return baseCostInDollars * registrationData.selectedStopIds.length;
-
-      case 'PER_BRACKET':
-        // Count unique bracket selections across all stops
-        const uniqueBrackets = new Set(
-          registrationData.selectedBrackets.map((sb) => sb.bracketId)
+  // Calculate pricing using shared helper to mirror backend logic
+  const baseCostInDollars = tournament.registrationCost ? tournament.registrationCost / 100 : 0;
+  const subtotal =
+    tournament.registrationType === 'FREE'
+      ? 0
+      : calculateRegistrationAmount(
+          {
+            registrationCost: baseCostInDollars,
+            pricingModel: tournament.pricingModel || 'TOURNAMENT_WIDE',
+          },
+          {
+            stopIds: registrationData.selectedStopIds,
+            brackets: registrationData.selectedBrackets,
+          }
         );
-        return baseCostInDollars * uniqueBrackets.size;
-
-      case 'PER_GAME_TYPE':
-        // Count total game type selections
-        const totalGameTypes = registrationData.selectedBrackets.reduce(
-          (sum, sb) => sum + sb.gameTypes.length,
-          0
-        );
-        return baseCostInDollars * totalGameTypes;
-
-      default:
-        return baseCostInDollars;
-    }
-  };
-
-  const subtotal = calculatePrice();
   
   // Calculate tax (13% HST for Ontario)
   const { subtotal: displaySubtotal, tax, total: totalCost } = calculateTotalWithTax(subtotal);
@@ -504,6 +481,28 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
                       <span className="text-secondary">
                         {new Set(registrationData.selectedBrackets.map((sb) => sb.bracketId)).size}
                       </span>
+                    </div>
+                  </>
+                );
+              }
+
+              if (tournament.pricingModel === 'PER_STOP_PER_BRACKET') {
+                const stopBracketCombinations = new Set(
+                  registrationData.selectedBrackets.map(
+                    (sb) => `${sb.stopId}:${sb.bracketId}`
+                  )
+                );
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">Price per stop & bracket:</span>
+                      <span className="text-secondary">
+                        ${costInDollars}{tournament.registrationType === 'PAID' ? ' +HST' : ''}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">Stop/Bracket combinations:</span>
+                      <span className="text-secondary">{stopBracketCombinations.size}</span>
                     </div>
                   </>
                 );

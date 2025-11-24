@@ -162,6 +162,14 @@ export async function POST(request: NextRequest) {
     let subtotal: number;
     let tax: number;
     let calculatedAmount: number;
+    const billableStopIds =
+      registrationDetails.newlySelectedStopIds && registrationDetails.newlySelectedStopIds.length > 0
+        ? registrationDetails.newlySelectedStopIds
+        : registrationDetails.stopIds || [];
+    const billableBrackets =
+      registrationDetails.newlySelectedBrackets && registrationDetails.newlySelectedBrackets.length > 0
+        ? registrationDetails.newlySelectedBrackets
+        : registrationDetails.brackets || [];
     
     if (registrationDetails.newStopsTotal !== undefined && registrationDetails.newStopsSubtotal !== undefined) {
       // Use pre-calculated amounts for new stops only
@@ -173,13 +181,8 @@ export async function POST(request: NextRequest) {
       // Calculate from scratch
       // IMPORTANT: If this is an update to existing registration but newStopsTotal is missing,
       // only calculate for newly selected stops, not all stops
-      const stopsToCalculate = registrationDetails.newlySelectedStopIds && registrationDetails.newlySelectedStopIds.length > 0
-        ? registrationDetails.newlySelectedStopIds
-        : registrationDetails.stopIds || [];
-      
-      const bracketsToCalculate = registrationDetails.newlySelectedBrackets && registrationDetails.newlySelectedBrackets.length > 0
-        ? registrationDetails.newlySelectedBrackets
-        : registrationDetails.brackets || [];
+      const stopsToCalculate = billableStopIds;
+      const bracketsToCalculate = billableBrackets;
       
       subtotal = calculateRegistrationAmount(
         tournamentWithPricing,
@@ -238,7 +241,10 @@ export async function POST(request: NextRequest) {
     const lineItems = createLineItems(
       tournamentWithPricing,
       registration.tournament.brackets || [],
-      registrationDetails,
+      {
+        stopIds: billableStopIds,
+        brackets: billableBrackets,
+      },
       subtotal,
       tax,
       registration.player

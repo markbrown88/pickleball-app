@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendPaymentReminderEmail } from '@/server/email';
+import {
+  getPendingPaymentAmountInCents,
+  parseRegistrationNotes,
+  stringifyRegistrationNotes,
+} from '@/lib/payments/registrationNotes';
 
 /**
  * POST /api/cron/payment-reminders
@@ -83,26 +88,17 @@ export async function POST(request: NextRequest) {
     // Send 12-hour reminders
     let remindersSent = 0;
     for (const registration of registrationsFor12HourReminder) {
-      // Check if we've already sent a 12-hour reminder (stored in notes)
-      let notes: any = {};
-      if (registration.notes) {
-        try {
-          notes = JSON.parse(registration.notes);
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
+      const notes = parseRegistrationNotes(registration.notes ?? null);
 
-      // Skip if already sent 12h reminder
       if (notes.reminder12hSent) {
         continue;
       }
 
-      // Only send reminder if payment process was started (has stripeSessionId)
-      // This means they got to the payment step but didn't complete it
       if (!notes.stripeSessionId) {
-        continue; // Skip - they never started the payment process
+        continue; // No payment attempt initiated
       }
+
+      const pendingAmount = getPendingPaymentAmountInCents(notes, 0);
 
       // Skip free tournaments - no payment needed
       if (registration.tournament.registrationType === 'FREE') {
@@ -223,7 +219,7 @@ export async function POST(request: NextRequest) {
             tournamentName: registration.tournament.name,
             tournamentId: registration.tournamentId,
             registrationId: registration.id,
-            amount: registration.amountPaid || 0,
+            amount: pendingAmount,
             hoursRemaining: 12,
             startDate: stops.length > 0 ? stops[0]?.startAt || null : (firstStop?.startAt ? new Date(firstStop.startAt) : null),
             endDate: stops.length > 0 ? stops[stops.length - 1]?.endAt || null : (firstStop?.endAt ? new Date(firstStop.endAt) : null),
@@ -239,7 +235,7 @@ export async function POST(request: NextRequest) {
           await prisma.tournamentRegistration.update({
             where: { id: registration.id },
             data: {
-              notes: JSON.stringify(notes),
+              notes: stringifyRegistrationNotes(notes),
             },
           });
 
@@ -283,21 +279,13 @@ export async function POST(request: NextRequest) {
     // Only cancel registrations where payment process was started (has stripeSessionId) but not completed
     let cancellations = 0;
     for (const registration of registrationsToCancel) {
-      // Check notes to see if payment process was started
-      let notes: any = {};
-      if (registration.notes) {
-        try {
-          notes = JSON.parse(registration.notes);
-        } catch (e) {
-          console.error(`Failed to parse notes for registration ${registration.id}:`, e);
-        }
-      }
+      const notes = parseRegistrationNotes(registration.notes ?? null);
 
-      // Skip if payment process was never started (no stripeSessionId)
-      // These are registrations that were created but user never got to payment step
       if (!notes.stripeSessionId) {
         continue;
       }
+
+      const pendingAmount = getPendingPaymentAmountInCents(notes, 0);
 
       // Skip free tournaments - no payment needed
       if (registration.tournament.registrationType === 'FREE') {
@@ -330,7 +318,7 @@ export async function POST(request: NextRequest) {
               playerName,
               tournamentName: registration.tournament.name,
               tournamentId: registration.tournamentId,
-              amount: registration.amountPaid || 0,
+              amount: pendingAmount,
               failureReason: 'Payment not completed within 24 hours. Registration slot has been released.',
               startDate: null,
               endDate: null,

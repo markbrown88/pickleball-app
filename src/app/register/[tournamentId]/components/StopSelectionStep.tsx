@@ -187,7 +187,7 @@ export function StopSelectionStep({
             const available = isStopAvailable(stop);
             const alreadyRegistered = isStopAlreadyRegistered(stop.id);
             const isPending = isStopPending(stop.id);
-            const selected = selectedStopIds.includes(stop.id) || isPending;
+            const selected = selectedStopIds.includes(stop.id) || isPending || alreadyRegistered;
             const canSelect = available && !alreadyRegistered && !isPending;
 
             return (
@@ -210,11 +210,11 @@ export function StopSelectionStep({
                   <div className="pt-1">
                     <input
                       type="checkbox"
-                      checked={selected && !alreadyRegistered} // Show as checked if selected or pending (but not already registered)
-                      onChange={() => {}} // Handled by parent div click
+                      checked={selected}
+                      onChange={() => {}}
                       disabled={!canSelect}
                       className="w-5 h-5 cursor-pointer"
-                      readOnly={isPending} // Read-only for pending stops
+                      readOnly
                     />
                   </div>
 
