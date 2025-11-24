@@ -215,6 +215,24 @@ function convertMatch(
     }
   }
 
+  // Fallback: if this is Finals 1 (depth 1) with no detected finals reset link,
+  // synthesize a link to the Finals 2 match so the visualization library can locate it.
+  if (
+    !nextMatchId &&
+    round.bracketType === 'FINALS' &&
+    round.depth === 1
+  ) {
+    const finalsResetRound = allRounds.find(
+      r => r.bracketType === 'FINALS' && r.depth === 0 && r.matches?.[0]?.id
+    );
+    if (finalsResetRound) {
+      const resetMatchId = finalsResetRound.matches[0].id;
+      if (resetMatchId && resetMatchId !== match.id) {
+        nextMatchId = resetMatchId;
+      }
+    }
+  }
+
   // Build participants array
   const participants: TournamentBracketMatch['participants'] = [];
 

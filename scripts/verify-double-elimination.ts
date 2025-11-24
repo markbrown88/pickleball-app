@@ -1,4 +1,5 @@
 import { generateDoubleEliminationBracket } from '../src/lib/brackets/doubleElimination.ts';
+import { transformRoundsToBracketFormat } from '../src/lib/brackets/bracketTransformer';
 
 const clubs = [
   { id: 'club-1', seed: 1, name: 'Club 1' },
@@ -55,4 +56,18 @@ for (const round of bracket.rounds.filter((r) => r.bracketType === 'FINALS')) {
     );
   }
 }
+
+const roundsWithGames = bracket.rounds.map((round) => ({
+  ...round,
+  matches: round.matches.map((match) => ({
+    ...match,
+    games: match.games ?? [],
+  })),
+}));
+
+const transformed = transformRoundsToBracketFormat(roundsWithGames as any);
+console.log('\nTransformed Upper Matches:');
+console.log(JSON.stringify(transformed.upper, null, 2));
+console.log('\nTransformed Lower Matches:');
+console.log(JSON.stringify(transformed.lower, null, 2));
 
