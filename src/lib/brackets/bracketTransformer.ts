@@ -236,14 +236,17 @@ function convertMatch(
   // Build participants array
   const participants: TournamentBracketMatch['participants'] = [];
 
-  if (match.isBye && match.teamA) {
+  // Check if there's a team in EITHER position for BYE matches
+  const byeTeam = match.teamA || match.teamB;
+
+  if (match.isBye && byeTeam) {
     // BYE match with team assigned - show team advancing with bye
     participants.push({
-      id: match.teamA.id,
+      id: byeTeam.id,
       resultText: 'WON',
       isWinner: true,
       status: 'WALK_OVER',
-      name: stripBracketSuffix(match.teamA.name),
+      name: stripBracketSuffix(byeTeam.name),
     });
     // Add BYE as second participant (not TBD) - no status/text to avoid showing "WO"
     participants.push({
@@ -253,7 +256,7 @@ function convertMatch(
       status: null, // Set to null instead of 'WALK_OVER' to prevent "WO" from showing
       name: 'BYE',
     });
-  } else if (match.isBye && !match.teamA) {
+  } else if (match.isBye && !byeTeam) {
     // BYE match waiting for source match to complete - show real source vs BYE.
     // Prefer a source match that actually produces a loser (i.e., not a bye).
     const sourceCandidates = [

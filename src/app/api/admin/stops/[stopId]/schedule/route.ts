@@ -121,7 +121,7 @@ export async function GET(req: Request, ctx: Ctx) {
       orderBy: { idx: 'asc' },
       include: {
         matches: {
-          orderBy: { id: 'asc' },
+          orderBy: { bracketPosition: 'asc' },
           select: {
             id: true,
             isBye: true,
@@ -134,6 +134,7 @@ export async function GET(req: Request, ctx: Ctx) {
             winnerId: true,
             seedA: true,
             seedB: true,
+            bracketPosition: true,
             teamA: {
               select: {
                 id: true,
