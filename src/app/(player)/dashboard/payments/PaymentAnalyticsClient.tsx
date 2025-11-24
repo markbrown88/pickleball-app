@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { formatAmountFromStripe } from '@/lib/stripe/helpers';
 
 type PaymentAnalyticsClientProps = {
@@ -39,6 +40,8 @@ export function PaymentAnalyticsClient({
   recentPayments,
 }: PaymentAnalyticsClientProps) {
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED'>('ALL');
+  const [isRefundingId, setIsRefundingId] = useState<string | null>(null);
+  const router = useRouter();
 
   const formatAmount = (amountInCents: number) => {
     return `$${formatAmountFromStripe(amountInCents).toFixed(2)}`;
@@ -74,6 +77,76 @@ export function PaymentAnalyticsClient({
   const pendingPayments = useMemo(() => {
     return recentPayments.filter(p => p.paymentStatus === 'PENDING');
   }, [recentPayments]);
+
+  const canRefund = (status: string) => status === 'PAID' || status === 'COMPLETED';
+
+  const handleRefund = async (payment: PaymentAnalyticsClientProps['recentPayments'][number]) => {
+    if (isRefundingId) {
+      return;
+    }
+
+    if (!canRefund(payment.paymentStatus)) {
+      window.alert('Only paid registrations can be refunded.');
+      return;
+    }
+
+    const defaultAmount = formatAmountFromStripe(payment.amount).toFixed(2);
+    const amountInput = window.prompt(
+      'Enter refund amount in dollars (leave blank for full refund):',
+      defaultAmount
+    );
+
+    if (amountInput === null) {
+      return;
+    }
+
+    const normalizedAmount = amountInput.trim();
+    const amount =
+      normalizedAmount.length === 0 ? undefined : parseFloat(normalizedAmount.replace(/[^0-9.]/g, ''));
+
+    if (amount !== undefined && (Number.isNaN(amount) || amount <= 0)) {
+      window.alert('Please enter a valid refund amount greater than 0.');
+      return;
+    }
+
+    const reason =
+      window.prompt('Enter a refund reason (optional):', 'Admin refund')?.trim() || 'Admin refund';
+
+    setIsRefundingId(payment.id);
+    try {
+      const response = await fetch('/api/payments/refund', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          registrationId: payment.id,
+          amount,
+          reason,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to process refund.';
+        try {
+          const data = await response.json();
+          errorMessage = data.details || data.error || errorMessage;
+        } catch {
+          // ignore parse error
+        }
+        window.alert(errorMessage);
+        return;
+      }
+
+      window.alert('Refund processed successfully.');
+      router.refresh();
+    } catch (error) {
+      console.error('Refund request failed:', error);
+      window.alert('Unexpected error processing refund. Please try again.');
+    } finally {
+      setIsRefundingId(null);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -220,12 +293,24 @@ export function PaymentAnalyticsClient({
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <Link
-                          href={`/register/${payment.tournamentId}/payment/status/${payment.id}`}
-                          className="btn btn-ghost btn-sm"
-                        >
-                          View
-                        </Link>
+                        <div className="flex justify-end gap-2">
+                          <Link
+                            href={`/register/${payment.tournamentId}/payment/status/${payment.id}`}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            View
+                          </Link>
+                          {canRefund(payment.paymentStatus) && (
+                            <button
+                              type="button"
+                              onClick={() => handleRefund(payment)}
+                              className="btn btn-outline btn-sm"
+                              disabled={isRefundingId === payment.id}
+                            >
+                              {isRefundingId === payment.id ? 'Processing...' : 'Refund'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -315,12 +400,24 @@ export function PaymentAnalyticsClient({
                       {formatAmount(payment.amount)}
                     </td>
                     <td className="p-3 text-right">
-                      <Link
-                        href={`/register/${payment.tournamentId}/payment/status/${payment.id}`}
-                        className="btn btn-ghost btn-sm"
-                      >
-                        View
-                      </Link>
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/register/${payment.tournamentId}/payment/status/${payment.id}`}
+                          className="btn btn-ghost btn-sm"
+                        >
+                          View
+                        </Link>
+                        {canRefund(payment.paymentStatus) && (
+                          <button
+                            type="button"
+                            onClick={() => handleRefund(payment)}
+                            className="btn btn-outline btn-sm"
+                            disabled={isRefundingId === payment.id}
+                          >
+                            {isRefundingId === payment.id ? 'Processing...' : 'Refund'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
