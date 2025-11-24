@@ -259,7 +259,7 @@ export function PaymentAnalyticsClient({
                   <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
                   <th className="text-right p-3 text-sm font-medium text-secondary">Amount</th>
                   <th className="text-right p-3 text-sm font-medium text-secondary">Days Pending</th>
-                  <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
+                  <th className="text-center p-3 text-sm font-medium text-secondary">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -372,7 +372,7 @@ export function PaymentAnalyticsClient({
                   <th className="text-left p-3 text-sm font-medium text-secondary">Player</th>
                   <th className="text-left p-3 text-sm font-medium text-secondary">Status</th>
                   <th className="text-right p-3 text-sm font-medium text-secondary">Amount</th>
-                  <th className="text-right p-3 text-sm font-medium text-secondary">Actions</th>
+                  <th className="text-center p-3 text-sm font-medium text-secondary">Actions</th>
                 </tr>
               </thead>
               <tbody>

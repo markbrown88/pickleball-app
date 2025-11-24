@@ -335,6 +335,10 @@ export function BracketVisualization({
       nextLooserMatchId: (m.nextLooserMatchId && allMatchIds.has(m.nextLooserMatchId)) ? m.nextLooserMatchId : undefined,
     })),
   };
+  if (typeof window !== 'undefined') {
+    (window as any).__lastBracketData = safeBracketData;
+    console.info('[BracketVisualization] Latest bracket data stored on window.__lastBracketData');
+  }
   
   // Step 2: Validate that the library's findTheFinals function won't crash
   // The library checks isFinalInLower/isFinalInUpper first, then tries to find lastUpper/lastLower
