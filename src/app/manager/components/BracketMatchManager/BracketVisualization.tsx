@@ -7,7 +7,7 @@
  * Shows winner bracket, loser bracket, and finals in a traditional bracket layout.
  */
 
-import { useCallback, useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo, ReactNode } from 'react';
 import { DoubleEliminationBracket } from '@g-loot/react-tournament-brackets';
 import { transformRoundsToBracketFormat } from '@/lib/brackets/bracketTransformer';
 import { CustomBracketMatch } from './CustomBracketMatch';
@@ -564,9 +564,46 @@ export function BracketVisualization({
     };
   }, [safeBracketData]);
   
+  let bracketContent: React.ReactNode;
+  try {
+    bracketContent = (
+      <DoubleEliminationBracket
+        matches={safeBracketData}
+        matchComponent={CustomBracketMatch}
+        onMatchClick={handleMatchClick}
+        options={{
+          style: {
+            roundHeader: {
+              backgroundColor: '#1f2937',
+              fontColor: '#fff',
+            },
+            connectorColor: '#374151',
+            connectorColorHighlight: '#3b82f6',
+          },
+        }}
+      />
+    );
+  } catch (error) {
+    console.error('[BracketVisualization] Failed to render bracket', error, {
+      upper: safeBracketData.upper,
+      lower: safeBracketData.lower,
+    });
+    bracketContent = (
+      <div className="w-full h-[400px] flex items-center justify-center text-center text-gray-300">
+        <div>
+          <p className="font-semibold">Unable to display bracket</p>
+          <p className="text-sm text-gray-400 mt-2">
+            The bracket data is missing progression links. Please regenerate the bracket or contact support.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <style dangerouslySetInnerHTML={{
+      <style
+        dangerouslySetInnerHTML={{
         __html: `
           .react-tournament-brackets svg {
             height: 160px !important;
@@ -581,49 +618,15 @@ export function BracketVisualization({
             min-height: 160px !important;
             overflow: visible !important;
           }
-        `
-      }} />
-      <div className="w-full bg-gray-900 rounded-lg border border-gray-700 p-4 overflow-x-auto overflow-y-visible" style={{ minHeight: '400px' }}>
+        `,
+      }}
+      />
+      <div
+        className="w-full bg-gray-900 rounded-lg border border-gray-700 p-4 overflow-x-auto overflow-y-visible"
+        style={{ minHeight: '400px' }}
+      >
         <div style={{ minWidth: finalWidth, width: 'max-content', padding: '20px 0' }}>
-          {(() => {
-            // Log all lower matches with their nextMatchId to debug
-            safeBracketData.lower.forEach((m, idx) => {
-              if (m && m.id) {
-              } else {
-              }
-            });
-
-            safeBracketData.upper.forEach((m, idx) => {
-              if (m && m.id) {
-              } else {
-              }
-            });
-
-            // Find all matches in lower that reference IDs in upper
-            const upperIds = new Set(safeBracketData.upper.filter(m => m && m.id).map(m => m.id));
-            const lowerMatchesPointingToUpper = safeBracketData.lower.filter(m => m && m.nextMatchId && upperIds.has(m.nextMatchId));
-            lowerMatchesPointingToUpper.forEach(m => {
-              if (m && m.id && m.nextMatchId) {
-              }
-            });
-
-            return null;
-          })()}
-          <DoubleEliminationBracket
-            matches={safeBracketData}
-            matchComponent={CustomBracketMatch}
-            onMatchClick={handleMatchClick}
-            options={{
-              style: {
-                roundHeader: {
-                  backgroundColor: '#1f2937',
-                  fontColor: '#fff',
-                },
-                connectorColor: '#374151',
-                connectorColorHighlight: '#3b82f6',
-              },
-            }}
-          />
+          {bracketContent}
         </div>
       </div>
 
