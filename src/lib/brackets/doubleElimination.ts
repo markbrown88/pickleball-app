@@ -331,9 +331,17 @@ function linkLoserBracket(loserRounds: BracketRound[]): void {
         const currentMatch = currentRound.matches[matchIdx];
         const nextMatch = nextRound.matches[matchIdx];
 
-        // Winners from L0, L2, L4 go to position B of L1, L3, L5
-        // (Position A will be filled by drops from winner bracket)
-        nextMatch.sourceMatchBId = currentMatch.id!;
+        // Winners from L0, L2, L4 usually feed into position B of the next round,
+        // which simultaneously receives new drops from the winner bracket (position A).
+        // The exception is the round immediately before the loser bracket final,
+        // where position A must come from this round because the final only receives
+        // one drop (the loser of the championship match).
+        const isNextRoundFinal = roundIdx === loserRounds.length - 2;
+        if (isNextRoundFinal) {
+          nextMatch.sourceMatchAId = currentMatch.id!;
+        } else {
+          nextMatch.sourceMatchBId = currentMatch.id!;
+        }
       }
     } else {
       // Odd round: winners advance to next loser round (standard elimination)
