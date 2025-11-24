@@ -370,14 +370,15 @@ export async function POST(
         },
       });
 
-      // Only auto-complete if it's explicitly marked as a BYE match, has teamA, and no winner yet
+      // Only auto-complete if it's explicitly marked as a BYE match, has a team in either position, and no winner yet
       // DO NOT auto-complete matches that just happen to have one team - they're waiting for their other source
-      if (updatedChild?.isBye && updatedChild?.teamAId && !updatedChild.winnerId) {
+      const byeTeamId = updatedChild?.teamAId || updatedChild?.teamBId;
+      if (updatedChild?.isBye && byeTeamId && !updatedChild.winnerId) {
 
-        // Set winner
+        // Set winner (the team that has the BYE, whether in position A or B)
         await prisma.match.update({
           where: { id: updatedChild.id },
-          data: { winnerId: updatedChild.teamAId },
+          data: { winnerId: byeTeamId },
         });
 
         // Find child matches and advance winner
@@ -409,7 +410,7 @@ export async function POST(
         for (const child of targetChildrenA) {
           await prisma.match.update({
             where: { id: child.id },
-            data: { teamAId: updatedChild.teamAId },
+            data: { teamAId: byeTeamId },
           });
           // Add to queue to check if this child is also a BYE
           matchesToCheck.push(child);
@@ -418,7 +419,7 @@ export async function POST(
         for (const child of targetChildrenB) {
           await prisma.match.update({
             where: { id: child.id },
-            data: { teamBId: updatedChild.teamAId },
+            data: { teamBId: byeTeamId },
           });
           // Add to queue to check if this child is also a BYE
           matchesToCheck.push(child);
