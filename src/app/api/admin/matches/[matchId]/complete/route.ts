@@ -309,20 +309,26 @@ export async function POST(
         });
       }
 
-      // Also advance to finals bracket children (for loser bracket final → finals)
-      for (const childMatch of winnerBracketChildMatchesA) {
-        if (childMatch.round?.bracketType === 'FINALS') {
-          await prisma.match.update({
-            where: { id: childMatch.id },
-            data: { teamAId: winnerId },
-          });
-        }
-      }
+      // Explicitly check if this is the loser bracket final (last loser round)
+      // and advance to Finals if no children were found above
+      const hasLoserChildren = loserBracketChildMatchesA.length > 0 || loserBracketChildMatchesB.length > 0;
 
-      for (const childMatch of winnerBracketChildMatchesB) {
-        if (childMatch.round?.bracketType === 'FINALS') {
+      if (!hasLoserChildren) {
+        // This is the loser bracket final - find Finals 1 explicitly
+        const finalsMatch = await prisma.match.findFirst({
+          where: {
+            round: {
+              stopId: match.round.stopId,
+              bracketType: 'FINALS',
+              depth: 1, // Finals 1
+            },
+          },
+        });
+
+        if (finalsMatch) {
+          // Loser bracket champion goes to position B of Finals 1
           await prisma.match.update({
-            where: { id: childMatch.id },
+            where: { id: finalsMatch.id },
             data: { teamBId: winnerId },
           });
         }
