@@ -64,6 +64,12 @@ function useWindowSize() {
   useEffect(() => {
     function updateSize() {
       setSize([window.innerWidth, window.innerHeight]);
+    } else {
+      console.info('[BracketVisualization] Rounded bracket data', {
+        upperCount: cleanUpper.length,
+        lowerCount: cleanLower.length,
+        finalsUpper: cleanUpper.filter(m => m?.bracketType === 'FINALS').length,
+      });
     }
     window.addEventListener('resize', updateSize);
     updateSize();
@@ -340,128 +346,6 @@ export function BracketVisualization({
     console.info('[BracketVisualization] Latest bracket data stored on window.__lastBracketData');
   }
   
-  // Step 2: Validate that the library's findTheFinals function won't crash
-  // The library checks isFinalInLower/isFinalInUpper first, then tries to find lastUpper/lastLower
-  // If find() returns undefined, accessing .nextMatchId on it crashes
-  
-  const isFinalInUpper = safeBracketData.upper.some(match => !match.nextMatchId);
-  const isFinalInLower = safeBracketData.lower.some(match => !match.nextMatchId);
-  
-  // Simulate what the library does - find the "last" match in each bracket
-  // A "last" match is one that doesn't have a nextMatchId pointing to another match in the same bracket
-  const lastUpper = safeBracketData.upper.find(match => {
-    const hasNextMatchInUpper = safeBracketData.upper.some(m => m.id === match.nextMatchId);
-    return !hasNextMatchInUpper;
-  });
-  
-  const lastLower = safeBracketData.lower.find(match => {
-    const hasNextMatchInLower = safeBracketData.lower.some(m => m.id === match.nextMatchId);
-    return !hasNextMatchInLower;
-  });
-  
-  // Debug logging
-  
-  // The library will crash if:
-  // 1. isFinalInLower is true, upper has matches, but lastUpper is undefined (line 23: lastUpper.nextMatchId)
-  // 2. isFinalInUpper is true, lower has matches, but lastLower is undefined (line 34: lastLower.nextMatchId)
-  // 3. lastUpper exists but lastUpper.nextMatchId is null/undefined when the library tries to find convergingMatch
-  
-  if (isFinalInLower && safeBracketData.upper.length > 0 && !lastUpper) {
-    console.warn('Invalid bracket structure: isFinalInLower=true but upper bracket has no valid final match', {
-      upperMatches: safeBracketData.upper.map(m => ({ id: m.id, nextMatchId: m.nextMatchId })),
-    });
-    return (
-      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-        <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
-      </div>
-    );
-  }
-  
-  if (isFinalInUpper && safeBracketData.lower.length > 0 && !lastLower) {
-    console.warn('Invalid bracket structure: isFinalInUpper=true but lower bracket has no valid final match', {
-      lowerMatches: safeBracketData.lower.map(m => ({ id: m.id, nextMatchId: m.nextMatchId })),
-    });
-    return (
-      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-        <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
-      </div>
-    );
-  }
-  
-  if (isFinalInLower && lastUpper && !lastUpper.nextMatchId) {
-    console.warn('Invalid bracket structure: upper finals do not reference lower finals', {
-      lastUpper,
-      lowerMatches: safeBracketData.lower.map(m => ({ id: m.id, nextMatchId: m.nextMatchId })),
-    });
-    return (
-      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700 text-center px-6">
-        <div>
-          <p className="text-gray-300 font-medium">Bracket finals incomplete</p>
-          <p className="text-gray-400 text-sm mt-2">
-            The winner bracket finals are not linked to the loser bracket finals. Please regenerate the bracket.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isFinalInUpper && lastLower && !lastLower.nextMatchId) {
-    console.warn('Invalid bracket structure: lower finals do not reference upper finals', {
-      lastLower,
-      upperMatches: safeBracketData.upper.map(m => ({ id: m.id, nextMatchId: m.nextMatchId })),
-    });
-    return (
-      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700 text-center px-6">
-        <div>
-          <p className="text-gray-300 font-medium">Bracket finals incomplete</p>
-          <p className="text-gray-400 text-sm mt-2">
-            The loser bracket finals are not linked to the winner bracket finals. Please regenerate the bracket.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Additional check: For double elimination, check if winner and loser finals both point to the Finals match
-  // The Finals match itself will have nextMatchId: null, which is correct
-  // We need to check if matches in upper and lower brackets point to the Finals match
-  if (isFinalInUpper && isFinalInLower && lastUpper) {
-    // Both brackets have finals - this is double elimination
-    // The lastUpper should be the Finals match (has no nextMatchId)
-
-    // Find matches in lower bracket that point to Finals
-    const lowerMatchesToFinals = safeBracketData.lower.filter(m => m && m.nextMatchId === lastUpper.id);
-
-    // Find matches in upper bracket that point to Finals
-    const upperMatchesToFinals = safeBracketData.upper.filter(m => m && m.nextMatchId === lastUpper.id);
-
-
-    if (lowerMatchesToFinals.length === 0) {
-      console.warn('Invalid bracket structure: No loser bracket match points to Finals', {
-        finalsMatchId: lastUpper.id,
-        lowerMatchCount: safeBracketData.lower.length,
-      });
-      return (
-        <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-          <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
-        </div>
-      );
-    }
-
-    if (upperMatchesToFinals.length === 0) {
-      console.warn('Invalid bracket structure: No winner bracket match points to Finals', {
-        finalsMatchId: lastUpper.id,
-        upperMatchCount: safeBracketData.upper.length,
-      });
-      return (
-        <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-          <p className="text-gray-400">Bracket structure is incomplete. Please regenerate the bracket.</p>
-        </div>
-      );
-    }
-
-  }
-
   // Final safety check: Ensure no undefined/null matches in arrays
 
   const hasInvalidUpper = safeBracketData.upper.some(m => {
