@@ -388,6 +388,40 @@ export function BracketVisualization({
     );
   }
   
+  if (isFinalInLower && lastUpper && !lastUpper.nextMatchId) {
+    console.warn('Invalid bracket structure: upper finals do not reference lower finals', {
+      lastUpper,
+      lowerMatches: safeBracketData.lower.map(m => ({ id: m.id, nextMatchId: m.nextMatchId })),
+    });
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700 text-center px-6">
+        <div>
+          <p className="text-gray-300 font-medium">Bracket finals incomplete</p>
+          <p className="text-gray-400 text-sm mt-2">
+            The winner bracket finals are not linked to the loser bracket finals. Please regenerate the bracket.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isFinalInUpper && lastLower && !lastLower.nextMatchId) {
+    console.warn('Invalid bracket structure: lower finals do not reference upper finals', {
+      lastLower,
+      upperMatches: safeBracketData.upper.map(m => ({ id: m.id, nextMatchId: m.nextMatchId })),
+    });
+    return (
+      <div className="w-full h-[600px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700 text-center px-6">
+        <div>
+          <p className="text-gray-300 font-medium">Bracket finals incomplete</p>
+          <p className="text-gray-400 text-sm mt-2">
+            The loser bracket finals are not linked to the winner bracket finals. Please regenerate the bracket.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Additional check: For double elimination, check if winner and loser finals both point to the Finals match
   // The Finals match itself will have nextMatchId: null, which is correct
   // We need to check if matches in upper and lower brackets point to the Finals match
