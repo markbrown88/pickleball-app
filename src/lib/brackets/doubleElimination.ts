@@ -362,16 +362,18 @@ function linkLoserBracket(loserRounds: BracketRound[]): void {
 }
 
 /**
- * Link winner bracket losers to loser bracket (position-based)
+ * Link winner bracket losers to loser bracket (position-based with crossover)
  *
  * Standard double elimination structure:
- * - Losers from winner round 0 (W1, W2, W3...) go to loser round 0 (L1, L2...)
+ * - Losers from winner round 0 go to loser round 0 (L0)
  * - Losers from winner round N go to loser round 2N-1
  *
- * Position-based assignment:
- * - Loser of W1 → L1 position A (or gets bye if odd number)
- * - Loser of W2 → L1 position A/B
- * - Loser of W3 → L1 position B (or plays if odd number)
+ * CROSSOVER pattern (to prevent immediate rematches):
+ * - For L0: Direct mapping (W0 match pairs map to L0 matches)
+ * - For L1+: Reversed mapping to avoid teams from same W match meeting their opponent's loser
+ *   Example: W1 has [M5, M6], L1 has [M10, M11]
+ *   - Loser of M5 (top) → M11 (meets survivor from bottom of L0)
+ *   - Loser of M6 (bottom) → M10 (meets survivor from top of L0)
  */
 function linkWinnerToLoser(
   winnerRounds: BracketRound[],
@@ -429,8 +431,14 @@ function linkWinnerToLoser(
       } else {
         // Later rounds: drops fill position A of loser bracket matches
         // EXCEPT for last winner round, which fills position B of loser bracket final
+        // Use CROSSOVER pattern to avoid immediate rematches:
+        // - Loser from top of winner bracket meets survivor from bottom of loser bracket
+        // - Loser from bottom of winner bracket meets survivor from top of loser bracket
         if (matchIdx < loserRound.matches.length) {
-          const loserMatch = loserRound.matches[matchIdx];
+          // Crossover: reverse the index to avoid immediate rematches
+          const crossoverIdx = loserRound.matches.length - 1 - matchIdx;
+          const loserMatch = loserRound.matches[crossoverIdx];
+
           if (isLastWinnerRound) {
             // Last winner round: loser goes to position B of loser bracket final
             loserMatch.sourceMatchBId = winnerMatch.id!;
