@@ -254,8 +254,32 @@ function convertMatch(
       name: 'BYE',
     });
   } else if (match.isBye && !match.teamA) {
-    // BYE match waiting for source match to complete - show source vs BYE
-    const teamALabel = getSourceMatchLabel(match.sourceMatchAId, round, allMatches, matchToRoundMap, allRounds);
+    // BYE match waiting for source match to complete - show real source vs BYE.
+    // Prefer a source match that actually produces a loser (i.e., not a bye).
+    const sourceCandidates = [
+      match.sourceMatchAId
+        ? {
+            id: match.sourceMatchAId,
+            match: allMatches.get(match.sourceMatchAId),
+          }
+        : null,
+      match.sourceMatchBId
+        ? {
+            id: match.sourceMatchBId,
+            match: allMatches.get(match.sourceMatchBId),
+          }
+        : null,
+    ].filter(Boolean) as Array<{ id: string; match?: Match }>;
+
+    const preferredSource =
+      sourceCandidates.find(candidate => candidate.match && !candidate.match.isBye) ??
+      sourceCandidates[0] ??
+      null;
+
+    const teamALabel = preferredSource
+      ? getSourceMatchLabel(preferredSource.id, round, allMatches, matchToRoundMap, allRounds)
+      : 'TBD';
+
     participants.push({
       id: 'tbd-bye-team',
       resultText: null,
