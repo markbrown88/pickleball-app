@@ -208,12 +208,9 @@ function convertMatch(
         // Ensure winner finals point to loser finals for convergence
         nextMatchId = matchId;
       } else if (round.bracketType === 'FINALS' && targetRound.bracketType === 'FINALS') {
-        // Finals 1 -> Finals 2 (bracket reset)
-        // Only show this link if Finals 2 has teams assigned (bracket reset triggered)
-        if (m.teamA && m.teamB) {
-          nextMatchId = matchId;
-        } else {
-        }
+        // Finals 1 -> Finals 2 (bracket reset) should always point to the reset match,
+        // even if the reset hasn't been scheduled yet.
+        nextMatchId = matchId;
       }
     }
   }
