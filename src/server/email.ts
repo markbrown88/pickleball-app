@@ -391,7 +391,7 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
     return parts.join(', ');
   };
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
   const dashboardLink = `${baseUrl}/dashboard`;
 
@@ -550,7 +550,7 @@ interface WithdrawalConfirmationEmailParams {
 export async function sendWithdrawalConfirmationEmail(params: WithdrawalConfirmationEmailParams) {
   const { to, playerName, tournamentName, tournamentId, wasRefunded, refundAmount } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
 
   const html = `
@@ -672,7 +672,7 @@ export async function sendWaitlistSpotAvailableEmail(params: WaitlistSpotAvailab
     cost
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const registerLink = `${baseUrl}/tournament/${tournamentId}`;
 
   const expiryTime = expiresAt.toLocaleString('en-US', {
@@ -829,7 +829,7 @@ export async function sendAdminNotificationEmail(params: AdminNotificationEmailP
     amountPaid
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/tournaments?edit=${tournamentId}`;
 
   const actionDetails = {
@@ -982,7 +982,7 @@ export async function sendInviteEmail(params: InviteEmailParams) {
     notes,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
 
   // Different links for existing players vs email invites
   const acceptLink = inviteToken
@@ -1134,7 +1134,7 @@ export async function sendRejectionEmail(params: RejectionEmailParams) {
     refundAmount,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/tournaments/${tournamentId}`;
   const browseTournamentsLink = `${baseUrl}/dashboard`;
 
@@ -1608,7 +1608,7 @@ export async function sendPaymentFailedEmail(params: PaymentFailedEmailParams) {
     location,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/register/${tournamentId}`;
 
   const formatDate = (date: Date | null | undefined) => {
@@ -1773,7 +1773,7 @@ export async function sendRefundConfirmationEmail(params: RefundConfirmationEmai
     reason,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
 
   const html = `
@@ -1935,7 +1935,7 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
     clubName,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const paymentLink = `${baseUrl}/register/${tournamentId}/payment/status/${registrationId}`;
   const amountFormatted = `$${(amount / 100).toFixed(2)}`;
 
@@ -2230,7 +2230,7 @@ export async function sendWaitlistConfirmationEmail(params: WaitlistConfirmation
     location,
   } = params;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3010';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://klyngcup.com';
   const tournamentLink = `${baseUrl}/tournament/${tournamentId}`;
 
   const formatDate = (date: Date | null | undefined) => {
