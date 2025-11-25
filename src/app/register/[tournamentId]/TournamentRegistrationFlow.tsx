@@ -122,8 +122,8 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, regi
       { id: 'info', label: 'Your Information', description: '' },
     ];
 
-    // Add stop selection step only if required
-    if (tournamentRequiresStopSelection) {
+    // Add stop selection step if required OR if it's a team tournament (for club selection)
+    if (tournamentRequiresStopSelection || tournamentIsTeam) {
       stepList.push({ id: 'stops', label: 'Select Stops', description: '' });
     }
 
@@ -135,7 +135,7 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, regi
     stepList.push({ id: 'review', label: 'Review & Pay', description: '' });
 
     return stepList;
-  }, [tournamentRequiresStopSelection, tournamentRequiresBracketSelection]);
+  }, [tournamentRequiresStopSelection, tournamentRequiresBracketSelection, tournamentIsTeam]);
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
@@ -215,7 +215,7 @@ export function TournamentRegistrationFlow({ tournament, initialPlayerInfo, regi
               />
             )}
 
-            {currentStep === 'stops' && tournamentRequiresStopSelection && (
+            {currentStep === 'stops' && (tournamentRequiresStopSelection || tournamentIsTeam) && (
               <StopSelectionStep
                 stops={tournament.stops}
                 selectedStopIds={registrationData.selectedStopIds}

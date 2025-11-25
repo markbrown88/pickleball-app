@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatDateRangeUTC } from '@/lib/utils';
 
 type Stop = {
@@ -49,6 +49,13 @@ export function StopSelectionStep({
   pendingStopIds = [],
 }: StopSelectionStepProps) {
   const [error, setError] = useState<string>('');
+
+  // Auto-select the single stop if there's only one
+  useEffect(() => {
+    if (stops.length === 1 && selectedStopIds.length === 0 && !registeredStopIds.includes(stops[0].id)) {
+      onUpdate([stops[0].id]);
+    }
+  }, [stops, selectedStopIds.length, onUpdate, registeredStopIds]);
 
   const isStopAvailable = (stop: Stop): boolean => {
     // Check if stop has ended (endAt is in the past)
@@ -111,13 +118,18 @@ export function StopSelectionStep({
   };
 
   const alreadyRegisteredStops = stops.filter(stop => isStopAlreadyRegistered(stop.id));
+  const isSingleStop = stops.length === 1;
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-primary mb-2">Select Tournament Stops</h2>
+        <h2 className="text-xl font-bold text-primary mb-2">
+          {isSingleStop ? 'Tournament Information' : 'Select Tournament Stops'}
+        </h2>
         <p className="text-sm text-muted">
-          Choose which tournament dates you'd like to attend. You can select multiple stops.
+          {isSingleStop
+            ? 'Review the tournament details below and select your club.'
+            : "Choose which tournament dates you'd like to attend. You can select multiple stops."}
         </p>
         {alreadyRegisteredStops.length > 0 && (
           <div className="mt-3 p-3 bg-info/10 border border-info/30 rounded text-sm">
@@ -182,7 +194,33 @@ export function StopSelectionStep({
           <div className="p-8 bg-surface-3 border border-border-subtle rounded text-center">
             <p className="text-muted">No tournament stops have been configured yet.</p>
           </div>
+        ) : isSingleStop ? (
+          // Single stop - show as info card without checkbox
+          stops.map((stop) => (
+            <div key={stop.id} className="p-4 bg-surface-3 rounded border border-border-subtle">
+              <div className="flex items-center gap-2 text-secondary mb-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <h3 className="font-semibold text-lg">Tournament Dates</h3>
+              </div>
+              <p className="text-sm text-muted pl-7">
+                {formatDateRangeUTC(stop.startAt, stop.endAt)}
+              </p>
+              {stop.registrationDeadline && (
+                <div className="mt-3 pl-7 text-xs text-muted flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>
+                    Registration closes: {formatDateRangeUTC(stop.registrationDeadline, null)}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))
         ) : (
+          // Multiple stops - show with checkboxes
           stops.map((stop) => {
             const available = isStopAvailable(stop);
             const alreadyRegistered = isStopAlreadyRegistered(stop.id);
@@ -276,7 +314,7 @@ export function StopSelectionStep({
       </div>
 
       {/* Selection Summary */}
-      {selectedStopIds.length > 0 && (
+      {!isSingleStop && selectedStopIds.length > 0 && (
         <div className="p-4 bg-success/10 border border-success/30 rounded">
           <div className="flex items-center gap-2 text-success">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
