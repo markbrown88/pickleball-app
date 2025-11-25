@@ -539,7 +539,39 @@ export function BracketMatchModal({
   
   const matchStatus = useMemo(() => getMatchStatus(), [localGames, match, teamAGameWins, teamBGameWins]);
   const isDecided = matchStatus === 'decided' || matchStatus === 'decided_points' || matchStatus === 'decided_tiebreaker';
-  
+
+  // Check if match can be manually completed
+  const canCompleteMatch = useCallback(() => {
+    if (match.isBye || match.winnerId) {
+      return false;
+    }
+
+    // Don't show button if match needs a decision (buttons above will handle it)
+    if (matchStatus === 'needs_decision' || matchStatus === 'tied_requires_tiebreaker' || matchStatus === 'tied_pending') {
+      return false;
+    }
+
+    // Always use localGames as source of truth - it includes optimistic updates
+    const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+    const regularGames = gamesToUse.filter(g => g.slot !== 'TIEBREAKER');
+
+    // For club tournaments, need all regular games completed (4 per bracket)
+    const completedRegularGames = regularGames.filter(g => g.isComplete).length;
+    const bracketCount = new Set(regularGames.filter(g => g.bracketId).map(g => g.bracketId)).size;
+    const totalExpectedGames = bracketCount * 4 || regularGames.length;
+
+    if (completedRegularGames < totalExpectedGames) {
+      return false;
+    }
+
+    // Check if there's a clear winner or tiebreaker was completed
+    const { teamAGameWins, teamBGameWins } = getGameWins();
+    const hasClearWinner = teamAGameWins !== teamBGameWins && (teamAGameWins >= 3 || teamBGameWins >= 3);
+    const tiebreakerComplete = gamesToUse.find(g => g.slot === 'TIEBREAKER' && g.isComplete);
+
+    return hasClearWinner || tiebreakerComplete || match.tiebreakerWinnerTeamId !== null;
+  }, [match, localGames, matchStatus, getGameWins]);
+
   // Auto-complete match when all games are finished and there's a clear winner
   // Also auto-create tiebreaker when needed (2:2 tie with equal points)
   useEffect(() => {
