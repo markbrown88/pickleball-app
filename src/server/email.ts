@@ -2027,7 +2027,27 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
           const locationDisplay = stop.club ? stop.club.name : '';
           const hasMultipleStops = stops.length > 1;
           const isTeamTournament = !!clubName;
-          
+
+          // Use full address for Google Maps link text if available
+          let locationLinkText = fullAddress;
+          if (!locationLinkText && stop.club) {
+            const streetAddress = stop.club.address1 || stop.club.address;
+            const partialParts = [
+              streetAddress,
+              stop.club.city,
+              stop.club.region,
+              stop.club.postalCode
+            ].filter(Boolean);
+
+            if (partialParts.length > 0) {
+              locationLinkText = `${locationDisplay}${partialParts.length > 0 ? ', ' + partialParts.join(', ') : ''}`;
+            } else {
+              locationLinkText = locationDisplay;
+            }
+          } else if (!locationLinkText) {
+            locationLinkText = locationDisplay;
+          }
+
           return `
             <div style="margin: ${index > 0 ? '30px' : '0'} 0 ${index < stops.length - 1 ? '30px' : '0'} 0;">
               <div style="margin: 4px 0; font-size: 14px; color: #374151;">
@@ -2050,7 +2070,7 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
               ` : ''}
               ${locationDisplay && mapsUrl ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>📍 Location:</strong> <a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>
+                  <strong>📍 Location:</strong> <a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationLinkText}</a>
                 </div>
               ` : locationDisplay ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
