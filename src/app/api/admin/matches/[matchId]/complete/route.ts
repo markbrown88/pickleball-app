@@ -12,6 +12,57 @@ import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { cacheKeys } from '@/lib/cache';
 
+/**
+ * Cascade winner change through the bracket
+ * When a match winner changes, remove the old winner from child matches
+ * and recursively clear downstream matches that depended on the old result
+ */
+async function cascadeWinnerChange(matchId: string, oldWinnerId: string): Promise<void> {
+  // Find all matches where this team was placed as a result of the old win
+  const childMatches = await prisma.match.findMany({
+    where: {
+      OR: [
+        { sourceMatchAId: matchId, teamAId: oldWinnerId },
+        { sourceMatchBId: matchId, teamBId: oldWinnerId },
+      ],
+    },
+    select: {
+      id: true,
+      teamAId: true,
+      teamBId: true,
+      winnerId: true,
+      sourceMatchAId: true,
+      sourceMatchBId: true,
+    },
+  });
+
+  for (const child of childMatches) {
+    const updates: { teamAId?: null; teamBId?: null; winnerId?: null } = {};
+
+    // Clear the old winner from the appropriate position
+    if (child.teamAId === oldWinnerId) {
+      updates.teamAId = null;
+    }
+    if (child.teamBId === oldWinnerId) {
+      updates.teamBId = null;
+    }
+
+    // If this child match had a winner, clear it and cascade further
+    if (child.winnerId) {
+      updates.winnerId = null;
+      // Recursively cascade to downstream matches
+      await cascadeWinnerChange(child.id, child.winnerId);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await prisma.match.update({
+        where: { id: child.id },
+        data: updates,
+      });
+    }
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ matchId: string }> }
@@ -150,38 +201,48 @@ export async function POST(
       );
     }
 
-    // Calculate winner based on game wins
-    let teamAWins = 0;
-    let teamBWins = 0;
+    // Check for tiebreaker winner first (takes precedence over game wins)
+    let winnerId: string | null = null;
+    let loserId: string | null = null;
 
-    for (const game of match.games) {
-      if (!game.isComplete) continue;
-      
-      // For completed games, treat null scores as 0
-      // This handles cases where a game was marked complete but scores weren't fully saved
-      const teamAScore = game.teamAScore ?? 0;
-      const teamBScore = game.teamBScore ?? 0;
-      
-      // If both scores are null/0, skip (shouldn't happen for completed games, but handle gracefully)
-      if (game.teamAScore === null && game.teamBScore === null) continue;
+    if (match.tiebreakerWinnerTeamId) {
+      // Match was decided by tiebreaker (total points or tiebreaker game)
+      winnerId = match.tiebreakerWinnerTeamId;
+      loserId = winnerId === match.teamAId ? match.teamBId : match.teamAId;
+    } else {
+      // Calculate winner based on game wins
+      let teamAWins = 0;
+      let teamBWins = 0;
 
-      if (teamAScore > teamBScore) {
-        teamAWins++;
-      } else if (teamBScore > teamAScore) {
-        teamBWins++;
+      for (const game of match.games) {
+        if (!game.isComplete) continue;
+
+        // For completed games, treat null scores as 0
+        // This handles cases where a game was marked complete but scores weren't fully saved
+        const teamAScore = game.teamAScore ?? 0;
+        const teamBScore = game.teamBScore ?? 0;
+
+        // If both scores are null/0, skip (shouldn't happen for completed games, but handle gracefully)
+        if (game.teamAScore === null && game.teamBScore === null) continue;
+
+        if (teamAScore > teamBScore) {
+          teamAWins++;
+        } else if (teamBScore > teamAScore) {
+          teamBWins++;
+        }
+        // Ties are not counted (shouldn't happen in pickleball, but handle gracefully)
       }
-      // Ties are not counted (shouldn't happen in pickleball, but handle gracefully)
-    }
 
-    if (teamAWins === teamBWins) {
-      return NextResponse.json(
-        { error: 'Match is tied - cannot determine winner' },
-        { status: 400 }
-      );
-    }
+      if (teamAWins === teamBWins) {
+        return NextResponse.json(
+          { error: 'Match is tied - cannot determine winner. Please set a tiebreaker winner.' },
+          { status: 400 }
+        );
+      }
 
-    const winnerId = teamAWins > teamBWins ? match.teamAId : match.teamBId;
-    const loserId = teamAWins > teamBWins ? match.teamBId : match.teamAId;
+      winnerId = teamAWins > teamBWins ? match.teamAId : match.teamBId;
+      loserId = teamAWins > teamBWins ? match.teamBId : match.teamAId;
+    }
 
 
     if (!winnerId) {
@@ -191,13 +252,25 @@ export async function POST(
       );
     }
 
+    // Check if winner has changed (match was reopened)
+    const winnerChanged = match.winnerId && match.winnerId !== winnerId;
+    const oldWinnerId = match.winnerId;
+
     // Update match with winner
     await prisma.match.update({
       where: { id: matchId },
       data: { winnerId },
     });
 
+    // If winner changed, cascade the change forward by clearing old winner from child matches
+    if (winnerChanged && oldWinnerId) {
+      await cascadeWinnerChange(matchId, oldWinnerId);
+    }
+
     // BRACKET RESET LOGIC: Check if this is Finals 1 in double elimination
+    let bracketResetTriggered = false;
+    let finals2MatchId: string | null = null;
+
     if (match.round?.bracketType === 'FINALS' && match.round?.depth === 1) {
 
       // Determine if winner is from winner bracket or loser bracket
@@ -222,13 +295,16 @@ export async function POST(
         });
 
         if (finals2Match) {
+          finals2MatchId = finals2Match.id;
+          bracketResetTriggered = true;
+
           // Both teams from Finals 1 play again in Finals 2
           // Winner bracket champion gets another chance (they've only lost once now)
           await prisma.match.update({
             where: { id: finals2Match.id },
             data: {
-              teamAId: match.teamAId, // Winner bracket champion
-              teamBId: match.teamBId, // Loser bracket champion (who just won Finals 1)
+              teamAId: match.teamAId, // Winner bracket champion (loser of Finals 1)
+              teamBId: match.teamBId, // Loser bracket champion (winner of Finals 1)
             },
           });
         } else {
@@ -277,7 +353,11 @@ export async function POST(
     // - Finals matches → winner advances to winner bracket or finals
 
     // Advance winner to winner bracket / finals matches
+    // SKIP Finals 2 if bracket reset was triggered (already set up with both teams)
     for (const childMatch of winnerBracketChildMatchesA) {
+      if (bracketResetTriggered && childMatch.id === finals2MatchId) {
+        continue; // Skip - already handled by bracket reset logic
+      }
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamAId: winnerId },
@@ -285,6 +365,9 @@ export async function POST(
     }
 
     for (const childMatch of winnerBracketChildMatchesB) {
+      if (bracketResetTriggered && childMatch.id === finals2MatchId) {
+        continue; // Skip - already handled by bracket reset logic
+      }
       await prisma.match.update({
         where: { id: childMatch.id },
         data: { teamBId: winnerId },
