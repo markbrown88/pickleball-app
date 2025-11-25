@@ -774,9 +774,9 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </div>
                 <span className="text-primary">{openAccordion === 'bracket' ? '▼' : '▶'}</span>
               </button>
-              {openAccordion === 'bracket' && currentStopData && (
+              {openAccordion === 'bracket' && selectedStopId && (
                 <div className="px-2 pb-4 border-t border-subtle pt-4">
-                  <ReadOnlyBracketView rounds={currentStopData.rounds} />
+                  <ReadOnlyBracketView stopId={selectedStopId} />
                 </div>
               )}
             </div>
@@ -901,11 +901,11 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
         {/* Desktop: Main Content Layout - Stops (2/3) and Standings (1/3) */}
         <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 mb-20 md:mb-6">
           {/* Bracket View for Double Elimination - Full Width */}
-          {isDoubleElimination && view === 'bracket' && currentStopData && (
+          {isDoubleElimination && view === 'bracket' && selectedStopId && (
             <div className="col-span-3">
               <div className="card p-4">
                 <h2 className="text-lg font-semibold text-primary mb-4">Tournament Bracket</h2>
-                <ReadOnlyBracketView rounds={currentStopData.rounds} />
+                <ReadOnlyBracketView stopId={selectedStopId} />
               </div>
             </div>
           )}
