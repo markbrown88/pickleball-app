@@ -195,7 +195,15 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
                       />
                     </div>
                   )}
-                  <DynamicUserButton afterSignOutUrl="/" />
+                  <DynamicUserButton
+                    appearance={{
+                      elements: {
+                        userButtonPopoverActionButton: '!text-white hover:!text-white',
+                        userButtonPopoverActionButtonText: '!text-white',
+                        userButtonPopoverActionButtonIcon: '!text-white',
+                      }
+                    }}
+                  />
                 </div>
               </div>
             </header>

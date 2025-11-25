@@ -373,7 +373,9 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
       {/* Tournament Selections */}
       <div className="rounded-lg p-4 bg-surface-3">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-secondary">Tournament Selections</h3>
+          <h3 className="text-lg font-semibold text-secondary">
+            {selectedStops.length === 1 ? 'Tournament Selection' : 'Tournament Selections'}
+          </h3>
           <button
             type="button"
             onClick={() => onEdit('stops')}
@@ -396,31 +398,39 @@ export function ReviewStep({ tournament, registrationData, onBack, onCancel, onE
               </span>
             </div>
           )}
-          <div className="text-sm">
-            <span className="text-muted font-semibold">Stops:</span>
-          </div>
-          <div className="space-y-1 pl-6">
+          {selectedStops.length > 1 && (
+            <div className="text-sm">
+              <span className="text-muted font-semibold">Stops:</span>
+            </div>
+          )}
+          <div className={selectedStops.length > 1 ? "space-y-1 pl-6" : "space-y-1"}>
             {selectedStops.map((stop) => {
               const selectionsForStop = registrationData.selectedBrackets.filter(
                 (sb) => sb.stopId === stop.id
               );
-              const selectedBracket = selectionsForStop.length > 0 
+              const selectedBracket = selectionsForStop.length > 0
                 ? getBracketName(selectionsForStop[0].bracketId)
                 : 'Not selected';
 
+              const isSingleStop = selectedStops.length === 1;
+
               return (
                 <div key={stop.id} className="text-sm">
-                  {'\u00A0\u00A0\u00A0\u00A0\u00A0'}
-                  <span className="text-secondary font-medium">{stop.name}</span>
+                  {!isSingleStop && (
+                    <>
+                      {'\u00A0\u00A0\u00A0\u00A0\u00A0'}
+                      <span className="text-secondary font-medium">{stop.name}</span>
+                    </>
+                  )}
                   {(stop.startAt || stop.endAt) && (
                     <>
-                      {'\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'}
+                      {!isSingleStop && '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'}
                       <span className="text-xs text-muted">
                         ({formatDateRangeUTC(stop.startAt, stop.endAt)})
                       </span>
                     </>
                   )}
-                  {'\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'}
+                  {!isSingleStop ? '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' : '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'}
                   <span className="text-muted">Bracket:</span>{' '}
                   <span className="text-secondary">{selectedBracket}</span>
                 </div>

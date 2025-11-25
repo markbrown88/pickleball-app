@@ -92,12 +92,16 @@ export function BracketSelectionStep({
     onNext();
   };
 
+  const isSingleStop = stops.length === 1;
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-primary mb-2">Select Brackets</h2>
+        <h2 className="text-xl font-bold text-primary mb-2">
+          {isSingleStop ? 'Select Bracket' : 'Select Brackets'}
+        </h2>
         <p className="text-sm text-muted">
-          Select one bracket per stop.
+          {isSingleStop ? 'Select your bracket level' : 'Select one bracket per stop.'}
         </p>
       </div>
 
@@ -128,14 +132,16 @@ export function BracketSelectionStep({
 
           return (
             <div key={stop.id} className="space-y-2">
-              <label className="block text-sm font-semibold text-secondary">
-                {stop.name}
-                {(stop.startAt || stop.endAt) && (
-                  <span className="text-xs text-muted font-normal ml-2">
-                    {formatDateRangeUTC(stop.startAt, stop.endAt)}
-                  </span>
-                )}
-              </label>
+              {!isSingleStop && (
+                <label className="block text-sm font-semibold text-secondary">
+                  {stop.name}
+                  {(stop.startAt || stop.endAt) && (
+                    <span className="text-xs text-muted font-normal ml-2">
+                      {formatDateRangeUTC(stop.startAt, stop.endAt)}
+                    </span>
+                  )}
+                </label>
+              )}
               <select
                 className="input w-full md:w-96"
                 value={selectedBracket || ''}
