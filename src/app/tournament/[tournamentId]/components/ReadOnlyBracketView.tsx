@@ -80,6 +80,9 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
 
   // Fetch bracket data
   useEffect(() => {
+    // Reset SVG heights fixed flag when stopId changes
+    svgHeightsFixed.current = false;
+
     async function fetchBracketData() {
       try {
         setLoading(true);
@@ -276,14 +279,15 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
     })),
   };
 
-  // Fix SVG heights for match boxes - only run once when bracket data is available
+  // Fix SVG heights for match boxes - run after bracket renders
   useEffect(() => {
-    // Only run if we have data and haven't fixed heights yet
-    if (rounds.length === 0 || svgHeightsFixed.current) {
+    // Skip if already fixed for this stop
+    if (svgHeightsFixed.current) {
       return;
     }
 
-    const fixSvgHeights = () => {
+    // Wait for bracket to render, then fix heights
+    const timeout = setTimeout(() => {
       const svgs = document.querySelectorAll('.bracket-container svg');
       if (svgs.length === 0) return;
 
@@ -310,15 +314,11 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
       });
 
       // Mark as fixed after successful execution
-      if (svgs.length > 0) {
-        svgHeightsFixed.current = true;
-      }
-    };
+      svgHeightsFixed.current = true;
+    }, 200);
 
-    fixSvgHeights();
-    const timeout = setTimeout(fixSvgHeights, 100);
     return () => clearTimeout(timeout);
-  }, [rounds]);
+  }, [stopId, loading]);
 
   return (
     <>
