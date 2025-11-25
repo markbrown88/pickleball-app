@@ -15,11 +15,9 @@ import { MatchDetailsModal } from './MatchDetailsModal';
 
 interface Round {
   id: string;
-  idx?: number;
-  name?: string;
-  stopId?: string;
-  bracketType?: string | null;
-  depth?: number | null;
+  idx: number;
+  bracketType: string | null;
+  depth: number | null;
   matches: Match[];
 }
 
@@ -27,20 +25,13 @@ interface Match {
   id: string;
   teamA: { id: string; name: string; club?: { name: string } } | null;
   teamB: { id: string; name: string; club?: { name: string } } | null;
-  seedA?: number | null;
-  seedB?: number | null;
-  isBye?: boolean;
-  winnerId?: string | null;
+  seedA: number | null;
+  seedB: number | null;
+  isBye: boolean;
+  winnerId: string | null;
   games: Game[];
   sourceMatchAId?: string | null;
   sourceMatchBId?: string | null;
-  forfeitTeam?: string | null;
-  tiebreakerStatus?: any;
-  tiebreakerWinnerTeamId?: string | null;
-  totalPointsTeamA?: number | null;
-  totalPointsTeamB?: number | null;
-  status?: string;
-  updatedAt?: string | null;
 }
 
 interface Game {
@@ -202,6 +193,28 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
       setSelectedMatch(match);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle">
+        <div className="flex items-center gap-3">
+          <div className="loading-spinner"></div>
+          <span className="text-muted">Loading bracket...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle">
+        <div className="text-center">
+          <p className="text-muted">Failed to load bracket</p>
+          <p className="text-xs text-muted mt-2">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (rounds.length === 0 || (!bracketData.upper.length && !bracketData.lower.length)) {
     return (
