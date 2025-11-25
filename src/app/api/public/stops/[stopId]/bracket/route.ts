@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCached, cacheKeys, CACHE_TTL } from '@/lib/cache';
-import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
@@ -17,19 +16,6 @@ export async function GET(req: Request, ctx: Ctx) {
     const payload = await getCached(
       cacheKeys.stopSchedule(stopId),
       async () => {
-        // Validate stop
-        const stop = await prisma.stop.findUnique({
-          where: { id: stopId },
-          select: { id: true, tournamentId: true, tournament: { select: { type: true } } },
-        });
-
-        if (!stop) {
-          throw new Error('Stop not found');
-        }
-
-        // Check if this is a double elimination tournament
-        const isDoubleElimination = stop.tournament?.type === 'DOUBLE_ELIMINATION' || stop.tournament?.type === 'DOUBLE_ELIMINATION_CLUBS';
-
         // Fetch all rounds with matches and games
         const rounds = await prisma.round.findMany({
           where: { stopId },
@@ -61,23 +47,6 @@ export async function GET(req: Request, ctx: Ctx) {
                     teamBScore: true,
                     isComplete: true,
                     startedAt: true,
-                    endedAt: true,
-                    teamALineup: isDoubleElimination ? {
-                      select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        name: true
-                      }
-                    } : false,
-                    teamBLineup: isDoubleElimination ? {
-                      select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        name: true
-                      }
-                    } : false,
                   }
                 }
               }
@@ -86,49 +55,36 @@ export async function GET(req: Request, ctx: Ctx) {
         });
 
         // Transform rounds to include winnerId based on game results
-        const transformedRounds = rounds.map(round => ({
+        const transformedRounds = rounds.map((round: any) => ({
           id: round.id,
           idx: round.idx,
           bracketType: round.bracketType,
           depth: round.depth,
-          matches: round.matches.map(match => {
+          matches: round.matches.map((match: any) => {
             // Calculate winner based on games
             let winnerId: string | null = null;
 
             if (match.forfeitTeam) {
               winnerId = match.forfeitTeam === 'A' ? match.teamBId : match.teamAId;
             } else {
-              // Check tiebreaker
-              const tiebreakerResult = evaluateMatchTiebreaker(
-                match.games,
-                match.tiebreakerStatus,
-                match.tiebreakerWinnerTeamId,
-                match.totalPointsTeamA,
-                match.totalPointsTeamB
-              );
+              // Count game wins
+              let teamAWins = 0;
+              let teamBWins = 0;
 
-              if (tiebreakerResult.winnerId) {
-                winnerId = tiebreakerResult.winnerId;
-              } else {
-                // Count game wins
-                let teamAWins = 0;
-                let teamBWins = 0;
-
-                match.games.forEach(game => {
-                  if (game.isComplete && game.teamAScore !== null && game.teamBScore !== null) {
-                    if (game.teamAScore > game.teamBScore) {
-                      teamAWins++;
-                    } else if (game.teamBScore > game.teamAScore) {
-                      teamBWins++;
-                    }
+              match.games.forEach((game: any) => {
+                if (game.isComplete && game.teamAScore !== null && game.teamBScore !== null) {
+                  if (game.teamAScore > game.teamBScore) {
+                    teamAWins++;
+                  } else if (game.teamBScore > game.teamAScore) {
+                    teamBWins++;
                   }
-                });
-
-                if (teamAWins >= 3) {
-                  winnerId = match.teamAId;
-                } else if (teamBWins >= 3) {
-                  winnerId = match.teamBId;
                 }
+              });
+
+              if (teamAWins >= 3) {
+                winnerId = match.teamAId;
+              } else if (teamBWins >= 3) {
+                winnerId = match.teamBId;
               }
             }
 
@@ -142,15 +98,15 @@ export async function GET(req: Request, ctx: Ctx) {
               winnerId,
               sourceMatchAId: match.sourceMatchAId,
               sourceMatchBId: match.sourceMatchBId,
-              games: match.games.map(game => ({
+              games: match.games.map((game: any) => ({
                 id: game.id,
                 slot: game.slot,
                 teamAScore: game.teamAScore,
                 teamBScore: game.teamBScore,
                 isComplete: game.isComplete ?? false,
                 startedAt: game.startedAt,
-                teamALineup: (game as any).teamALineup || [],
-                teamBLineup: (game as any).teamBLineup || []
+                teamALineup: [],
+                teamBLineup: []
               }))
             };
           })
@@ -158,7 +114,7 @@ export async function GET(req: Request, ctx: Ctx) {
 
         return transformedRounds;
       },
-      CACHE_TTL.STOP_SCOREBOARD
+      CACHE_TTL.SCHEDULE
     );
 
     return NextResponse.json(payload);
