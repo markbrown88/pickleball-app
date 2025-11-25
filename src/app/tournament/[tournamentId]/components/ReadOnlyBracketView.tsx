@@ -305,7 +305,7 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
     fixSvgHeights();
     const timeout = setTimeout(fixSvgHeights, 100);
     return () => clearTimeout(timeout);
-  }, [safeBracketData]);
+  }, [rounds]);
 
   return (
     <>
