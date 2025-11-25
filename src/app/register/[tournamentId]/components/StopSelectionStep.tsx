@@ -172,9 +172,11 @@ export function StopSelectionStep({
               ))}
             </select>
           </div>
-          <p className="text-xs text-muted mt-2">
-            Note: You'll play for this club in all the stops you select below.
-          </p>
+          {!isSingleStop && (
+            <p className="text-xs text-muted mt-2">
+              Note: You'll play for this club in all the stops you select below.
+            </p>
+          )}
         </div>
       )}
 
@@ -202,7 +204,7 @@ export function StopSelectionStep({
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <h3 className="font-semibold text-lg">Tournament Dates</h3>
+                <h3 className="font-semibold text-lg">Tournament Date(s)</h3>
               </div>
               <p className="text-sm text-muted pl-7">
                 {formatDateRangeUTC(stop.startAt, stop.endAt)}
