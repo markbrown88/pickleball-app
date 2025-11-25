@@ -7,7 +7,7 @@
  * Shows match details in a simple modal on click.
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DoubleEliminationBracket } from '@g-loot/react-tournament-brackets';
 import { transformRoundsToBracketFormat } from '@/lib/brackets/bracketTransformer';
 import { CustomBracketMatch } from './CustomBracketMatch';
@@ -76,13 +76,9 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const svgHeightsFixed = useRef(false);
 
   // Fetch bracket data
   useEffect(() => {
-    // Reset SVG heights fixed flag when stopId changes
-    svgHeightsFixed.current = false;
-
     async function fetchBracketData() {
       try {
         setLoading(true);
@@ -278,47 +274,6 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
       nextLooserMatchId: (m.nextLooserMatchId && allMatchIds.has(m.nextLooserMatchId)) ? m.nextLooserMatchId : undefined,
     })),
   };
-
-  // Fix SVG heights for match boxes - run after bracket renders
-  useEffect(() => {
-    // Skip if already fixed for this stop
-    if (svgHeightsFixed.current) {
-      return;
-    }
-
-    // Wait for bracket to render, then fix heights
-    const timeout = setTimeout(() => {
-      const svgs = document.querySelectorAll('.bracket-container svg');
-      if (svgs.length === 0) return;
-
-      svgs.forEach((svg) => {
-        const htmlSvg = svg as SVGElement;
-        const currentHeight = htmlSvg.getAttribute('height');
-        const viewBox = htmlSvg.getAttribute('viewBox');
-
-        if (currentHeight === '110' || viewBox?.includes('110')) {
-          htmlSvg.setAttribute('height', '160');
-          if (viewBox) {
-            const parts = viewBox.split(' ');
-            if (parts.length === 4) {
-              const newViewBox = `${parts[0]} ${parts[1]} ${parts[2]} 160`;
-              htmlSvg.setAttribute('viewBox', newViewBox);
-            }
-          }
-          const foreignObject = htmlSvg.querySelector('foreignObject');
-          if (foreignObject) {
-            foreignObject.setAttribute('height', '160');
-            foreignObject.setAttribute('y', '0');
-          }
-        }
-      });
-
-      // Mark as fixed after successful execution
-      svgHeightsFixed.current = true;
-    }, 200);
-
-    return () => clearTimeout(timeout);
-  }, [stopId, loading]);
 
   return (
     <>
