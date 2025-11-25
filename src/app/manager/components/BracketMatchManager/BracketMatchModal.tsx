@@ -618,15 +618,17 @@ export function BracketMatchModal({
       // If no tiebreaker game and tiebreakerStatus is REQUIRES_TIEBREAKER, auto-create it
       // REQUIRES_TIEBREAKER means 2:2 tie with equal total points
       if (!tiebreakerGame && match.tiebreakerStatus === 'REQUIRES_TIEBREAKER') {
-
-        // Auto-create tiebreaker game
-        handleScheduleTiebreaker();
+        // Only create if not already in progress (prevent duplicate creation)
+        if (resolvingAction !== 'tiebreaker') {
+          // Auto-create tiebreaker game
+          handleScheduleTiebreaker();
+        }
         return;
       }
 
       // If tiebreakerStatus is NEEDS_DECISION or tied_pending, buttons will be shown (handled below)
     }
-  }, [localGames, match?.id, match?.winnerId, match?.isBye, match?.forfeitTeam, match?.tiebreakerStatus, handleCompleteMatch, handleScheduleTiebreaker]);
+  }, [localGames, match?.id, match?.winnerId, match?.isBye, match?.forfeitTeam, match?.tiebreakerStatus, resolvingAction, handleCompleteMatch, handleScheduleTiebreaker]);
   
   // Check if winner should advance to next round
   const winnerId = match.winnerId || match.tiebreakerWinnerTeamId;
