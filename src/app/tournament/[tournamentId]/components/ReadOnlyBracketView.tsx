@@ -7,7 +7,7 @@
  * Shows match details in a simple modal on click.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { DoubleEliminationBracket } from '@g-loot/react-tournament-brackets';
 import { transformRoundsToBracketFormat } from '@/lib/brackets/bracketTransformer';
 import { CustomBracketMatch } from './CustomBracketMatch';
@@ -76,6 +76,7 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const svgHeightsFixed = useRef(false);
 
   // Fetch bracket data
   useEffect(() => {
@@ -275,10 +276,17 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
     })),
   };
 
-  // Fix SVG heights for match boxes
+  // Fix SVG heights for match boxes - only run once when bracket data is available
   useEffect(() => {
+    // Only run if we have data and haven't fixed heights yet
+    if (rounds.length === 0 || svgHeightsFixed.current) {
+      return;
+    }
+
     const fixSvgHeights = () => {
       const svgs = document.querySelectorAll('.bracket-container svg');
+      if (svgs.length === 0) return;
+
       svgs.forEach((svg) => {
         const htmlSvg = svg as SVGElement;
         const currentHeight = htmlSvg.getAttribute('height');
@@ -300,6 +308,11 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
           }
         }
       });
+
+      // Mark as fixed after successful execution
+      if (svgs.length > 0) {
+        svgHeightsFixed.current = true;
+      }
     };
 
     fixSvgHeights();
