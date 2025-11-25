@@ -406,23 +406,17 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
           </div>
         ` : ''}
         ${stops.map((stop) => {
-          const fullAddress = stop.club ? formatFullAddress(stop.club) : '';
           const mapsUrl = stop.club ? buildGoogleMapsUrl(stop.club) : '';
-          const locationDisplay = stop.club 
+          const locationDisplay = stop.club
             ? `${stop.club.name}${stop.club.city && stop.club.region ? `, ${stop.club.city}, ${stop.club.region}` : stop.club.city ? `, ${stop.club.city}` : ''}`
             : '';
-          
+
           return `
             <div style="margin: 0 0 25px 0;">
-              <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 8px;">${stop.name}</div>
+              ${stops.length > 1 ? `<div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 8px;">${stop.name}</div>` : ''}
               ${locationDisplay ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
                   <strong>📍 Location:</strong> ${mapsUrl ? `<a href="${mapsUrl}" style="color: #2563eb; text-decoration: none;">${locationDisplay}</a>` : locationDisplay}
-                </div>
-              ` : ''}
-              ${fullAddress && mapsUrl ? `
-                <div style="margin: 4px 0; font-size: 13px; color: #6b7280;">
-                  <a href="${mapsUrl}" style="color: #6b7280; text-decoration: underline;">${fullAddress}</a>
                 </div>
               ` : ''}
               <div style="margin: 4px 0; font-size: 14px; color: #374151;">
