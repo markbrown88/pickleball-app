@@ -528,6 +528,15 @@ export async function PUT(req: Request, ctx: CtxPromise) {
 
       const toDelete = current.map((c) => c.id).filter((id) => !keepIds.includes(id));
       if (toDelete.length) {
+        // ✅ FIX: Delete teams associated with deleted brackets first
+        await tx.team.deleteMany({
+          where: {
+            tournamentId,
+            bracketId: { in: toDelete }
+          }
+        });
+
+        // Then delete the brackets
         await tx.tournamentBracket.deleteMany({ where: { id: { in: toDelete } } });
       }
 
@@ -545,6 +554,32 @@ export async function PUT(req: Request, ctx: CtxPromise) {
         orderBy: { idx: 'asc' },
         select: { id: true, name: true, idx: true },
       });
+
+      // ✅ FIX: If real brackets were added, remove DEFAULT bracket and its teams
+      if (incoming.length > 0) {
+        const defaultBracket = bracketsAfter.find((b) => b.name.toUpperCase() === 'DEFAULT');
+        if (defaultBracket) {
+          // Delete teams associated with DEFAULT bracket
+          await tx.team.deleteMany({
+            where: {
+              tournamentId,
+              bracketId: defaultBracket.id
+            }
+          });
+
+          // Delete the DEFAULT bracket
+          await tx.tournamentBracket.delete({
+            where: { id: defaultBracket.id }
+          });
+
+          // Refresh brackets list
+          bracketsAfter = await tx.tournamentBracket.findMany({
+            where: { tournamentId },
+            orderBy: { idx: 'asc' },
+            select: { id: true, name: true, idx: true },
+          });
+        }
+      }
     }
 
     // Ensure at least a DEFAULT bracket exists

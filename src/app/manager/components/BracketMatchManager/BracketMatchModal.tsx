@@ -363,35 +363,6 @@ export function BracketMatchModal({
     }
   };
 
-  const canCompleteMatch = () => {
-    if (match.isBye) {
-      return false;
-    }
-    if (match.winnerId) {
-      return false;
-    }
-
-    // Always use localGames as source of truth - it includes optimistic updates
-    const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
-
-    // For club tournaments, need all games completed (e.g., 8 games for 2 brackets)
-    const completedGames = gamesToUse.filter(g => g.isComplete).length;
-    const bracketCount = new Set(gamesToUse.filter(g => g.bracketId).map(g => g.bracketId)).size;
-    const totalExpectedGames = bracketCount * 4;
-    
-    
-    if (completedGames < totalExpectedGames) {
-      return false;
-    }
-
-    // Check if there's a clear winner (majority of games)
-    const { teamAGameWins, teamBGameWins } = getGameWins();
-    const majority = Math.ceil(totalExpectedGames / 2);
-    
-    
-    return teamAGameWins >= majority || teamBGameWins >= majority || match.tiebreakerWinnerTeamId !== null;
-  };
-
   const getGameWins = () => {
     // Always use localGames as source of truth - it includes optimistic updates
     // This ensures game wins update dynamically as games are completed
@@ -527,16 +498,39 @@ export function BracketMatchModal({
     if (match.winnerId) return 'decided';
     if (match.tiebreakerWinnerTeamId) return 'decided';
 
+    // Check server-provided tiebreaker status first
+    if (match.tiebreakerStatus) {
+      switch (match.tiebreakerStatus) {
+        case 'REQUIRES_TIEBREAKER':
+          return 'tied_requires_tiebreaker';
+        case 'NEEDS_DECISION':
+          return 'needs_decision';
+        case 'PENDING_TIEBREAKER':
+          return 'tied_pending';
+        case 'DECIDED_POINTS':
+          return 'decided_points';
+        case 'DECIDED_TIEBREAKER':
+          return 'decided_tiebreaker';
+      }
+    }
+
     // Always use localGames as source of truth - it includes optimistic updates
     const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+    const regularGames = gamesToUse.filter(g => g.slot !== 'TIEBREAKER');
 
-    const { teamAGameWins: winsA, teamBGameWins: winsB, bracketsByName } = getGameWins();
-    const bracketCount = Object.keys(bracketsByName).length || 1;
-    const totalExpectedGames = bracketCount * 4;
-    const completedGames = gamesToUse.filter(g => g.isComplete).length;
+    const { teamAGameWins: winsA, teamBGameWins: winsB } = getGameWins();
+    const bracketCount = new Set(regularGames.filter(g => g.bracketId).map(g => g.bracketId)).size;
+    const totalExpectedGames = bracketCount * 4 || regularGames.length;
+    const completedRegularGames = regularGames.filter(g => g.isComplete).length;
 
-    if (completedGames < totalExpectedGames) return 'in_progress';
-    if (winsA === winsB && winsA > 0) return 'tied';
+    if (completedRegularGames < totalExpectedGames) return 'in_progress';
+
+    // All regular games complete - check for tie or winner
+    if (winsA === winsB && winsA === 2) {
+      // Tied 2:2 - needs decision
+      return 'tied';
+    }
+
     const majority = Math.ceil(totalExpectedGames / 2);
     if (winsA >= majority || winsB >= majority) return 'ready_to_complete';
 
@@ -544,40 +538,63 @@ export function BracketMatchModal({
   };
   
   const matchStatus = useMemo(() => getMatchStatus(), [localGames, match, teamAGameWins, teamBGameWins]);
-  const isDecided = matchStatus === 'decided';
+  const isDecided = matchStatus === 'decided' || matchStatus === 'decided_points' || matchStatus === 'decided_tiebreaker';
   
   // Auto-complete match when all games are finished and there's a clear winner
+  // Also auto-create tiebreaker when needed (2:2 tie with equal points)
   useEffect(() => {
-    
+
     if (!match || match.winnerId || match.isBye || match.forfeitTeam) {
       return; // Already completed or can't complete
     }
 
-    // Check if all games are complete
+    // Check if all required games are complete (not counting tiebreaker)
     const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
-    const bracketCount = new Set(gamesToUse.filter(g => g.bracketId).map(g => g.bracketId)).size;
-    const totalExpectedGames = bracketCount * 4 || gamesToUse.length;
-    const completedGames = gamesToUse.filter(g => g.isComplete).length;
+    const regularGames = gamesToUse.filter(g => g.slot !== 'TIEBREAKER');
+    const bracketCount = new Set(regularGames.filter(g => g.bracketId).map(g => g.bracketId)).size;
+    const totalExpectedGames = bracketCount * 4 || regularGames.length;
+    const completedRegularGames = regularGames.filter(g => g.isComplete).length;
 
 
-    if (completedGames < totalExpectedGames) {
-      return; // Not all games complete yet
+    if (completedRegularGames < totalExpectedGames) {
+      return; // Not all regular games complete yet
     }
 
-    // Check if there's a clear winner (not a tie)
+    // Calculate game wins
     const { teamAGameWins: winsA, teamBGameWins: winsB } = getGameWins();
-    const majority = Math.ceil(totalExpectedGames / 2);
-    const hasClearWinner = winsA >= majority || winsB >= majority;
 
+    // Case 1: Clear winner (3:1 or 4:0) - auto-complete
+    if (winsA !== winsB && (winsA >= 3 || winsB >= 3)) {
 
-    if (!hasClearWinner) {
-      return; // Tie or no clear winner yet
+      handleCompleteMatch();
+      return;
     }
 
-    // Auto-complete the match
+    // Case 2: Tied 2:2
+    if (winsA === winsB && winsA === 2) {
 
-    handleCompleteMatch();
-  }, [localGames, match?.id, match?.winnerId, match?.isBye, match?.forfeitTeam, handleCompleteMatch]);
+      // Check if tiebreaker game already exists
+      const tiebreakerGame = gamesToUse.find(g => g.slot === 'TIEBREAKER');
+
+      // If tiebreaker game exists and is complete, auto-complete the match
+      if (tiebreakerGame?.isComplete) {
+
+        handleCompleteMatch();
+        return;
+      }
+
+      // If no tiebreaker game and tiebreakerStatus is REQUIRES_TIEBREAKER, auto-create it
+      // REQUIRES_TIEBREAKER means 2:2 tie with equal total points
+      if (!tiebreakerGame && match.tiebreakerStatus === 'REQUIRES_TIEBREAKER') {
+
+        // Auto-create tiebreaker game
+        handleScheduleTiebreaker();
+        return;
+      }
+
+      // If tiebreakerStatus is NEEDS_DECISION or tied_pending, buttons will be shown (handled below)
+    }
+  }, [localGames, match?.id, match?.winnerId, match?.isBye, match?.forfeitTeam, match?.tiebreakerStatus, handleCompleteMatch, handleScheduleTiebreaker]);
   
   // Check if winner should advance to next round
   const winnerId = match.winnerId || match.tiebreakerWinnerTeamId;
@@ -670,15 +687,34 @@ export function BracketMatchModal({
           {/* Manager Actions */}
           {!isDecided && (
             <div className="flex flex-wrap gap-2 mt-4">
-              {matchStatus === 'tied' && (
-                <>
-                  <button
-                    className="btn btn-xs btn-secondary"
-                    disabled={resolvingAction === 'points'}
-                    onClick={handleDecideByPoints}
-                  >
-                    {resolvingAction === 'points' ? 'Resolving...' : 'Decide by Points'}
-                  </button>
+              {/* Decide by Points button: Show when NEEDS_DECISION or (tied_pending with different points) */}
+              {(matchStatus === 'needs_decision' ||
+                (matchStatus === 'tied_pending' &&
+                 match.totalPointsTeamA !== null &&
+                 match.totalPointsTeamB !== null &&
+                 match.totalPointsTeamA !== match.totalPointsTeamB)) && (
+                <button
+                  className="btn btn-xs btn-secondary"
+                  disabled={resolvingAction === 'points'}
+                  onClick={handleDecideByPoints}
+                >
+                  {resolvingAction === 'points' ? 'Resolving...' : 'Decide by Points'}
+                </button>
+              )}
+              {/* Add Tiebreaker button: Show when tied_requires_tiebreaker, needs_decision, or (tied_pending with different points), and no tiebreaker exists */}
+              {(() => {
+                const gamesToUse = localGames.length > 0 ? localGames : (match?.games || []);
+                const tiebreakerGame = gamesToUse.find(g => g.slot === 'TIEBREAKER');
+                const showButton =
+                  (matchStatus === 'tied_requires_tiebreaker' ||
+                   matchStatus === 'needs_decision' ||
+                   (matchStatus === 'tied_pending' &&
+                    match.totalPointsTeamA !== null &&
+                    match.totalPointsTeamB !== null &&
+                    match.totalPointsTeamA !== match.totalPointsTeamB)) &&
+                  (matchStatus !== 'needs_decision' ? !tiebreakerGame : true);
+
+                return showButton ? (
                   <button
                     className="btn btn-xs btn-primary"
                     disabled={resolvingAction === 'tiebreaker'}
@@ -686,17 +722,23 @@ export function BracketMatchModal({
                   >
                     {resolvingAction === 'tiebreaker' ? 'Creating...' : 'Add Tiebreaker'}
                   </button>
-                </>
-              )}
+                ) : null;
+              })()}
+            </div>
+          )}
+
+          {/* Forfeit Buttons */}
+          {!isDecided && (
+            <div className="flex flex-wrap gap-2 mt-2">
               <button
-                className="btn btn-xs btn-error"
+                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error"
                 disabled={resolvingAction === 'forfeitA'}
                 onClick={() => handleForfeit('A')}
               >
                 {resolvingAction === 'forfeitA' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamAName)}`}
               </button>
               <button
-                className="btn btn-xs btn-error"
+                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error"
                 disabled={resolvingAction === 'forfeitB'}
                 onClick={() => handleForfeit('B')}
               >
@@ -705,8 +747,9 @@ export function BracketMatchModal({
             </div>
           )}
 
-          {/* Total Points Summary */}
-          {match.totalPointsTeamA !== null && match.totalPointsTeamB !== null && matchStatus === 'tied' && (
+          {/* Total Points Summary - Show when tied and deciding by points */}
+          {match.totalPointsTeamA !== null && match.totalPointsTeamB !== null &&
+           (matchStatus === 'needs_decision' || matchStatus === 'tied_pending' || matchStatus === 'tied') && (
             <div className="bg-surface-2 rounded px-3 py-2 text-sm mt-4">
               <div className="flex justify-between items-center gap-4">
                 <div className="flex-1">
