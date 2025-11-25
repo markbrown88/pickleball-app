@@ -13,12 +13,72 @@ import { invalidateCache } from '@/lib/cache';
 import { cacheKeys } from '@/lib/cache';
 
 /**
- * Cascade winner change through the bracket
- * When a match winner changes, remove the old winner from child matches
- * and recursively clear downstream matches that depended on the old result
+ * Recursively clear a team from all downstream matches
+ * Used when a match is marked as incomplete - we need to remove its winner from all child matches
  */
-async function cascadeWinnerChange(matchId: string, oldWinnerId: string): Promise<void> {
-  // Find all matches where this team was placed as a result of the old win
+async function clearWinnerFromDownstream(
+  matchId: string,
+  winnerId: string
+): Promise<void> {
+  // Find all matches where this winner was placed
+  const childMatches = await prisma.match.findMany({
+    where: {
+      OR: [
+        { sourceMatchAId: matchId, teamAId: winnerId },
+        { sourceMatchBId: matchId, teamBId: winnerId },
+      ],
+    },
+    select: {
+      id: true,
+      teamAId: true,
+      teamBId: true,
+      winnerId: true,
+    },
+  });
+
+  for (const child of childMatches) {
+    const updates: {
+      teamAId?: null;
+      teamBId?: null;
+      winnerId?: null;
+    } = {};
+
+    // Clear the winner from the appropriate position
+    if (child.teamAId === winnerId) {
+      updates.teamAId = null;
+    }
+    if (child.teamBId === winnerId) {
+      updates.teamBId = null;
+    }
+
+    // If this child match had a winner, clear it and cascade further
+    if (child.winnerId) {
+      const oldChildWinnerId = child.winnerId;
+      updates.winnerId = null;
+      // Recursively cascade to downstream matches
+      await clearWinnerFromDownstream(child.id, oldChildWinnerId);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await prisma.match.update({
+        where: { id: child.id },
+        data: updates,
+      });
+    }
+  }
+}
+
+/**
+ * Cascade winner change through the bracket
+ * When a match winner changes, replace the old winner with the new winner in child matches
+ * and mark those matches as incomplete if they had already been decided
+ */
+async function cascadeWinnerChange(
+  matchId: string,
+  oldWinnerId: string,
+  newWinnerId: string
+): Promise<void> {
+  // Find all matches where the old winner was placed
   const childMatches = await prisma.match.findMany({
     where: {
       OR: [
@@ -37,21 +97,28 @@ async function cascadeWinnerChange(matchId: string, oldWinnerId: string): Promis
   });
 
   for (const child of childMatches) {
-    const updates: { teamAId?: null; teamBId?: null; winnerId?: null } = {};
+    const updates: {
+      teamAId?: string;
+      teamBId?: string;
+      winnerId?: null;
+    } = {};
 
-    // Clear the old winner from the appropriate position
+    // Replace the old winner with the new winner in the appropriate position
     if (child.teamAId === oldWinnerId) {
-      updates.teamAId = null;
+      updates.teamAId = newWinnerId;
     }
     if (child.teamBId === oldWinnerId) {
-      updates.teamBId = null;
+      updates.teamBId = newWinnerId;
     }
 
-    // If this child match had a winner, clear it and cascade further
+    // If this child match had a winner, it's now invalid - clear it
     if (child.winnerId) {
+      const oldChildWinnerId = child.winnerId;
       updates.winnerId = null;
-      // Recursively cascade to downstream matches
-      await cascadeWinnerChange(child.id, child.winnerId);
+
+      // Recursively clear the old winner from downstream matches
+      // We don't replace here, we just clear, because this match needs to be replayed
+      await clearWinnerFromDownstream(child.id, oldChildWinnerId);
     }
 
     if (Object.keys(updates).length > 0) {
@@ -262,9 +329,9 @@ export async function POST(
       data: { winnerId },
     });
 
-    // If winner changed, cascade the change forward by clearing old winner from child matches
+    // If winner changed, cascade the change forward by replacing old winner with new winner
     if (winnerChanged && oldWinnerId) {
-      await cascadeWinnerChange(matchId, oldWinnerId);
+      await cascadeWinnerChange(matchId, oldWinnerId, winnerId);
     }
 
     // BRACKET RESET LOGIC: Check if this is Finals 1 in double elimination
@@ -311,7 +378,27 @@ export async function POST(
           console.error(`[Complete Match] Finals 2 match not found for bracket reset!`);
         }
       } else {
-        // Winner bracket champion won Finals 1 → Tournament over (no Finals 2)
+        // Winner bracket champion won Finals 1 → Tournament over (no Finals 2 needed)
+        // Clear Finals 2 teams so it doesn't appear in the bracket
+        const finals2Match = await prisma.match.findFirst({
+          where: {
+            round: {
+              stopId: match.round.stopId,
+              bracketType: 'FINALS',
+              depth: 0,
+            },
+          },
+        });
+
+        if (finals2Match) {
+          await prisma.match.update({
+            where: { id: finals2Match.id },
+            data: {
+              teamAId: null,
+              teamBId: null,
+            },
+          });
+        }
       }
     }
 

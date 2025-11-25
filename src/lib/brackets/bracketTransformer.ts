@@ -421,7 +421,18 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   // Separate rounds by bracket type
   const winnerRounds = rounds.filter(r => r && r.bracketType === 'WINNER');
   const loserRounds = rounds.filter(r => r && r.bracketType === 'LOSER');
-  const finalsRounds = rounds.filter(r => r && r.bracketType === 'FINALS');
+  const finalsRounds = rounds.filter(r => {
+    if (!r || r.bracketType !== 'FINALS') return false;
+
+    // Hide Finals 2 (depth 0) if it has no teams assigned
+    // This happens when winner bracket champion wins Finals 1 (no bracket reset needed)
+    if (r.depth === 0 && r.matches) {
+      const hasAnyTeams = r.matches.some(m => m.teamA || m.teamB);
+      if (!hasAnyTeams) return false;
+    }
+
+    return true;
+  });
 
 
   // Convert matches
