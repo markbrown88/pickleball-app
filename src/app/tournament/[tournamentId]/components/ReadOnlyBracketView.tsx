@@ -179,9 +179,9 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
     }
   }, [rounds]);
 
-  // Calculate viewport size
+  // Calculate viewport size - make bracket fill most of the screen
   const isMobile = width > 0 && width < 768;
-  const finalWidth = isMobile ? width - 40 : width - 100;
+  const finalWidth = isMobile ? width - 40 : Math.max(1200, width * 0.85);
 
   const handleMatchClick = (args: { match: { id: string }; topWon: boolean; bottomWon: boolean }) => {
     // Find match in rounds data
@@ -293,7 +293,7 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
         }}
       />
       <div className="w-full bg-surface rounded-lg border border-subtle p-2 md:p-4 overflow-x-auto overflow-y-visible bracket-container">
-        <div style={{ minWidth: finalWidth, width: 'max-content', padding: '20px 0' }}>
+        <div style={{ width: finalWidth, padding: '20px 0' }}>
           <DoubleEliminationBracket
             matches={safeBracketData}
             matchComponent={CustomBracketMatch}
