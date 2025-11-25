@@ -104,6 +104,7 @@ export default async function ManagerLayout({ children }: { children: ReactNode 
         }}
         showActAs={userRole === 'app-admin'}
         availableUsers={availableUsers}
+        containerClassName="w-full px-8 py-8 space-y-6"
       >
         {children}
       </AppShell>

@@ -21,6 +21,7 @@ interface Tournament {
   description?: string;
   startDate?: string;
   endDate?: string;
+  type?: string;
   stops?: any[];
 }
 

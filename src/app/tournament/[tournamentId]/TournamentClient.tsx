@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatDateRangeUTC } from '@/lib/utils';
 import { getMatchOutcomes, type MatchOutcome, type NormalizedGame } from '@/lib/matchOutcome';
 import type { MatchTiebreakerStatus } from '@prisma/client';
+import { ReadOnlyBracketView } from './components/ReadOnlyBracketView';
 
 interface Tournament {
   id: string;
@@ -12,6 +13,7 @@ interface Tournament {
   description?: string;
   startDate?: string;
   endDate?: string;
+  type?: string;
   stops?: any[];
 }
 
@@ -97,7 +99,11 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openAccordion, setOpenAccordion] = useState<'standings' | 'inProgress' | 'completed'>('standings');
+  const [openAccordion, setOpenAccordion] = useState<'bracket' | 'inProgress' | 'completed'>('bracket');
+  const [view, setView] = useState<'bracket' | 'matches'>('bracket');
+
+  // Check if this is a double elimination tournament
+  const isDoubleElimination = tournament.type === 'DOUBLE_ELIMINATION' || tournament.type === 'DOUBLE_ELIMINATION_CLUBS';
 
   // Find stop closest to today's date
   const findClosestStop = (stops: Stop[]) => {
@@ -708,6 +714,32 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
           </button>
         </div>
 
+        {/* View Toggle for Double Elimination Tournaments */}
+        {isDoubleElimination && (
+          <div className="mb-4 flex justify-center gap-2">
+            <button
+              onClick={() => setView('bracket')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                view === 'bracket'
+                  ? 'bg-primary text-white'
+                  : 'bg-surface-2 text-secondary hover:bg-surface hover:text-primary'
+              }`}
+            >
+              Bracket View
+            </button>
+            <button
+              onClick={() => setView('matches')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                view === 'matches'
+                  ? 'bg-primary text-white'
+                  : 'bg-surface-2 text-secondary hover:bg-surface hover:text-primary'
+              }`}
+            >
+              Matches View
+            </button>
+          </div>
+        )}
+
         {/* Mobile: Dropdown for stop selection */}
         <div className="md:hidden mb-4">
           <select
@@ -729,19 +761,41 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
         {/* Mobile: Accordion Layout */}
         <div className="md:hidden space-y-2 mb-20">
-          {/* Standings Accordion */}
-          <div className="card">
-            <button
-              onClick={() => setOpenAccordion(openAccordion === 'standings' ? null as any : 'standings')}
-              className="w-full px-4 py-3 flex items-center justify-between"
-            >
-              <div className="flex items-center">
-                <div className="w-2 h-2 bg-info rounded-full mr-2"></div>
-                <h2 className="text-sm font-semibold text-primary">Standings</h2>
-              </div>
-              <span className="text-primary">{openAccordion === 'standings' ? '▼' : '▶'}</span>
-            </button>
-            {openAccordion === 'standings' && (
+          {/* Bracket Accordion for Double Elimination */}
+          {isDoubleElimination && view === 'bracket' && (
+            <div className="card">
+              <button
+                onClick={() => setOpenAccordion(openAccordion === 'bracket' ? null as any : 'bracket')}
+                className="w-full px-4 py-3 flex items-center justify-between"
+              >
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-info rounded-full mr-2"></div>
+                  <h2 className="text-sm font-semibold text-primary">Bracket</h2>
+                </div>
+                <span className="text-primary">{openAccordion === 'bracket' ? '▼' : '▶'}</span>
+              </button>
+              {openAccordion === 'bracket' && currentStopData && (
+                <div className="px-2 pb-4 border-t border-subtle pt-4">
+                  <ReadOnlyBracketView rounds={currentStopData.rounds} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Standings Accordion for non-Double Elimination */}
+          {!isDoubleElimination && (
+            <div className="card">
+              <button
+                onClick={() => setOpenAccordion(openAccordion === 'bracket' ? null as any : 'bracket')}
+                className="w-full px-4 py-3 flex items-center justify-between"
+              >
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-info rounded-full mr-2"></div>
+                  <h2 className="text-sm font-semibold text-primary">Standings</h2>
+                </div>
+                <span className="text-primary">{openAccordion === 'bracket' ? '▼' : '▶'}</span>
+              </button>
+              {openAccordion === 'bracket' && (
               <div className="px-4 pb-4 border-t border-subtle pt-4">
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-primary mb-2">Combined</h3>
@@ -786,7 +840,11 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
               </div>
             )}
           </div>
+          )}
 
+          {/* In Progress and Completed - Show for all tournaments, or when in matches view */}
+          {(!isDoubleElimination || view === 'matches') && (
+            <>
           {/* In Progress Accordion */}
           <div className="card">
             <button
@@ -836,12 +894,25 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
 
         {/* Desktop: Main Content Layout - Stops (2/3) and Standings (1/3) */}
         <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 mb-20 md:mb-6">
-          {/* Left side - Games (2/3 width) */}
-          <div className="col-span-1 md:col-span-2">
+          {/* Bracket View for Double Elimination - Full Width */}
+          {isDoubleElimination && view === 'bracket' && currentStopData && (
+            <div className="col-span-3">
+              <div className="card p-4">
+                <h2 className="text-lg font-semibold text-primary mb-4">Tournament Bracket</h2>
+                <ReadOnlyBracketView rounds={currentStopData.rounds} />
+              </div>
+            </div>
+          )}
+
+          {/* Matches View or Non-Double Elimination - Left side - Games (2/3 width) */}
+          {(!isDoubleElimination || view === 'matches') && (
+            <div className="col-span-1 md:col-span-2">
             {/* Combined Games Card */}
             <div className="card">
               {/* Stop Tabs */}
@@ -891,8 +962,10 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
               </div>
             </div>
           </div>
+          )}
 
-          {/* Right side - Standings (1/3 width) */}
+          {/* Right side - Standings (1/3 width) - Only for non-Double Elimination */}
+          {!isDoubleElimination && (
           <div className="col-span-1 md:col-span-1">
             <div className="card">
               <div className="px-1 py-1 md:px-4 md:py-3 border-b border-subtle pb-2">
@@ -949,6 +1022,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

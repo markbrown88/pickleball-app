@@ -32,9 +32,10 @@ type AppShellProps = {
     role: 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
     email?: string;
   }>;
+  containerClassName?: string;
 };
 
-function AppShellContent({ userRole, userInfo, children, showActAs = false, availableUsers = [] }: AppShellProps) {
+function AppShellContent({ userRole, userInfo, children, showActAs = false, availableUsers = [], containerClassName }: AppShellProps) {
   const [toolbarContent, setToolbarContent] = useState<ReactNode | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const { actingAs } = useActAs();
@@ -223,7 +224,7 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
             )}
 
             <main className="flex-1">
-              <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">{children}</div>
+              <div className={containerClassName || "max-w-7xl mx-auto px-4 py-8 space-y-6"}>{children}</div>
             </main>
           </div>
         </div>
