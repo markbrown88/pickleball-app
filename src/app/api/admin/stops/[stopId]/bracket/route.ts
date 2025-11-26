@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { invalidateCache, cacheKeys } from '@/lib/cache';
 
 export async function DELETE(
   request: NextRequest,
@@ -16,55 +17,70 @@ export async function DELETE(
   try {
     const { stopId } = await params;
 
-    // Find all rounds for this stop
-    const rounds = await prisma.round.findMany({
-      where: { stopId },
-      select: { id: true },
-    });
-
-    if (rounds.length === 0) {
-      return NextResponse.json(
-        { message: 'No bracket found for this stop' },
-        { status: 200 }
-      );
-    }
-
-    const roundIds = rounds.map(r => r.id);
-
-    // Find all matches for these rounds
-    const matches = await prisma.match.findMany({
-      where: { roundId: { in: roundIds } },
-      select: { id: true },
-    });
-
-    if (matches.length > 0) {
-      const matchIds = matches.map(m => m.id);
-
-      // Delete games first (due to foreign key constraints)
-      await prisma.game.deleteMany({
-        where: { matchId: { in: matchIds } },
+    // Use a transaction to ensure atomicity
+    const result = await prisma.$transaction(async (tx) => {
+      // Find all rounds for this stop
+      const rounds = await tx.round.findMany({
+        where: { stopId },
+        select: { id: true },
       });
 
-      // Delete matches
-      await prisma.match.deleteMany({
-        where: { id: { in: matchIds } },
+      if (rounds.length === 0) {
+        return {
+          message: 'No bracket found for this stop',
+          deleted: { rounds: 0, matches: 0, games: 0 },
+        };
+      }
+
+      const roundIds = rounds.map(r => r.id);
+
+      // Find all matches for these rounds
+      const matches = await tx.match.findMany({
+        where: { roundId: { in: roundIds } },
+        select: { id: true },
       });
-    }
 
-    // Finally delete rounds
-    await prisma.round.deleteMany({
-      where: { id: { in: roundIds } },
+      let gamesDeleted = 0;
+      let matchesDeleted = 0;
+
+      if (matches.length > 0) {
+        const matchIds = matches.map(m => m.id);
+
+        // Delete games first (due to foreign key constraints)
+        const gamesResult = await tx.game.deleteMany({
+          where: { matchId: { in: matchIds } },
+        });
+        gamesDeleted = gamesResult.count;
+
+        // Delete matches
+        const matchesResult = await tx.match.deleteMany({
+          where: { id: { in: matchIds } },
+        });
+        matchesDeleted = matchesResult.count;
+      }
+
+      // Finally delete rounds
+      const roundsResult = await tx.round.deleteMany({
+        where: { id: { in: roundIds } },
+      });
+
+      return {
+        message: 'Bracket reset successfully',
+        deleted: {
+          rounds: roundsResult.count,
+          matches: matchesDeleted,
+          games: gamesDeleted,
+        },
+      };
     });
 
-    return NextResponse.json({
-      message: 'Bracket reset successfully',
-      deleted: {
-        rounds: rounds.length,
-        matches: matches.length,
-      },
-    });
+    // Invalidate cache for this stop's schedule
+    await invalidateCache(`${cacheKeys.stopSchedule(stopId)}*`);
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error resetting bracket:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
       {
         error: 'Failed to reset bracket',
