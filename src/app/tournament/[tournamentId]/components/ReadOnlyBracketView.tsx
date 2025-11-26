@@ -179,9 +179,6 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
     }
   }, [rounds]);
 
-  // Calculate viewport size - make bracket fill most of the screen
-  const isMobile = width > 0 && width < 768;
-  const finalWidth = isMobile ? width - 40 : Math.max(1200, width * 0.85);
 
   const handleMatchClick = (args: { match: { id: string }; topWon: boolean; bottomWon: boolean }) => {
     // Find match in rounds data
@@ -292,22 +289,24 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
           `,
         }}
       />
-      <div className="w-full bg-surface rounded-lg border border-subtle p-2 md:p-4 overflow-x-auto overflow-y-visible bracket-container">
-        <DoubleEliminationBracket
-          matches={safeBracketData}
-          matchComponent={CustomBracketMatch}
-          onMatchClick={handleMatchClick}
-          options={{
-            style: {
-              roundHeader: {
-                backgroundColor: '#1f2937',
-                fontColor: '#fff',
+      <div className="w-full bg-surface rounded-lg border border-subtle p-2 md:p-4 overflow-x-auto overflow-y-visible bracket-container" style={{ minHeight: '70vh' }}>
+        <div style={{ transform: 'scale(1.5)', transformOrigin: 'top left', width: '66.67%', minWidth: '800px' }}>
+          <DoubleEliminationBracket
+            matches={safeBracketData}
+            matchComponent={CustomBracketMatch}
+            onMatchClick={handleMatchClick}
+            options={{
+              style: {
+                roundHeader: {
+                  backgroundColor: '#1f2937',
+                  fontColor: '#fff',
+                },
+                connectorColor: '#374151',
+                connectorColorHighlight: '#3b82f6',
               },
-              connectorColor: '#374151',
-              connectorColorHighlight: '#3b82f6',
-            },
-          }}
-        />
+            }}
+          />
+        </div>
       </div>
 
       {/* Read-only Match Details Modal */}
