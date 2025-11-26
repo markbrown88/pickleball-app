@@ -354,36 +354,21 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
     });
 
 
-    // Update the match with forfeit information and current timestamp
-    const currentTime = new Date();
-    
-    const updatedMatch = await prisma.match.update({
-      where: { id: matchId },
-      data: { 
-        forfeitTeam: body.forfeitTeam,
-        updatedAt: currentTime // Update the timestamp to current time
-      },
-      select: {
-        id: true,
-        forfeitTeam: true,
-        updatedAt: true
-      }
-    });
-    
-
     // Mark all games for this match as complete with appropriate scores
-    
+
     // Determine winning team based on forfeit
     const winningTeamId = body.forfeitTeam === 'A' ? match.teamB?.id : match.teamA?.id;
     const losingTeamId = body.forfeitTeam === 'A' ? match.teamA?.id : match.teamB?.id;
-    
-    
+
+    // Update the match with forfeit information and current timestamp
+    const currentTime = new Date();
+
     // Set the forfeit time for all games
     const forfeitTime = currentTime;
-    
+
     // Update all games for this match to reflect the forfeit (excluding Tiebreaker)
     await prisma.game.updateMany({
-      where: { 
+      where: {
         matchId: matchId,
         slot: {
           not: 'TIEBREAKER' // Skip tiebreaker games
@@ -397,17 +382,63 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
       }
     });
 
+    // Update the match with forfeit information, winner, and timestamp
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        forfeitTeam: body.forfeitTeam,
+        winnerId: winningTeamId, // Set the winner to trigger bracket progression
+        updatedAt: currentTime // Update the timestamp to current time
+      },
+      select: {
+        id: true,
+        forfeitTeam: true,
+        winnerId: true,
+        updatedAt: true,
+        round: {
+          select: {
+            stopId: true
+          }
+        }
+      }
+    });
 
     await evaluateMatchTiebreaker(prisma, matchId);
+
+    // Call the complete match endpoint to handle bracket progression
+    // This ensures the winner advances to the next round and loser drops to loser bracket
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const completeUrl = `${baseUrl}/api/admin/matches/${matchId}/complete`;
+
+      const completeResponse = await fetch(completeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          winnerId: winningTeamId,
+          skipValidation: true // Skip game completion validation since forfeit already handled it
+        }),
+      });
+
+      if (!completeResponse.ok) {
+        const errorText = await completeResponse.text();
+        console.error('[FORFEIT] Failed to complete match and advance winner:', errorText);
+        // Don't fail the whole forfeit - the forfeit is recorded, just log the error
+      }
+    } catch (completeError) {
+      console.error('[FORFEIT] Error calling complete endpoint:', completeError);
+      // Don't fail the whole forfeit - the forfeit is recorded, just log the error
+    }
 
     // Invalidate schedule cache
     await invalidateMatchCache(matchId);
 
-    return NextResponse.json({ 
-      ok: true, 
+    return NextResponse.json({
+      ok: true,
       match: {
         id: matchId,
         forfeitTeam: body.forfeitTeam,
+        winnerId: winningTeamId,
         tiebreakerStatus: 'NONE',
         tiebreakerWinnerTeamId: winningTeamId,
         totalPointsTeamA: 0,

@@ -802,11 +802,32 @@ export function BracketMatchModal({
         {/* Content - Games by Bracket */}
         <div className="p-6 space-y-6">
           {(() => {
+            // If match was forfeited, show forfeit message instead of games
+            if (match.forfeitTeam) {
+              const forfeitingTeamName = match.forfeitTeam === 'A' ? cleanTeamAName : cleanTeamBName;
+              const winningTeamName = match.forfeitTeam === 'A' ? cleanTeamBName : cleanTeamAName;
+
+              return (
+                <div className="text-center py-12">
+                  <div className="bg-warning/10 border border-warning rounded-lg p-6 max-w-md mx-auto">
+                    <div className="text-warning text-4xl mb-4">⚠️</div>
+                    <h3 className="text-lg font-semibold mb-2">Match Forfeited</h3>
+                    <p className="text-muted mb-4">
+                      {forfeitingTeamName} forfeited this match.
+                    </p>
+                    <p className="font-semibold text-success">
+                      {winningTeamName} wins by forfeit
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
             // Use localGames as the source of truth for rendering (includes optimistic updates)
             // Fall back to match.games only if localGames is empty (initial state)
             const gamesToRender = localGames.length > 0 ? localGames : (match?.games || []);
-            
-            
+
+
             if (gamesToRender.length === 0) {
               return (
                 <div className="text-center py-8 text-gray-400">
