@@ -24,6 +24,7 @@ interface Match {
   games: Game[];
   sourceMatchAId?: string | null;
   sourceMatchBId?: string | null;
+  bracketPosition?: number | null;
 }
 
 interface Game {
