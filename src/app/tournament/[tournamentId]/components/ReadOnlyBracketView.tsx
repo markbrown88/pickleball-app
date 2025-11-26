@@ -49,30 +49,8 @@ interface ReadOnlyBracketViewProps {
   stopId: string;
 }
 
-/**
- * Hook to get window dimensions for responsive sizing
- */
-function useWindowSize() {
-  const [size, setSize] = useState<[number, number]>([0, 0]);
-
-  useEffect(() => {
-    function updateSize() {
-      setSize([window.innerWidth, window.innerHeight]);
-    }
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', updateSize);
-      updateSize();
-      return () => window.removeEventListener('resize', updateSize);
-    }
-  }, []);
-
-  return size;
-}
-
 export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-  const [width] = useWindowSize();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -277,36 +255,43 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
       <style
         dangerouslySetInnerHTML={{
           __html: `
+            .bracket-container {
+              font-size: 16px;
+            }
             .bracket-container svg {
-              height: 160px !important;
-              min-height: 160px !important;
+              width: 100%;
+              height: auto;
+              overflow: visible;
             }
             .bracket-container svg foreignObject {
-              height: 160px !important;
-              min-height: 160px !important;
               overflow: visible !important;
+            }
+            .bracket-container svg g[transform] {
+              margin: 0 !important;
+            }
+            .bracket-container [class*="match"] {
+              margin-top: -20px !important;
+              margin-bottom: -20px !important;
             }
           `,
         }}
       />
-      <div className="w-full bg-surface rounded-lg border border-subtle p-2 md:p-4 overflow-x-auto overflow-y-visible bracket-container" style={{ minHeight: '70vh' }}>
-        <div style={{ transform: 'scale(1.5)', transformOrigin: 'top left', width: '66.67%', minWidth: '800px' }}>
-          <DoubleEliminationBracket
-            matches={safeBracketData}
-            matchComponent={CustomBracketMatch}
-            onMatchClick={handleMatchClick}
-            options={{
-              style: {
-                roundHeader: {
-                  backgroundColor: '#1f2937',
-                  fontColor: '#fff',
-                },
-                connectorColor: '#374151',
-                connectorColorHighlight: '#3b82f6',
+      <div className="w-full bg-surface rounded-lg border border-subtle p-1 md:p-2 overflow-x-auto bracket-container" style={{ minHeight: '85vh' }}>
+        <DoubleEliminationBracket
+          matches={safeBracketData}
+          matchComponent={CustomBracketMatch}
+          onMatchClick={handleMatchClick}
+          options={{
+            style: {
+              roundHeader: {
+                backgroundColor: '#1f2937',
+                fontColor: '#fff',
               },
-            }}
-          />
-        </div>
+              connectorColor: '#374151',
+              connectorColorHighlight: '#3b82f6',
+            },
+          }}
+        />
       </div>
 
       {/* Read-only Match Details Modal */}

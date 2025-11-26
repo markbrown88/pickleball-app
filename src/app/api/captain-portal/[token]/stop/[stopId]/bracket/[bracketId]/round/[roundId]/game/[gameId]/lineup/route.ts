@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { lineupSubmissionLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
+import { saveLineupForRoundAndTeam } from '@/lib/lineupHelpers';
 
 export const dynamic = 'force-dynamic';
 
 // Zod schema for lineup validation (SEC-004)
+// Lineup must be exactly 4 players: [Man1, Man2, Woman1, Woman2]
 const LineupSchema = z.object({
-  lineup: z.array(z.string().uuid()).length(2)
+  lineup: z.array(z.string().uuid()).length(4)
 });
 
 type Params = {
@@ -113,14 +115,39 @@ export async function PUT(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // TODO: Implement lineup submission using Lineup/LineupEntry tables
-    // The old JSON-based lineup fields (teamALineup/teamBLineup) no longer exist
-    // For now, return success without updating anything
-    // This endpoint needs to be reimplemented with the new schema
+    // Get the team ID for this club
+    const teamId = isTeamA ? game.match.teamA!.id : game.match.teamB!.id;
+    const roundId = game.match.round.id;
+
+    // Validate that all player IDs belong to this team's roster
+    const stopTeamPlayers = await prisma.stopTeamPlayer.findMany({
+      where: {
+        stopId,
+        teamId,
+        playerId: { in: lineup }
+      },
+      select: { playerId: true }
+    });
+
+    if (stopTeamPlayers.length !== 4) {
+      return NextResponse.json(
+        { error: 'All players must be on the team roster for this stop' },
+        { status: 400 }
+      );
+    }
+
+    // Save the lineup using the new Lineup/LineupEntry schema
+    await saveLineupForRoundAndTeam(
+      prisma,
+      roundId,
+      teamId,
+      stopId,
+      lineup.map(id => ({ id }))
+    );
 
     return NextResponse.json({
       success: true,
-      message: 'Lineup submission temporarily disabled during schema migration'
+      message: 'Lineup submitted successfully'
     });
   } catch (error) {
     console.error('Failed to save lineup:', error);

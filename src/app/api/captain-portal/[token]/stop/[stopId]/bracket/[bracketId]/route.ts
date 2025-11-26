@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isLineupComplete } from '@/lib/lineupHelpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,26 +63,30 @@ export async function GET(request: Request, { params }: Params) {
     });
 
     // Map rounds to include opponent info and lineup completion
-    const roundsData = rounds.map(round => {
-      const match = round.matches[0]; // Should only be one match per team per round
-      if (!match) return null;
+    const roundsData = await Promise.all(
+      rounds.map(async (round) => {
+        const match = round.matches[0]; // Should only be one match per team per round
+        if (!match) return null;
 
-      const opponentTeam = match.teamAId === team.id ? match.teamB : match.teamA;
+        const opponentTeam = match.teamAId === team.id ? match.teamB : match.teamA;
 
-      // Note: Lineup completion checking removed as lineups are now in Lineup/LineupEntry tables
-      const lineupsComplete = false; // TODO: Implement lineup checking with new schema
+        // Check if this team's lineup is complete for this round
+        const lineupsComplete = await isLineupComplete(prisma, round.id, team.id);
 
-      return {
-        id: round.id,
-        idx: round.idx,
-        matchId: match.id,
-        opponentTeamName: opponentTeam?.name || 'TBD',
-        lineupsComplete
-      };
-    }).filter(Boolean);
+        return {
+          id: round.id,
+          idx: round.idx,
+          matchId: match.id,
+          opponentTeamName: opponentTeam?.name || 'TBD',
+          lineupsComplete
+        };
+      })
+    );
+
+    const filteredRoundsData = roundsData.filter(Boolean);
 
     return NextResponse.json({
-      rounds: roundsData
+      rounds: filteredRoundsData
     });
   } catch (error) {
     console.error('Bracket rounds error:', error);

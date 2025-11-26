@@ -690,55 +690,56 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
   return (
     <div className="min-h-screen bg-app">
-      <div className="w-full px-1 py-2 md:px-4 md:py-6">
-        <div className="flex items-center justify-between mb-2 md:mb-4">
+      <div className="w-full px-1 py-1 md:px-2 md:py-2">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl md:text-3xl font-bold text-primary">{tournament.name}</h1>
             {tournament.description && (
               <p className="text-secondary mt-1 text-sm md:text-base line-clamp-2">{tournament.description}</p>
             )}
           </div>
-          <button
-            onClick={() => window.location.reload()}
-            disabled={refreshing}
-            className="btn btn-primary text-xs md:text-sm px-2 py-1 md:px-4 md:py-2 ml-2"
-          >
-            {refreshing ? (
-              <div className="loading-spinner"></div>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+          <div className="flex items-center gap-2 ml-2">
+            {/* View Toggle for Double Elimination Tournaments */}
+            {isDoubleElimination && (
+              <>
+                <button
+                  onClick={() => setView('bracket')}
+                  className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
+                    view === 'bracket'
+                      ? 'bg-primary text-white'
+                      : 'bg-surface-2 text-secondary hover:bg-surface hover:text-primary'
+                  }`}
+                >
+                  Bracket View
+                </button>
+                <button
+                  onClick={() => setView('matches')}
+                  className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors ${
+                    view === 'matches'
+                      ? 'bg-primary text-white'
+                      : 'bg-surface-2 text-secondary hover:bg-surface hover:text-primary'
+                  }`}
+                >
+                  Matches View
+                </button>
+              </>
             )}
-            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-          </button>
-        </div>
-
-        {/* View Toggle for Double Elimination Tournaments */}
-        {isDoubleElimination && (
-          <div className="mb-4 flex justify-center gap-2">
             <button
-              onClick={() => setView('bracket')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                view === 'bracket'
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-2 text-secondary hover:bg-surface hover:text-primary'
-              }`}
+              onClick={() => window.location.reload()}
+              disabled={refreshing}
+              className="btn btn-primary text-xs md:text-sm px-2 py-1 md:px-4 md:py-2"
             >
-              Bracket View
-            </button>
-            <button
-              onClick={() => setView('matches')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                view === 'matches'
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-2 text-secondary hover:bg-surface hover:text-primary'
-              }`}
-            >
-              Matches View
+              {refreshing ? (
+                <div className="loading-spinner"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>
           </div>
-        )}
+        </div>
 
         {/* Mobile: Dropdown for stop selection */}
         <div className="md:hidden mb-4">
@@ -899,14 +900,11 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
         </div>
 
         {/* Desktop: Main Content Layout - Stops (2/3) and Standings (1/3) */}
-        <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 mb-20 md:mb-6">
+        <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-2 mb-20 md:mb-6">
           {/* Bracket View for Double Elimination - Full Width */}
           {isDoubleElimination && view === 'bracket' && selectedStopId && (
             <div className="col-span-3">
-              <div className="card p-4">
-                <h2 className="text-lg font-semibold text-primary mb-4">Tournament Bracket</h2>
-                <ReadOnlyBracketView stopId={selectedStopId} />
-              </div>
+              <ReadOnlyBracketView stopId={selectedStopId} />
             </div>
           )}
 

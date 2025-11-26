@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { BracketLineupEditor } from './BracketLineupEditor';
+import { InlineLineupEditor } from '../shared/InlineLineupEditor';
 import { PlayerLite } from '../shared/types';
 import { GameScoreBox } from '../shared/GameScoreBox';
 import { useGameControls } from '../../hooks/useGameControls';
@@ -56,16 +56,17 @@ interface BracketMatchProps {
       teamBLineup?: any[];
     }>;
   };
+  roundId: string;
   stopId: string;
-  lineups: Record<string, Record<string, PlayerLite[]>>; // bracketId -> teamId -> players
+  lineups: Record<string, Record<string, PlayerLite[]>>; // matchId -> teamId -> players
   teamRosters: Record<string, PlayerLite[]>;
   onUpdate: () => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
-  onLineupSave: (matchId: string, lineups: Record<string, Record<string, PlayerLite[]>>) => void; // bracketId -> teamId -> players
+  onLineupSave: (matchId: string, lineupData: { teamA: PlayerLite[]; teamB: PlayerLite[] }, teamAId: string, teamBId: string) => void;
 }
 
-export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, onError, onInfo, onLineupSave }: BracketMatchProps) {
+export function BracketMatch({ match, roundId, stopId, lineups, teamRosters, onUpdate, onError, onInfo, onLineupSave }: BracketMatchProps) {
   const [updating, setUpdating] = useState(false);
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
   const [isEditingLineup, setIsEditingLineup] = useState(false);
@@ -458,49 +459,46 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
 
       {/* Lineup Editor or Prompt */}
       {(() => {
-        // Extract brackets from games
-        const brackets = Array.from(
-          new Map(
-            localGames
-              .filter(g => g.bracket && g.bracketId)
-              .map(g => [g.bracketId!, { bracketId: g.bracketId!, bracketName: g.bracket!.name }])
-          ).values()
-        );
+        // Check if we have lineups for this match (simple match-based check)
+        const matchLineups = lineups[match.id];
+        const hasLineups = matchLineups &&
+          match.teamA &&
+          match.teamB &&
+          matchLineups[match.teamA.id]?.length === 4 &&
+          matchLineups[match.teamB.id]?.length === 4;
 
-        // Check if we have lineups for all brackets
-        const hasAllLineups = brackets.every(bracket => {
-          const bracketLineups = lineups[bracket.bracketId];
-          return (
-            bracketLineups &&
-            match.teamA &&
-            match.teamB &&
-            bracketLineups[match.teamA.id]?.length === 4 &&
-            bracketLineups[match.teamB.id]?.length === 4
-          );
-        });
-
-        const hasLineupsInGames = localGames.some(g => g.teamALineup && g.teamBLineup);
+        const teamALineup = matchLineups?.[match.teamA?.id || ''] || [];
+        const teamBLineup = matchLineups?.[match.teamB?.id || ''] || [];
 
         // Check if any game has started (in progress or completed)
         const hasAnyGameStarted = localGames.some(g => g.startedAt || g.isComplete);
 
         // Show lineup editor if editing
-        if (isEditingLineup && match.teamA && match.teamB && brackets.length > 0) {
+        if (isEditingLineup && match.teamA && match.teamB) {
           return (
             <div className="mb-4">
-              <BracketLineupEditor
+              <InlineLineupEditor
                 matchId={match.id}
                 stopId={stopId}
-                brackets={brackets.map(bracket => ({
-                  bracketId: bracket.bracketId,
-                  bracketName: bracket.bracketName,
-                  teamA: match.teamA!,
-                  teamB: match.teamB!,
-                }))}
-                existingLineups={lineups}
-                onSave={(savedLineups) => {
-                  onLineupSave(match.id, savedLineups);
-                  setIsEditingLineup(false);
+                teamA={match.teamA}
+                teamB={match.teamB}
+                lineups={lineups}
+                prefetchedTeamRosters={{
+                  teamA: teamRosters[match.teamA.id] || [],
+                  teamB: teamRosters[match.teamB.id] || [],
+                }}
+                teamRosters={teamRosters}
+                onSave={async (lineupData) => {
+                  try {
+                    if (lineupData.teamA.length !== 4 || lineupData.teamB.length !== 4) {
+                      throw new Error(`Invalid lineup: Team A has ${lineupData.teamA.length} players, Team B has ${lineupData.teamB.length} players. Need exactly 4 each.`);
+                    }
+
+                    await onLineupSave(match.id, lineupData, match.teamA!.id, match.teamB!.id);
+                    setIsEditingLineup(false);
+                  } catch (error) {
+                    onError(error instanceof Error ? error.message : 'Failed to save lineups');
+                  }
                 }}
                 onCancel={() => setIsEditingLineup(false)}
               />
@@ -509,30 +507,92 @@ export function BracketMatch({ match, stopId, lineups, teamRosters, onUpdate, on
         }
 
         // If no lineups set yet, show button to set them (only if no games started)
-        if (!hasAllLineups && !hasLineupsInGames && !isDecided && !hasAnyGameStarted) {
+        if (!hasLineups && !isDecided && !hasAnyGameStarted) {
           return (
             <div className="bg-surface-2 rounded-lg p-6 text-center mb-4">
-              <p className="text-muted mb-3">Lineups must be set for each bracket before games can begin</p>
+              <p className="text-muted mb-3">Lineups must be set before games can begin</p>
               <button
                 className="btn btn-secondary"
                 onClick={() => setIsEditingLineup(true)}
               >
-                Set Lineups for All Brackets
+                Set Lineups
               </button>
             </div>
           );
         }
 
-        // If lineups exist, show edit button (only if no games started and not decided)
-        if ((hasAllLineups || hasLineupsInGames) && !isDecided && !hasAnyGameStarted) {
+        // If lineups exist, show edit button and lineup display (only if no games started and not decided)
+        if (hasLineups && !isDecided && !hasAnyGameStarted) {
           return (
-            <div className="flex justify-center mb-4">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setIsEditingLineup(true)}
-              >
-                Edit Lineups
-              </button>
+            <div className="mb-4">
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                {/* Team A Lineup */}
+                <div className="rounded-lg border-2 border-border-medium bg-surface-2 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-primary">
+                      {match.teamA?.name || 'Team A'}
+                    </h4>
+                    {teamALineup.length === 4 && (
+                      <span className="chip chip-success text-[10px] px-2 py-0.5">Ready</span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {teamALineup.length > 0 ? (
+                      teamALineup.map((player: any, idx: number) => (
+                        <div key={`teamA-${idx}-${player.id}`} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
+                          <span className="text-muted font-semibold w-5">{idx + 1}.</span>
+                          <span className="text-secondary flex-1">{player.name}</span>
+                          <span className={`chip text-[10px] px-2 py-0.5 ${
+                            player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
+                          }`}>
+                            {player.gender === 'MALE' ? 'M' : 'F'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-muted text-xs">No lineup set</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Team B Lineup */}
+                <div className="rounded-lg border-2 border-border-medium bg-surface-2 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-primary">
+                      {match.teamB?.name || 'Team B'}
+                    </h4>
+                    {teamBLineup.length === 4 && (
+                      <span className="chip chip-success text-[10px] px-2 py-0.5">Ready</span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {teamBLineup.length > 0 ? (
+                      teamBLineup.map((player: any, idx: number) => (
+                        <div key={`teamB-${idx}-${player.id}`} className="flex items-center gap-2 text-sm bg-surface-1 px-3 py-2 rounded">
+                          <span className="text-muted font-semibold w-5">{idx + 1}.</span>
+                          <span className="text-secondary flex-1">{player.name}</span>
+                          <span className={`chip text-[10px] px-2 py-0.5 ${
+                            player.gender === 'MALE' ? 'chip-info' : 'chip-accent'
+                          }`}>
+                            {player.gender === 'MALE' ? 'M' : 'F'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-muted text-xs">No lineup set</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setIsEditingLineup(true)}
+                >
+                  Edit Lineups
+                </button>
+              </div>
             </div>
           );
         }

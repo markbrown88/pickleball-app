@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BracketRound } from './BracketRound';
 import { BracketVisualization } from './BracketVisualization';
 import { EventManagerTournament, PlayerLite } from '../shared/types';
+import { getLineupsForRound } from '@/lib/lineupHelpers';
 
 interface BracketMatchManagerProps {
   tournament: EventManagerTournament;
@@ -69,6 +70,20 @@ export function BracketMatchManager({
   useEffect(() => {
     loadBracketData();
   }, [stopId]);
+
+  // Load lineups for the stop using the new Lineup/LineupEntry schema
+  const loadLineupsForStop = async (stopId: string) => {
+    try {
+      const response = await fetch(`/api/admin/stops/${stopId}/lineups`);
+      if (response.ok) {
+        const lineupsData = await response.json();
+        // lineupsData structure: { matchId: { teamId: [player1, player2, player3, player4] } }
+        setLineups(lineupsData);
+      }
+    } catch (error) {
+      console.error('Error loading lineups for stop:', error);
+    }
+  };
 
   async function loadBracketData() {
     try {
@@ -224,27 +239,8 @@ export function BracketMatchManager({
 
       }
 
-      // Extract lineups from games and populate the lineups state
-      // Structure: bracketId -> teamId -> players
-      const loadedLineups: Record<string, Record<string, PlayerLite[]>> = {};
-      for (const round of roundsData) {
-        for (const match of round.matches) {
-          if (!match.teamA || !match.teamB) continue;
-
-          // Group games by bracket and extract lineups
-          for (const game of match.games) {
-            if (game.bracketId && game.teamALineup && game.teamBLineup) {
-              if (!loadedLineups[game.bracketId]) {
-                loadedLineups[game.bracketId] = {};
-              }
-              // Store lineups by bracket -> team
-              loadedLineups[game.bracketId][match.teamA.id] = game.teamALineup;
-              loadedLineups[game.bracketId][match.teamB.id] = game.teamBLineup;
-            }
-          }
-        }
-      }
-      setLineups(loadedLineups);
+      // Load lineups for this stop using the new Lineup/LineupEntry schema
+      await loadLineupsForStop(stopId);
 
       // Auto-expand incomplete rounds
       const incomplete = new Set<string>();
@@ -280,30 +276,43 @@ export function BracketMatchManager({
     await loadBracketData();
   };
 
-  const handleLineupSave = async (matchId: string, savedLineups: Record<string, Record<string, PlayerLite[]>>) => {
-    // savedLineups structure: bracketId -> teamId -> players
+  const handleLineupSave = async (matchId: string, lineupData: { teamA: PlayerLite[]; teamB: PlayerLite[] }, teamAId: string, teamBId: string) => {
     try {
-      // Save lineups for each bracket separately
-      const response = await fetch(`/api/admin/matches/${matchId}/bracket-lineups`, {
-        method: 'PATCH',
+      // Validate lineup format
+      if (lineupData.teamA.length !== 4 || lineupData.teamB.length !== 4) {
+        throw new Error(`Invalid lineup: Team A has ${lineupData.teamA.length} players, Team B has ${lineupData.teamB.length} players. Need exactly 4 each.`);
+      }
+
+      // Save using the new Lineup/LineupEntry schema
+      const response = await fetch(`/api/admin/stops/${stopId}/lineups`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lineupsByBracket: savedLineups,
+          lineups: {
+            [matchId]: {
+              [teamAId]: lineupData.teamA,
+              [teamBId]: lineupData.teamB,
+            },
+          },
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save lineups');
+        const errorText = await response.text();
+        throw new Error(`Save failed: ${response.status} ${errorText}`);
       }
 
-      // Update lineups state (merge with existing)
+      // Update local state
       setLineups(prev => ({
         ...prev,
-        ...savedLineups,
+        [matchId]: {
+          [teamAId]: lineupData.teamA,
+          [teamBId]: lineupData.teamB,
+        },
       }));
 
-      onInfo('Lineups saved successfully for all brackets!');
-      // Reload to get updated game data with lineups
+      onInfo('Lineups saved successfully!');
+      // Reload to get updated bracket data
       await loadBracketData();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to save lineups');

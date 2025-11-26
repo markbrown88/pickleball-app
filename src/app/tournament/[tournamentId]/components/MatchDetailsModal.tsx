@@ -100,13 +100,13 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-surface rounded-lg border border-subtle max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-gray-900 rounded-lg border border-subtle max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-surface border-b border-subtle px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-gray-900 border-b border-subtle px-6 py-4 flex items-center justify-between">
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-primary">Match Details</h2>
+            <h2 className="text-lg font-bold text-primary">Match Details</h2>
             {isComplete && (
               <p className="text-sm text-success mt-1">Match Complete</p>
             )}
@@ -131,7 +131,7 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
           <div className="grid grid-cols-3 gap-4 items-center">
             {/* Team A */}
             <div className={`text-center ${match.winnerId === match.teamA?.id ? 'opacity-100' : 'opacity-60'}`}>
-              <div className="text-lg font-bold text-primary">
+              <div className="text-base font-bold text-primary">
                 {match.teamA?.name || 'TBD'}
               </div>
               {match.teamA?.club && (
@@ -144,7 +144,7 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
 
             {/* Score */}
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">
+              <div className="text-2xl font-bold text-primary">
                 {gamesWon.teamA} - {gamesWon.teamB}
               </div>
               <div className="text-xs text-muted mt-1">Games Won</div>
@@ -152,7 +152,7 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
 
             {/* Team B */}
             <div className={`text-center ${match.winnerId === match.teamB?.id ? 'opacity-100' : 'opacity-60'}`}>
-              <div className="text-lg font-bold text-primary">
+              <div className="text-base font-bold text-primary">
                 {match.teamB?.name || 'TBD'}
               </div>
               {match.teamB?.club && (
@@ -167,7 +167,7 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
 
         {/* Games List */}
         <div className="px-6 py-4">
-          <h3 className="text-lg font-semibold text-primary mb-4">Games</h3>
+          <h3 className="text-base font-semibold text-primary mb-4">Games</h3>
           <div className="space-y-3">
             {match.games.map((game) => {
               const gameWinner =
@@ -199,7 +199,7 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
                       )}
                     </div>
                     {game.isComplete && (
-                      <div className="text-lg font-bold text-primary">
+                      <div className="text-base font-bold text-primary">
                         {game.teamAScore} - {game.teamBScore}
                       </div>
                     )}
@@ -253,7 +253,7 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-surface border-t border-subtle px-6 py-4 flex justify-end">
+        <div className="sticky bottom-0 bg-gray-900 border-t border-subtle px-6 py-4 flex justify-end">
           <button
             onClick={onClose}
             className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/80 transition-colors"
