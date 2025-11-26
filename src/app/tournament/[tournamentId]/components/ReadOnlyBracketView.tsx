@@ -298,8 +298,8 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
             matches={safeBracketData}
             matchComponent={CustomBracketMatch}
             onMatchClick={handleMatchClick}
-            svgWrapper={({ children, bracketWidth, ...props }) => (
-              <svg {...props} width={finalWidth}>
+            svgWrapper={({ children, width, height, ...props }) => (
+              <svg {...props} width={finalWidth} height={height}>
                 {children}
               </svg>
             )}
