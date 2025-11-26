@@ -27,7 +27,7 @@ export async function PATCH(
     const updateData: any = {
       teamAScore: teamAScore !== undefined ? teamAScore : undefined,
       teamBScore: teamBScore !== undefined ? teamBScore : undefined,
-      courtNumber: courtNumber !== undefined ? courtNumber : undefined,
+      courtNumber: courtNumber !== undefined ? (courtNumber === null ? null : String(courtNumber)) : undefined,
       isComplete: isComplete !== undefined ? isComplete : undefined,
       status: status !== undefined ? status : undefined,
       startedAt: startedAt !== undefined ? (startedAt ? new Date(startedAt) : null) : undefined,
