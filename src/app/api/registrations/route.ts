@@ -403,11 +403,12 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Get existing registration to check amount already paid
+        // Get existing registration to check amount already paid and payment status
         const existingReg = await tx.tournamentRegistration.findUnique({
           where: { id: existingRegistrationId },
           select: {
             amountPaid: true,
+            paymentStatus: true,
             notes: true,
           },
         });
@@ -465,11 +466,21 @@ export async function POST(request: NextRequest) {
         }
         
         // Update existing registration
+        // Preserve existing payment status if already PAID or COMPLETED to prevent sending duplicate emails
+        // Only update payment status if it's still PENDING or FAILED
+        const existingPaymentStatus = existingReg?.paymentStatus;
+        const shouldPreservePaymentStatus = existingPaymentStatus === 'PAID' || existingPaymentStatus === 'COMPLETED';
+        const newPaymentStatus = shouldPreservePaymentStatus
+          ? existingPaymentStatus
+          : tournament.registrationType === 'FREE' 
+            ? 'COMPLETED' 
+            : 'PENDING';
+        
         registration = await tx.tournamentRegistration.update({
           where: { id: existingRegistrationId },
           data: {
-            // Update payment status if needed (if it was PENDING and now FREE, or vice versa)
-            paymentStatus: tournament.registrationType === 'FREE' ? 'COMPLETED' : 'PENDING',
+            // Only update payment status if not already PAID/COMPLETED (prevents duplicate emails on back button)
+            paymentStatus: newPaymentStatus,
             // Don't update amountPaid here - webhook will update it when payment is confirmed
             // amountPaid should only reflect what was actually paid, not what we expect to charge
             notes: JSON.stringify({
@@ -742,8 +753,9 @@ export async function POST(request: NextRequest) {
         console.error('[Registration] Failed to send confirmation email:', emailError);
         // Don't fail the registration if email fails
       }
-    } else if (tournament.registrationType === 'PAID' && registration.paymentStatus === 'PENDING') {
+    } else if (tournament.registrationType === 'PAID' && registration.paymentStatus === 'PENDING' && !registration.paymentId) {
       // Send immediate payment reminder email for paid tournaments with pending payment
+      // Only send if paymentId is null (payment not yet processed) to prevent duplicate emails
       try {
         // Get player and tournament details for email
         const [playerDetails, tournamentDetails, brackets] = await Promise.all([
