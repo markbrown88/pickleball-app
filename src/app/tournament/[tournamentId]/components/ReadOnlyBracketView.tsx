@@ -293,32 +293,21 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
         }}
       />
       <div className="w-full bg-surface rounded-lg border border-subtle p-2 md:p-4 overflow-x-auto overflow-y-visible bracket-container">
-        <div style={{ width: finalWidth, padding: '20px 0' }}>
-          <DoubleEliminationBracket
-            matches={safeBracketData}
-            matchComponent={CustomBracketMatch}
-            onMatchClick={handleMatchClick}
-            svgWrapper={({ children, width, height, ...props }: any) => {
-              // Filter out invalid React props
-              const { bracketWidth, bracketHeight, startAt, ...validProps } = props;
-              return (
-                <svg {...validProps} width={finalWidth} height={height}>
-                  {children}
-                </svg>
-              );
-            }}
-            options={{
-              style: {
-                roundHeader: {
-                  backgroundColor: '#1f2937',
-                  fontColor: '#fff',
-                },
-                connectorColor: '#374151',
-                connectorColorHighlight: '#3b82f6',
+        <DoubleEliminationBracket
+          matches={safeBracketData}
+          matchComponent={CustomBracketMatch}
+          onMatchClick={handleMatchClick}
+          options={{
+            style: {
+              roundHeader: {
+                backgroundColor: '#1f2937',
+                fontColor: '#fff',
               },
-            }}
-          />
-        </div>
+              connectorColor: '#374151',
+              connectorColorHighlight: '#3b82f6',
+            },
+          }}
+        />
       </div>
 
       {/* Read-only Match Details Modal */}
