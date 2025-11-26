@@ -298,6 +298,11 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
             matches={safeBracketData}
             matchComponent={CustomBracketMatch}
             onMatchClick={handleMatchClick}
+            svgWrapper={({ children, ...props }) => (
+              <svg {...props} width={finalWidth}>
+                {children}
+              </svg>
+            )}
             options={{
               style: {
                 roundHeader: {
