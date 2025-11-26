@@ -48,6 +48,7 @@ export async function GET(req: Request, ctx: Ctx) {
                     teamBScore: true,
                     isComplete: true,
                     startedAt: true,
+                    courtNumber: true,
                   }
                 }
               }
@@ -125,6 +126,7 @@ export async function GET(req: Request, ctx: Ctx) {
                     teamBScore: game.teamBScore,
                     isComplete: game.isComplete ?? false,
                     startedAt: game.startedAt,
+                    courtNumber: game.courtNumber,
                     teamALineup: [teamAPlayer1, teamAPlayer2].filter(Boolean),
                     teamBLineup: [teamBPlayer1, teamBPlayer2].filter(Boolean)
                   };

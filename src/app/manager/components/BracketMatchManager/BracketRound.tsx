@@ -18,6 +18,7 @@ interface BracketRoundProps {
     matches: any[];
   };
   stopId: string;
+  tournamentType: string;
   lineups: Record<string, Record<string, PlayerLite[]>>;
   teamRosters: Record<string, PlayerLite[]>;
   isExpanded: boolean;
@@ -31,6 +32,7 @@ interface BracketRoundProps {
 export function BracketRound({
   round,
   stopId,
+  tournamentType,
   lineups,
   teamRosters,
   isExpanded,
@@ -102,6 +104,7 @@ export function BracketRound({
               match={match}
               roundId={round.id}
               stopId={stopId}
+              tournamentType={tournamentType}
               lineups={lineups}
               teamRosters={teamRosters}
               onUpdate={onMatchUpdate}

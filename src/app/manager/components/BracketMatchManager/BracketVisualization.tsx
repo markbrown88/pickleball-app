@@ -49,6 +49,7 @@ interface Game {
 
 interface BracketVisualizationProps {
   rounds: Round[];
+  tournamentType: string;
   lineups: Record<string, Record<string, any[]>>; // bracketId -> teamId -> players
   onMatchUpdate?: () => void;
   onError?: (message: string) => void;
@@ -78,6 +79,7 @@ function useWindowSize() {
 
 export function BracketVisualization({
   rounds,
+  tournamentType,
   lineups,
   onMatchUpdate,
   onError,
@@ -106,7 +108,7 @@ export function BracketVisualization({
       return { upper: [], lower: [] };
     }
     try {
-      const transformed = transformRoundsToBracketFormat(rounds);
+      const transformed = transformRoundsToBracketFormat(rounds, tournamentType);
       
       
       // Ensure we have valid arrays (filter out any undefined/null entries)

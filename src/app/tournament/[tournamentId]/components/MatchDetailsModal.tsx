@@ -24,6 +24,7 @@ interface Game {
   teamBScore: number | null;
   isComplete: boolean;
   startedAt: string | null;
+  courtNumber?: string | null;
   teamALineup?: Player[];
   teamBLineup?: Player[];
 }
@@ -187,6 +188,11 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
                       <h4 className="font-semibold text-primary">
                         {GAME_SLOT_LABELS[game.slot] || game.slot}
                       </h4>
+                      {game.courtNumber && (
+                        <span className="text-xs bg-info/20 text-info px-2 py-0.5 rounded">
+                          Court {game.courtNumber}
+                        </span>
+                      )}
                       {game.isComplete && (
                         <span className="text-xs bg-success/20 text-success px-2 py-0.5 rounded">
                           Complete

@@ -486,6 +486,7 @@ export function BracketMatchManager({
       {viewMode === 'diagram' ? (
         <BracketVisualization
           rounds={rounds}
+          tournamentType={tournament.type}
           lineups={lineups}
           onMatchUpdate={handleMatchUpdate}
           onError={onError}
@@ -505,6 +506,7 @@ export function BracketMatchManager({
                   key={round.id}
                   round={round}
                   stopId={stopId}
+                  tournamentType={tournament.type}
                   lineups={lineups}
                   teamRosters={teamRosters}
                   isExpanded={expandedRounds.has(round.id)}
@@ -530,6 +532,7 @@ export function BracketMatchManager({
                   key={round.id}
                   round={round}
                   stopId={stopId}
+                  tournamentType={tournament.type}
                   lineups={lineups}
                   teamRosters={teamRosters}
                   isExpanded={expandedRounds.has(round.id)}
@@ -555,6 +558,7 @@ export function BracketMatchManager({
                   key={round.id}
                   round={round}
                   stopId={stopId}
+                  tournamentType={tournament.type}
                   lineups={lineups}
                   teamRosters={teamRosters}
                   isExpanded={expandedRounds.has(round.id)}

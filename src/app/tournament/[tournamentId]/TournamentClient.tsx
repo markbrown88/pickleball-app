@@ -406,7 +406,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
             {outcome.games.map(({ game, started, completed }) => (
               <div key={game.id} className="border border-subtle rounded p-2">
                 <div className="flex items-center justify-between text-xs text-muted mb-1">
-                  <span className="uppercase tracking-wide">{game.slot.replace('_', ' ')}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="uppercase tracking-wide">{game.slot.replace('_', ' ')}</span>
+                    {game.courtNumber && (
+                      <span className="bg-info/20 text-info px-1.5 py-0.5 rounded text-xs">
+                        Court {game.courtNumber}
+                      </span>
+                    )}
+                  </div>
                   {variant === 'in-progress' && (
                     <span>
                       {completed
@@ -940,8 +947,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </nav>
               </div>
 
-              {/* Games Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-3 p-1 md:p-4">
+              {/* Games Section - 2 Column Layout for Double Elimination */}
+              <div className={`grid ${isDoubleElimination && view === 'matches' ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'} gap-1 md:gap-3 p-1 md:p-4`}>
                 <MatchList
                   title="In Progress"
                   iconColor="bg-warning"

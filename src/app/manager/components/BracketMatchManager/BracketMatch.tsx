@@ -32,8 +32,8 @@ function shortenLineupName(name?: string | null): string {
 interface BracketMatchProps {
   match: {
     id: string;
-    teamA: { id: string; name: string } | null;
-    teamB: { id: string; name: string } | null;
+    teamA: { id: string; name: string; club?: { name: string } | null } | null;
+    teamB: { id: string; name: string; club?: { name: string } | null } | null;
     seedA: number | null;
     seedB: number | null;
     isBye: boolean;
@@ -58,6 +58,7 @@ interface BracketMatchProps {
   };
   roundId: string;
   stopId: string;
+  tournamentType: string;
   lineups: Record<string, Record<string, PlayerLite[]>>; // matchId -> teamId -> players
   teamRosters: Record<string, PlayerLite[]>;
   onUpdate: () => void;
@@ -66,7 +67,7 @@ interface BracketMatchProps {
   onLineupSave: (matchId: string, lineupData: { teamA: PlayerLite[]; teamB: PlayerLite[] }, teamAId: string, teamBId: string) => void;
 }
 
-export function BracketMatch({ match, roundId, stopId, lineups, teamRosters, onUpdate, onError, onInfo, onLineupSave }: BracketMatchProps) {
+export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, teamRosters, onUpdate, onError, onInfo, onLineupSave }: BracketMatchProps) {
   const [updating, setUpdating] = useState(false);
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
   const [isEditingLineup, setIsEditingLineup] = useState(false);
@@ -370,8 +371,14 @@ export function BracketMatch({ match, roundId, stopId, lineups, teamRosters, onU
     );
   }
 
-  const cleanTeamAName = stripBracketSuffix(match.teamA.name);
-  const cleanTeamBName = stripBracketSuffix(match.teamB.name);
+  // For DE Clubs tournaments, use club names instead of team names
+  const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
+  const cleanTeamAName = isDoubleEliminationClubs && match.teamA.club?.name
+    ? match.teamA.club.name
+    : stripBracketSuffix(match.teamA.name);
+  const cleanTeamBName = isDoubleEliminationClubs && match.teamB.club?.name
+    ? match.teamB.club.name
+    : stripBracketSuffix(match.teamB.name);
 
   return (
     <div className="card">

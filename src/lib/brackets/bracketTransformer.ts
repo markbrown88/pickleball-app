@@ -15,8 +15,8 @@ interface Round {
 
 interface Match {
   id: string;
-  teamA: { id: string; name: string } | null;
-  teamB: { id: string; name: string } | null;
+  teamA: { id: string; name: string; club?: { name: string } | null } | null;
+  teamB: { id: string; name: string; club?: { name: string } | null } | null;
   seedA: number | null;
   seedB: number | null;
   isBye: boolean;
@@ -78,6 +78,24 @@ function calculateGameWins(games: Game[]): { teamAGameWins: number; teamBGameWin
 function stripBracketSuffix(name: string | undefined | null): string {
   if (!name) return '';
   return name.replace(/\s+[\d.]+$/, '').replace(/\s+(Intermediate|Advanced|Beginner)$/i, '');
+}
+
+/**
+ * Get display name for a team - uses club name for DE Clubs tournaments, otherwise uses team name
+ */
+function getTeamDisplayName(
+  team: { name: string; club?: { name: string } | null } | null | undefined,
+  tournamentType?: string
+): string {
+  if (!team) return '';
+
+  // For DOUBLE_ELIMINATION_CLUBS tournaments, prefer club name
+  if (tournamentType === 'DOUBLE_ELIMINATION_CLUBS' && team.club?.name) {
+    return team.club.name;
+  }
+
+  // Otherwise use team name with bracket suffix stripped
+  return stripBracketSuffix(team.name);
 }
 
 /**
@@ -157,7 +175,8 @@ function convertMatch(
   round: Round,
   allMatches: Map<string, Match>,
   matchToRoundMap: Map<string, Round>,
-  allRounds: Round[]
+  allRounds: Round[],
+  tournamentType?: string
 ): TournamentBracketMatch | null {
   if (!match || !match.id || !round) {
     return null;
@@ -246,7 +265,7 @@ function convertMatch(
       resultText: 'WON',
       isWinner: true,
       status: 'WALK_OVER',
-      name: stripBracketSuffix(byeTeam.name),
+      name: getTeamDisplayName(byeTeam, tournamentType),
     });
     // Add BYE as second participant (not TBD) - no status/text to avoid showing "WO"
     participants.push({
@@ -309,7 +328,7 @@ function convertMatch(
         resultText: teamAIsWinner ? `${teamAGameWins}` : (match.teamB && match.winnerId === match.teamB.id ? `${teamAGameWins}` : null),
         isWinner: teamAIsWinner,
         status: match.winnerId ? 'PLAYED' : null,
-        name: stripBracketSuffix(match.teamA.name),
+        name: getTeamDisplayName(match.teamA, tournamentType),
       });
     } else {
       const teamALabel = getSourceMatchLabel(match.sourceMatchAId, round, allMatches, matchToRoundMap, allRounds);
@@ -330,7 +349,7 @@ function convertMatch(
         resultText: teamBIsWinner ? `${teamBGameWins}` : (match.teamA && match.winnerId === match.teamA.id ? `${teamBGameWins}` : null),
         isWinner: teamBIsWinner,
         status: match.winnerId ? 'PLAYED' : null,
-        name: stripBracketSuffix(match.teamB.name),
+        name: getTeamDisplayName(match.teamB, tournamentType),
       });
     } else {
       const teamBLabel = getSourceMatchLabel(match.sourceMatchBId, round, allMatches, matchToRoundMap, allRounds);
@@ -400,7 +419,7 @@ function getRoundLabel(round: Round): string {
 /**
  * Transform rounds to react-tournament-brackets format
  */
-export function transformRoundsToBracketFormat(rounds: Round[]): {
+export function transformRoundsToBracketFormat(rounds: Round[], tournamentType?: string): {
   upper: TournamentBracketMatch[];
   lower: TournamentBracketMatch[];
 } {
@@ -450,7 +469,7 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
     });
     sortedMatches.forEach(match => {
       if (match && match.id) {
-        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
+        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds, tournamentType);
         if (converted) {
           upperMatches.push(converted);
         }
@@ -469,7 +488,7 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
     });
     sortedMatches.forEach(match => {
       if (match && match.id) {
-        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
+        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds, tournamentType);
         if (converted) {
           lowerMatches.push(converted);
         }
@@ -491,7 +510,7 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
     });
     sortedMatches.forEach(match => {
       if (match && match.id) {
-        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
+        const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds, tournamentType);
         if (converted) {
           upperMatches.push(converted);
         }

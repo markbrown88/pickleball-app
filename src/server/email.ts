@@ -1476,7 +1476,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
               <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
                 <!-- Logo -->
-                <tr style="background-color: #111827;">
+                <tr style="background-color: #1e40af;">
                   <td style="padding: 30px 30px 0 30px; text-align: center;">
                     <img src="https://klyngcup.com/images/klyng-cup.png" alt="Klyng Cup" style="max-width: 150px; height: auto; margin-bottom: 20px;" />
                   </td>
@@ -1509,11 +1509,21 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                         <strong>💰 Amount Paid:</strong> $${(amountPaid / 100).toFixed(2)}
                       </div>
 
-                      ${stopsListHtml ? '' : (dateRange !== 'Dates TBD' ? `
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>✓ Paid:</strong> ${paymentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${paymentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </div>
+
+                      ${stops && stops.length > 0 && stops[0].bracketName ? `
                         <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>📅 Dates:</strong> ${dateRange}
+                          <strong>🏆 Bracket:</strong> ${stops[0].bracketName}
                         </div>
-                      ` : '')}
+                      ` : ''}
+
+                      ${stops && stops.length > 0 ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>🏁 Stop:</strong> ${stops.length === 1 ? stops[0].name : stops.map(s => s.name).join(', ')}
+                        </div>
+                      ` : ''}
 
                       ${stopsListHtml ? '' : (location ? `
                         <div style="margin: 10px 0; font-size: 14px; color: #374151;">
@@ -1521,9 +1531,11 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                         </div>
                       ` : '')}
 
-                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                        <strong>✓ Paid:</strong> ${paymentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${paymentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                      </div>
+                      ${stopsListHtml ? '' : (dateRange !== 'Dates TBD' ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>📅 Dates:</strong> ${dateRange}
+                        </div>
+                      ` : '')}
 
                       ${transactionId ? `
                         <div style="margin: 10px 0; font-size: 14px; color: #374151;">
