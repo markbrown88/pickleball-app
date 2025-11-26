@@ -298,11 +298,15 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
             matches={safeBracketData}
             matchComponent={CustomBracketMatch}
             onMatchClick={handleMatchClick}
-            svgWrapper={({ children, width, height, ...props }) => (
-              <svg {...props} width={finalWidth} height={height}>
-                {children}
-              </svg>
-            )}
+            svgWrapper={({ children, width, height, ...props }: any) => {
+              // Filter out invalid React props
+              const { bracketWidth, bracketHeight, startAt, ...validProps } = props;
+              return (
+                <svg {...validProps} width={finalWidth} height={height}>
+                  {children}
+                </svg>
+              );
+            }}
             options={{
               style: {
                 roundHeader: {
