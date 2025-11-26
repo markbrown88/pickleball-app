@@ -46,13 +46,27 @@ export async function DELETE(
       if (matches.length > 0) {
         const matchIds = matches.map(m => m.id);
 
-        // Delete games first (due to foreign key constraints)
+        // Step 1: Clear all match references to avoid foreign key constraint violations
+        // This includes sourceMatchAId, sourceMatchBId, winnerId, teamAId, teamBId
+        await tx.match.updateMany({
+          where: { id: { in: matchIds } },
+          data: {
+            sourceMatchAId: null,
+            sourceMatchBId: null,
+            winnerId: null,
+            teamAId: null,
+            teamBId: null,
+            tiebreakerWinnerTeamId: null,
+          },
+        });
+
+        // Step 2: Delete games (due to foreign key constraints)
         const gamesResult = await tx.game.deleteMany({
           where: { matchId: { in: matchIds } },
         });
         gamesDeleted = gamesResult.count;
 
-        // Delete matches
+        // Step 3: Delete matches (now safe since references are cleared)
         const matchesResult = await tx.match.deleteMany({
           where: { id: { in: matchIds } },
         });
