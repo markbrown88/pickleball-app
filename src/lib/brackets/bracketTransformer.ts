@@ -442,7 +442,13 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   // Winner bracket (upper)
   winnerRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
-    round.matches.forEach(match => {
+    // Sort matches by bracketPosition to ensure correct display order
+    const sortedMatches = [...round.matches].sort((a, b) => {
+      const posA = a.bracketPosition ?? 0;
+      const posB = b.bracketPosition ?? 0;
+      return posA - posB;
+    });
+    sortedMatches.forEach(match => {
       if (match && match.id) {
         const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
@@ -455,7 +461,13 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
   // Loser bracket (lower)
   loserRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
-    round.matches.forEach(match => {
+    // Sort matches by bracketPosition to ensure correct display order
+    const sortedMatches = [...round.matches].sort((a, b) => {
+      const posA = a.bracketPosition ?? 0;
+      const posB = b.bracketPosition ?? 0;
+      return posA - posB;
+    });
+    sortedMatches.forEach(match => {
       if (match && match.id) {
         const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
@@ -471,7 +483,13 @@ export function transformRoundsToBracketFormat(rounds: Round[]): {
 
   sortedFinalsRounds.forEach((round, idx) => {
     if (!round || !round.matches) return;
-    round.matches.forEach(match => {
+    // Sort matches by bracketPosition to ensure correct display order
+    const sortedMatches = [...round.matches].sort((a, b) => {
+      const posA = a.bracketPosition ?? 0;
+      const posB = b.bracketPosition ?? 0;
+      return posA - posB;
+    });
+    sortedMatches.forEach(match => {
       if (match && match.id) {
         const converted = convertMatch(match, round, allMatchesMap, matchToRoundMap, rounds);
         if (converted) {
