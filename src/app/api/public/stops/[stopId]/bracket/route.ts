@@ -49,6 +49,13 @@ export async function GET(req: Request, ctx: Ctx) {
                     isComplete: true,
                     startedAt: true,
                     courtNumber: true,
+                    bracketId: true,
+                    bracket: {
+                      select: {
+                        id: true,
+                        name: true,
+                      }
+                    }
                   }
                 }
               }
@@ -127,6 +134,8 @@ export async function GET(req: Request, ctx: Ctx) {
                     isComplete: game.isComplete ?? false,
                     startedAt: game.startedAt,
                     courtNumber: game.courtNumber,
+                    bracketId: game.bracketId,
+                    bracket: game.bracket,
                     teamALineup: [teamAPlayer1, teamAPlayer2].filter(Boolean),
                     teamBLineup: [teamBPlayer1, teamBPlayer2].filter(Boolean)
                   };
