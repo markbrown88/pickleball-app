@@ -109,24 +109,18 @@ export async function GET(
 
       if (hasBrackets) {
         // For bracket-aware matches, group lineups by bracketId
+        // Find ALL lineups for this round with matching bracketIds (not just match.teamA/teamB)
         for (const bracketId of bracketIds) {
-          const teamALineupData = match.round.lineups.find(l =>
-            l.teamId === match.teamA!.id && l.bracketId === bracketId
-          );
-          const teamBLineupData = match.round.lineups.find(l =>
-            l.teamId === match.teamB!.id && l.bracketId === bracketId
-          );
+          const bracketLineups = match.round.lineups.filter(l => l.bracketId === bracketId);
 
-          if (teamALineupData || teamBLineupData) {
+          if (bracketLineups.length > 0) {
             if (!groupedLineups[bracketId!]) {
               groupedLineups[bracketId!] = {};
             }
 
-            if (teamALineupData) {
-              groupedLineups[bracketId!][match.teamA.id] = formatLineup(teamALineupData);
-            }
-            if (teamBLineupData) {
-              groupedLineups[bracketId!][match.teamB.id] = formatLineup(teamBLineupData);
+            // Add all lineups for this bracket
+            for (const lineupData of bracketLineups) {
+              groupedLineups[bracketId!][lineupData.teamId] = formatLineup(lineupData);
             }
           }
         }
