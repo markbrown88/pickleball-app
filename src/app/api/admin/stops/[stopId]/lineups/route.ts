@@ -206,7 +206,51 @@ export async function POST(
           match = matches.find(m => m.id === key);
         }
 
-        if (!match || !match.teamA || !match.teamB) continue;
+        if (!match) continue;
+
+        // For bracket-aware lineups, process each team in the teamMap directly
+        // (don't rely on match.teamA/teamB as they may be from a different bracket)
+        if (isBracketAware) {
+          for (const [teamId, lineup] of Object.entries(teamMap)) {
+            if (!Array.isArray(lineup) || lineup.length < 4) continue;
+
+            // Delete existing lineup for this team/round/bracket combination
+            await tx.lineup.deleteMany({
+              where: {
+                roundId: match.roundId,
+                teamId: teamId,
+                bracketId: currentBracketId
+              }
+            });
+
+            // Create new lineup
+            const newLineup = await tx.lineup.create({
+              data: {
+                roundId: match.roundId,
+                teamId: teamId,
+                bracketId: currentBracketId,
+                stopId: stopId
+              }
+            });
+
+            // Create lineup entries
+            const entries = mapLineupToEntries(lineup);
+            await tx.lineupEntry.createMany({
+              data: entries.map((entry) => ({
+                lineupId: newLineup.id,
+                slot: entry.slot as GameSlot,
+                player1Id: entry.player1Id!,
+                player2Id: entry.player2Id!,
+              })),
+            });
+          }
+
+          await evaluateMatchTiebreaker(tx, match.id);
+          continue; // Skip the non-bracket-aware processing below
+        }
+
+        // Non-bracket-aware processing (original logic)
+        if (!match.teamA || !match.teamB) continue;
 
         // Get the team lineups from the teamMap
         const teamAId = match.teamA.id;
