@@ -493,6 +493,7 @@ export function BracketMatchManager({
         <BracketVisualization
           rounds={rounds}
           tournamentType={tournament.type}
+          stopId={stopId}
           lineups={lineups}
           onMatchUpdate={handleMatchUpdate}
           onError={onError}

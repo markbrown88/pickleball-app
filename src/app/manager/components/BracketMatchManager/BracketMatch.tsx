@@ -156,6 +156,16 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
     }
   }, [match.teamA, match.teamB, stopId, localGames, onError]);
 
+  const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
+
+  // Load bracket teams on mount for DE Clubs tournaments
+  useEffect(() => {
+    if (isDoubleEliminationClubs && match.teamA && match.teamB) {
+      console.log('[BracketMatch] Initial mount - loading bracket teams for DE Clubs tournament');
+      loadBracketTeams();
+    }
+  }, [isDoubleEliminationClubs, loadBracketTeams, match.teamA, match.teamB]);
+
   // Game control functions for GameScoreBox
   const startGame = useCallback(async (gameId: string) => {
     try {

@@ -60,6 +60,7 @@ interface Match {
 interface BracketMatchModalProps {
   match: Match | null;
   tournamentType: string;
+  stopId: string;
   lineups: Record<string, Record<string, PlayerLite[]>>; // bracketId -> teamId -> players
   onClose: () => void;
   onUpdate: () => void;
@@ -70,6 +71,7 @@ interface BracketMatchModalProps {
 export function BracketMatchModal({
   match,
   tournamentType,
+  stopId,
   lineups,
   onClose,
   onUpdate,
@@ -83,6 +85,8 @@ export function BracketMatchModal({
     const initialGames = match?.games || [];
     return initialGames;
   });
+  const [bracketTeams, setBracketTeams] = useState<Record<string, { teamA: { id: string; name: string }; teamB: { id: string; name: string } }>>({});
+  const [loadingBracketTeams, setLoadingBracketTeams] = useState(false);
 
   // Sync localGames when match updates
   // ALWAYS sync from server data to ensure we have the latest game states (scores, statuses, etc.)
@@ -103,6 +107,87 @@ export function BracketMatchModal({
 
   // Use shared game controls hook
   const gameControls = useGameControls({ onError, onUpdate });
+
+  // Fetch bracket-specific teams for DE Clubs tournaments
+  const loadBracketTeams = useCallback(async () => {
+    if (!match?.teamA || !match?.teamB) return;
+
+    setLoadingBracketTeams(true);
+    try {
+      // Fetch all teams for this stop
+      const response = await fetch(`/api/admin/stops/${stopId}/teams`);
+      if (!response.ok) {
+        throw new Error('Failed to load teams');
+      }
+
+      const stopTeamsData = await response.json();
+
+      // Find the current match teams to get their club IDs
+      const matchTeamAData = stopTeamsData.find((st: any) => st.team.id === match.teamA!.id);
+      const matchTeamBData = stopTeamsData.find((st: any) => st.team.id === match.teamB!.id);
+
+      if (!matchTeamAData || !matchTeamBData) {
+        console.error('[BracketMatchModal] Could not find match teams in stop teams data');
+        return;
+      }
+
+      const teamAClubId = matchTeamAData.team.clubId;
+      const teamBClubId = matchTeamBData.team.clubId;
+
+      console.log('[BracketMatchModal] Loading bracket teams:', {
+        teamAClubId,
+        teamBClubId,
+        matchTeamA: match.teamA.name,
+        matchTeamB: match.teamB.name,
+      });
+
+      // Build a map of bracketId -> { teamA, teamB }
+      const teamsMap: Record<string, { teamA: { id: string; name: string }; teamB: { id: string; name: string } }> = {};
+
+      // Group all brackets from games
+      const bracketIds = new Set(localGames.filter(g => g.bracketId).map(g => g.bracketId!));
+
+      bracketIds.forEach(bracketId => {
+        // Find teams for this bracket that belong to the same clubs
+        const teamA = stopTeamsData.find((st: any) =>
+          st.team.bracketId === bracketId && st.team.clubId === teamAClubId
+        );
+
+        const teamB = stopTeamsData.find((st: any) =>
+          st.team.bracketId === bracketId && st.team.clubId === teamBClubId
+        );
+
+        if (teamA && teamB) {
+          console.log(`[BracketMatchModal] Found teams for bracket ${bracketId}:`, {
+            teamA: teamA.team.name,
+            teamB: teamB.team.name,
+          });
+          teamsMap[bracketId] = {
+            teamA: { id: teamA.team.id, name: teamA.team.name },
+            teamB: { id: teamB.team.id, name: teamB.team.name },
+          };
+        } else {
+          console.warn(`[BracketMatchModal] Could not find teams for bracket ${bracketId}`);
+        }
+      });
+
+      setBracketTeams(teamsMap);
+    } catch (error) {
+      console.error('[BracketMatchModal] Error loading bracket teams:', error);
+    } finally {
+      setLoadingBracketTeams(false);
+    }
+  }, [match, stopId, localGames]);
+
+  const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
+
+  // Load bracket teams on mount for DE Clubs tournaments
+  useEffect(() => {
+    if (isDoubleEliminationClubs && match?.teamA && match?.teamB) {
+      console.log('[BracketMatchModal] Initial mount - loading bracket teams for DE Clubs tournament');
+      loadBracketTeams();
+    }
+  }, [isDoubleEliminationClubs, loadBracketTeams, match?.teamA, match?.teamB]);
 
   // Game control functions
   const startGame = useCallback(async (gameId: string) => {
@@ -892,6 +977,7 @@ export function BracketMatchModal({
                         game={game}
                         match={match}
                         lineups={lineups}
+                        bracketTeams={bracketTeams}
                         startGame={startGame}
                         endGame={endGame}
                         reopenGame={reopenGame}

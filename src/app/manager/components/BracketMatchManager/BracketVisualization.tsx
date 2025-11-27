@@ -50,6 +50,7 @@ interface Game {
 interface BracketVisualizationProps {
   rounds: Round[];
   tournamentType: string;
+  stopId: string;
   lineups: Record<string, Record<string, any[]>>; // bracketId -> teamId -> players
   onMatchUpdate?: () => void;
   onError?: (message: string) => void;
@@ -80,6 +81,7 @@ function useWindowSize() {
 export function BracketVisualization({
   rounds,
   tournamentType,
+  stopId,
   lineups,
   onMatchUpdate,
   onError,
@@ -556,6 +558,7 @@ export function BracketVisualization({
         <BracketMatchModal
           match={selectedMatch}
           tournamentType={tournamentType}
+          stopId={stopId}
           lineups={lineups}
           onClose={handleModalClose}
           onUpdate={handleMatchUpdate}
