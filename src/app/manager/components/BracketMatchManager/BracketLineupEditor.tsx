@@ -50,19 +50,30 @@ export function BracketLineupEditor({
     setRosterError(null);
 
     try {
+      console.log('[BracketLineupEditor] Loading rosters for brackets:', brackets);
+
       // Fetch rosters for all teams
       const rosterPromises = brackets.flatMap(bracket => [
-        fetchWithActAs(`/api/admin/stops/${stopId}/teams/${bracket.teamA.id}/roster`).then(r => r.json()).then(data => ({ teamId: bracket.teamA.id, roster: data.items || [] })),
-        fetchWithActAs(`/api/admin/stops/${stopId}/teams/${bracket.teamB.id}/roster`).then(r => r.json()).then(data => ({ teamId: bracket.teamB.id, roster: data.items || [] })),
+        fetchWithActAs(`/api/admin/stops/${stopId}/teams/${bracket.teamA.id}/roster`).then(r => r.json()).then(data => ({ bracketId: bracket.bracketId, bracketName: bracket.bracketName, teamId: bracket.teamA.id, teamName: bracket.teamA.name, roster: data.items || [] })),
+        fetchWithActAs(`/api/admin/stops/${stopId}/teams/${bracket.teamB.id}/roster`).then(r => r.json()).then(data => ({ bracketId: bracket.bracketId, bracketName: bracket.bracketName, teamId: bracket.teamB.id, teamName: bracket.teamB.name, roster: data.items || [] })),
       ]);
 
       const rosterResults = await Promise.all(rosterPromises);
+
+      console.log('[BracketLineupEditor] Fetched rosters:', rosterResults.map(r => ({
+        bracket: r.bracketName,
+        team: r.teamName,
+        teamId: r.teamId,
+        playerCount: r.roster.length,
+        players: r.roster.map((p: any) => p.name)
+      })));
 
       const rostersMap: Record<string, PlayerLite[]> = {};
       rosterResults.forEach(({ teamId, roster }) => {
         rostersMap[teamId] = roster;
       });
 
+      console.log('[BracketLineupEditor] Rosters map keys:', Object.keys(rostersMap));
       setRosters(rostersMap);
 
       // Initialize lineups from existing or create empty
