@@ -107,7 +107,7 @@ export async function GET(
     for (const match of matches) {
       if (!match.teamA || !match.teamB) continue;
 
-      console.log(`[Lineup Load] Processing match ${match.id}, round has ${match.round.lineups.length} lineups`);
+      console.log(`[Lineup Load] Processing match ${match.id}, roundId: ${match.round.id}, round has ${match.round.lineups.length} lineups`);
 
       // Check if this match has bracket-aware games
       const bracketIds = [...new Set(match.games.map(g => g.bracketId).filter(Boolean))];
@@ -116,6 +116,7 @@ export async function GET(
       console.log(`[Lineup Load] Match has ${bracketIds.length} bracketIds:`, bracketIds);
       console.log(`[Lineup Load] Round lineups:`, match.round.lineups.map(l => ({
         id: l.id,
+        roundId: l.roundId,
         teamId: l.teamId,
         bracketId: l.bracketId,
         entriesCount: l.entries.length
