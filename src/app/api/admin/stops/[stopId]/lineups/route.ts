@@ -78,6 +78,21 @@ export async function GET(
 
     console.log(`[Lineup Load] Found ${matches.length} matches for stopId ${stopId}`);
 
+    // Log detailed match information
+    matches.forEach((m, idx) => {
+      const gameBracketIds = [...new Set(m.games.map(g => g.bracketId).filter(Boolean))];
+      console.log(`[Lineup Load] Match ${idx + 1}/${matches.length}: matchId=${m.id}, roundId=${m.roundId}, ` +
+        `teamA=${m.teamA?.id}, teamB=${m.teamB?.id}, ` +
+        `games=${m.games.length}, bracketIds=[${gameBracketIds.join(', ')}], ` +
+        `round.lineups=${m.round.lineups.length}`);
+
+      if (m.round.lineups.length > 0) {
+        m.round.lineups.forEach((lineup, lIdx) => {
+          console.log(`  Lineup ${lIdx + 1}: id=${lineup.id}, teamId=${lineup.teamId}, bracketId=${lineup.bracketId}, entries=${lineup.entries.length}`);
+        });
+      }
+    });
+
     const formatPlayer = (p: any) => p ? {
       id: p.id,
       name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
@@ -134,13 +149,18 @@ export async function GET(
           if (bracketLineups.length > 0) {
             if (!groupedLineups[bracketId!]) {
               groupedLineups[bracketId!] = {};
+              console.log(`[Lineup Load] Created new groupedLineups entry for bracketId ${bracketId}`);
             }
 
             // Add all lineups for this bracket
             for (const lineupData of bracketLineups) {
               console.log(`[Lineup Load] Adding lineup for teamId ${lineupData.teamId} to bracket ${bracketId}`);
-              groupedLineups[bracketId!][lineupData.teamId] = formatLineup(lineupData);
+              const formattedLineup = formatLineup(lineupData);
+              groupedLineups[bracketId!][lineupData.teamId] = formattedLineup;
+              console.log(`[Lineup Load] Formatted lineup:`, formattedLineup.map((p: any) => p?.name || 'empty'));
             }
+          } else {
+            console.log(`[Lineup Load] No lineups found for bracketId ${bracketId}, skipping`);
           }
         }
       } else {
