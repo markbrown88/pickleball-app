@@ -785,16 +785,29 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
           ).values()
         );
 
+        console.log('[BracketMatch] Checking if games should be shown...');
+        console.log('[BracketMatch] brackets:', brackets.map(b => b.bracketId));
+        console.log('[BracketMatch] lineups keys:', Object.keys(lineups));
+        console.log('[BracketMatch] bracketTeams keys:', Object.keys(bracketTeams));
+
         const hasAllLineupsInState = brackets.length > 0 && brackets.every(bracket => {
           const bracketLineups = lineups[bracket.bracketId];
           const bracketTeam = bracketTeams[bracket.bracketId];
 
+          console.log(`[BracketMatch] Checking bracket ${bracket.bracketId}:`);
+          console.log(`  - has bracketTeam:`, !!bracketTeam);
+          console.log(`  - has bracketLineups:`, !!bracketLineups);
+
           // For bracket-aware matches, use the correct team IDs for this specific bracket
           if (bracketTeam) {
+            const hasTeamA = bracketLineups?.[bracketTeam.teamA.id]?.length === 4;
+            const hasTeamB = bracketLineups?.[bracketTeam.teamB.id]?.length === 4;
+            console.log(`  - teamA (${bracketTeam.teamA.id}): ${hasTeamA}`);
+            console.log(`  - teamB (${bracketTeam.teamB.id}): ${hasTeamB}`);
             return (
               bracketLineups &&
-              bracketLineups[bracketTeam.teamA.id]?.length === 4 &&
-              bracketLineups[bracketTeam.teamB.id]?.length === 4
+              hasTeamA &&
+              hasTeamB
             );
           }
 
@@ -808,9 +821,15 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
           );
         });
 
+        console.log('[BracketMatch] hasAllLineupsInState:', hasAllLineupsInState);
+        console.log('[BracketMatch] hasLineupsInGames:', hasLineupsInGames);
+
         if (!hasAllLineupsInState && !hasLineupsInGames) {
+          console.log('[BracketMatch] Hiding games - no lineups found');
           return null; // Don't show games until lineups are set
         }
+
+        console.log('[BracketMatch] Showing games!');
 
         // Group games by bracket
         const gamesByBracket: Record<string, typeof localGames> = {};
