@@ -31,16 +31,24 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
     }
     
     
-    // Get or create lineup
-    const lineup = await prisma.lineup.upsert({
-      where: { roundId_teamId: { roundId, teamId } },
-      update: {},
-      create: { roundId, teamId, stopId: round.stopId },
+    // Get or create lineup (can't use upsert with null in unique constraint)
+    let lineup = await prisma.lineup.findFirst({
+      where: { roundId, teamId, bracketId: null },
       select: {
         id: true,
         teamId: true
       }
     });
+
+    if (!lineup) {
+      lineup = await prisma.lineup.create({
+        data: { roundId, teamId, bracketId: null, stopId: round.stopId },
+        select: {
+          id: true,
+          teamId: true
+        }
+      });
+    }
 
     // Get team info and roster separately
     const team = await prisma.team.findUnique({
@@ -224,13 +232,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
     
     // Save lineup using transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create or update lineup
-      const lineup = await tx.lineup.upsert({
-        where: { roundId_teamId: { roundId, teamId } },
-        update: {},
-        create: { roundId, teamId, stopId: round.stopId },
+      // Create or update lineup (can't use upsert with null in unique constraint)
+      let lineup = await tx.lineup.findFirst({
+        where: { roundId, teamId, bracketId: null },
         select: { id: true }
       });
+
+      if (!lineup) {
+        lineup = await tx.lineup.create({
+          data: { roundId, teamId, bracketId: null, stopId: round.stopId },
+          select: { id: true }
+        });
+      }
       
       // Clear existing entries
       await tx.lineupEntry.deleteMany({

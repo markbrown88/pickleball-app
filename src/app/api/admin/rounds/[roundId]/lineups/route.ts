@@ -104,7 +104,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
 
     if (toCreate.length) {
       for (const teamId of toCreate) {
-        await prisma.lineup.create({ data: { roundId, teamId, stopId: round.stopId } });
+        await prisma.lineup.create({ data: { roundId, teamId, bracketId: null, stopId: round.stopId } });
       }
     }
 
@@ -315,21 +315,27 @@ async function generateLineupsForRound(roundId: string, prismaClient: typeof pri
 
   const savedLineups = [] as typeof generatedLineups;
   for (const lineup of generatedLineups) {
-    const lineupRecord = await prismaClient.lineup.upsert({
+    // Find or create lineup (can't use upsert with null in unique constraint)
+    let lineupRecord = await prismaClient.lineup.findFirst({
       where: {
-        roundId_teamId: {
-          roundId,
-          teamId: lineup.teamId,
-        },
-      },
-      update: {},
-      create: {
         roundId,
         teamId: lineup.teamId,
-        stopId: round.stopId,
+        bracketId: null,
       },
       select: { id: true, teamId: true },
     });
+
+    if (!lineupRecord) {
+      lineupRecord = await prismaClient.lineup.create({
+        data: {
+          roundId,
+          teamId: lineup.teamId,
+          bracketId: null,
+          stopId: round.stopId,
+        },
+        select: { id: true, teamId: true },
+      });
+    }
 
     await prismaClient.lineupEntry.deleteMany({ where: { lineupId: lineupRecord.id } });
 

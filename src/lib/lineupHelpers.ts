@@ -24,9 +24,11 @@ export async function getLineupForRoundAndTeam(
   roundId: string,
   teamId: string
 ): Promise<EnrichedLineup | null> {
-  const lineup = await prisma.lineup.findUnique({
+  const lineup = await prisma.lineup.findFirst({
     where: {
-      roundId_teamId: { roundId, teamId },
+      roundId,
+      teamId,
+      bracketId: null,
     },
     include: {
       entries: {
@@ -117,7 +119,7 @@ export async function saveLineupForRoundAndTeam(
     await prisma.$transaction(async (tx) => {
       // Delete existing lineup
       await tx.lineup.deleteMany({
-        where: { roundId, teamId },
+        where: { roundId, teamId, bracketId: null },
       });
 
       // Create new lineup
@@ -125,6 +127,7 @@ export async function saveLineupForRoundAndTeam(
         data: {
           roundId,
           teamId,
+          bracketId: null,
           stopId,
         },
       });
@@ -143,7 +146,7 @@ export async function saveLineupForRoundAndTeam(
     // It's a TransactionClient, use it directly
     // Delete existing lineup
     await prisma.lineup.deleteMany({
-      where: { roundId, teamId },
+      where: { roundId, teamId, bracketId: null },
     });
 
     // Create new lineup
@@ -151,6 +154,7 @@ export async function saveLineupForRoundAndTeam(
       data: {
         roundId,
         teamId,
+        bracketId: null,
         stopId,
       },
     });
@@ -211,9 +215,11 @@ export async function isLineupComplete(
   roundId: string,
   teamId: string
 ): Promise<boolean> {
-  const lineup = await prisma.lineup.findUnique({
+  const lineup = await prisma.lineup.findFirst({
     where: {
-      roundId_teamId: { roundId, teamId },
+      roundId,
+      teamId,
+      bracketId: null,
     },
     include: {
       entries: true,
@@ -274,6 +280,6 @@ export async function deleteLineup(
   teamId: string
 ): Promise<void> {
   await prisma.lineup.deleteMany({
-    where: { roundId, teamId },
+    where: { roundId, teamId, bracketId: null },
   });
 }
