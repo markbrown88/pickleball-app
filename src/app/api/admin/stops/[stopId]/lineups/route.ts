@@ -4,6 +4,8 @@ import { LINEUP_SLOT_ORDER, mapLineupToEntries, normalizeSlot } from '@/lib/line
 import type { GameSlot } from '@prisma/client';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 
+export const dynamic = 'force-dynamic';
+
 // Retry function for database operations
 async function retryDatabaseOperation<T>(
   operation: () => Promise<T>,
