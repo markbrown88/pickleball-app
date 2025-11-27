@@ -40,7 +40,8 @@ export async function GET(request: Request, { params }: Params) {
         tournament: {
           select: {
             id: true,
-            name: true
+            name: true,
+            type: true
           }
         },
         club: {
@@ -174,7 +175,8 @@ export async function GET(request: Request, { params }: Params) {
         return {
           tournament: {
             id: tournamentClub.tournament.id,
-            name: tournamentClub.tournament.name
+            name: tournamentClub.tournament.name,
+            type: tournamentClub.tournament.type
           },
           club: {
             id: tournamentClub.club.id,

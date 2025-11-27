@@ -195,11 +195,11 @@ export async function GET(request: Request, { params }: Params) {
         // Determine which team is the opponent
         const isTeamA = currentMatch.teamA?.clubId === tournamentClub.clubId;
         const myTeams = isTeamA ?
-          matches.map(m => m.teamA).filter(Boolean) :
-          matches.map(m => m.teamB).filter(Boolean);
+          matches.map(m => m.teamA).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined) :
+          matches.map(m => m.teamB).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
         const opponentTeams = isTeamA ?
-          matches.map(m => m.teamB).filter(Boolean) :
-          matches.map(m => m.teamA).filter(Boolean);
+          matches.map(m => m.teamB).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined) :
+          matches.map(m => m.teamA).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
 
         const opponent = isTeamA ? currentMatch.teamB : currentMatch.teamA;
 

@@ -22,6 +22,7 @@ type CaptainPortalData = {
   tournament: {
     id: string;
     name: string;
+    type?: string;
   };
   club: {
     id: string;
@@ -49,6 +50,13 @@ export default function CaptainPortalPage({
           throw new Error('Invalid access token or tournament not found');
         }
         const result = await response.json();
+
+        // Redirect DE Clubs tournaments to the match page
+        if (result.tournament?.type === 'DOUBLE_ELIMINATION_CLUBS') {
+          router.push(`/captain/${token}/match`);
+          return;
+        }
+
         setData(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -58,7 +66,7 @@ export default function CaptainPortalPage({
     }
 
     loadData();
-  }, [token]);
+  }, [token, router]);
 
   if (loading) {
     return (
