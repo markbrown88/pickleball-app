@@ -74,11 +74,17 @@ export function BracketMatchManager({
   // Load lineups for the stop using the new Lineup/LineupEntry schema
   const loadLineupsForStop = async (stopId: string) => {
     try {
+      console.log('[BracketMatchManager] Loading lineups for stopId:', stopId);
       const response = await fetch(`/api/admin/stops/${stopId}/lineups`);
       if (response.ok) {
         const lineupsData = await response.json();
-        // lineupsData structure: { matchId: { teamId: [player1, player2, player3, player4] } }
+        console.log('[BracketMatchManager] Received lineups data:', JSON.stringify(lineupsData, null, 2));
+        console.log('[BracketMatchManager] Lineups data keys:', Object.keys(lineupsData));
+        // lineupsData structure: For bracket-aware (DE Clubs), this is { bracketId: { teamId: [players] } }
+        // For regular matches, this is { matchId: { teamId: [players] } }
         setLineups(lineupsData);
+      } else {
+        console.error('[BracketMatchManager] Failed to load lineups, status:', response.status);
       }
     } catch (error) {
       console.error('Error loading lineups for stop:', error);

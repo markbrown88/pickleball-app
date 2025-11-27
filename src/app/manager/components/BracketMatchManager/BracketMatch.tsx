@@ -603,6 +603,8 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                   existingLineups={lineups}
                   onSave={async (bracketLineups) => {
                     try {
+                      console.log('[BracketMatch] Saving bracket-aware lineups:', JSON.stringify(bracketLineups, null, 2));
+
                       // Save bracket-aware lineups via API
                       const response = await fetch(`/api/admin/stops/${stopId}/lineups`, {
                         method: 'POST',
@@ -617,10 +619,13 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                         throw new Error(`Save failed: ${response.status} ${errorText}`);
                       }
 
+                      console.log('[BracketMatch] Lineup save successful, calling onUpdate to reload data');
                       onInfo('Lineups saved successfully!');
                       setIsEditingLineup(false);
                       await onUpdate();
+                      console.log('[BracketMatch] onUpdate completed, data should be reloaded');
                     } catch (error) {
+                      console.error('[BracketMatch] Lineup save error:', error);
                       onError(error instanceof Error ? error.message : 'Failed to save lineups');
                     }
                   }}

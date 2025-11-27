@@ -77,15 +77,28 @@ export function BracketLineupEditor({
       setRosters(rostersMap);
 
       // Initialize lineups from existing or create empty
+      console.log('[BracketLineupEditor] existingLineups prop:', JSON.stringify(existingLineups, null, 2));
       const initialLineups: Record<string, Record<string, (PlayerLite | undefined)[]>> = {};
 
       brackets.forEach(bracket => {
+        console.log(`[BracketLineupEditor] Processing bracket ${bracket.bracketName} (${bracket.bracketId})`);
+        console.log(`  - teamA: ${bracket.teamA.name} (${bracket.teamA.id})`);
+        console.log(`  - teamB: ${bracket.teamB.name} (${bracket.teamB.id})`);
+        console.log(`  - existingLineups[${bracket.bracketId}]:`, existingLineups[bracket.bracketId]);
+
+        const teamALineup = existingLineups[bracket.bracketId]?.[bracket.teamA.id];
+        const teamBLineup = existingLineups[bracket.bracketId]?.[bracket.teamB.id];
+
+        console.log(`  - teamA lineup from existing:`, teamALineup);
+        console.log(`  - teamB lineup from existing:`, teamBLineup);
+
         initialLineups[bracket.bracketId] = {
-          [bracket.teamA.id]: existingLineups[bracket.bracketId]?.[bracket.teamA.id] || [undefined, undefined, undefined, undefined],
-          [bracket.teamB.id]: existingLineups[bracket.bracketId]?.[bracket.teamB.id] || [undefined, undefined, undefined, undefined],
+          [bracket.teamA.id]: teamALineup || [undefined, undefined, undefined, undefined],
+          [bracket.teamB.id]: teamBLineup || [undefined, undefined, undefined, undefined],
         };
       });
 
+      console.log('[BracketLineupEditor] Final initialLineups:', JSON.stringify(initialLineups, null, 2));
       setLineups(initialLineups);
 
       // Validate rosters
