@@ -213,6 +213,10 @@ export async function POST(
     const { stopId } = await params;
     const { lineups, bracketId } = await request.json();
 
+    console.log('[Lineup Save POST] Received request for stopId:', stopId);
+    console.log('[Lineup Save POST] Lineup keys:', Object.keys(lineups));
+    console.log('[Lineup Save POST] BracketId param:', bracketId);
+
     // Get all matches for this stop with their rounds and games
     const matches = await prisma.match.findMany({
       where: {
@@ -225,6 +229,8 @@ export async function POST(
         games: { select: { bracketId: true } }
       }
     });
+
+    console.log(`[Lineup Save POST] Found ${matches.length} matches for stopId ${stopId}`);
 
     // Process all lineup saves in a single transaction
     await prisma.$transaction(async (tx) => {
@@ -242,12 +248,21 @@ export async function POST(
           // For bracket-aware lineups, find a match that has games with this bracketId
           currentBracketId = key;
           match = matches.find(m => m.games.some(g => g.bracketId === key));
+
+          if (match) {
+            console.log(`[Lineup Save POST] Found match for bracketId ${key}: matchId=${match.id}, roundId=${match.roundId}`);
+          } else {
+            console.log(`[Lineup Save POST] No match found for bracketId ${key}`);
+          }
         } else {
           // For regular lineups, use matchId
           match = matches.find(m => m.id === key);
         }
 
-        if (!match) continue;
+        if (!match) {
+          console.log(`[Lineup Save POST] Skipping key ${key} - no match found`);
+          continue;
+        }
 
         // For bracket-aware lineups, process each team in the teamMap directly
         // (don't rely on match.teamA/teamB as they may be from a different bracket)
