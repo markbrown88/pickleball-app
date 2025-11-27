@@ -23,8 +23,8 @@ interface Round {
 
 interface Match {
   id: string;
-  teamA: { id: string; name: string } | null;
-  teamB: { id: string; name: string } | null;
+  teamA: { id: string; name: string; club?: { name: string } | null } | null;
+  teamB: { id: string; name: string; club?: { name: string } | null } | null;
   seedA: number | null;
   seedB: number | null;
   isBye: boolean;
@@ -555,6 +555,7 @@ export function BracketVisualization({
       {selectedMatch && (
         <BracketMatchModal
           match={selectedMatch}
+          tournamentType={tournamentType}
           lineups={lineups}
           onClose={handleModalClose}
           onUpdate={handleMatchUpdate}

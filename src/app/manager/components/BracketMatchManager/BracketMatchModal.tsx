@@ -43,8 +43,8 @@ interface Game {
 
 interface Match {
   id: string;
-  teamA: { id: string; name: string } | null;
-  teamB: { id: string; name: string } | null;
+  teamA: { id: string; name: string; club?: { name: string } | null } | null;
+  teamB: { id: string; name: string; club?: { name: string } | null } | null;
   seedA: number | null;
   seedB: number | null;
   isBye: boolean;
@@ -59,6 +59,7 @@ interface Match {
 
 interface BracketMatchModalProps {
   match: Match | null;
+  tournamentType: string;
   lineups: Record<string, Record<string, PlayerLite[]>>; // bracketId -> teamId -> players
   onClose: () => void;
   onUpdate: () => void;
@@ -68,6 +69,7 @@ interface BracketMatchModalProps {
 
 export function BracketMatchModal({
   match,
+  tournamentType,
   lineups,
   onClose,
   onUpdate,
@@ -247,8 +249,17 @@ export function BracketMatchModal({
 
   if (!match) return null;
 
+  // For DE Clubs tournaments, use club names instead of team names
+  const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
+  const cleanTeamAName = isDoubleEliminationClubs && match.teamA?.club?.name
+    ? match.teamA.club.name
+    : stripBracketSuffix(match.teamA?.name || '');
+  const cleanTeamBName = isDoubleEliminationClubs && match.teamB?.club?.name
+    ? match.teamB.club.name
+    : stripBracketSuffix(match.teamB?.name || '');
+
   const handleDecideByPoints = async () => {
-    const confirmMessage = `Confirm using total points to decide ${match.teamA?.name} vs ${match.teamB?.name}?`;
+    const confirmMessage = `Confirm using total points to decide ${cleanTeamAName} vs ${cleanTeamBName}?`;
     if (!window.confirm(confirmMessage)) {
       return;
     }
@@ -325,8 +336,8 @@ export function BracketMatchModal({
   };
 
   const handleForfeit = async (forfeitTeam: 'A' | 'B') => {
-    const forfeitingTeamName = forfeitTeam === 'A' ? (match.teamA?.name || 'Team A') : (match.teamB?.name || 'Team B');
-    const winningTeamName = forfeitTeam === 'A' ? (match.teamB?.name || 'Team B') : (match.teamA?.name || 'Team A');
+    const forfeitingTeamName = forfeitTeam === 'A' ? (cleanTeamAName || 'Team A') : (cleanTeamBName || 'Team B');
+    const winningTeamName = forfeitTeam === 'A' ? (cleanTeamBName || 'Team B') : (cleanTeamAName || 'Team A');
 
     const confirmMessage = `${forfeitingTeamName} will forfeit to ${winningTeamName}. Continue?`;
     if (!window.confirm(confirmMessage)) {
@@ -632,15 +643,11 @@ export function BracketMatchModal({
   
   // Check if winner should advance to next round
   const winnerId = match.winnerId || match.tiebreakerWinnerTeamId;
-  const winnerName = winnerId === match.teamA?.id 
-    ? match.teamA?.name 
-    : winnerId === match.teamB?.id 
-    ? match.teamB?.name 
+  const winnerName = winnerId === match.teamA?.id
+    ? match.teamA?.name
+    : winnerId === match.teamB?.id
+    ? match.teamB?.name
     : null;
-  
-
-  const cleanTeamAName = stripBracketSuffix(match.teamA?.name || '');
-  const cleanTeamBName = stripBracketSuffix(match.teamB?.name || '');
 
   // Handle bye matches
   if (match.isBye) {
@@ -650,7 +657,7 @@ export function BracketMatchModal({
           <div className="text-center">
             <h3 className="text-xl font-bold text-white mb-3">BYE Match</h3>
             <p className="text-gray-400">
-              {match.teamA?.name || 'TBD'} automatically advances
+              {cleanTeamAName || 'TBD'} automatically advances
             </p>
             <button
               onClick={onClose}

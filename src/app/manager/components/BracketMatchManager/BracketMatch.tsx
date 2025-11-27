@@ -339,6 +339,11 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
 
   // Handle bye matches
   if (match.isBye) {
+    const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
+    const byeTeamName = isDoubleEliminationClubs && match.teamA?.club?.name
+      ? match.teamA.club.name
+      : stripBracketSuffix(match.teamA?.name || 'TBD');
+
     return (
       <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
         <div className="flex items-center gap-3">
@@ -350,7 +355,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                 </span>
               )}
               <span className="font-semibold text-white">
-                {match.teamA?.name || 'TBD'}
+                {byeTeamName}
               </span>
             </div>
           </div>
