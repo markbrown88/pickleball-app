@@ -126,15 +126,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       // Create or update lineup
       const lineupRecord = await prisma.lineup.upsert({
         where: {
-          roundId_teamId: {
+          roundId_teamId_bracketId: {
             roundId,
-            teamId: lineup.teamId
+            teamId: lineup.teamId,
+            bracketId: null
           }
         },
         update: {},
         create: {
           roundId,
           teamId: lineup.teamId,
+          bracketId: null,
           stopId: round.stopId
         },
         select: { id: true }
