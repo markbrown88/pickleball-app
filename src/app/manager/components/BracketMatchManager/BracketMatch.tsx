@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { InlineLineupEditor } from '../shared/InlineLineupEditor';
+import { BracketLineupEditor } from './BracketLineupEditor';
 import { PlayerLite } from '../shared/types';
 import { GameScoreBox } from '../shared/GameScoreBox';
 import { useGameControls } from '../../hooks/useGameControls';
@@ -487,6 +488,62 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
 
         // Show lineup editor if editing
         if (isEditingLineup && match.teamA && match.teamB) {
+          // For DE Clubs tournaments with multiple brackets, use BracketLineupEditor
+          if (isDoubleEliminationClubs) {
+            // Extract brackets from games
+            const brackets = Array.from(
+              new Map(
+                localGames
+                  .filter(g => g.bracket && g.bracketId)
+                  .map(g => [
+                    g.bracketId!,
+                    {
+                      bracketId: g.bracketId!,
+                      bracketName: g.bracket!.name,
+                      teamA: { id: match.teamA!.id, name: match.teamA!.name },
+                      teamB: { id: match.teamB!.id, name: match.teamB!.name },
+                    }
+                  ])
+              ).values()
+            );
+
+            return (
+              <div className="mb-4">
+                <BracketLineupEditor
+                  matchId={match.id}
+                  stopId={stopId}
+                  brackets={brackets}
+                  existingLineups={lineups}
+                  onSave={async (bracketLineups) => {
+                    try {
+                      // Save bracket-aware lineups via API
+                      const response = await fetch(`/api/admin/stops/${stopId}/lineups`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          lineups: bracketLineups,
+                        }),
+                      });
+
+                      if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Save failed: ${response.status} ${errorText}`);
+                      }
+
+                      onInfo('Lineups saved successfully!');
+                      setIsEditingLineup(false);
+                      await onUpdate();
+                    } catch (error) {
+                      onError(error instanceof Error ? error.message : 'Failed to save lineups');
+                    }
+                  }}
+                  onCancel={() => setIsEditingLineup(false)}
+                />
+              </div>
+            );
+          }
+
+          // For regular tournaments, use InlineLineupEditor
           return (
             <div className="mb-4">
               <InlineLineupEditor

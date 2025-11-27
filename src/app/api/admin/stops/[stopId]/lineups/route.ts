@@ -32,7 +32,7 @@ export async function GET(
     // Initialize grouped lineups
     const groupedLineups: Record<string, Record<string, any[]>> = {};
 
-    // Get all matches for this stop with their lineups
+    // Get all matches for this stop with their lineups and games
     const matches = await prisma.match.findMany({
       where: {
         round: { stopId }
@@ -40,6 +40,7 @@ export async function GET(
       include: {
         teamA: { select: { id: true } },
         teamB: { select: { id: true } },
+        games: { select: { bracketId: true } },
         round: {
           include: {
             lineups: {
@@ -73,77 +74,82 @@ export async function GET(
       }
     });
 
+    const formatPlayer = (p: any) => p ? {
+      id: p.id,
+      name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+      gender: p.gender,
+    } : undefined;
+
+    const formatLineup = (lineupData: any) => {
+      const lineup = new Array(4).fill(undefined);
+
+      const mensDoubles = lineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
+      const womensDoubles = lineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
+
+      if (mensDoubles) {
+        if (mensDoubles.player1) lineup[0] = formatPlayer(mensDoubles.player1);
+        if (mensDoubles.player2) lineup[1] = formatPlayer(mensDoubles.player2);
+      }
+
+      if (womensDoubles) {
+        if (womensDoubles.player1) lineup[2] = formatPlayer(womensDoubles.player1);
+        if (womensDoubles.player2) lineup[3] = formatPlayer(womensDoubles.player2);
+      }
+
+      return lineup;
+    };
+
     // Process lineups for each match
     for (const match of matches) {
       if (!match.teamA || !match.teamB) continue;
 
-      const teamALineup: any[] = [];
-      const teamBLineup: any[] = [];
+      // Check if this match has bracket-aware games
+      const bracketIds = [...new Set(match.games.map(g => g.bracketId).filter(Boolean))];
+      const hasBrackets = bracketIds.length > 0;
 
-      // Find lineups for this match's teams
-      const teamALineupData = match.round.lineups.find(l => l.teamId === match.teamA!.id);
-      const teamBLineupData = match.round.lineups.find(l => l.teamId === match.teamB!.id);
+      if (hasBrackets) {
+        // For bracket-aware matches, group lineups by bracketId
+        for (const bracketId of bracketIds) {
+          const teamALineupData = match.round.lineups.find(l =>
+            l.teamId === match.teamA!.id && l.bracketId === bracketId
+          );
+          const teamBLineupData = match.round.lineups.find(l =>
+            l.teamId === match.teamB!.id && l.bracketId === bracketId
+          );
 
-      const formatPlayer = (p: any) => p ? {
-        id: p.id,
-        name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
-        gender: p.gender,
-      } : undefined;
+          if (teamALineupData || teamBLineupData) {
+            if (!groupedLineups[bracketId!]) {
+              groupedLineups[bracketId!] = {};
+            }
 
-      // Process Team A lineup
-      // Only use MENS_DOUBLES and WOMENS_DOUBLES to build the [Man1, Man2, Woman1, Woman2] array
-      // MIXED_1 and MIXED_2 are derived from these and should not overwrite them
-      if (teamALineupData) {
-        const lineup = new Array(4).fill(undefined);
-
-        const mensDoubles = teamALineupData.entries.find(e => e.slot === 'MENS_DOUBLES');
-        const womensDoubles = teamALineupData.entries.find(e => e.slot === 'WOMENS_DOUBLES');
-
-        if (mensDoubles) {
-          if (mensDoubles.player1) lineup[0] = formatPlayer(mensDoubles.player1);
-          if (mensDoubles.player2) lineup[1] = formatPlayer(mensDoubles.player2);
+            if (teamALineupData) {
+              groupedLineups[bracketId!][match.teamA.id] = formatLineup(teamALineupData);
+            }
+            if (teamBLineupData) {
+              groupedLineups[bracketId!][match.teamB.id] = formatLineup(teamBLineupData);
+            }
+          }
         }
+      } else {
+        // For non-bracket matches, use matchId as key (backwards compatibility)
+        const teamALineupData = match.round.lineups.find(l =>
+          l.teamId === match.teamA!.id && !l.bracketId
+        );
+        const teamBLineupData = match.round.lineups.find(l =>
+          l.teamId === match.teamB!.id && !l.bracketId
+        );
 
-        if (womensDoubles) {
-          if (womensDoubles.player1) lineup[2] = formatPlayer(womensDoubles.player1);
-          if (womensDoubles.player2) lineup[3] = formatPlayer(womensDoubles.player2);
-        }
+        if (teamALineupData || teamBLineupData) {
+          if (!groupedLineups[match.id]) {
+            groupedLineups[match.id] = {};
+          }
 
-        teamALineup.push(...lineup);
-      }
-
-      // Process Team B lineup
-      // Only use MENS_DOUBLES and WOMENS_DOUBLES to build the [Man1, Man2, Woman1, Woman2] array
-      if (teamBLineupData) {
-        const lineup = new Array(4).fill(undefined);
-
-        const mensDoubles = teamBLineupData.entries.find(e => e.slot === 'MENS_DOUBLES');
-        const womensDoubles = teamBLineupData.entries.find(e => e.slot === 'WOMENS_DOUBLES');
-
-        if (mensDoubles) {
-          if (mensDoubles.player1) lineup[0] = formatPlayer(mensDoubles.player1);
-          if (mensDoubles.player2) lineup[1] = formatPlayer(mensDoubles.player2);
-        }
-
-        if (womensDoubles) {
-          if (womensDoubles.player1) lineup[2] = formatPlayer(womensDoubles.player1);
-          if (womensDoubles.player2) lineup[3] = formatPlayer(womensDoubles.player2);
-        }
-
-        teamBLineup.push(...lineup);
-      }
-
-      // Add lineup data if at least one team has a complete lineup
-      if (teamALineup.length > 0 || teamBLineup.length > 0) {
-        if (!groupedLineups[match.id]) {
-          groupedLineups[match.id] = {};
-        }
-
-        if (teamALineup.length > 0) {
-          groupedLineups[match.id][match.teamA.id] = teamALineup;
-        }
-        if (teamBLineup.length > 0) {
-          groupedLineups[match.id][match.teamB.id] = teamBLineup;
+          if (teamALineupData) {
+            groupedLineups[match.id][match.teamA.id] = formatLineup(teamALineupData);
+          }
+          if (teamBLineupData) {
+            groupedLineups[match.id][match.teamB.id] = formatLineup(teamBLineupData);
+          }
         }
       }
     }
@@ -164,9 +170,9 @@ export async function POST(
 ) {
   try {
     const { stopId } = await params;
-    const { lineups } = await request.json();
+    const { lineups, bracketId } = await request.json();
 
-    // Get all matches for this stop with their rounds
+    // Get all matches for this stop with their rounds and games
     const matches = await prisma.match.findMany({
       where: {
         round: { stopId }
@@ -174,19 +180,39 @@ export async function POST(
       include: {
         round: true,
         teamA: { select: { id: true } },
-        teamB: { select: { id: true } }
+        teamB: { select: { id: true } },
+        games: { select: { bracketId: true } }
       }
     });
 
     // Process all lineup saves in a single transaction
     await prisma.$transaction(async (tx) => {
-      for (const [matchId, teams] of Object.entries(lineups)) {
-        const match = matches.find(m => m.id === matchId);
+      for (const [key, teams] of Object.entries(lineups)) {
+        // Key can be either matchId (for regular tournaments) or bracketId (for DE Clubs)
+        const teamMap = teams as Record<string, any[]>;
+
+        // Determine if this is bracket-aware by checking if key matches a bracketId
+        const isBracketAware = bracketId || matches.some(m => m.games.some(g => g.bracketId === key));
+
+        let match;
+        let currentBracketId: string | null = null;
+
+        if (isBracketAware) {
+          // For bracket-aware lineups, find a match that has games with this bracketId
+          currentBracketId = key;
+          match = matches.find(m => m.games.some(g => g.bracketId === key));
+        } else {
+          // For regular lineups, use matchId
+          match = matches.find(m => m.id === key);
+        }
+
         if (!match || !match.teamA || !match.teamB) continue;
 
-        const teamMap = teams as Record<string, any[]>;
-        const teamA = teamMap[match.teamA.id] as any[] | undefined;
-        const teamB = teamMap[match.teamB.id] as any[] | undefined;
+        // Get the team lineups from the teamMap
+        const teamAId = match.teamA.id;
+        const teamBId = match.teamB.id;
+        const teamA = teamMap[teamAId] as any[] | undefined;
+        const teamB = teamMap[teamBId] as any[] | undefined;
 
         if (!Array.isArray(teamA) && !Array.isArray(teamB)) {
           continue;
@@ -194,11 +220,12 @@ export async function POST(
 
         // Process Team A lineup
         if (Array.isArray(teamA) && teamA.length >= 4) {
-          // Delete existing lineup for this team in this round
+          // Delete existing lineup for this team/round/bracket combination
           await tx.lineup.deleteMany({
             where: {
               roundId: match.roundId,
-              teamId: match.teamA.id
+              teamId: teamAId,
+              bracketId: currentBracketId
             }
           });
 
@@ -206,7 +233,8 @@ export async function POST(
           const lineupA = await tx.lineup.create({
             data: {
               roundId: match.roundId,
-              teamId: match.teamA.id,
+              teamId: teamAId,
+              bracketId: currentBracketId,
               stopId: stopId
             }
           });
@@ -225,11 +253,12 @@ export async function POST(
 
         // Process Team B lineup
         if (Array.isArray(teamB) && teamB.length >= 4) {
-          // Delete existing lineup for this team in this round
+          // Delete existing lineup for this team/round/bracket combination
           await tx.lineup.deleteMany({
             where: {
               roundId: match.roundId,
-              teamId: match.teamB.id
+              teamId: teamBId,
+              bracketId: currentBracketId
             }
           });
 
@@ -237,7 +266,8 @@ export async function POST(
           const lineupB = await tx.lineup.create({
             data: {
               roundId: match.roundId,
-              teamId: match.teamB.id,
+              teamId: teamBId,
+              bracketId: currentBracketId,
               stopId: stopId
             }
           });

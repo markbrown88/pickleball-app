@@ -373,19 +373,22 @@ model Game {
 /// *
 /// * ---------- Lineups (use GameSlot) ----------
 model Lineup {
-  id        String        @id @default(cuid())
+  id        String             @id @default(cuid())
   roundId   String
   teamId    String
-  createdAt DateTime      @default(now())
+  bracketId String?            // For DE Clubs tournaments - allows multiple lineups per team per round
+  createdAt DateTime           @default(now())
   stopId    String?
-  updatedAt DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
-  round     Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  Stop      Stop?         @relation(fields: [stopId], references: [id], onDelete: Cascade)
-  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  updatedAt DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
+  round     Round              @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  Stop      Stop?              @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  team      Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  bracket   TournamentBracket? @relation(fields: [bracketId], references: [id], onDelete: SetNull)
   entries   LineupEntry[]
 
-  @@unique([roundId, teamId])
+  @@unique([roundId, teamId, bracketId])
   @@index([teamId])
+  @@index([bracketId])
 }
 
 model LineupEntry {
@@ -447,6 +450,7 @@ model TournamentBracket {
   idx          Int        @default(0)
   teams                 Team[]
   games                 Game[]                  // Games that belong to this bracket (for DOUBLE_ELIMINATION_CLUBS)
+  lineups               Lineup[]                // Lineups for this bracket (for DOUBLE_ELIMINATION_CLUBS)
   tournament            Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   bracketPricing        BracketPricing[]
   bracketGameTypeConfig BracketGameTypeConfig[]
