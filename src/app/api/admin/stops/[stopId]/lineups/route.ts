@@ -122,8 +122,6 @@ export async function GET(
 
     // Process lineups for each match
     for (const match of matches) {
-      if (!match.teamA || !match.teamB) continue;
-
       console.log(`[Lineup Load] Processing match ${match.id}, roundId: ${match.round.id}, round has ${match.round.lineups.length} lineups`);
 
       // Check if this match has bracket-aware games
@@ -167,6 +165,9 @@ export async function GET(
         }
       } else {
         // For non-bracket matches, use matchId as key (backwards compatibility)
+        // Skip if teams aren't populated yet
+        if (!match.teamA || !match.teamB) continue;
+
         const teamALineupData = match.round.lineups.find(l =>
           l.teamId === match.teamA!.id && !l.bracketId
         );
