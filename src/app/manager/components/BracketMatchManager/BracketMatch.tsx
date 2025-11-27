@@ -73,6 +73,8 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
   const [resolvingAction, setResolvingAction] = useState<string | null>(null);
   const [isEditingLineup, setIsEditingLineup] = useState(false);
   const [localGames, setLocalGames] = useState(match.games);
+  const [bracketTeams, setBracketTeams] = useState<Record<string, { teamA: { id: string; name: string }; teamB: { id: string; name: string } }>>({});
+  const [loadingBracketTeams, setLoadingBracketTeams] = useState(false);
 
   // Sync localGames when match.games updates
   useEffect(() => {
@@ -81,6 +83,78 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
 
   // Use shared game controls hook
   const gameControls = useGameControls({ onError, onUpdate });
+
+  // Fetch bracket-specific teams for DE Clubs tournaments
+  const loadBracketTeams = useCallback(async () => {
+    if (!match.teamA || !match.teamB) return;
+
+    setLoadingBracketTeams(true);
+    try {
+      // Fetch all teams for this stop
+      const response = await fetch(`/api/admin/stops/${stopId}/teams`);
+      if (!response.ok) {
+        throw new Error('Failed to load teams');
+      }
+
+      const stopTeamsData = await response.json();
+
+      // First, find the current match teams in the full data to get their club IDs
+      const matchTeamAData = stopTeamsData.find((st: any) => st.team.id === match.teamA!.id);
+      const matchTeamBData = stopTeamsData.find((st: any) => st.team.id === match.teamB!.id);
+
+      if (!matchTeamAData || !matchTeamBData) {
+        console.error('Could not find match teams in stop teams data');
+        return;
+      }
+
+      const teamAClubId = matchTeamAData.team.clubId;
+      const teamBClubId = matchTeamBData.team.clubId;
+
+      console.log('[BracketMatch] Loading bracket teams:', {
+        teamAClubId,
+        teamBClubId,
+        matchTeamA: match.teamA.name,
+        matchTeamB: match.teamB.name,
+      });
+
+      // Build a map of bracketId -> { teamA, teamB }
+      const teamsMap: Record<string, { teamA: { id: string; name: string }; teamB: { id: string; name: string } }> = {};
+
+      // Group all brackets from games
+      const bracketIds = new Set(localGames.filter(g => g.bracketId).map(g => g.bracketId!));
+
+      bracketIds.forEach(bracketId => {
+        // Find teams for this bracket that belong to the same clubs (by club ID)
+        const teamA = stopTeamsData.find((st: any) =>
+          st.team.bracketId === bracketId && st.team.clubId === teamAClubId
+        );
+
+        const teamB = stopTeamsData.find((st: any) =>
+          st.team.bracketId === bracketId && st.team.clubId === teamBClubId
+        );
+
+        if (teamA && teamB) {
+          console.log(`[BracketMatch] Found teams for bracket ${bracketId}:`, {
+            teamA: teamA.team.name,
+            teamB: teamB.team.name,
+          });
+          teamsMap[bracketId] = {
+            teamA: { id: teamA.team.id, name: teamA.team.name },
+            teamB: { id: teamB.team.id, name: teamB.team.name },
+          };
+        } else {
+          console.warn(`[BracketMatch] Could not find teams for bracket ${bracketId}`);
+        }
+      });
+
+      setBracketTeams(teamsMap);
+    } catch (error) {
+      console.error('Error loading bracket teams:', error);
+      onError('Failed to load bracket teams');
+    } finally {
+      setLoadingBracketTeams(false);
+    }
+  }, [match.teamA, match.teamB, stopId, localGames, onError]);
 
   // Game control functions for GameScoreBox
   const startGame = useCallback(async (gameId: string) => {
@@ -490,20 +564,33 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
         if (isEditingLineup && match.teamA && match.teamB) {
           // For DE Clubs tournaments with multiple brackets, use BracketLineupEditor
           if (isDoubleEliminationClubs) {
-            // Extract brackets from games
+            // Show loading state while fetching bracket teams
+            if (loadingBracketTeams || Object.keys(bracketTeams).length === 0) {
+              return (
+                <div className="bg-surface-2 rounded-lg p-6 text-center mb-4">
+                  <p className="text-muted">Loading bracket teams...</p>
+                </div>
+              );
+            }
+
+            // Extract brackets from games using the loaded bracket-specific teams
             const brackets = Array.from(
               new Map(
                 localGames
                   .filter(g => g.bracket && g.bracketId)
-                  .map(g => [
-                    g.bracketId!,
-                    {
-                      bracketId: g.bracketId!,
-                      bracketName: g.bracket!.name,
-                      teamA: { id: match.teamA!.id, name: match.teamA!.name },
-                      teamB: { id: match.teamB!.id, name: match.teamB!.name },
-                    }
-                  ])
+                  .map(g => {
+                    const bracketTeam = bracketTeams[g.bracketId!];
+                    return [
+                      g.bracketId!,
+                      {
+                        bracketId: g.bracketId!,
+                        bracketName: g.bracket!.name,
+                        // Use bracket-specific teams if available, otherwise fall back to match teams
+                        teamA: bracketTeam?.teamA || { id: match.teamA!.id, name: match.teamA!.name },
+                        teamB: bracketTeam?.teamB || { id: match.teamB!.id, name: match.teamB!.name },
+                      }
+                    ];
+                  })
               ).values()
             );
 
@@ -582,7 +669,12 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
               <p className="text-muted mb-3">Lineups must be set before games can begin</p>
               <button
                 className="btn btn-secondary"
-                onClick={() => setIsEditingLineup(true)}
+                onClick={async () => {
+                  if (isDoubleEliminationClubs) {
+                    await loadBracketTeams();
+                  }
+                  setIsEditingLineup(true);
+                }}
               >
                 Set Lineups
               </button>
@@ -657,7 +749,12 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
               <div className="flex justify-center">
                 <button
                   className="btn btn-secondary"
-                  onClick={() => setIsEditingLineup(true)}
+                  onClick={async () => {
+                    if (isDoubleEliminationClubs) {
+                      await loadBracketTeams();
+                    }
+                    setIsEditingLineup(true);
+                  }}
                 >
                   Edit Lineups
                 </button>

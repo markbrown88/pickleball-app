@@ -171,10 +171,10 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
 
   if (loading) {
     return (
-      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle">
+      <div className="w-full h-[400px] flex items-center justify-center bg-gray-800 rounded-lg border border-gray-700">
         <div className="flex items-center gap-3">
           <div className="loading-spinner"></div>
-          <span className="text-muted">Loading bracket...</span>
+          <span className="text-gray-400">Loading bracket...</span>
         </div>
       </div>
     );
@@ -182,10 +182,10 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
 
   if (error) {
     return (
-      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle">
+      <div className="w-full h-[400px] flex items-center justify-center bg-gray-800 rounded-lg border border-gray-700">
         <div className="text-center">
-          <p className="text-muted">Failed to load bracket</p>
-          <p className="text-xs text-muted mt-2">{error}</p>
+          <p className="text-gray-400">Failed to load bracket</p>
+          <p className="text-xs text-gray-500 mt-2">{error}</p>
         </div>
       </div>
     );
@@ -193,10 +193,10 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
 
   if (rounds.length === 0 || (!bracketData.upper.length && !bracketData.lower.length)) {
     return (
-      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle">
+      <div className="w-full h-[400px] flex items-center justify-center bg-gray-800 rounded-lg border border-gray-700">
         <div className="text-center">
-          <p className="text-muted">No bracket data available</p>
-          <p className="text-xs text-muted mt-2">The tournament bracket has not been generated yet.</p>
+          <p className="text-gray-400">No bracket data available</p>
+          <p className="text-xs text-gray-500 mt-2">The tournament bracket has not been generated yet.</p>
         </div>
       </div>
     );
@@ -205,8 +205,8 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
   // Validate bracket structure
   if (!bracketData || typeof bracketData !== 'object' || !Array.isArray(bracketData.upper) || !Array.isArray(bracketData.lower)) {
     return (
-      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle">
-        <p className="text-muted">Invalid bracket data format</p>
+      <div className="w-full h-[400px] flex items-center justify-center bg-gray-800 rounded-lg border border-gray-700">
+        <p className="text-gray-400">Invalid bracket data format</p>
       </div>
     );
   }
@@ -216,18 +216,18 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
 
   if (cleanUpper.length === 0 && cleanLower.length === 0) {
     return (
-      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle">
-        <p className="text-muted">No matches in bracket</p>
+      <div className="w-full h-[400px] flex items-center justify-center bg-gray-800 rounded-lg border border-gray-700">
+        <p className="text-gray-400">No matches in bracket</p>
       </div>
     );
   }
 
   if (cleanUpper.length === 0 || cleanLower.length === 0) {
     return (
-      <div className="w-full h-[400px] flex items-center justify-center bg-surface rounded-lg border border-subtle text-center px-6">
+      <div className="w-full h-[400px] flex items-center justify-center bg-gray-800 rounded-lg border border-gray-700 text-center px-6">
         <div>
-          <p className="text-primary font-medium">Bracket cannot be rendered</p>
-          <p className="text-muted text-sm mt-2">
+          <p className="text-white font-medium">Bracket cannot be rendered</p>
+          <p className="text-gray-400 text-sm mt-2">
             Double elimination bracket requires both winner and loser brackets.
           </p>
         </div>
@@ -276,7 +276,7 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
           `,
         }}
       />
-      <div className="w-full bg-surface rounded-lg border border-subtle p-1 md:p-2 overflow-x-auto bracket-container" style={{ minHeight: '85vh' }}>
+      <div className="w-full bg-gray-800 rounded-lg border border-gray-700 p-1 md:p-2 overflow-x-auto bracket-container" style={{ minHeight: '85vh' }}>
         <DoubleEliminationBracket
           matches={safeBracketData}
           matchComponent={CustomBracketMatch}
@@ -285,9 +285,9 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
             style: {
               roundHeader: {
                 backgroundColor: '#1f2937',
-                fontColor: '#fff',
+                fontColor: '#d1d5db',
               },
-              connectorColor: '#374151',
+              connectorColor: '#4b5563',
               connectorColorHighlight: '#3b82f6',
             },
           }}

@@ -69,8 +69,8 @@ export function CustomBracketMatch({
   return (
     <div
       onClick={handleClick}
-      className={`bg-surface-2 rounded-lg border-2 border-subtle transition-colors ${
-        hasStarted ? 'cursor-pointer hover:border-primary' : ''
+      className={`bg-gray-700 rounded-lg border-2 border-gray-600 transition-colors ${
+        hasStarted ? 'cursor-pointer hover:border-blue-500' : ''
       }`}
       style={{
         borderColor: topHovered || bottomHovered ? connectorColor : undefined,
@@ -80,7 +80,7 @@ export function CustomBracketMatch({
       }}
     >
       {/* Round Label */}
-      <div className="px-3 py-0.5 text-xs font-semibold text-muted bg-surface border-b border-subtle rounded-t-md">
+      <div className="px-3 py-1 text-xs font-semibold text-gray-300 bg-gray-800 border-b border-gray-600 rounded-t-md">
         {match.tournamentRoundText || 'Match'}
       </div>
 
@@ -88,18 +88,18 @@ export function CustomBracketMatch({
       <div className="p-2 space-y-1">
         {/* Top Team */}
         <div
-          className={`flex items-center justify-between p-1.5 rounded transition-colors ${
+          className={`flex items-center justify-between p-2 rounded transition-colors ${
             topWon
-              ? 'bg-success/20 border border-success'
+              ? 'bg-green-900/40 border border-green-600'
               : topHovered
-              ? 'bg-surface'
-              : 'bg-surface/50'
+              ? 'bg-gray-600'
+              : 'bg-gray-600/50'
           }`}
         >
           <div className="flex-1 min-w-0 break-words pr-2">
             <div
               className={`text-sm whitespace-normal leading-tight ${
-                topWon ? 'text-primary font-semibold' : 'text-secondary'
+                topWon ? 'text-white font-semibold' : 'text-gray-300'
               }`}
               title={topParty.name || topText}
             >
@@ -108,8 +108,8 @@ export function CustomBracketMatch({
           </div>
           {topParty.resultText !== null && (
             <span
-              className={`text-xs font-bold flex-shrink-0 ${
-                topWon ? 'text-success' : 'text-muted'
+              className={`text-sm font-bold flex-shrink-0 ml-2 ${
+                topWon ? 'text-green-400' : 'text-gray-400'
               }`}
             >
               {topParty.resultText}
@@ -119,18 +119,18 @@ export function CustomBracketMatch({
 
         {/* Bottom Team */}
         <div
-          className={`flex items-center justify-between p-1.5 rounded transition-colors ${
+          className={`flex items-center justify-between p-2 rounded transition-colors ${
             bottomWon
-              ? 'bg-success/20 border border-success'
+              ? 'bg-green-900/40 border border-green-600'
               : bottomHovered
-              ? 'bg-surface'
-              : 'bg-surface/50'
+              ? 'bg-gray-600'
+              : 'bg-gray-600/50'
           }`}
         >
           <div className="flex-1 min-w-0 break-words pr-2">
             <div
               className={`text-sm whitespace-normal leading-tight ${
-                bottomWon ? 'text-primary font-semibold' : 'text-secondary'
+                bottomWon ? 'text-white font-semibold' : 'text-gray-300'
               }`}
               title={bottomParty.name || bottomText}
             >
@@ -139,8 +139,8 @@ export function CustomBracketMatch({
           </div>
           {bottomParty.resultText !== null && (
             <span
-              className={`text-xs font-bold flex-shrink-0 ${
-                bottomWon ? 'text-success' : 'text-muted'
+              className={`text-sm font-bold flex-shrink-0 ml-2 ${
+                bottomWon ? 'text-green-400' : 'text-gray-400'
               }`}
             >
               {bottomParty.resultText}
@@ -150,14 +150,14 @@ export function CustomBracketMatch({
 
         {/* Status Indicator */}
         {match.state === 'SCORE_DONE' && (
-          <div className="flex items-center justify-center text-xs text-success pt-1 pb-0 border-t border-subtle">
-            <span className="w-1.5 h-1.5 rounded-full bg-success mr-1"></span>
+          <div className="flex items-center justify-center text-xs text-green-400 pt-1 pb-0 border-t border-gray-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 mr-1"></span>
             Complete
           </div>
         )}
         {match.state === 'PLAYED' && (
-          <div className="flex items-center justify-center text-xs text-warning pt-1 pb-0 border-t border-subtle">
-            <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse mr-1"></span>
+          <div className="flex items-center justify-center text-xs text-yellow-400 pt-1 pb-0 border-t border-gray-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse mr-1"></span>
             In Progress
           </div>
         )}
