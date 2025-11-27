@@ -787,6 +787,18 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
 
         const hasAllLineupsInState = brackets.length > 0 && brackets.every(bracket => {
           const bracketLineups = lineups[bracket.bracketId];
+          const bracketTeam = bracketTeams[bracket.bracketId];
+
+          // For bracket-aware matches, use the correct team IDs for this specific bracket
+          if (bracketTeam) {
+            return (
+              bracketLineups &&
+              bracketLineups[bracketTeam.teamA.id]?.length === 4 &&
+              bracketLineups[bracketTeam.teamB.id]?.length === 4
+            );
+          }
+
+          // Fallback for non-bracket matches
           return (
             bracketLineups &&
             match.teamA &&
