@@ -29,6 +29,8 @@ export async function GET(
   try {
     const { stopId } = await params;
 
+    console.log('[Lineup Load] GET /api/admin/stops/${stopId}/lineups called for stopId:', stopId);
+
     // Initialize grouped lineups
     const groupedLineups: Record<string, Record<string, any[]>> = {};
 
@@ -74,6 +76,8 @@ export async function GET(
       }
     });
 
+    console.log(`[Lineup Load] Found ${matches.length} matches for stopId ${stopId}`);
+
     const formatPlayer = (p: any) => p ? {
       id: p.id,
       name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
@@ -103,15 +107,28 @@ export async function GET(
     for (const match of matches) {
       if (!match.teamA || !match.teamB) continue;
 
+      console.log(`[Lineup Load] Processing match ${match.id}, round has ${match.round.lineups.length} lineups`);
+
       // Check if this match has bracket-aware games
       const bracketIds = [...new Set(match.games.map(g => g.bracketId).filter(Boolean))];
       const hasBrackets = bracketIds.length > 0;
 
+      console.log(`[Lineup Load] Match has ${bracketIds.length} bracketIds:`, bracketIds);
+      console.log(`[Lineup Load] Round lineups:`, match.round.lineups.map(l => ({
+        id: l.id,
+        teamId: l.teamId,
+        bracketId: l.bracketId,
+        entriesCount: l.entries.length
+      })));
+
       if (hasBrackets) {
+        console.log(`[Lineup Load] Processing bracket-aware match`);
         // For bracket-aware matches, group lineups by bracketId
         // Find ALL lineups for this round with matching bracketIds (not just match.teamA/teamB)
         for (const bracketId of bracketIds) {
+          console.log(`[Lineup Load] Looking for lineups with bracketId: ${bracketId}`);
           const bracketLineups = match.round.lineups.filter(l => l.bracketId === bracketId);
+          console.log(`[Lineup Load] Found ${bracketLineups.length} lineups for bracketId ${bracketId}`);
 
           if (bracketLineups.length > 0) {
             if (!groupedLineups[bracketId!]) {
@@ -120,6 +137,7 @@ export async function GET(
 
             // Add all lineups for this bracket
             for (const lineupData of bracketLineups) {
+              console.log(`[Lineup Load] Adding lineup for teamId ${lineupData.teamId} to bracket ${bracketId}`);
               groupedLineups[bracketId!][lineupData.teamId] = formatLineup(lineupData);
             }
           }
@@ -147,6 +165,14 @@ export async function GET(
         }
       }
     }
+
+    console.log('[Lineup Load] Final groupedLineups keys:', Object.keys(groupedLineups));
+    console.log('[Lineup Load] Final groupedLineups structure:', JSON.stringify(
+      Object.keys(groupedLineups).reduce((acc, key) => {
+        acc[key] = Object.keys(groupedLineups[key]);
+        return acc;
+      }, {} as Record<string, string[]>)
+    ));
 
     return NextResponse.json(groupedLineups);
   } catch (error) {
