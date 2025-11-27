@@ -6,6 +6,7 @@ interface GameScoreBoxProps {
   game: any;
   match: any;
   lineups: Record<string, Record<string, any[]>>;
+  bracketTeams?: Record<string, { teamA: { id: string; name: string }; teamB: { id: string; name: string } }>;
   startGame: (gameId: string) => Promise<void>;
   endGame: (gameId: string) => Promise<void>;
   reopenGame: (gameId: string) => Promise<void>;
@@ -17,6 +18,7 @@ export const GameScoreBox = memo(function GameScoreBox({
   game,
   match,
   lineups,
+  bracketTeams,
   startGame,
   endGame,
   reopenGame,
@@ -79,9 +81,14 @@ export const GameScoreBox = memo(function GameScoreBox({
     // - For Team: matchId -> teamId -> players
     if (match && match.teamA) {
       // Try DE Club structure first (game.bracketId)
-      let teamALineup = game.bracketId && lineups[game.bracketId]
-        ? lineups[game.bracketId][match.teamA.id] || []
-        : [];
+      let teamALineup: any[] = [];
+
+      if (game.bracketId && lineups[game.bracketId]) {
+        // For bracket-aware matches, use bracketTeams to find the correct team ID
+        const bracketTeam = bracketTeams?.[game.bracketId];
+        const teamAId = bracketTeam?.teamA?.id || match.teamA.id;
+        teamALineup = lineups[game.bracketId][teamAId] || [];
+      }
 
       // Fall back to Team structure (match.id)
       if (teamALineup.length === 0 && lineups[match.id]) {
@@ -146,9 +153,14 @@ export const GameScoreBox = memo(function GameScoreBox({
     // - For Team: matchId -> teamId -> players
     if (match && match.teamB) {
       // Try DE Club structure first (game.bracketId)
-      let teamBLineup = game.bracketId && lineups[game.bracketId]
-        ? lineups[game.bracketId][match.teamB.id] || []
-        : [];
+      let teamBLineup: any[] = [];
+
+      if (game.bracketId && lineups[game.bracketId]) {
+        // For bracket-aware matches, use bracketTeams to find the correct team ID
+        const bracketTeam = bracketTeams?.[game.bracketId];
+        const teamBId = bracketTeam?.teamB?.id || match.teamB.id;
+        teamBLineup = lineups[game.bracketId][teamBId] || [];
+      }
 
       // Fall back to Team structure (match.id)
       if (teamBLineup.length === 0 && lineups[match.id]) {

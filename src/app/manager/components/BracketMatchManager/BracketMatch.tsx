@@ -854,6 +854,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                         game={game}
                         match={match}
                         lineups={lineups}
+                        bracketTeams={bracketTeams}
                         startGame={startGame}
                         endGame={endGame}
                         reopenGame={reopenGame}
