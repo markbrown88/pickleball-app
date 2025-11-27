@@ -123,24 +123,27 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       const match = matches.find(m => m.teamAId === lineup.teamId || m.teamBId === lineup.teamId);
       if (!match) continue;
 
-      // Create or update lineup
-      const lineupRecord = await prisma.lineup.upsert({
+      // Find or create lineup (can't use upsert with null in unique constraint)
+      let lineupRecord = await prisma.lineup.findFirst({
         where: {
-          roundId_teamId_bracketId: {
-            roundId,
-            teamId: lineup.teamId,
-            bracketId: null
-          }
-        },
-        update: {},
-        create: {
           roundId,
           teamId: lineup.teamId,
-          bracketId: null,
-          stopId: round.stopId
+          bracketId: null
         },
         select: { id: true }
       });
+
+      if (!lineupRecord) {
+        lineupRecord = await prisma.lineup.create({
+          data: {
+            roundId,
+            teamId: lineup.teamId,
+            bracketId: null,
+            stopId: round.stopId
+          },
+          select: { id: true }
+        });
+      }
 
       // Clear existing entries
       await prisma.lineupEntry.deleteMany({
