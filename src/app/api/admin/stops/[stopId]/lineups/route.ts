@@ -211,8 +211,17 @@ export async function POST(
         // For bracket-aware lineups, process each team in the teamMap directly
         // (don't rely on match.teamA/teamB as they may be from a different bracket)
         if (isBracketAware) {
+          console.log(`[Lineup Save] Bracket-aware save for bracketId: ${currentBracketId}, matchId: ${match.id}`);
+          console.log(`[Lineup Save] Teams in teamMap:`, Object.keys(teamMap));
+
           for (const [teamId, lineup] of Object.entries(teamMap)) {
-            if (!Array.isArray(lineup) || lineup.length < 4) continue;
+            if (!Array.isArray(lineup) || lineup.length < 4) {
+              console.log(`[Lineup Save] Skipping teamId ${teamId} - invalid lineup length: ${Array.isArray(lineup) ? lineup.length : 'not array'}`);
+              continue;
+            }
+
+            console.log(`[Lineup Save] Saving lineup for teamId: ${teamId}, bracketId: ${currentBracketId}, roundId: ${match.roundId}`);
+            console.log(`[Lineup Save] Players:`, lineup.map((p: any) => p?.name || p?.id));
 
             // Delete existing lineup for this team/round/bracket combination
             await tx.lineup.deleteMany({
@@ -233,6 +242,8 @@ export async function POST(
               }
             });
 
+            console.log(`[Lineup Save] Created lineup record with id: ${newLineup.id}`);
+
             // Create lineup entries
             const entries = mapLineupToEntries(lineup);
             await tx.lineupEntry.createMany({
@@ -243,6 +254,8 @@ export async function POST(
                 player2Id: entry.player2Id!,
               })),
             });
+
+            console.log(`[Lineup Save] Created ${entries.length} lineup entries`);
           }
 
           await evaluateMatchTiebreaker(tx, match.id);
