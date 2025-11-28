@@ -335,7 +335,6 @@ export function BracketMatchModal({
   if (!match) return null;
 
   // For DE Clubs tournaments, use club names instead of team names
-  const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
   const cleanTeamAName = isDoubleEliminationClubs && match.teamA?.club?.name
     ? match.teamA.club.name
     : stripBracketSuffix(match.teamA?.name || '');

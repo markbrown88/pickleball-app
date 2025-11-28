@@ -424,7 +424,6 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
 
   // Handle bye matches
   if (match.isBye) {
-    const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
     const byeTeamName = isDoubleEliminationClubs && match.teamA?.club?.name
       ? match.teamA.club.name
       : stripBracketSuffix(match.teamA?.name || 'TBD');
@@ -462,7 +461,6 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
   }
 
   // For DE Clubs tournaments, use club names instead of team names
-  const isDoubleEliminationClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
   const cleanTeamAName = isDoubleEliminationClubs && match.teamA.club?.name
     ? match.teamA.club.name
     : stripBracketSuffix(match.teamA.name);
