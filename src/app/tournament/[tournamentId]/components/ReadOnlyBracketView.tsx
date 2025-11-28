@@ -52,6 +52,7 @@ interface ReadOnlyBracketViewProps {
 export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
+  const [tournamentType, setTournamentType] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,7 +67,15 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
           throw new Error('Failed to fetch bracket data');
         }
         const data = await response.json();
-        setRounds(Array.isArray(data) ? data : []);
+        // Handle both old format (array) and new format (object with rounds and tournamentType)
+        if (Array.isArray(data)) {
+          setRounds(data);
+        } else if (data.rounds) {
+          setRounds(Array.isArray(data.rounds) ? data.rounds : []);
+          setTournamentType(data.tournamentType);
+        } else {
+          setRounds([]);
+        }
       } catch (err) {
         console.error('Error fetching bracket data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load bracket');
@@ -86,7 +95,7 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
       return { upper: [], lower: [] };
     }
     try {
-      const transformed = transformRoundsToBracketFormat(rounds);
+      const transformed = transformRoundsToBracketFormat(rounds, tournamentType);
 
       // Ensure we have valid arrays
       const upper = (transformed.upper || []).filter(m => m && m.id);
@@ -155,7 +164,7 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
       console.error('ReadOnlyBracketView: Error transforming bracket data:', error);
       return { upper: [], lower: [] };
     }
-  }, [rounds]);
+  }, [rounds, tournamentType]);
 
 
   const handleMatchClick = (args: { match: { id: string }; topWon: boolean; bottomWon: boolean }) => {

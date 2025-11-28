@@ -17,6 +17,20 @@ export async function GET(req: Request, ctx: Ctx) {
     const payload = await getCached(
       cacheKeys.stopSchedule(stopId),
       async () => {
+        // Get stop with tournament type
+        const stop = await prisma.stop.findUnique({
+          where: { id: stopId },
+          select: {
+            tournament: {
+              select: {
+                type: true
+              }
+            }
+          }
+        });
+
+        const tournamentType = stop?.tournament?.type;
+
         // Fetch all rounds with matches and games
         const rounds = await prisma.round.findMany({
           where: { stopId },
@@ -166,7 +180,10 @@ export async function GET(req: Request, ctx: Ctx) {
           };
         });
 
-        return transformedRounds;
+        return {
+          rounds: transformedRounds,
+          tournamentType
+        };
       },
       CACHE_TTL.SCHEDULE
     );
