@@ -197,16 +197,13 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
             : g
         ));
 
-        // Re-evaluate match after game completes - trigger server-side recalculation
-        // and check if tiebreaker should be deleted
-        setTimeout(() => {
-          onUpdate();
-        }, 600);
+        // Note: Removed page reload - tiebreaker evaluation happens when completing match
+        // This keeps the workflow smooth without interruptions
       }
     } catch (error) {
       // Error already handled by hook
     }
-  }, [gameControls, localGames, onUpdate]);
+  }, [gameControls, localGames]);
 
   const reopenGame = useCallback(async (gameId: string) => {
     try {
