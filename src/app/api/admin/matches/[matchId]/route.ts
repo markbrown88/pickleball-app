@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 import { invalidateCache, cacheKeys } from '@/lib/cache';
+import { advanceTeamsInBracket } from '@/lib/bracketAdvancement';
 
 type Params = { matchId: string };
 type Ctx = { params: Promise<Params> };
@@ -343,92 +344,99 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
     }
 
     // Handle actual forfeit - mark all games as complete and give win to non-forfeiting team
-    
-    // Get all games for this match
-    const games = await prisma.game.findMany({
-      where: { matchId: matchId },
-      select: {
-        id: true,
-        slot: true
+    // Use a transaction to ensure atomicity
+    const result = await prisma.$transaction(async (tx) => {
+      // Determine winning team based on forfeit
+      const winningTeamId = body.forfeitTeam === 'A' ? match.teamB?.id : match.teamA?.id;
+      const losingTeamId = body.forfeitTeam === 'A' ? match.teamA?.id : match.teamB?.id;
+
+      if (!winningTeamId) {
+        throw new Error('Cannot determine winning team');
       }
-    });
 
+      // Update the match with forfeit information and current timestamp
+      const currentTime = new Date();
 
-    // Mark all games for this match as complete with appropriate scores
-
-    // Determine winning team based on forfeit
-    const winningTeamId = body.forfeitTeam === 'A' ? match.teamB?.id : match.teamA?.id;
-    const losingTeamId = body.forfeitTeam === 'A' ? match.teamA?.id : match.teamB?.id;
-
-    // Update the match with forfeit information and current timestamp
-    const currentTime = new Date();
-
-    // Set the forfeit time for all games
-    const forfeitTime = currentTime;
-
-    // Update all games for this match to reflect the forfeit (excluding Tiebreaker)
-    await prisma.game.updateMany({
-      where: {
-        matchId: matchId,
-        slot: {
-          not: 'TIEBREAKER' // Skip tiebreaker games
-        }
-      },
-      data: {
-        teamAScore: body.forfeitTeam === 'A' ? 0 : 1, // Forfeiting team gets 0, winning team gets 1
-        teamBScore: body.forfeitTeam === 'B' ? 0 : 1, // Forfeiting team gets 0, winning team gets 1
-        isComplete: true, // Mark games as complete
-        endedAt: forfeitTime // Set the endedAt time to the forfeit time
-      }
-    });
-
-    // Update the match with forfeit information, winner, and timestamp
-    const updatedMatch = await prisma.match.update({
-      where: { id: matchId },
-      data: {
-        forfeitTeam: body.forfeitTeam,
-        winnerId: winningTeamId, // Set the winner to trigger bracket progression
-        updatedAt: currentTime // Update the timestamp to current time
-      },
-      select: {
-        id: true,
-        forfeitTeam: true,
-        winnerId: true,
-        updatedAt: true,
-        round: {
-          select: {
-            stopId: true
+      // Update all games for this match to reflect the forfeit (excluding Tiebreaker)
+      await tx.game.updateMany({
+        where: {
+          matchId: matchId,
+          slot: {
+            not: 'TIEBREAKER' // Skip tiebreaker games
           }
+        },
+        data: {
+          teamAScore: body.forfeitTeam === 'A' ? 0 : 1, // Forfeiting team gets 0, winning team gets 1
+          teamBScore: body.forfeitTeam === 'B' ? 0 : 1, // Forfeiting team gets 0, winning team gets 1
+          isComplete: true, // Mark games as complete
+          endedAt: currentTime // Set the endedAt time to the forfeit time
         }
-      }
-    });
-
-    await evaluateMatchTiebreaker(prisma, matchId);
-
-    // Call the complete match endpoint to handle bracket progression
-    // This ensures the winner advances to the next round and loser drops to loser bracket
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-      const completeUrl = `${baseUrl}/api/admin/matches/${matchId}/complete`;
-
-      const completeResponse = await fetch(completeUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          winnerId: winningTeamId,
-          skipValidation: true // Skip game completion validation since forfeit already handled it
-        }),
       });
 
-      if (!completeResponse.ok) {
-        const errorText = await completeResponse.text();
-        console.error('[FORFEIT] Failed to complete match and advance winner:', errorText);
-        // Don't fail the whole forfeit - the forfeit is recorded, just log the error
+      // Get match with round info for bracket advancement
+      const matchWithRound = await tx.match.findUnique({
+        where: { id: matchId },
+        select: {
+          id: true,
+          winnerId: true,
+          teamAId: true,
+          teamBId: true,
+          round: {
+            select: {
+              stopId: true,
+              bracketType: true,
+              depth: true,
+            },
+          },
+        },
+      });
+
+      if (!matchWithRound) {
+        throw new Error('Match not found');
       }
-    } catch (completeError) {
-      console.error('[FORFEIT] Error calling complete endpoint:', completeError);
-      // Don't fail the whole forfeit - the forfeit is recorded, just log the error
-    }
+
+      // Update the match with forfeit information, winner, and timestamp
+      const updatedMatch = await tx.match.update({
+        where: { id: matchId },
+        data: {
+          forfeitTeam: body.forfeitTeam,
+          winnerId: winningTeamId, // Set the winner to trigger bracket progression
+          updatedAt: currentTime // Update the timestamp to current time
+        },
+        select: {
+          id: true,
+          forfeitTeam: true,
+          winnerId: true,
+          updatedAt: true,
+          round: {
+            select: {
+              stopId: true
+            }
+          }
+        }
+      });
+
+      // Evaluate tiebreaker status (will set to DECIDED by forfeit)
+      await evaluateMatchTiebreaker(tx, matchId);
+
+      // Advance teams in bracket using shared utility
+      const advancementResult = await advanceTeamsInBracket(
+        tx,
+        matchId,
+        winningTeamId,
+        losingTeamId || null,
+        matchWithRound
+      );
+
+      console.log('[FORFEIT] Bracket advancement completed:', {
+        winnerId: advancementResult.winnerId,
+        loserId: advancementResult.loserId,
+        advancedWinnerMatches: advancementResult.advancedWinnerMatches,
+        advancedLoserMatches: advancementResult.advancedLoserMatches,
+      });
+
+      return { updatedMatch, advancementResult, winningTeamId };
+    });
 
     // Invalidate schedule cache
     await invalidateMatchCache(matchId);
@@ -438,11 +446,15 @@ async function handleForfeit(matchId: string, body: ForfeitBody) {
       match: {
         id: matchId,
         forfeitTeam: body.forfeitTeam,
-        winnerId: winningTeamId,
+        winnerId: result.winningTeamId,
         tiebreakerStatus: 'NONE',
-        tiebreakerWinnerTeamId: winningTeamId,
+        tiebreakerWinnerTeamId: result.winningTeamId,
         totalPointsTeamA: 0,
         totalPointsTeamB: 0,
+      },
+      advancementResult: {
+        advancedWinnerMatches: result.advancementResult.advancedWinnerMatches,
+        advancedLoserMatches: result.advancementResult.advancedLoserMatches,
       },
     });
   } catch (e: any) {
