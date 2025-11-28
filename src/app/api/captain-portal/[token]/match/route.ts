@@ -242,6 +242,29 @@ export async function GET(request: Request, { params }: Params) {
           }))
         );
 
+        // Debug: Check ALL lineups for this stop (might have different roundId)
+        const allLineupsForStop = await prisma.lineup.findMany({
+          where: { stopId: currentMatch.round.stop.id },
+          select: {
+            id: true,
+            roundId: true,
+            stopId: true,
+            teamId: true,
+            bracketId: true,
+            team: { select: { name: true, bracketId: true, clubId: true } }
+          }
+        });
+        console.log(`[Captain Portal] ALL lineups for stopId ${currentMatch.round.stop.id}:`,
+          allLineupsForStop.map(l => ({
+            lineupId: l.id,
+            roundId: l.roundId,
+            stopId: l.stopId,
+            teamId: l.teamId,
+            teamName: l.team.name,
+            lineupBracketId: l.bracketId
+          }))
+        );
+
         // For each bracket, get roster, lineup, and games
         const bracketsData = await Promise.all(
           bracketIds.map(async (bracketId) => {
