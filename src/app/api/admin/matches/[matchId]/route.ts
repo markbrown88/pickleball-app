@@ -523,34 +523,89 @@ async function decideMatchByPoints(matchId: string) {
 
     // Points are unequal - decide by points
     const winnerTeamId = tally.pointsA > tally.pointsB ? match.teamAId : match.teamBId;
-    const winnerName = tally.pointsA > tally.pointsB ? match.teamA?.name : match.teamB?.name;
+    const loserTeamId = tally.pointsA > tally.pointsB ? match.teamBId : match.teamAId;
 
+    if (!winnerTeamId) {
+      return bad('Cannot determine winner team ID');
+    }
 
-    const updatedMatch = await prisma.match.update({
-      where: { id: matchId },
-      data: {
-        tiebreakerStatus: 'DECIDED_POINTS',
-        tiebreakerWinnerTeamId: winnerTeamId,
-        totalPointsTeamA: tally.pointsA,
-        totalPointsTeamB: tally.pointsB,
-        tiebreakerDecidedAt: new Date(),
-      },
-      select: {
-        id: true,
-        tiebreakerStatus: true,
-        tiebreakerWinnerTeamId: true,
-        totalPointsTeamA: true,
-        totalPointsTeamB: true,
-      },
+    // Use a transaction to atomically update match and advance teams in bracket
+    const result = await prisma.$transaction(async (tx) => {
+      // Get match with round info for bracket advancement
+      const matchWithRound = await tx.match.findUnique({
+        where: { id: matchId },
+        select: {
+          id: true,
+          winnerId: true,
+          teamAId: true,
+          teamBId: true,
+          round: {
+            select: {
+              stopId: true,
+              bracketType: true,
+              depth: true,
+            },
+          },
+        },
+      });
+
+      if (!matchWithRound) {
+        throw new Error('Match not found');
+      }
+
+      // Update match with winner and tiebreaker info
+      const updatedMatch = await tx.match.update({
+        where: { id: matchId },
+        data: {
+          winnerId: winnerTeamId, // Set the actual winner to trigger bracket progression
+          tiebreakerStatus: 'DECIDED_POINTS',
+          tiebreakerWinnerTeamId: winnerTeamId,
+          totalPointsTeamA: tally.pointsA,
+          totalPointsTeamB: tally.pointsB,
+          tiebreakerDecidedAt: new Date(),
+        },
+        select: {
+          id: true,
+          winnerId: true,
+          tiebreakerStatus: true,
+          tiebreakerWinnerTeamId: true,
+          totalPointsTeamA: true,
+          totalPointsTeamB: true,
+        },
+      });
+
+      // Advance teams in bracket using shared utility
+      const advancementResult = await advanceTeamsInBracket(
+        tx,
+        matchId,
+        winnerTeamId,
+        loserTeamId || null,
+        matchWithRound
+      );
+
+      console.log('[DECIDE_BY_POINTS] Bracket advancement completed:', {
+        winnerId: advancementResult.winnerId,
+        loserId: advancementResult.loserId,
+        advancedWinnerMatches: advancementResult.advancedWinnerMatches,
+        advancedLoserMatches: advancementResult.advancedLoserMatches,
+      });
+
+      return { updatedMatch, advancementResult };
     });
 
+    // Invalidate match cache
+    await invalidateMatchCache(matchId);
 
     // DO NOT call evaluateMatchTiebreaker here - it will recalculate and override DECIDED_POINTS status
     // The match is now in a decided state and should not be re-evaluated
 
     return NextResponse.json({
       ok: true,
-      match: updatedMatch,
+      match: result.updatedMatch,
+      advancementResult: {
+        advancedWinnerMatches: result.advancementResult.advancedWinnerMatches,
+        advancedLoserMatches: result.advancementResult.advancedLoserMatches,
+      },
     });
   } catch (error) {
     console.error('[DECIDE_BY_POINTS] Error:', error);
