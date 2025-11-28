@@ -480,17 +480,28 @@ async function decideMatchByPoints(matchId: string) {
     }
 
 
+    // Get standard games (not tiebreakers)
     const standardGames = match.games.filter((g) =>
       ['MENS_DOUBLES', 'WOMENS_DOUBLES', 'MIXED_1', 'MIXED_2'].includes(g.slot ?? ''),
     );
 
-    standardGames.forEach((g, i) => {
-    });
+    // Check if this is a DE Clubs tournament (games have bracketId)
+    const isDEClubs = standardGames.some(g => g.bracketId != null);
 
-    if (standardGames.length !== 4 || standardGames.some((g) => g.teamAScore == null || g.teamBScore == null)) {
-      return bad('Standard games must be completed before deciding by points.');
+    if (isDEClubs) {
+      // For DE Clubs, we need ALL games across ALL brackets to be completed
+      // Each bracket has 4 games, so we should have 4 * number of brackets
+      if (standardGames.length === 0 || standardGames.some((g) => g.teamAScore == null || g.teamBScore == null)) {
+        return bad('All standard games across all brackets must be completed before deciding by points.');
+      }
+    } else {
+      // For regular tournaments, we need exactly 4 standard games
+      if (standardGames.length !== 4 || standardGames.some((g) => g.teamAScore == null || g.teamBScore == null)) {
+        return bad('Standard games must be completed before deciding by points.');
+      }
     }
 
+    // Calculate total points and wins across all games (whether DE Clubs or regular)
     const tally = standardGames.reduce(
       (acc, game) => {
         const a = game.teamAScore ?? 0;
