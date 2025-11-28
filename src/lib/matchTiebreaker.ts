@@ -229,11 +229,23 @@ export async function evaluateMatchTiebreaker(
     }
   }
 
+  // Determine if match is actually decided (has a winner)
+  // Match is decided when:
+  // - NONE: Standard games decided the match (one team has more wins)
+  // - DECIDED_POINTS: Points were used to decide tied games
+  // - DECIDED_TIEBREAKER: Tiebreaker game was played and decided
+  const matchIsDecided =
+    tiebreakerStatus === 'NONE' ||
+    DECIDED_STATUSES.includes(tiebreakerStatus);
+
+  // Only set winnerId if match is actually decided
+  const finalWinnerId = matchIsDecided ? winnerTeamId : null;
+
   // Persist changes when something differs
   const shouldUpdate =
     tiebreakerStatus !== match.tiebreakerStatus ||
     winnerTeamId !== (match.tiebreakerWinnerTeamId ?? null) ||
-    winnerTeamId !== (match.winnerId ?? null) ||
+    finalWinnerId !== (match.winnerId ?? null) ||
     tiebreakerGameId !== (match.tiebreakerGameId ?? null) ||
     (tiebreakerDecidedAt?.getTime() ?? null) !== (match.tiebreakerDecidedAt?.getTime() ?? null) ||
     totalPointsTeamA !== (match.totalPointsTeamA ?? null) ||
@@ -248,7 +260,7 @@ export async function evaluateMatchTiebreaker(
     data: {
       tiebreakerStatus,
       tiebreakerWinnerTeamId: winnerTeamId,
-      winnerId: winnerTeamId, // Set winnerId for bracket progression
+      winnerId: finalWinnerId, // Only set when match is actually decided
       tiebreakerGameId,
       tiebreakerDecidedAt,
       totalPointsTeamA,
@@ -261,23 +273,9 @@ export async function evaluateMatchTiebreaker(
     },
   });
 
-  // TRIGGER MATCH COMPLETION: If we just set a winner, trigger the /complete endpoint
-  // This will advance teams to child matches
-  if (winnerTeamId && !match.winnerId) {
-
-    // Trigger async without awaiting to avoid blocking
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/admin/matches/${matchId}/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    }).then(res => {
-      if (res.ok) {
-      } else {
-        console.error(`[Match Tiebreaker] Failed to trigger match completion: ${res.status}`);
-      }
-    }).catch(err => {
-      console.error(`[Match Tiebreaker] Error triggering match completion:`, err);
-    });
-  }
+  // DO NOT call /complete endpoint here - it creates circular dependencies
+  // The complete endpoint or decideMatchByPoints will handle bracket advancement
+  // using the advanceTeamsInBracket utility
 
   return updatedMatch;
 }
