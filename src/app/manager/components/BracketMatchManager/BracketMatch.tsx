@@ -585,19 +585,61 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                   .filter(g => g.bracket && g.bracketId)
                   .map(g => {
                     const bracketTeam = bracketTeams[g.bracketId!];
+
+                    // CRITICAL: Must use bracket-specific team IDs for lineups to work in Captain portal
+                    // If bracketTeam is not found, this is an error condition - don't use match-level team IDs
+                    if (!bracketTeam) {
+                      console.error(`[BracketMatch] No bracket team found for bracketId ${g.bracketId}. Available brackets:`, Object.keys(bracketTeams));
+                      return [
+                        g.bracketId!,
+                        {
+                          bracketId: g.bracketId!,
+                          bracketName: g.bracket!.name,
+                          teamA: null,
+                          teamB: null,
+                        }
+                      ];
+                    }
+
                     return [
                       g.bracketId!,
                       {
                         bracketId: g.bracketId!,
                         bracketName: g.bracket!.name,
-                        // Use bracket-specific teams if available, otherwise fall back to match teams
-                        teamA: bracketTeam?.teamA || { id: match.teamA!.id, name: match.teamA!.name },
-                        teamB: bracketTeam?.teamB || { id: match.teamB!.id, name: match.teamB!.name },
+                        teamA: bracketTeam.teamA,
+                        teamB: bracketTeam.teamB,
                       }
                     ];
                   })
               ).values()
-            );
+            ).filter(b => b.teamA && b.teamB) as Array<{
+              bracketId: string;
+              bracketName: string;
+              teamA: { id: string; name: string };
+              teamB: { id: string; name: string };
+            }>;
+
+            // Show error if no valid brackets found
+            if (brackets.length === 0) {
+              return (
+                <div className="bg-red-900/20 border border-red-500 rounded-lg p-6 text-center mb-4">
+                  <p className="text-red-400 mb-2 font-semibold">Cannot load bracket teams</p>
+                  <p className="text-sm text-muted">
+                    Unable to find bracket-specific teams for this match.
+                    Please ensure all teams are properly assigned to brackets and try refreshing the page.
+                  </p>
+                  <button
+                    className="btn btn-secondary mt-3"
+                    onClick={() => {
+                      setIsEditingLineup(false);
+                      loadBracketTeams();
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              );
+            }
 
             return (
               <div className="mb-4">

@@ -79,10 +79,12 @@ export async function GET(request: Request, { params }: Params) {
       );
     }
 
+    // TEMPORARILY DISABLED CACHE FOR DEBUGGING
     // Use cache to reduce database load (shorter TTL for match data)
-    const result = await getCached(
-      cacheKeys.captainPortal(token) + ':match',
-      async () => {
+    // const result = await getCached(
+    //   cacheKeys.captainPortal(token) + ':match',
+    //   async () => {
+    const result = await (async () => {
         // Get all teams for this club (one per bracket)
         const teams = await prisma.team.findMany({
           where: {
@@ -98,6 +100,15 @@ export async function GET(request: Request, { params }: Params) {
             }
           }
         });
+
+        console.log(`[Captain Portal] Teams for club ${tournamentClub.club.name}:`,
+          teams.map(t => ({
+            teamId: t.id,
+            teamName: t.name,
+            bracketId: t.bracketId,
+            bracketName: t.bracket?.name
+          }))
+        );
 
         if (teams.length === 0) {
           return {
@@ -209,6 +220,28 @@ export async function GET(request: Request, { params }: Params) {
         // Get all bracket IDs involved in this match
         const bracketIds = [...new Set(currentMatch.games.map(g => g.bracketId).filter(Boolean) as string[])];
 
+        // Debug: Check what lineups exist for this round
+        const allLineupsForRound = await prisma.lineup.findMany({
+          where: { roundId: currentMatch.roundId },
+          select: {
+            id: true,
+            roundId: true,
+            teamId: true,
+            bracketId: true,
+            team: { select: { name: true, bracketId: true, clubId: true } }
+          }
+        });
+        console.log(`[Captain Portal] All lineups for roundId ${currentMatch.roundId}:`,
+          allLineupsForRound.map(l => ({
+            lineupId: l.id,
+            teamId: l.teamId,
+            teamName: l.team.name,
+            teamBracketId: l.team.bracketId,
+            teamClubId: l.team.clubId,
+            lineupBracketId: l.bracketId
+          }))
+        );
+
         // For each bracket, get roster, lineup, and games
         const bracketsData = await Promise.all(
           bracketIds.map(async (bracketId) => {
@@ -234,6 +267,8 @@ export async function GET(request: Request, { params }: Params) {
             });
 
             // Get lineup for this bracket if exists
+            console.log(`[Captain Portal] Looking for lineup: roundId=${currentMatch.roundId}, teamId=${team.id}, bracketId=${bracketId}`);
+
             const lineupData = await prisma.lineup.findFirst({
               where: {
                 roundId: currentMatch.roundId,
@@ -249,6 +284,8 @@ export async function GET(request: Request, { params }: Params) {
                 }
               }
             });
+
+            console.log(`[Captain Portal] Lineup found:`, lineupData ? `Yes (id=${lineupData.id}, entries=${lineupData.entries.length})` : 'No');
 
             // Extract 4-player lineup
             let lineup: any[] = [];
@@ -407,9 +444,9 @@ export async function GET(request: Request, { params }: Params) {
           },
           brackets: bracketsData.filter(Boolean)
         };
-      },
-      30 // 30 second TTL for match data
-    );
+      // },
+      // 30 // 30 second TTL for match data
+    })();
 
     return NextResponse.json(result);
   } catch (error) {
