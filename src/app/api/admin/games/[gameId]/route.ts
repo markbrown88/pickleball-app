@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 import { invalidateCache, cacheKeys } from '@/lib/cache';
+import { advanceTeamsInBracket } from '@/lib/bracketAdvancement';
 
 export async function PATCH(
   request: NextRequest,
@@ -46,21 +47,71 @@ export async function PATCH(
 
     // Log what we're about to update
 
-    // Update the game with new scores and other fields
-    const updatedGame = await prisma.game.update({
-      where: { id: gameId },
-      data: updateData
-    });
+    // Use transaction to update game and potentially advance teams in bracket
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the game with new scores and other fields
+      const updatedGame = await tx.game.update({
+        where: { id: gameId },
+        data: updateData,
+        include: {
+          match: {
+            select: { id: true }
+          }
+        }
+      });
 
-    // After updating game, recalculate match tiebreaker status
-    if (updatedGame.matchId) {
-      await evaluateMatchTiebreaker(prisma, updatedGame.matchId);
-    }
+      // After updating game, recalculate match tiebreaker status
+      if (updatedGame.matchId) {
+        const updatedMatch = await evaluateMatchTiebreaker(tx, updatedGame.matchId);
+
+        // If match has a winner, advance teams through the bracket
+        if (updatedMatch && updatedMatch.winnerId) {
+          const matchWithRound = await tx.match.findUnique({
+            where: { id: updatedGame.matchId },
+            select: {
+              id: true,
+              winnerId: true,
+              teamAId: true,
+              teamBId: true,
+              round: {
+                select: {
+                  stopId: true,
+                  bracketType: true,
+                  depth: true,
+                },
+              },
+            },
+          });
+
+          if (matchWithRound) {
+            const loserId = updatedMatch.winnerId === matchWithRound.teamAId
+              ? matchWithRound.teamBId
+              : matchWithRound.teamAId;
+
+            await advanceTeamsInBracket(
+              tx,
+              updatedGame.matchId,
+              updatedMatch.winnerId,
+              loserId,
+              matchWithRound
+            );
+
+            console.log('[Manager Game PATCH] Match complete - teams advanced:', {
+              matchId: updatedGame.matchId,
+              winnerId: updatedMatch.winnerId,
+              loserId,
+            });
+          }
+        }
+      }
+
+      return updatedGame;
+    });
 
     // Invalidate schedule cache for this stop
     // Get the stopId from the match -> round -> stop relationship
     const match = await prisma.match.findUnique({
-      where: { id: updatedGame.matchId! },
+      where: { id: result.matchId! },
       select: { round: { select: { stopId: true } } }
     });
 
@@ -69,7 +120,7 @@ export async function PATCH(
       await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
     }
 
-    return NextResponse.json(updatedGame);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error updating game:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
