@@ -290,11 +290,12 @@ export async function GET(request: Request, { params }: Params) {
             });
 
             // Get lineup for this bracket if exists
-            console.log(`[Captain Portal] Looking for lineup: roundId=${currentMatch.roundId}, teamId=${team.id}, bracketId=${bracketId}`);
+            // For DE Clubs tournaments, query by stopId instead of roundId since rounds may differ
+            console.log(`[Captain Portal] Looking for lineup: stopId=${currentMatch.round.stop.id}, teamId=${team.id}, bracketId=${bracketId}`);
 
             const lineupData = await prisma.lineup.findFirst({
               where: {
-                roundId: currentMatch.roundId,
+                stopId: currentMatch.round.stop.id,
                 teamId: team.id,
                 bracketId: bracketId
               },
@@ -336,7 +337,7 @@ export async function GET(request: Request, { params }: Params) {
             if (hasStarted && opponentTeam) {
               const opponentLineupData = await prisma.lineup.findFirst({
                 where: {
-                  roundId: currentMatch.roundId,
+                  stopId: currentMatch.round.stop.id,
                   teamId: opponentTeam.id,
                   bracketId: bracketId
                 },
