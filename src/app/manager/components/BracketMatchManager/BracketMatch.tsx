@@ -579,45 +579,31 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
             }
 
             // Extract brackets from games using the loaded bracket-specific teams
+            const allBracketEntries = localGames
+              .filter(g => g.bracket && g.bracketId)
+              .map(g => {
+                const bracketTeam = bracketTeams[g.bracketId!];
+
+                // CRITICAL: Must use bracket-specific team IDs for lineups to work in Captain portal
+                // If bracketTeam is not found, this is an error condition - don't use match-level team IDs
+                if (!bracketTeam) {
+                  console.error(`[BracketMatch] No bracket team found for bracketId ${g.bracketId}. Available brackets:`, Object.keys(bracketTeams));
+                  return null;
+                }
+
+                return {
+                  bracketId: g.bracketId!,
+                  bracketName: g.bracket!.name,
+                  teamA: bracketTeam.teamA,
+                  teamB: bracketTeam.teamB,
+                };
+              })
+              .filter((b): b is { bracketId: string; bracketName: string; teamA: { id: string; name: string }; teamB: { id: string; name: string } } => b !== null);
+
+            // Deduplicate by bracketId
             const brackets = Array.from(
-              new Map(
-                localGames
-                  .filter(g => g.bracket && g.bracketId)
-                  .map(g => {
-                    const bracketTeam = bracketTeams[g.bracketId!];
-
-                    // CRITICAL: Must use bracket-specific team IDs for lineups to work in Captain portal
-                    // If bracketTeam is not found, this is an error condition - don't use match-level team IDs
-                    if (!bracketTeam) {
-                      console.error(`[BracketMatch] No bracket team found for bracketId ${g.bracketId}. Available brackets:`, Object.keys(bracketTeams));
-                      return [
-                        g.bracketId!,
-                        {
-                          bracketId: g.bracketId!,
-                          bracketName: g.bracket!.name,
-                          teamA: null,
-                          teamB: null,
-                        }
-                      ];
-                    }
-
-                    return [
-                      g.bracketId!,
-                      {
-                        bracketId: g.bracketId!,
-                        bracketName: g.bracket!.name,
-                        teamA: bracketTeam.teamA,
-                        teamB: bracketTeam.teamB,
-                      }
-                    ];
-                  })
-              ).values()
-            ).filter(b => b.teamA && b.teamB) as Array<{
-              bracketId: string;
-              bracketName: string;
-              teamA: { id: string; name: string };
-              teamB: { id: string; name: string };
-            }>;
+              new Map(allBracketEntries.map(b => [b.bracketId, b])).values()
+            );
 
             // Show error if no valid brackets found
             if (brackets.length === 0) {
