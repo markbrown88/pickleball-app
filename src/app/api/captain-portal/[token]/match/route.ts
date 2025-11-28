@@ -208,11 +208,26 @@ export async function GET(request: Request, { params }: Params) {
         const myTeams = isTeamA ?
           matches.map(m => m.teamA).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined) :
           matches.map(m => m.teamB).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
-        const opponentTeams = isTeamA ?
-          matches.map(m => m.teamB).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined) :
-          matches.map(m => m.teamA).filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
 
         const opponent = isTeamA ? currentMatch.teamB : currentMatch.teamA;
+
+        // For DE Clubs tournaments, fetch ALL teams for the opponent club (not just from match data)
+        // This ensures we get teams from all brackets
+        const opponentClubId = opponent?.clubId;
+        const opponentTeams = opponentClubId ? await prisma.team.findMany({
+          where: {
+            tournamentId: tournamentClub.tournamentId,
+            clubId: opponentClubId
+          },
+          include: {
+            bracket: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }) : [];
 
         // Check if any game has started
         const hasStarted = currentMatch.games.some(g => g.startedAt !== null);
