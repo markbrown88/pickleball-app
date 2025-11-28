@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
+import { advanceTeamsInBracket } from '@/lib/bracketAdvancement';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,24 +96,74 @@ export async function PUT(request: Request, { params }: Params) {
       const finalTeamAScore = reportedTeamAScore;
       const finalTeamBScore = reportedTeamBScore;
 
-      await prisma.game.update({
-        where: { id: gameId },
-        data: {
-          teamAScore: finalTeamAScore,
-          teamBScore: finalTeamBScore,
-          teamASubmittedScore: finalTeamAScore,
-          teamBSubmittedScore: finalTeamBScore,
-          teamAScoreSubmitted: true,
-          teamBScoreSubmitted: true,
-          isComplete: true,
-          startedAt: game.startedAt ?? new Date(),
-        },
+      // Use a transaction to update game and potentially advance teams
+      const result = await prisma.$transaction(async (tx) => {
+        // Update the game
+        await tx.game.update({
+          where: { id: gameId },
+          data: {
+            teamAScore: finalTeamAScore,
+            teamBScore: finalTeamBScore,
+            teamASubmittedScore: finalTeamAScore,
+            teamBSubmittedScore: finalTeamBScore,
+            teamAScoreSubmitted: true,
+            teamBScoreSubmitted: true,
+            isComplete: true,
+            startedAt: game.startedAt ?? new Date(),
+          },
+        });
+
+        // Evaluate match tiebreaker to determine if match is complete
+        const updatedMatch = await evaluateMatchTiebreaker(tx, game.matchId);
+
+        // If match has a winner, advance teams through the bracket
+        if (updatedMatch && updatedMatch.winnerId) {
+          const matchWithRound = await tx.match.findUnique({
+            where: { id: game.matchId },
+            select: {
+              id: true,
+              winnerId: true,
+              teamAId: true,
+              teamBId: true,
+              round: {
+                select: {
+                  stopId: true,
+                  bracketType: true,
+                  depth: true,
+                },
+              },
+            },
+          });
+
+          if (matchWithRound) {
+            const loserId = updatedMatch.winnerId === matchWithRound.teamAId
+              ? matchWithRound.teamBId
+              : matchWithRound.teamAId;
+
+            await advanceTeamsInBracket(
+              tx,
+              game.matchId,
+              updatedMatch.winnerId,
+              loserId,
+              matchWithRound
+            );
+
+            console.log('[Captain Portal] Match complete - teams advanced:', {
+              matchId: game.matchId,
+              winnerId: updatedMatch.winnerId,
+              loserId,
+            });
+          }
+        }
+
+        return { matchComplete: !!updatedMatch?.winnerId };
       });
 
       return NextResponse.json({
         success: true,
         confirmed: true,
         mismatch: false,
+        matchComplete: result.matchComplete,
       });
     }
 
