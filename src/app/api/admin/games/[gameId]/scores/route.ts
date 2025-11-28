@@ -10,6 +10,7 @@ import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 import { invalidateCache } from '@/lib/cache';
 import { z } from 'zod';
 import { scoreSubmissionLimiter, getClientIp, checkRateLimit } from '@/lib/rateLimit';
+import { advanceTeamsInBracket } from '@/lib/bracketAdvancement';
 
 type Ctx = { params: Promise<{ gameId: string }> };
 
@@ -168,7 +169,48 @@ export async function PUT(req: Request, ctx: Ctx) {
         }
       }
 
-      await evaluateMatchTiebreaker(tx, game.match.id);
+      // Evaluate match tiebreaker to determine if match is complete
+      const updatedMatch = await evaluateMatchTiebreaker(tx, game.match.id);
+
+      // If match has a winner, advance teams through the bracket
+      if (updatedMatch && updatedMatch.winnerId) {
+        const matchWithRound = await tx.match.findUnique({
+          where: { id: game.match.id },
+          select: {
+            id: true,
+            winnerId: true,
+            teamAId: true,
+            teamBId: true,
+            round: {
+              select: {
+                stopId: true,
+                bracketType: true,
+                depth: true,
+              },
+            },
+          },
+        });
+
+        if (matchWithRound) {
+          const loserId = updatedMatch.winnerId === matchWithRound.teamAId
+            ? matchWithRound.teamBId
+            : matchWithRound.teamAId;
+
+          await advanceTeamsInBracket(
+            tx,
+            game.match.id,
+            updatedMatch.winnerId,
+            loserId,
+            matchWithRound
+          );
+
+          console.log('[Manager Game Scores] Match complete - teams advanced:', {
+            matchId: game.match.id,
+            winnerId: updatedMatch.winnerId,
+            loserId,
+          });
+        }
+      }
     });
 
     // Return fresh game view
