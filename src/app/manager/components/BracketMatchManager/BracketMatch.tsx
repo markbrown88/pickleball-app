@@ -419,6 +419,17 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
   const matchStatus = getMatchStatus();
   const isDecided = matchStatus === 'decided';
 
+  // Check if we have lineups for this match
+  const matchLineups = lineups[match.id];
+  const hasLineups = matchLineups &&
+    match.teamA &&
+    match.teamB &&
+    matchLineups[match.teamA.id]?.length === 4 &&
+    matchLineups[match.teamB.id]?.length === 4;
+
+  // Check if any game has started
+  const hasAnyGameStarted = localGames.some(g => g.startedAt || g.isComplete);
+
   // Handle bye matches
   if (match.isBye) {
     const byeTeamName = isDoubleEliminationClubs && match.teamA?.club?.name
@@ -488,12 +499,26 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
         {/* Manager Actions */}
         {!isDecided && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto">
+            {/* Edit Lineups button - only show if games haven't started */}
+            {!hasAnyGameStarted && (
+              <button
+                className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-white transition-colors flex-1 sm:flex-none"
+                onClick={async () => {
+                  if (isDoubleEliminationClubs) {
+                    await loadBracketTeams();
+                  }
+                  setIsEditingLineup(true);
+                }}
+              >
+                {hasLineups ? 'Edit Lineups' : 'Set Lineups'}
+              </button>
+            )}
             {matchStatus === 'tied' && (() => {
               const hasTiebreakerGame = localGames.some(g => g.slot === 'TIEBREAKER');
               return (
                 <>
                   <button
-                    className="btn btn-xs btn-secondary flex-1 sm:flex-none"
+                    className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-white transition-colors flex-1 sm:flex-none"
                     disabled={resolvingAction === 'points'}
                     onClick={handleDecideByPoints}
                   >
@@ -501,7 +526,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                   </button>
                   {!hasTiebreakerGame && (
                     <button
-                      className="btn btn-xs btn-primary flex-1 sm:flex-none"
+                      className="text-xs px-2 py-1 rounded bg-primary hover:bg-primary/80 text-white transition-colors flex-1 sm:flex-none"
                       disabled={resolvingAction === 'tiebreaker'}
                       onClick={handleScheduleTiebreaker}
                     >
@@ -513,7 +538,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
             })()}
             <div className="flex gap-2 flex-1 sm:flex-none">
               <button
-                className="btn btn-xs flex-1 sm:flex-none"
+                className="text-xs px-2 py-1 rounded transition-colors flex-1 sm:flex-none"
                 style={{ backgroundColor: '#dc2626', color: 'white' }}
                 disabled={resolvingAction === 'forfeitA'}
                 onClick={() => handleForfeit('A')}
@@ -521,7 +546,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                 {resolvingAction === 'forfeitA' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamAName)}`}
               </button>
               <button
-                className="btn btn-xs flex-1 sm:flex-none"
+                className="text-xs px-2 py-1 rounded transition-colors flex-1 sm:flex-none"
                 style={{ backgroundColor: '#dc2626', color: 'white' }}
                 disabled={resolvingAction === 'forfeitB'}
                 onClick={() => handleForfeit('B')}
@@ -551,19 +576,8 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
 
       {/* Lineup Editor or Prompt */}
       {(() => {
-        // Check if we have lineups for this match (simple match-based check)
-        const matchLineups = lineups[match.id];
-        const hasLineups = matchLineups &&
-          match.teamA &&
-          match.teamB &&
-          matchLineups[match.teamA.id]?.length === 4 &&
-          matchLineups[match.teamB.id]?.length === 4;
-
         const teamALineup = matchLineups?.[match.teamA?.id || ''] || [];
         const teamBLineup = matchLineups?.[match.teamB?.id || ''] || [];
-
-        // Check if any game has started (in progress or completed)
-        const hasAnyGameStarted = localGames.some(g => g.startedAt || g.isComplete);
 
         // Show lineup editor if editing
         if (isEditingLineup && match.teamA && match.teamB) {
@@ -700,27 +714,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
           );
         }
 
-        // If no lineups set yet, show button to set them (only if no games started)
-        if (!hasLineups && !isDecided && !hasAnyGameStarted) {
-          return (
-            <div className="bg-surface-2 rounded-lg p-6 text-center mb-4">
-              <p className="text-muted mb-3">Lineups must be set before games can begin</p>
-              <button
-                className="btn btn-secondary"
-                onClick={async () => {
-                  if (isDoubleEliminationClubs) {
-                    await loadBracketTeams();
-                  }
-                  setIsEditingLineup(true);
-                }}
-              >
-                Set Lineups
-              </button>
-            </div>
-          );
-        }
-
-        // If lineups exist, show edit button and lineup display (only if no games started and not decided)
+        // Show lineup display (only if lineups exist, no games started and not decided)
         if (hasLineups && !isDecided && !hasAnyGameStarted) {
           return (
             <div className="mb-4">

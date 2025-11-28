@@ -794,12 +794,35 @@ export function BracketMatchModal({
                 {teamAGameWins} - {teamBGameWins} (Games Won)
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white text-2xl leading-none"
-            >
-              ×
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Forfeit Buttons */}
+              {!isDecided && (
+                <>
+                  <button
+                    className="text-xs px-2 py-1 rounded transition-colors"
+                    style={{ backgroundColor: '#dc2626', color: 'white' }}
+                    disabled={resolvingAction === 'forfeitA'}
+                    onClick={() => handleForfeit('A')}
+                  >
+                    {resolvingAction === 'forfeitA' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamAName)}`}
+                  </button>
+                  <button
+                    className="text-xs px-2 py-1 rounded transition-colors"
+                    style={{ backgroundColor: '#dc2626', color: 'white' }}
+                    disabled={resolvingAction === 'forfeitB'}
+                    onClick={() => handleForfeit('B')}
+                  >
+                    {resolvingAction === 'forfeitB' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamBName)}`}
+                  </button>
+                </>
+              )}
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-white text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           {/* Match Status Badge */}
@@ -849,26 +872,6 @@ export function BracketMatchModal({
                   </button>
                 ) : null;
               })()}
-            </div>
-          )}
-
-          {/* Forfeit Buttons */}
-          {!isDecided && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              <button
-                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error"
-                disabled={resolvingAction === 'forfeitA'}
-                onClick={() => handleForfeit('A')}
-              >
-                {resolvingAction === 'forfeitA' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamAName)}`}
-              </button>
-              <button
-                className="btn btn-xs bg-error hover:bg-error/80 text-white border-error"
-                disabled={resolvingAction === 'forfeitB'}
-                onClick={() => handleForfeit('B')}
-              >
-                {resolvingAction === 'forfeitB' ? 'Processing...' : `Forfeit ${shortenLineupName(cleanTeamBName)}`}
-              </button>
             </div>
           )}
 
