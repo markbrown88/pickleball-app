@@ -918,6 +918,59 @@ export function BracketMatchModal({
             // Fall back to match.games only if localGames is empty (initial state)
             const gamesToRender = localGames.length > 0 ? localGames : (match?.games || []);
 
+            // Check if lineups are set before showing games
+            // This prevents starting games without lineups confirmed
+            const hasLineupsInGames = gamesToRender.some(g => g.teamALineup && g.teamBLineup);
+
+            // Check if we have lineups in state for all brackets
+            const brackets = Array.from(
+              new Map(
+                gamesToRender
+                  .filter(g => g.bracket && g.bracketId)
+                  .map(g => [g.bracketId!, { bracketId: g.bracketId! }])
+              ).values()
+            );
+
+            const hasAllLineupsInState = brackets.length > 0 && brackets.every(bracket => {
+              const bracketLineups = lineups[bracket.bracketId];
+              const bracketTeam = bracketTeams[bracket.bracketId];
+
+              // For bracket-aware matches, use the correct team IDs for this specific bracket
+              if (bracketTeam) {
+                const hasTeamA = bracketLineups?.[bracketTeam.teamA.id]?.length === 4;
+                const hasTeamB = bracketLineups?.[bracketTeam.teamB.id]?.length === 4;
+                return (
+                  bracketLineups &&
+                  hasTeamA &&
+                  hasTeamB
+                );
+              }
+
+              // Fallback for non-bracket matches
+              return (
+                bracketLineups &&
+                match.teamA &&
+                match.teamB &&
+                bracketLineups[match.teamA.id]?.length === 4 &&
+                bracketLineups[match.teamB.id]?.length === 4
+              );
+            });
+
+            // If lineups aren't confirmed, show a message instead of games
+            if (!hasAllLineupsInState && !hasLineupsInGames) {
+              return (
+                <div className="text-center py-12">
+                  <div className="bg-surface-2 border border-border-subtle rounded-lg p-6 max-w-md mx-auto">
+                    <div className="text-muted text-4xl mb-4">📋</div>
+                    <h3 className="text-lg font-semibold mb-2">Lineups Required</h3>
+                    <p className="text-muted">
+                      Please confirm lineups for both teams before games can be started.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
 
             if (gamesToRender.length === 0) {
               return (
