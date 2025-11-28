@@ -248,15 +248,8 @@ export function BracketMatchManager({
       // Load lineups for this stop using the new Lineup/LineupEntry schema
       await loadLineupsForStop(stopId);
 
-      // Auto-expand incomplete rounds
-      const incomplete = new Set<string>();
-      for (const round of roundsData) {
-        const hasIncomplete = round.matches.some((m: Match) => !m.winnerId);
-        if (hasIncomplete) {
-          incomplete.add(round.id);
-        }
-      }
-      setExpandedRounds(incomplete);
+      // Keep all rounds collapsed by default
+      setExpandedRounds(new Set());
     } catch (error) {
       console.error('Error loading bracket:', error);
       onError(error instanceof Error ? error.message : 'Failed to load bracket');
