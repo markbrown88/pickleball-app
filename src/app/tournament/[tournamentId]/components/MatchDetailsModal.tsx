@@ -117,16 +117,23 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
   const hasStarted = match.games.some(g => g.startedAt !== null);
   const isComplete = match.winnerId !== null;
 
+  const cleanTeamAName = match.teamA?.club?.name
+    ? stripBracketSuffix(match.teamA.club.name)
+    : stripBracketSuffix(match.teamA?.name || '');
+  const cleanTeamBName = match.teamB?.club?.name
+    ? stripBracketSuffix(match.teamB.club.name)
+    : stripBracketSuffix(match.teamB?.name || '');
+
   if (match.isBye) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
         <div className="bg-gray-800 rounded-lg border border-gray-700 max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
           <div className="text-center">
-            <h2 className="text-xl font-bold text-white mb-2">Bye Match</h2>
-            <p className="text-gray-400 mb-4">This team received a bye and automatically advances.</p>
+            <h3 className="text-xl font-bold text-white mb-3">BYE Match</h3>
+            <p className="text-gray-400 mb-4">{cleanTeamAName || 'TBD'} automatically advances</p>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/80 transition-colors"
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md"
             >
               Close
             </button>
@@ -136,177 +143,192 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
     );
   }
 
+  // Group games by bracket
+  const gamesByBracket = useMemo(() => {
+    const grouped = new Map<string, Game[]>();
+    match.games.forEach((game) => {
+      const bracketKey = game.bracket?.name || 'Main';
+      if (!grouped.has(bracketKey)) {
+        grouped.set(bracketKey, []);
+      }
+      grouped.get(bracketKey)!.push(game);
+    });
+    return grouped;
+  }, [match.games]);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
-        className="bg-gray-900 rounded-lg border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+        className="bg-gray-800 rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-gray-700 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
-          <div className="flex-1">
-            <h2 className="text-lg font-bold text-white">Match Details</h2>
-            {isComplete && (
-              <p className="text-sm text-green-400 mt-1">Match Complete</p>
-            )}
-            {!isComplete && hasStarted && (
-              <p className="text-sm text-yellow-400 mt-1">Match In Progress</p>
-            )}
-            {!isComplete && !hasStarted && (
-              <p className="text-sm text-gray-400 mt-1">Match Not Started</p>
-            )}
+        <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-white">
+                {cleanTeamAName} vs {cleanTeamBName}
+              </h3>
+              <div className="text-sm text-gray-400 mt-1">
+                {gamesWon.teamA} - {gamesWon.teamB} (Games Won)
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white text-2xl leading-none"
+            >
+              ×
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors text-2xl"
-            aria-label="Close"
-          >
-            ×
-          </button>
+
+          {/* Match Status Badge */}
+          {isComplete && (
+            <div className="text-xs font-semibold px-2 py-1 bg-green-900/40 text-green-400 rounded inline-block">
+              ✓ Complete
+            </div>
+          )}
         </div>
 
-        {/* Match Summary */}
-        <div className="px-6 py-4 border-b border-gray-700">
-          <div className="grid grid-cols-3 gap-4 items-center">
-            {/* Team A */}
-            <div className={`text-center ${match.winnerId === match.teamA?.id ? 'opacity-100' : 'opacity-60'}`}>
-              <div className="text-base font-bold text-white">
-                {match.teamA?.name || 'TBD'}
+        {/* Content - Games by Bracket */}
+        <div className="p-6 space-y-6">
+          {match.forfeitTeam ? (
+            <div className="text-center py-12">
+              <div className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-6 max-w-md mx-auto">
+                <div className="text-yellow-400 text-4xl mb-4">⚠️</div>
+                <h3 className="text-lg font-semibold text-white mb-2">Match Forfeited</h3>
+                <p className="text-gray-400 mb-4">
+                  {match.forfeitTeam === 'A' ? cleanTeamAName : cleanTeamBName} forfeited this match.
+                </p>
+                <p className="font-semibold text-green-400">
+                  {match.forfeitTeam === 'A' ? cleanTeamBName : cleanTeamAName} wins by forfeit
+                </p>
               </div>
-              {match.teamA?.club && (
-                <div className="text-sm text-gray-400 mt-1">{match.teamA.club.name}</div>
-              )}
-              {isComplete && match.winnerId === match.teamA?.id && (
-                <div className="text-green-400 text-sm mt-2 font-semibold">Winner</div>
-              )}
             </div>
+          ) : (
+            Array.from(gamesByBracket.entries()).map(([bracketName, games]) => {
+              // Calculate bracket winner
+              let teamAWins = 0;
+              let teamBWins = 0;
+              for (const game of games) {
+                if (game.isComplete && game.teamAScore !== null && game.teamBScore !== null) {
+                  if (game.teamAScore > game.teamBScore) teamAWins++;
+                  else if (game.teamBScore > game.teamAScore) teamBWins++;
+                }
+              }
 
-            {/* Score */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">
-                {gamesWon.teamA} - {gamesWon.teamB}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">Games Won</div>
-            </div>
-
-            {/* Team B */}
-            <div className={`text-center ${match.winnerId === match.teamB?.id ? 'opacity-100' : 'opacity-60'}`}>
-              <div className="text-base font-bold text-white">
-                {match.teamB?.name || 'TBD'}
-              </div>
-              {match.teamB?.club && (
-                <div className="text-sm text-gray-400 mt-1">{match.teamB.club.name}</div>
-              )}
-              {isComplete && match.winnerId === match.teamB?.id && (
-                <div className="text-green-400 text-sm mt-2 font-semibold">Winner</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Games List */}
-        <div className="px-6 py-4">
-          <h3 className="text-base font-semibold text-white mb-4">Games</h3>
-          <div className="space-y-3">
-            {match.games.map((game) => {
-              const gameWinner =
-                game.isComplete && game.teamAScore !== null && game.teamBScore !== null
-                  ? game.teamAScore > game.teamBScore
-                    ? 'A'
-                    : game.teamBScore > game.teamAScore
-                    ? 'B'
-                    : null
-                  : null;
-
-              // For DE Clubs, use bracket name; otherwise use slot label
-              const gameLabel = game.bracket?.name || GAME_SLOT_LABELS[game.slot] || game.slot;
+              const bracketLabel =
+                bracketName === 'Main'
+                  ? 'Overall Skill Bracket'
+                  : `${bracketName} Skill Bracket`;
 
               return (
-                <div key={game.id} className="bg-gray-800 rounded-lg border border-gray-700 p-4">
-                  {/* Game Header */}
+                <div key={bracketName}>
+                  {/* Bracket Header */}
                   <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold text-white">
-                        {gameLabel}
-                      </h4>
-                      {game.courtNumber && (
-                        <span className="text-xs bg-blue-900/40 text-blue-400 px-2 py-0.5 rounded">
-                          Court {game.courtNumber}
-                        </span>
-                      )}
-                      {game.isComplete && (
-                        <span className="text-xs bg-green-900/40 text-green-400 px-2 py-0.5 rounded">
-                          Complete
-                        </span>
-                      )}
-                      {!game.isComplete && game.startedAt && (
-                        <span className="text-xs bg-yellow-900/40 text-yellow-400 px-2 py-0.5 rounded">
-                          In Progress
-                        </span>
-                      )}
-                    </div>
-                    {game.isComplete && (
-                      <div className="text-base font-bold text-white">
-                        {game.teamAScore} - {game.teamBScore}
-                      </div>
-                    )}
+                    <h4 className="text-sm font-semibold text-blue-400">
+                      {bracketLabel}
+                    </h4>
+                    <span className="text-xs font-semibold text-gray-300 bg-gray-700/60 px-2 py-0.5 rounded">
+                      {teamAWins} - {teamBWins}
+                    </span>
                   </div>
 
-                  {/* Lineups */}
-                  {(game.teamALineup || game.teamBLineup) && (
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      {/* Team A Lineup */}
-                      <div className={gameWinner === 'A' ? 'opacity-100' : 'opacity-60'}>
-                        <div className="font-medium text-white mb-1">
-                          {match.teamA?.name || 'Team A'}
-                          {gameWinner === 'A' && <span className="ml-2 text-green-400">✓</span>}
-                        </div>
-                        <div className="text-gray-400 space-y-0.5">
-                          {game.teamALineup?.map((player) => (
-                            <div key={player.id}>{formatPlayerName(player)}</div>
-                          ))}
-                          {(!game.teamALineup || game.teamALineup.length === 0) && (
-                            <div className="italic">No lineup</div>
-                          )}
-                        </div>
-                      </div>
+                  {/* Games in 2-column grid */}
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {games.map((game) => {
+                      const gameWinner =
+                        game.isComplete && game.teamAScore !== null && game.teamBScore !== null
+                          ? game.teamAScore > game.teamBScore
+                            ? 'A'
+                            : game.teamBScore > game.teamAScore
+                            ? 'B'
+                            : null
+                          : null;
 
-                      {/* Team B Lineup */}
-                      <div className={gameWinner === 'B' ? 'opacity-100' : 'opacity-60'}>
-                        <div className="font-medium text-white mb-1">
-                          {match.teamB?.name || 'Team B'}
-                          {gameWinner === 'B' && <span className="ml-2 text-green-400">✓</span>}
-                        </div>
-                        <div className="text-gray-400 space-y-0.5">
-                          {game.teamBLineup?.map((player) => (
-                            <div key={player.id}>{formatPlayerName(player)}</div>
-                          ))}
-                          {(!game.teamBLineup || game.teamBLineup.length === 0) && (
-                            <div className="italic">No lineup</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                      const gameTitle = GAME_SLOT_LABELS[game.slot] || game.slot;
+                      const teamALineup = getLineupForSlot(game.teamALineup, game.slot);
+                      const teamBLineup = getLineupForSlot(game.teamBLineup, game.slot);
 
-                  {/* If no lineups, just show placeholder */}
-                  {!game.teamALineup && !game.teamBLineup && !game.startedAt && (
-                    <div className="text-center text-gray-400 text-sm">Game not started</div>
-                  )}
+                      return (
+                        <div
+                          key={game.id}
+                          className={`rounded-lg border-2 overflow-hidden ${
+                            game.isComplete ? 'border-gray-600 bg-gray-700' : 'border-gray-600 bg-gray-700/50'
+                          }`}
+                        >
+                          {/* Game Header */}
+                          <div className={`px-4 py-2 flex items-center justify-between ${
+                            game.isComplete ? 'bg-gray-700' : 'bg-gray-700/80'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-semibold text-white">{gameTitle}</h4>
+                              {game.isComplete && (
+                                <span className="text-[10px] px-2 py-0.5 bg-green-900/40 text-green-400 rounded">
+                                  Complete
+                                </span>
+                              )}
+                              {!game.isComplete && game.startedAt && (
+                                <span className="text-[10px] px-2 py-0.5 bg-yellow-900/40 text-yellow-400 rounded">
+                                  In Progress
+                                </span>
+                              )}
+                            </div>
+                            {game.courtNumber && (
+                              <span className="text-xs text-gray-400">Court {game.courtNumber}</span>
+                            )}
+                          </div>
+
+                          {/* Game Body - Players and Scores */}
+                          <div className="p-4 space-y-3">
+                            <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+                              {/* Team A Side */}
+                              <div className={`text-sm ${
+                                game.isComplete && gameWinner === 'A' ? 'text-green-400 font-semibold' : 'text-gray-300'
+                              }`}>
+                                <div className="leading-relaxed">
+                                  {teamALineup || stripBracketSuffix(match.teamA?.name || 'Team A')}
+                                </div>
+                              </div>
+
+                              {/* Scores */}
+                              <div className="flex items-center gap-3">
+                                {game.isComplete ? (
+                                  <>
+                                    <div className={`text-2xl font-bold tabular ${
+                                      gameWinner === 'A' ? 'text-green-400' : 'text-gray-400'
+                                    }`}>
+                                      {game.teamAScore || 0}
+                                    </div>
+                                    <div className="text-gray-400 font-medium">-</div>
+                                    <div className={`text-2xl font-bold tabular ${
+                                      gameWinner === 'B' ? 'text-green-400' : 'text-gray-400'
+                                    }`}>
+                                      {game.teamBScore || 0}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="text-gray-500 text-sm">-</div>
+                                )}
+                              </div>
+
+                              {/* Team B Side */}
+                              <div className={`text-sm text-right ${
+                                game.isComplete && gameWinner === 'B' ? 'text-green-400 font-semibold' : 'text-gray-300'
+                              }`}>
+                                <div className="leading-relaxed">
+                                  {teamBLineup || stripBracketSuffix(match.teamB?.name || 'Team B')}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
-            })}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 px-6 py-4 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/80 transition-colors"
-          >
-            Close
-          </button>
+            })
+          )}
         </div>
       </div>
     </div>
