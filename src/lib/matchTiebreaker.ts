@@ -165,12 +165,16 @@ export async function evaluateMatchTiebreaker(
           }
         } else {
           // Tiebreaker game exists but doesn't have scores yet
-          // Check if points are equal or unequal
-          if (summary.pointsA === summary.pointsB) {
+          // Check if user explicitly requested tiebreaker (REQUIRES_TIEBREAKER status)
+          if (tiebreakerStatus === 'REQUIRES_TIEBREAKER') {
+            // User explicitly chose to use a tiebreaker - keep it regardless of points
+            tiebreakerStatus = 'PENDING_TIEBREAKER';
+          } else if (summary.pointsA === summary.pointsB) {
+            // Points are tied - tiebreaker is appropriate
             tiebreakerStatus = 'PENDING_TIEBREAKER';
           } else {
-            // Points are unequal - user should decide by points instead
-            // Delete the tiebreaker game since it shouldn't exist
+            // Points are unequal and user didn't explicitly request tiebreaker
+            // Delete the tiebreaker game since match should be decided by points
             await tx.game.delete({
               where: { id: tiebreakerGame.id },
             });

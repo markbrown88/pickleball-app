@@ -4,6 +4,7 @@
  * Read-Only Match Details Modal
  *
  * Displays match and game details without edit capabilities.
+ * Matches the manager modal layout but without interactive controls.
  */
 
 import { useMemo } from 'react';
@@ -15,6 +16,7 @@ interface Match {
   winnerId: string | null;
   games: Game[];
   isBye?: boolean;
+  forfeitTeam?: 'A' | 'B' | null;
 }
 
 interface Game {
@@ -57,6 +59,40 @@ function formatPlayerName(player: Player | undefined): string {
     return `${player.firstName} ${player.lastName}`;
   }
   return player.name || 'Unknown';
+}
+
+/**
+ * Strip bracket level suffix from team/club name
+ */
+function stripBracketSuffix(name: string): string {
+  return name.replace(/\s+[\d.]+$/, '').replace(/\s+(Intermediate|Advanced|Beginner)$/i, '');
+}
+
+/**
+ * Get player lineup display for a specific game slot
+ */
+function getLineupForSlot(lineup: Player[] | undefined, slot: string): string {
+  if (!lineup || lineup.length < 4) return '';
+
+  const man1 = lineup[0];
+  const man2 = lineup[1];
+  const woman1 = lineup[2];
+  const woman2 = lineup[3];
+
+  switch (slot) {
+    case 'MENS_DOUBLES':
+      return man1 && man2 ? `${formatPlayerName(man1)} & ${formatPlayerName(man2)}` : '';
+    case 'WOMENS_DOUBLES':
+      return woman1 && woman2 ? `${formatPlayerName(woman1)} & ${formatPlayerName(woman2)}` : '';
+    case 'MIXED_1':
+      return man1 && woman1 ? `${formatPlayerName(man1)} & ${formatPlayerName(woman1)}` : '';
+    case 'MIXED_2':
+      return man2 && woman2 ? `${formatPlayerName(man2)} & ${formatPlayerName(woman2)}` : '';
+    case 'TIEBREAKER':
+      return '';
+    default:
+      return '';
+  }
 }
 
 export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {

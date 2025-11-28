@@ -48,8 +48,13 @@ export const GameScoreBox = memo(function GameScoreBox({
   };
 
   const getTeamALineup = () => {
-    // For tiebreakers, show actual team names
+    // For tiebreakers, show club names for DE Clubs, otherwise team names
     if (game.slot === 'TIEBREAKER' && match) {
+      // If this is a DE Clubs tournament with club info, use club name
+      const clubName = match.teamA?.club?.name;
+      if (clubName) {
+        return clubName;
+      }
       return match.teamA?.name || 'Team A';
     }
 
@@ -120,8 +125,13 @@ export const GameScoreBox = memo(function GameScoreBox({
   };
 
   const getTeamBLineup = () => {
-    // For tiebreakers, show actual team names
+    // For tiebreakers, show club names for DE Clubs, otherwise team names
     if (game.slot === 'TIEBREAKER' && match) {
+      // If this is a DE Clubs tournament with club info, use club name
+      const clubName = match.teamB?.club?.name;
+      if (clubName) {
+        return clubName;
+      }
       return match.teamB?.name || 'Team B';
     }
 
