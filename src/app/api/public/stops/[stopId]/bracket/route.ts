@@ -24,7 +24,18 @@ export async function GET(req: Request, ctx: Ctx) {
           include: {
             matches: {
               orderBy: { id: 'asc' },
-              include: {
+              select: {
+                id: true,
+                seedA: true,
+                seedB: true,
+                isBye: true,
+                winnerId: true,
+                forfeitTeam: true,
+                tiebreakerWinnerTeamId: true,
+                sourceMatchAId: true,
+                sourceMatchBId: true,
+                teamAId: true,
+                teamBId: true,
                 teamA: {
                   select: {
                     id: true,
@@ -80,13 +91,20 @@ export async function GET(req: Request, ctx: Ctx) {
             bracketType: round.bracketType,
             depth: round.depth,
             matches: round.matches.map((match: any) => {
-              // Calculate winner based on games
+              // Determine winner: use database winnerId if set, otherwise calculate
               let winnerId: string | null = null;
 
-              if (match.forfeitTeam) {
+              if (match.winnerId) {
+                // Use the winnerId from the database if it's set
+                winnerId = match.winnerId;
+              } else if (match.forfeitTeam) {
+                // Forfeit: the non-forfeiting team wins
                 winnerId = match.forfeitTeam === 'A' ? match.teamBId : match.teamAId;
+              } else if (match.tiebreakerWinnerTeamId) {
+                // Tiebreaker decided
+                winnerId = match.tiebreakerWinnerTeamId;
               } else {
-                // Count game wins
+                // Calculate winner based on game wins
                 let teamAWins = 0;
                 let teamBWins = 0;
 
@@ -100,11 +118,14 @@ export async function GET(req: Request, ctx: Ctx) {
                   }
                 });
 
-                if (teamAWins >= 3) {
+                // Only set winnerId if one team has MORE wins AND has won at least 3 games
+                // This prevents marking a 3-3 tie as complete
+                if (teamAWins >= 3 && teamAWins > teamBWins) {
                   winnerId = match.teamAId;
-                } else if (teamBWins >= 3) {
+                } else if (teamBWins >= 3 && teamBWins > teamAWins) {
                   winnerId = match.teamBId;
                 }
+                // If teamAWins === teamBWins, winnerId remains null (tied match)
               }
 
               // Get lineups for this match's teams
