@@ -70,29 +70,29 @@ function stripBracketSuffix(name: string): string {
 
 /**
  * Get player lineup display for a specific game slot
+ * The API returns a 2-player array for each game (the specific players for that game)
  */
 function getLineupForSlot(lineup: Player[] | undefined, slot: string): string {
-  if (!lineup || lineup.length < 4) return '';
+  if (!lineup || lineup.length < 2) return '';
 
-  const man1 = lineup[0];
-  const man2 = lineup[1];
-  const woman1 = lineup[2];
-  const woman2 = lineup[3];
+  const player1 = lineup[0];
+  const player2 = lineup[1];
 
-  switch (slot) {
-    case 'MENS_DOUBLES':
-      return man1 && man2 ? `${formatPlayerName(man1)} & ${formatPlayerName(man2)}` : '';
-    case 'WOMENS_DOUBLES':
-      return woman1 && woman2 ? `${formatPlayerName(woman1)} & ${formatPlayerName(woman2)}` : '';
-    case 'MIXED_1':
-      return man1 && woman1 ? `${formatPlayerName(man1)} & ${formatPlayerName(woman1)}` : '';
-    case 'MIXED_2':
-      return man2 && woman2 ? `${formatPlayerName(man2)} & ${formatPlayerName(woman2)}` : '';
-    case 'TIEBREAKER':
-      return '';
-    default:
-      return '';
+  if (!player1 || !player2) return '';
+
+  return `${formatPlayerName(player1)} & ${formatPlayerName(player2)}`;
+}
+
+/**
+ * Get display name - prefer club name for DE Clubs tournaments
+ */
+function getDisplayName(team: { name: string; club?: { name: string } } | null | undefined): string {
+  if (!team) return 'TBD';
+  // For DE Clubs tournaments, prefer club name
+  if (team.club?.name) {
+    return team.club.name;
   }
+  return stripBracketSuffix(team.name);
 }
 
 export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
@@ -218,8 +218,8 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
 
               const bracketLabel =
                 bracketName === 'Main'
-                  ? 'Overall Skill Bracket'
-                  : `${bracketName} Skill Bracket`;
+                  ? 'Overall'
+                  : bracketName;
 
               return (
                 <div key={bracketName}>
@@ -280,46 +280,52 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
 
                           {/* Game Body - Players and Scores */}
                           <div className="p-4 space-y-3">
-                            <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
-                              {/* Team A Side */}
-                              <div className={`text-sm ${
-                                game.isComplete && gameWinner === 'A' ? 'text-green-400 font-semibold' : 'text-gray-300'
-                              }`}>
-                                <div className="leading-relaxed">
-                                  {teamALineup || stripBracketSuffix(match.teamA?.name || 'Team A')}
+                            {!teamALineup && !teamBLineup && !hasStarted ? (
+                              <div className="text-center py-4 text-sm text-gray-400">
+                                Lineups have not been set for this game
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+                                {/* Team A Side */}
+                                <div className={`text-sm ${
+                                  game.isComplete && gameWinner === 'A' ? 'text-green-400 font-semibold' : 'text-gray-300'
+                                }`}>
+                                  <div className="leading-relaxed">
+                                    {teamALineup || getDisplayName(match.teamA)}
+                                  </div>
+                                </div>
+
+                                {/* Scores */}
+                                <div className="flex items-center gap-3">
+                                  {game.isComplete ? (
+                                    <>
+                                      <div className={`text-2xl font-bold tabular ${
+                                        gameWinner === 'A' ? 'text-green-400' : 'text-gray-400'
+                                      }`}>
+                                        {game.teamAScore || 0}
+                                      </div>
+                                      <div className="text-gray-400 font-medium">-</div>
+                                      <div className={`text-2xl font-bold tabular ${
+                                        gameWinner === 'B' ? 'text-green-400' : 'text-gray-400'
+                                      }`}>
+                                        {game.teamBScore || 0}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="text-gray-500 text-sm">-</div>
+                                  )}
+                                </div>
+
+                                {/* Team B Side */}
+                                <div className={`text-sm text-right ${
+                                  game.isComplete && gameWinner === 'B' ? 'text-green-400 font-semibold' : 'text-gray-300'
+                                }`}>
+                                  <div className="leading-relaxed">
+                                    {teamBLineup || getDisplayName(match.teamB)}
+                                  </div>
                                 </div>
                               </div>
-
-                              {/* Scores */}
-                              <div className="flex items-center gap-3">
-                                {game.isComplete ? (
-                                  <>
-                                    <div className={`text-2xl font-bold tabular ${
-                                      gameWinner === 'A' ? 'text-green-400' : 'text-gray-400'
-                                    }`}>
-                                      {game.teamAScore || 0}
-                                    </div>
-                                    <div className="text-gray-400 font-medium">-</div>
-                                    <div className={`text-2xl font-bold tabular ${
-                                      gameWinner === 'B' ? 'text-green-400' : 'text-gray-400'
-                                    }`}>
-                                      {game.teamBScore || 0}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="text-gray-500 text-sm">-</div>
-                                )}
-                              </div>
-
-                              {/* Team B Side */}
-                              <div className={`text-sm text-right ${
-                                game.isComplete && gameWinner === 'B' ? 'text-green-400 font-semibold' : 'text-gray-300'
-                              }`}>
-                                <div className="leading-relaxed">
-                                  {teamBLineup || stripBracketSuffix(match.teamB?.name || 'Team B')}
-                                </div>
-                              </div>
-                            </div>
+                            )}
                           </div>
                         </div>
                       );

@@ -502,7 +502,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
             {/* Edit Lineups button - only show if games haven't started */}
             {!hasAnyGameStarted && (
               <button
-                className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-white transition-colors flex-1 sm:flex-none"
+                className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-gray-900 transition-colors flex-1 sm:flex-none"
                 onClick={async () => {
                   if (isDoubleEliminationClubs) {
                     await loadBracketTeams();
@@ -510,7 +510,7 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
                   setIsEditingLineup(true);
                 }}
               >
-                {hasLineups ? 'Edit Lineups' : 'Set Lineups'}
+                Edit Lineup
               </button>
             )}
             {matchStatus === 'tied' && (() => {

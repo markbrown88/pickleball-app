@@ -1009,8 +1009,8 @@ export function BracketMatchModal({
 
               const bracketLabel =
                 bracketName === 'Main'
-                  ? 'Overall Skill Bracket'
-                  : `${bracketName} Skill Bracket`;
+                  ? 'Overall'
+                  : bracketName;
 
               return (
                 <div key={bracketName}>

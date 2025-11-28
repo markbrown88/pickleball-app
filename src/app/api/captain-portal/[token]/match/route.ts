@@ -218,7 +218,16 @@ export async function GET(request: Request, { params }: Params) {
         const hasStarted = currentMatch.games.some(g => g.startedAt !== null);
 
         // Get all bracket IDs involved in this match
-        const bracketIds = [...new Set(currentMatch.games.map(g => g.bracketId).filter(Boolean) as string[])];
+        // Sort brackets to match /manager page order (reverse alphabetical = lowest to highest skill)
+        const bracketIds = [...new Set(currentMatch.games.map(g => g.bracketId).filter(Boolean) as string[])].sort((a, b) => {
+          // Get bracket names for sorting
+          const gameA = currentMatch.games.find(g => g.bracketId === a);
+          const gameB = currentMatch.games.find(g => g.bracketId === b);
+          const nameA = gameA?.bracket?.name || '';
+          const nameB = gameB?.bracket?.name || '';
+          // Sort descending (Z to A) so Intermediate comes before Advanced
+          return nameB.localeCompare(nameA);
+        });
 
         // Debug: Check what lineups exist for this round
         const allLineupsForRound = await prisma.lineup.findMany({
@@ -329,9 +338,8 @@ export async function GET(request: Request, { params }: Params) {
             }
 
             // Get opponent lineup
-            const opponentTeam = isTeamA ?
-              opponentTeams.find(t => t.bracketId === bracketId) :
-              myTeams.find(t => t.bracketId === bracketId);
+            // Always find opponent team from opponentTeams (not myTeams!)
+            const opponentTeam = opponentTeams.find(t => t.bracketId === bracketId);
 
             let opponentLineup: any[] = [];
             if (hasStarted && opponentTeam) {
@@ -368,7 +376,12 @@ export async function GET(request: Request, { params }: Params) {
             }
 
             // Get games for this bracket
-            const bracketGames = currentMatch.games.filter(g => g.bracketId === bracketId);
+            // If any game has started, only show games that have been started (prevents score entry for unstarted games)
+            const bracketGames = currentMatch.games.filter(g => {
+              if (g.bracketId !== bracketId) return false;
+              if (!hasStarted) return true; // Show all games if none started
+              return g.startedAt !== null; // Only show started games after first game starts
+            });
 
             // Map games to include lineups and perspective-adjusted scores
             const gamesWithDetails = bracketGames.map(game => {
