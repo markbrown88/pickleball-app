@@ -88,11 +88,53 @@ export async function GET(req: Request, ctx: Ctx) {
           }
         });
 
-        // Load lineups for all rounds
-        const lineupsByRound = new Map();
-        for (const round of rounds) {
-          const lineups = await getLineupsForRound(prisma, round.id);
-          lineupsByRound.set(round.id, lineups);
+        // For DE Clubs tournaments, we need to fetch lineups by stopId + bracketId
+        // For other tournaments, fetch by roundId as before
+        const isDeClubs = tournamentType === 'DOUBLE_ELIMINATION_CLUBS';
+
+        let lineupsByStopAndBracket = new Map<string, Map<string, any>>();
+        let lineupsByRound = new Map();
+
+        if (isDeClubs) {
+          // Fetch all lineups for this stop (bracket-aware)
+          const allLineups = await prisma.lineup.findMany({
+            where: { stopId },
+            include: {
+              entries: {
+                include: {
+                  player1: { select: { id: true, name: true, gender: true } },
+                  player2: { select: { id: true, name: true, gender: true } },
+                },
+              },
+            },
+          });
+
+          // Group lineups by bracketId -> teamId -> lineup
+          for (const lineup of allLineups) {
+            const bracketKey = lineup.bracketId || 'main';
+            if (!lineupsByStopAndBracket.has(bracketKey)) {
+              lineupsByStopAndBracket.set(bracketKey, new Map());
+            }
+
+            const mensDoubles = lineup.entries.find((e) => e.slot === 'MENS_DOUBLES');
+            const womensDoubles = lineup.entries.find((e) => e.slot === 'WOMENS_DOUBLES');
+
+            if (mensDoubles?.player1 && mensDoubles?.player2 && womensDoubles?.player1 && womensDoubles?.player2) {
+              const coreLineup = [
+                mensDoubles.player1,
+                mensDoubles.player2,
+                womensDoubles.player1,
+                womensDoubles.player2,
+              ];
+              lineupsByStopAndBracket.get(bracketKey)!.set(lineup.teamId, coreLineup);
+            }
+          }
+        } else {
+          // Standard tournament - fetch lineups by round
+          for (const round of rounds) {
+            const lineups = await getLineupsForRound(prisma, round.id);
+            lineupsByRound.set(round.id, lineups);
+          }
         }
 
         // Transform rounds to include winnerId and lineups
@@ -142,10 +184,6 @@ export async function GET(req: Request, ctx: Ctx) {
                 // If teamAWins === teamBWins, winnerId remains null (tied match)
               }
 
-              // Get lineups for this match's teams
-              const teamALineup = match.teamAId ? roundLineups.get(match.teamAId) : null;
-              const teamBLineup = match.teamBId ? roundLineups.get(match.teamBId) : null;
-
               return {
                 id: match.id,
                 teamA: match.teamA,
@@ -157,6 +195,23 @@ export async function GET(req: Request, ctx: Ctx) {
                 sourceMatchAId: match.sourceMatchAId,
                 sourceMatchBId: match.sourceMatchBId,
                 games: match.games.map((game: any) => {
+                  // Get lineups for this game based on tournament type
+                  let teamALineup = null;
+                  let teamBLineup = null;
+
+                  if (isDeClubs && game.bracketId) {
+                    // DE Clubs: lookup by bracketId -> teamId
+                    const bracketLineups = lineupsByStopAndBracket.get(game.bracketId);
+                    if (bracketLineups) {
+                      teamALineup = match.teamAId ? bracketLineups.get(match.teamAId) || null : null;
+                      teamBLineup = match.teamBId ? bracketLineups.get(match.teamBId) || null : null;
+                    }
+                  } else {
+                    // Standard tournament: lookup by roundId -> teamId
+                    teamALineup = match.teamAId ? roundLineups.get(match.teamAId) : null;
+                    teamBLineup = match.teamBId ? roundLineups.get(match.teamBId) : null;
+                  }
+
                   // Get players for this specific game slot
                   const [teamAPlayer1, teamAPlayer2] = getPlayersForSlot(teamALineup, game.slot);
                   const [teamBPlayer1, teamBPlayer2] = getPlayersForSlot(teamBLineup, game.slot);

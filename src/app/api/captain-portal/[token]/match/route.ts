@@ -300,7 +300,7 @@ export async function GET(request: Request, { params }: Params) {
 
             // Get lineup for this bracket if exists
             // For DE Clubs tournaments, query by stopId instead of roundId since rounds may differ
-            console.log(`[Captain Portal] Looking for lineup: stopId=${currentMatch.round.stop.id}, teamId=${team.id}, bracketId=${bracketId}`);
+            console.log(`[Captain Portal] Looking for lineup: stopId=${currentMatch.round.stop.id}, teamId=${team.id}, teamName=${team.name}, bracketId=${bracketId}`);
 
             const lineupData = await prisma.lineup.findFirst({
               where: {
@@ -318,7 +318,18 @@ export async function GET(request: Request, { params }: Params) {
               }
             });
 
-            console.log(`[Captain Portal] Lineup found:`, lineupData ? `Yes (id=${lineupData.id}, entries=${lineupData.entries.length})` : 'No');
+            console.log(`[Captain Portal] Lineup found for ${team.name}:`, lineupData ? `Yes (id=${lineupData.id}, entries=${lineupData.entries.length})` : 'No');
+            if (!lineupData) {
+              // Debug: check if there's a lineup for this team with a different bracketId
+              const anyLineupForTeam = await prisma.lineup.findFirst({
+                where: {
+                  stopId: currentMatch.round.stop.id,
+                  teamId: team.id
+                },
+                select: { id: true, bracketId: true }
+              });
+              console.log(`[Captain Portal] Any lineup for team ${team.name} at this stop:`, anyLineupForTeam || 'None');
+            }
 
             // Extract 4-player lineup
             let lineup: any[] = [];
@@ -341,6 +352,8 @@ export async function GET(request: Request, { params }: Params) {
             // Always find opponent team from opponentTeams (not myTeams!)
             const opponentTeam = opponentTeams.find(t => t.bracketId === bracketId);
 
+            console.log(`[Captain Portal] Looking for opponent team for bracketId=${bracketId}:`, opponentTeam ? `Found (id=${opponentTeam.id}, name=${opponentTeam.name})` : 'Not found');
+
             let opponentLineup: any[] = [];
             if (hasStarted && opponentTeam) {
               const opponentLineupData = await prisma.lineup.findFirst({
@@ -359,6 +372,8 @@ export async function GET(request: Request, { params }: Params) {
                 }
               });
 
+              console.log(`[Captain Portal] Opponent lineup found for ${opponentTeam.name}:`, opponentLineupData ? `Yes (id=${opponentLineupData.id}, entries=${opponentLineupData.entries.length})` : 'No');
+
               if (opponentLineupData && opponentLineupData.entries.length > 0) {
                 const mensDoubles = opponentLineupData.entries.find(e => e.slot === 'MENS_DOUBLES');
                 const womensDoubles = opponentLineupData.entries.find(e => e.slot === 'WOMENS_DOUBLES');
@@ -371,6 +386,12 @@ export async function GET(request: Request, { params }: Params) {
                     womensDoubles.player1,
                     womensDoubles.player2
                   ];
+                  console.log(`[Captain Portal] Opponent lineup extracted for ${opponentTeam.name}: ${opponentLineup.length} players`);
+                } else {
+                  console.log(`[Captain Portal] Opponent lineup incomplete for ${opponentTeam.name}:`, {
+                    mensDoubles: mensDoubles ? 'found' : 'missing',
+                    womensDoubles: womensDoubles ? 'found' : 'missing'
+                  });
                 }
               }
             }
