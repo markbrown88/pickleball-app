@@ -70,6 +70,16 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           }
         });
 
+        // Debug: Log loaded lineups
+        console.log('[Scoreboard API] Loaded lineups from DB:', allLineups.map(l => ({
+          id: l.id,
+          teamId: l.teamId,
+          bracketId: l.bracketId,
+          stopId: l.stopId,
+          roundId: l.roundId,
+          entryCount: l.entries.length
+        })));
+
         // Load ALL teams for this tournament (needed for DE Clubs to map clubId+bracketId to teamId)
         const allTeams = await prisma.team.findMany({
           where: {
