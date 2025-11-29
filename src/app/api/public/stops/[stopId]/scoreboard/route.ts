@@ -107,14 +107,24 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           return lineup;
         };
 
+        // Debug: Log all lineups loaded from database
+        console.log('[Scoreboard] Total lineups loaded:', allLineups.length);
+        allLineups.forEach(l => {
+          console.log(`[Scoreboard] Lineup: id=${l.id}, teamId=${l.teamId}, bracketId=${l.bracketId}, stopId=${l.stopId}`);
+        });
+
         // Process lineups for each match (same logic as admin API)
         for (const match of matchesForLineups) {
           const bracketIds = [...new Set(match.games.map(g => g.bracketId).filter(Boolean))];
           const hasBrackets = bracketIds.length > 0;
 
+          console.log(`[Scoreboard] Processing match ${match.id}, hasBrackets=${hasBrackets}, bracketIds=[${bracketIds.join(', ')}]`);
+
           if (hasBrackets) {
             for (const bracketId of bracketIds) {
               const bracketLineups = allLineups.filter(l => l.bracketId === bracketId);
+              console.log(`[Scoreboard] For bracketId ${bracketId}, found ${bracketLineups.length} lineups`);
+
               if (bracketLineups.length > 0) {
                 if (!groupedLineups[bracketId!]) {
                   groupedLineups[bracketId!] = {};
@@ -122,6 +132,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                 for (const lineupData of bracketLineups) {
                   const formattedLineup = formatLineup(lineupData);
                   groupedLineups[bracketId!][lineupData.teamId] = formattedLineup;
+                  console.log(`[Scoreboard] Added lineup for teamId ${lineupData.teamId} to bracket ${bracketId}:`, formattedLineup.map(p => p?.name || 'null'));
                 }
               }
             }
@@ -315,11 +326,15 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 
               const gameBracketId = game.bracketId || null;
 
+              console.log(`[Scoreboard] Processing game ${game.id}, slot=${game.slot}, bracketId=${gameBracketId}`);
+
               // Find the correct team IDs for this bracket
               let teamAIdForBracket = match.teamA?.id;
               let teamBIdForBracket = match.teamB?.id;
 
               if (gameBracketId && match.teamA?.clubId && match.teamB?.clubId) {
+                console.log(`[Scoreboard] Looking for teams with clubId ${match.teamA.clubId} and ${match.teamB.clubId} in bracket ${gameBracketId}`);
+
                 // Find teams by clubId + bracketId
                 const teamAForBracket = allTeams.find((t: any) =>
                   t.clubId === match.teamA.clubId && t.bracketId === gameBracketId
@@ -328,9 +343,14 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                   t.clubId === match.teamB.clubId && t.bracketId === gameBracketId
                 );
 
+                console.log(`[Scoreboard] Found teamAForBracket:`, teamAForBracket);
+                console.log(`[Scoreboard] Found teamBForBracket:`, teamBForBracket);
+
                 if (teamAForBracket) teamAIdForBracket = teamAForBracket.id;
                 if (teamBForBracket) teamBIdForBracket = teamBForBracket.id;
               }
+
+              console.log(`[Scoreboard] Using teamAIdForBracket=${teamAIdForBracket}, teamBIdForBracket=${teamBIdForBracket}`);
 
               // Get lineups from the admin API response
               // For bracket-aware: lineupsData[bracketId][teamId]
@@ -338,8 +358,12 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               const lineupKey = gameBracketId || match.id;
               const bracketLineups = lineupsData[lineupKey] || {};
 
+              console.log(`[Scoreboard] lineupKey=${lineupKey}, bracketLineups keys:`, Object.keys(bracketLineups));
+
               // Get Team A lineup
               const teamALineupArray = bracketLineups[teamAIdForBracket] || [];
+              console.log(`[Scoreboard] teamALineupArray length: ${teamALineupArray.length}`, teamALineupArray.map((p: any) => p?.name));
+
               if (teamALineupArray.length === 4) {
                 // Extract players for this game slot
                 if (game.slot === 'MENS_DOUBLES') {
@@ -355,6 +379,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 
               // Get Team B lineup
               const teamBLineupArray = bracketLineups[teamBIdForBracket] || [];
+              console.log(`[Scoreboard] teamBLineupArray length: ${teamBLineupArray.length}`, teamBLineupArray.map((p: any) => p?.name));
+
               if (teamBLineupArray.length === 4) {
                 // Extract players for this game slot
                 if (game.slot === 'MENS_DOUBLES') {
@@ -367,6 +393,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                   teamBLineup = [teamBLineupArray[1], teamBLineupArray[3]].filter(Boolean);
                 }
               }
+
+              console.log(`[Scoreboard] Final teamALineup length: ${teamALineup.length}, teamBLineup length: ${teamBLineup.length}`);
 
               return {
                 id: game.id,
