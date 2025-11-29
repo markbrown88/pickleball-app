@@ -41,12 +41,9 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           throw new Error('Stop not found');
         }
 
-        // Rounds → Matches → Games (correct hierarchy, no transformation needed)
-        const rounds = await prisma.round.findMany({
-      where: { stopId },
-      orderBy: { idx: 'asc' },
-      include: {
-        lineups: {
+        // Load ALL lineups for this stop (needed for DE Clubs where different brackets have different rounds)
+        const allLineups = await prisma.lineup.findMany({
+          where: { stopId },
           include: {
             entries: {
               include: {
@@ -71,7 +68,13 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               }
             }
           }
-        },
+        });
+
+        // Rounds → Matches → Games (correct hierarchy, no transformation needed)
+        const rounds = await prisma.round.findMany({
+      where: { stopId },
+      orderBy: { idx: 'asc' },
+      include: {
         matches: {
           orderBy: [
             { updatedAt: 'desc' }, // Most recently completed matches first
@@ -128,47 +131,13 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                 }
               } 
             },
-            games: { 
+            games: {
               orderBy: { slot: 'asc' },
               include: {
-                match: {
+                bracket: {
                   select: {
-                    teamA: {
-                      select: {
-                        stopRosterLinks: {
-                          where: { stopId: stopId },
-                          include: {
-                            player: {
-                              select: {
-                                id: true,
-                                firstName: true,
-                                lastName: true,
-                                name: true,
-                                gender: true
-                              }
-                            }
-                          }
-                        }
-                      }
-                    },
-                    teamB: {
-                      select: {
-                        stopRosterLinks: {
-                          where: { stopId: stopId },
-                          include: {
-                            player: {
-                              select: {
-                                id: true,
-                                firstName: true,
-                                lastName: true,
-                                name: true,
-                                gender: true
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
+                    id: true,
+                    name: true
                   }
                 }
               }
@@ -247,8 +216,14 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               let teamALineup = [];
               let teamBLineup = [];
 
+              // For DE Clubs tournaments with bracket-aware games, filter by bracketId
+              const gameBracketId = game.bracketId || null;
+
               // Get Team A lineup from Lineup/LineupEntry tables
-              const teamALineupData = r.lineups?.find((l: any) => l.teamId === match.teamA?.id);
+              const teamALineupData = allLineups.find((l: any) =>
+                l.teamId === match.teamA?.id &&
+                (gameBracketId ? l.bracketId === gameBracketId : !l.bracketId)
+              );
               if (teamALineupData) {
                 const mensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
                 const womensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
@@ -276,7 +251,10 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               }
 
               // Get Team B lineup from Lineup/LineupEntry tables
-              const teamBLineupData = r.lineups?.find((l: any) => l.teamId === match.teamB?.id);
+              const teamBLineupData = allLineups.find((l: any) =>
+                l.teamId === match.teamB?.id &&
+                (gameBracketId ? l.bracketId === gameBracketId : !l.bracketId)
+              );
               if (teamBLineupData) {
                 const mensDoubles = teamBLineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
                 const womensDoubles = teamBLineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
@@ -306,6 +284,11 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               return {
                 id: game.id,
                 slot: game.slot, // GameSlot
+                bracketId: game.bracketId ?? null,
+                bracket: game.bracket ? {
+                  id: game.bracket.id,
+                  name: game.bracket.name
+                } : null,
                 teamAScore: game.teamAScore,
                 teamBScore: game.teamBScore,
                 isComplete: game.isComplete,

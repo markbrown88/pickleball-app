@@ -205,7 +205,9 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
               </div>
             </div>
           ) : (
-            Array.from(gamesByBracket.entries()).map(([bracketName, games]) => {
+            Array.from(gamesByBracket.entries())
+              .sort((a, b) => b[0].localeCompare(a[0])) // Reverse alphabetical: Intermediate before Advanced
+              .map(([bracketName, games]) => {
               // Calculate bracket winner
               let teamAWins = 0;
               let teamBWins = 0;
