@@ -271,6 +271,13 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                 l.teamId === teamAIdForBracket &&
                 (gameBracketId ? l.bracketId === gameBracketId : !l.bracketId)
               );
+              console.log('[Scoreboard API] Looking for Team A lineup - teamId:', teamAIdForBracket, 'bracketId:', gameBracketId);
+              console.log('[Scoreboard API] Team A lineup found:', teamALineupData ? `Yes (id=${teamALineupData.id})` : 'No');
+              if (!teamALineupData && gameBracketId) {
+                // Debug: show what lineups exist for this team
+                const anyLineupForTeam = allLineups.filter((l: any) => l.teamId === teamAIdForBracket);
+                console.log('[Scoreboard API] All lineups for teamId', teamAIdForBracket, ':', anyLineupForTeam.map(l => ({ id: l.id, bracketId: l.bracketId })));
+              }
               if (teamALineupData) {
                 const mensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
                 const womensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
