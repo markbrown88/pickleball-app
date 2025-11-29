@@ -41,44 +41,10 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           throw new Error('Stop not found');
         }
 
-        // Load ALL lineups for this stop (needed for DE Clubs where different brackets have different rounds)
-        const allLineups = await prisma.lineup.findMany({
-          where: { stopId },
-          include: {
-            entries: {
-              include: {
-                player1: {
-                  select: {
-                    id: true,
-                    name: true,
-                    firstName: true,
-                    lastName: true,
-                    gender: true
-                  }
-                },
-                player2: {
-                  select: {
-                    id: true,
-                    name: true,
-                    firstName: true,
-                    lastName: true,
-                    gender: true
-                  }
-                }
-              }
-            }
-          }
-        });
-
-        // Debug: Log loaded lineups
-        console.log('[Scoreboard API] Loaded lineups from DB:', allLineups.map(l => ({
-          id: l.id,
-          teamId: l.teamId,
-          bracketId: l.bracketId,
-          stopId: l.stopId,
-          roundId: l.roundId,
-          entryCount: l.entries.length
-        })));
+        // Load lineups using the same endpoint as the manager page
+        // This ensures consistent lineup loading logic for all tournament types
+        const lineupsResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/admin/stops/${stopId}/lineups`);
+        const lineupsData = lineupsResponse.ok ? await lineupsResponse.json() : {};
 
         // Load ALL teams for this tournament (needed for DE Clubs to map clubId+bracketId to teamId)
         const allTeams = await prisma.team.findMany({
@@ -239,13 +205,10 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               })) || []
             } : null,
             games: match.games.map((game: any) => {
-              // Get lineup data from Lineup/LineupEntry tables (single source of truth)
-              let teamALineup = [];
-              let teamBLineup = [];
+              // Get lineup data from the admin lineups API (same source as manager page)
+              let teamALineup: any[] = [];
+              let teamBLineup: any[] = [];
 
-              // For DE Clubs tournaments with bracket-aware games, we need to find the correct team ID
-              // for each bracket. The match.teamA/teamB may point to one bracket's team, but games
-              // can be from different brackets with different team IDs.
               const gameBracketId = game.bracketId || null;
 
               // Find the correct team IDs for this bracket
@@ -253,10 +216,6 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               let teamBIdForBracket = match.teamB?.id;
 
               if (gameBracketId && match.teamA?.clubId && match.teamB?.clubId) {
-                console.log('[Scoreboard API] Looking for teams - game:', game.id, 'bracketId:', gameBracketId);
-                console.log('[Scoreboard API] TeamA clubId:', match.teamA.clubId, 'TeamB clubId:', match.teamB.clubId);
-                console.log('[Scoreboard API] Available teams:', allTeams.map(t => ({ id: t.id, clubId: t.clubId, bracketId: t.bracketId, name: t.name })));
-
                 // Find teams by clubId + bracketId
                 const teamAForBracket = allTeams.find((t: any) =>
                   t.clubId === match.teamA.clubId && t.bracketId === gameBracketId
@@ -265,94 +224,43 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                   t.clubId === match.teamB.clubId && t.bracketId === gameBracketId
                 );
 
-                console.log('[Scoreboard API] Found teamAForBracket:', teamAForBracket);
-                console.log('[Scoreboard API] Found teamBForBracket:', teamBForBracket);
-
                 if (teamAForBracket) teamAIdForBracket = teamAForBracket.id;
                 if (teamBForBracket) teamBIdForBracket = teamBForBracket.id;
-
-                console.log('[Scoreboard API] Using teamAId:', teamAIdForBracket, 'teamBId:', teamBIdForBracket);
-              } else {
-                console.log('[Scoreboard API] Skipping team lookup - gameBracketId:', gameBracketId, 'teamA.clubId:', match.teamA?.clubId, 'teamB.clubId:', match.teamB?.clubId);
               }
 
-              // Get Team A lineup from Lineup/LineupEntry tables
-              const teamALineupData = allLineups.find((l: any) =>
-                l.teamId === teamAIdForBracket &&
-                (gameBracketId ? l.bracketId === gameBracketId : !l.bracketId)
-              );
-              console.log('[Scoreboard API] Looking for Team A lineup - teamId:', teamAIdForBracket, 'bracketId:', gameBracketId);
-              console.log('[Scoreboard API] Team A lineup found:', teamALineupData ? `Yes (id=${teamALineupData.id})` : 'No');
-              if (!teamALineupData && gameBracketId) {
-                // Debug: show what lineups exist for this team
-                const anyLineupForTeam = allLineups.filter((l: any) => l.teamId === teamAIdForBracket);
-                console.log('[Scoreboard API] All lineups for teamId', teamAIdForBracket, ':', anyLineupForTeam.map(l => ({ id: l.id, bracketId: l.bracketId })));
-              }
-              if (teamALineupData) {
-                const mensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
-                const womensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
+              // Get lineups from the admin API response
+              // For bracket-aware: lineupsData[bracketId][teamId]
+              // For regular matches: lineupsData[matchId][teamId]
+              const lineupKey = gameBracketId || match.id;
+              const bracketLineups = lineupsData[lineupKey] || {};
 
-                console.log('[Scoreboard API] Team A lineup entries:', {
-                  lineupId: teamALineupData.id,
-                  totalEntries: teamALineupData.entries.length,
-                  mensDoubles: mensDoubles ? { player1: mensDoubles.player1?.name, player2: mensDoubles.player2?.name } : null,
-                  womensDoubles: womensDoubles ? { player1: womensDoubles.player1?.name, player2: womensDoubles.player2?.name } : null
-                });
-
-                const lineup = new Array(4).fill(null);
-                if (mensDoubles) {
-                  if (mensDoubles.player1) lineup[0] = mensDoubles.player1;
-                  if (mensDoubles.player2) lineup[1] = mensDoubles.player2;
-                }
-                if (womensDoubles) {
-                  if (womensDoubles.player1) lineup[2] = womensDoubles.player1;
-                  if (womensDoubles.player2) lineup[3] = womensDoubles.player2;
-                }
-
-                console.log('[Scoreboard API] Built lineup array:', lineup.map(p => p?.name || 'null'));
-
+              // Get Team A lineup
+              const teamALineupArray = bracketLineups[teamAIdForBracket] || [];
+              if (teamALineupArray.length === 4) {
                 // Extract players for this game slot
                 if (game.slot === 'MENS_DOUBLES') {
-                  teamALineup = [lineup[0], lineup[1]].filter(Boolean);
+                  teamALineup = [teamALineupArray[0], teamALineupArray[1]].filter(Boolean);
                 } else if (game.slot === 'WOMENS_DOUBLES') {
-                  teamALineup = [lineup[2], lineup[3]].filter(Boolean);
+                  teamALineup = [teamALineupArray[2], teamALineupArray[3]].filter(Boolean);
                 } else if (game.slot === 'MIXED_1') {
-                  teamALineup = [lineup[0], lineup[2]].filter(Boolean);
+                  teamALineup = [teamALineupArray[0], teamALineupArray[2]].filter(Boolean);
                 } else if (game.slot === 'MIXED_2') {
-                  teamALineup = [lineup[1], lineup[3]].filter(Boolean);
+                  teamALineup = [teamALineupArray[1], teamALineupArray[3]].filter(Boolean);
                 }
-
-                console.log('[Scoreboard API] Team A lineup for slot', game.slot, ':', teamALineup.map(p => p?.name || 'null'));
               }
 
-              // Get Team B lineup from Lineup/LineupEntry tables
-              const teamBLineupData = allLineups.find((l: any) =>
-                l.teamId === teamBIdForBracket &&
-                (gameBracketId ? l.bracketId === gameBracketId : !l.bracketId)
-              );
-              if (teamBLineupData) {
-                const mensDoubles = teamBLineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
-                const womensDoubles = teamBLineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
-
-                const lineup = new Array(4).fill(null);
-                if (mensDoubles) {
-                  if (mensDoubles.player1) lineup[0] = mensDoubles.player1;
-                  if (mensDoubles.player2) lineup[1] = mensDoubles.player2;
-                }
-                if (womensDoubles) {
-                  if (womensDoubles.player1) lineup[2] = womensDoubles.player1;
-                  if (womensDoubles.player2) lineup[3] = womensDoubles.player2;
-                }
-
+              // Get Team B lineup
+              const teamBLineupArray = bracketLineups[teamBIdForBracket] || [];
+              if (teamBLineupArray.length === 4) {
                 // Extract players for this game slot
                 if (game.slot === 'MENS_DOUBLES') {
-                  teamBLineup = [lineup[0], lineup[1]].filter(Boolean);
+                  teamBLineup = [teamBLineupArray[0], teamBLineupArray[1]].filter(Boolean);
                 } else if (game.slot === 'WOMENS_DOUBLES') {
-                  teamBLineup = [lineup[2], lineup[3]].filter(Boolean);
+                  teamBLineup = [teamBLineupArray[2], teamBLineupArray[3]].filter(Boolean);
                 } else if (game.slot === 'MIXED_1') {
-                  teamBLineup = [lineup[0], lineup[2]].filter(Boolean);
+                  teamBLineup = [teamBLineupArray[0], teamBLineupArray[2]].filter(Boolean);
                 } else if (game.slot === 'MIXED_2') {
-                  teamBLineup = [lineup[1], lineup[3]].filter(Boolean);
+                  teamBLineup = [teamBLineupArray[1], teamBLineupArray[3]].filter(Boolean);
                 }
               }
 
