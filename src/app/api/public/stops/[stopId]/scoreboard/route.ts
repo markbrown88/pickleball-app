@@ -243,6 +243,10 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               let teamBIdForBracket = match.teamB?.id;
 
               if (gameBracketId && match.teamA?.clubId && match.teamB?.clubId) {
+                console.log('[Scoreboard API] Looking for teams - game:', game.id, 'bracketId:', gameBracketId);
+                console.log('[Scoreboard API] TeamA clubId:', match.teamA.clubId, 'TeamB clubId:', match.teamB.clubId);
+                console.log('[Scoreboard API] Available teams:', allTeams.map(t => ({ id: t.id, clubId: t.clubId, bracketId: t.bracketId, name: t.name })));
+
                 // Find teams by clubId + bracketId
                 const teamAForBracket = allTeams.find((t: any) =>
                   t.clubId === match.teamA.clubId && t.bracketId === gameBracketId
@@ -251,8 +255,15 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                   t.clubId === match.teamB.clubId && t.bracketId === gameBracketId
                 );
 
+                console.log('[Scoreboard API] Found teamAForBracket:', teamAForBracket);
+                console.log('[Scoreboard API] Found teamBForBracket:', teamBForBracket);
+
                 if (teamAForBracket) teamAIdForBracket = teamAForBracket.id;
                 if (teamBForBracket) teamBIdForBracket = teamBForBracket.id;
+
+                console.log('[Scoreboard API] Using teamAId:', teamAIdForBracket, 'teamBId:', teamBIdForBracket);
+              } else {
+                console.log('[Scoreboard API] Skipping team lookup - gameBracketId:', gameBracketId, 'teamA.clubId:', match.teamA?.clubId, 'teamB.clubId:', match.teamB?.clubId);
               }
 
               // Get Team A lineup from Lineup/LineupEntry tables
