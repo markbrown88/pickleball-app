@@ -41,10 +41,114 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           throw new Error('Stop not found');
         }
 
-        // Load lineups using the same endpoint as the manager page
-        // This ensures consistent lineup loading logic for all tournament types
-        const lineupsResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/admin/stops/${stopId}/lineups`);
-        const lineupsData = lineupsResponse.ok ? await lineupsResponse.json() : {};
+        // Load lineups using the same logic as the admin lineups API
+        // This ensures consistent lineup loading for all tournament types
+        const groupedLineups: Record<string, Record<string, any[]>> = {};
+
+        // Get all matches for this stop with their games
+        const matchesForLineups = await prisma.match.findMany({
+          where: { round: { stopId } },
+          include: {
+            teamA: { select: { id: true } },
+            teamB: { select: { id: true } },
+            games: { select: { bracketId: true } },
+            round: { select: { id: true, stopId: true } }
+          }
+        });
+
+        // Load ALL lineups for this stop
+        const allLineups = await prisma.lineup.findMany({
+          where: { stopId },
+          include: {
+            entries: {
+              include: {
+                player1: {
+                  select: {
+                    id: true,
+                    name: true,
+                    firstName: true,
+                    lastName: true,
+                    gender: true
+                  }
+                },
+                player2: {
+                  select: {
+                    id: true,
+                    name: true,
+                    firstName: true,
+                    lastName: true,
+                    gender: true
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        const formatPlayer = (p: any) => p ? {
+          id: p.id,
+          name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+          gender: p.gender,
+        } : undefined;
+
+        const formatLineup = (lineupData: any) => {
+          const lineup = new Array(4).fill(undefined);
+          const mensDoubles = lineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
+          const womensDoubles = lineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
+
+          if (mensDoubles) {
+            if (mensDoubles.player1) lineup[0] = formatPlayer(mensDoubles.player1);
+            if (mensDoubles.player2) lineup[1] = formatPlayer(mensDoubles.player2);
+          }
+          if (womensDoubles) {
+            if (womensDoubles.player1) lineup[2] = formatPlayer(womensDoubles.player1);
+            if (womensDoubles.player2) lineup[3] = formatPlayer(womensDoubles.player2);
+          }
+          return lineup;
+        };
+
+        // Process lineups for each match (same logic as admin API)
+        for (const match of matchesForLineups) {
+          const bracketIds = [...new Set(match.games.map(g => g.bracketId).filter(Boolean))];
+          const hasBrackets = bracketIds.length > 0;
+
+          if (hasBrackets) {
+            for (const bracketId of bracketIds) {
+              const bracketLineups = allLineups.filter(l => l.bracketId === bracketId);
+              if (bracketLineups.length > 0) {
+                if (!groupedLineups[bracketId!]) {
+                  groupedLineups[bracketId!] = {};
+                }
+                for (const lineupData of bracketLineups) {
+                  const formattedLineup = formatLineup(lineupData);
+                  groupedLineups[bracketId!][lineupData.teamId] = formattedLineup;
+                }
+              }
+            }
+          } else {
+            if (!match.teamA || !match.teamB) continue;
+            const teamALineupData = allLineups.find(l =>
+              l.teamId === match.teamA!.id && !l.bracketId && l.roundId === match.roundId
+            );
+            const teamBLineupData = allLineups.find(l =>
+              l.teamId === match.teamB!.id && !l.bracketId && l.roundId === match.roundId
+            );
+
+            if (teamALineupData || teamBLineupData) {
+              if (!groupedLineups[match.id]) {
+                groupedLineups[match.id] = {};
+              }
+              if (teamALineupData) {
+                groupedLineups[match.id][match.teamA.id] = formatLineup(teamALineupData);
+              }
+              if (teamBLineupData) {
+                groupedLineups[match.id][match.teamB.id] = formatLineup(teamBLineupData);
+              }
+            }
+          }
+        }
+
+        const lineupsData = groupedLineups;
 
         // Load ALL teams for this tournament (needed for DE Clubs to map clubId+bracketId to teamId)
         const allTeams = await prisma.team.findMany({
