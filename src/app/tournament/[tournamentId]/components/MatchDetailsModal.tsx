@@ -221,6 +221,12 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
                   ? 'Overall'
                   : bracketName;
 
+              // Check if any game in this bracket has lineup data
+              const hasAnyLineups = games.some(game =>
+                (game.teamALineup && game.teamALineup.length > 0) ||
+                (game.teamBLineup && game.teamBLineup.length > 0)
+              );
+
               return (
                 <div key={bracketName}>
                   {/* Bracket Header */}
@@ -233,58 +239,59 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
                     </span>
                   </div>
 
-                  {/* Games in 2-column grid */}
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    {games.map((game) => {
-                      const gameWinner =
-                        game.isComplete && game.teamAScore !== null && game.teamBScore !== null
-                          ? game.teamAScore > game.teamBScore
-                            ? 'A'
-                            : game.teamBScore > game.teamAScore
-                            ? 'B'
-                            : null
-                          : null;
+                  {/* Show single message if no lineups set and match hasn't started */}
+                  {!hasAnyLineups && !hasStarted ? (
+                    <div className="text-center py-8 text-sm text-gray-400 bg-gray-700/30 rounded-lg border border-gray-600">
+                      Lineups have not been set for this bracket
+                    </div>
+                  ) : (
+                    /* Games in 2-column grid */
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {games.map((game) => {
+                        const gameWinner =
+                          game.isComplete && game.teamAScore !== null && game.teamBScore !== null
+                            ? game.teamAScore > game.teamBScore
+                              ? 'A'
+                              : game.teamBScore > game.teamAScore
+                              ? 'B'
+                              : null
+                            : null;
 
-                      const gameTitle = GAME_SLOT_LABELS[game.slot] || game.slot;
-                      const teamALineup = getLineupForSlot(game.teamALineup, game.slot);
-                      const teamBLineup = getLineupForSlot(game.teamBLineup, game.slot);
+                        const gameTitle = GAME_SLOT_LABELS[game.slot] || game.slot;
+                        const teamALineup = getLineupForSlot(game.teamALineup, game.slot);
+                        const teamBLineup = getLineupForSlot(game.teamBLineup, game.slot);
 
-                      return (
-                        <div
-                          key={game.id}
-                          className={`rounded-lg border-2 overflow-hidden ${
-                            game.isComplete ? 'border-gray-600 bg-gray-700' : 'border-gray-600 bg-gray-700/50'
-                          }`}
-                        >
-                          {/* Game Header */}
-                          <div className={`px-4 py-2 flex items-center justify-between ${
-                            game.isComplete ? 'bg-gray-700' : 'bg-gray-700/80'
-                          }`}>
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-sm font-semibold text-white">{gameTitle}</h4>
-                              {game.isComplete && (
-                                <span className="text-[10px] px-2 py-0.5 bg-green-900/40 text-green-400 rounded">
-                                  Complete
-                                </span>
-                              )}
-                              {!game.isComplete && game.startedAt && (
-                                <span className="text-[10px] px-2 py-0.5 bg-yellow-900/40 text-yellow-400 rounded">
-                                  In Progress
-                                </span>
+                        return (
+                          <div
+                            key={game.id}
+                            className={`rounded-lg border-2 overflow-hidden ${
+                              game.isComplete ? 'border-gray-600 bg-gray-700' : 'border-gray-600 bg-gray-700/50'
+                            }`}
+                          >
+                            {/* Game Header */}
+                            <div className={`px-4 py-2 flex items-center justify-between ${
+                              game.isComplete ? 'bg-gray-700' : 'bg-gray-700/80'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-semibold text-white">{gameTitle}</h4>
+                                {game.isComplete && (
+                                  <span className="text-[10px] px-2 py-0.5 bg-green-900/40 text-green-400 rounded">
+                                    Complete
+                                  </span>
+                                )}
+                                {!game.isComplete && game.startedAt && (
+                                  <span className="text-[10px] px-2 py-0.5 bg-yellow-900/40 text-yellow-400 rounded">
+                                    In Progress
+                                  </span>
+                                )}
+                              </div>
+                              {game.courtNumber && (
+                                <span className="text-xs text-gray-400">Court {game.courtNumber}</span>
                               )}
                             </div>
-                            {game.courtNumber && (
-                              <span className="text-xs text-gray-400">Court {game.courtNumber}</span>
-                            )}
-                          </div>
 
-                          {/* Game Body - Players and Scores */}
-                          <div className="p-4 space-y-3">
-                            {!teamALineup && !teamBLineup && !hasStarted ? (
-                              <div className="text-center py-4 text-sm text-gray-400">
-                                Lineups have not been set for this game
-                              </div>
-                            ) : (
+                            {/* Game Body - Players and Scores */}
+                            <div className="p-4 space-y-3">
                               <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
                                 {/* Team A Side */}
                                 <div className={`text-sm ${
@@ -325,12 +332,12 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
                                   </div>
                                 </div>
                               </div>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })
