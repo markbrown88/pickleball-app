@@ -75,11 +75,19 @@ export function BracketMatchManager({
   const loadLineupsForStop = async (stopId: string) => {
     try {
       console.log('[BracketMatchManager] Loading lineups for stopId:', stopId);
-      const response = await fetch(`/api/admin/stops/${stopId}/lineups`);
+      // Add cache-busting timestamp to ensure fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/admin/stops/${stopId}/lineups?t=${timestamp}`, {
+        cache: 'no-store',
+      });
       if (response.ok) {
         const lineupsData = await response.json();
         console.log('[BracketMatchManager] Received lineups data:', JSON.stringify(lineupsData, null, 2));
         console.log('[BracketMatchManager] Lineups data keys:', Object.keys(lineupsData));
+        // For each bracket, log the team IDs
+        Object.entries(lineupsData).forEach(([key, teams]) => {
+          console.log(`[BracketMatchManager] Bracket/Match ${key} has teams:`, Object.keys(teams as Record<string, any>));
+        });
         // lineupsData structure: For bracket-aware (DE Clubs), this is { bracketId: { teamId: [players] } }
         // For regular matches, this is { matchId: { teamId: [players] } }
         setLineups(lineupsData);
