@@ -36,7 +36,7 @@ export async function GET(
     // Initialize grouped lineups
     const groupedLineups: Record<string, Record<string, any[]>> = {};
 
-    // Get all matches for this stop with their lineups and games
+    // Get all matches for this stop with their games
     const matches = await prisma.match.findMany({
       where: {
         round: { stopId }
@@ -45,32 +45,33 @@ export async function GET(
         teamA: { select: { id: true } },
         teamB: { select: { id: true } },
         games: { select: { bracketId: true } },
-        round: {
+        round: { select: { id: true, stopId: true } }
+      }
+    });
+
+    // For DE Clubs tournaments, different brackets may have different rounds
+    // Load ALL lineups for this stop to ensure we get lineups from all brackets
+    const allLineups = await prisma.lineup.findMany({
+      where: { stopId },
+      include: {
+        entries: {
           include: {
-            lineups: {
-              include: {
-                entries: {
-                  include: {
-                    player1: {
-                      select: {
-                        id: true,
-                        name: true,
-                        firstName: true,
-                        lastName: true,
-                        gender: true
-                      }
-                    },
-                    player2: {
-                      select: {
-                        id: true,
-                        name: true,
-                        firstName: true,
-                        lastName: true,
-                        gender: true
-                      }
-                    }
-                  }
-                }
+            player1: {
+              select: {
+                id: true,
+                name: true,
+                firstName: true,
+                lastName: true,
+                gender: true
+              }
+            },
+            player2: {
+              select: {
+                id: true,
+                name: true,
+                firstName: true,
+                lastName: true,
+                gender: true
               }
             }
           }
@@ -80,20 +81,22 @@ export async function GET(
 
     console.log(`[Lineup Load] Found ${matches.length} matches for stopId ${stopId}`);
 
+    console.log(`[Lineup Load] Found ${allLineups.length} total lineups for stopId ${stopId}`);
+
     // Log detailed match information
     matches.forEach((m, idx) => {
       const gameBracketIds = [...new Set(m.games.map(g => g.bracketId).filter(Boolean))];
       console.log(`[Lineup Load] Match ${idx + 1}/${matches.length}: matchId=${m.id}, roundId=${m.roundId}, ` +
         `teamA=${m.teamA?.id}, teamB=${m.teamB?.id}, ` +
-        `games=${m.games.length}, bracketIds=[${gameBracketIds.join(', ')}], ` +
-        `round.lineups=${m.round.lineups.length}`);
-
-      if (m.round.lineups.length > 0) {
-        m.round.lineups.forEach((lineup, lIdx) => {
-          console.log(`  Lineup ${lIdx + 1}: id=${lineup.id}, teamId=${lineup.teamId}, bracketId=${lineup.bracketId}, entries=${lineup.entries.length}`);
-        });
-      }
+        `games=${m.games.length}, bracketIds=[${gameBracketIds.join(', ')}]`);
     });
+
+    // Log all lineups for debugging
+    if (allLineups.length > 0) {
+      allLineups.forEach((lineup, lIdx) => {
+        console.log(`  Lineup ${lIdx + 1}: id=${lineup.id}, roundId=${lineup.roundId}, teamId=${lineup.teamId}, bracketId=${lineup.bracketId}, entries=${lineup.entries.length}`);
+      });
+    }
 
     const formatPlayer = (p: any) => p ? {
       id: p.id,
@@ -122,28 +125,22 @@ export async function GET(
 
     // Process lineups for each match
     for (const match of matches) {
-      console.log(`[Lineup Load] Processing match ${match.id}, roundId: ${match.round.id}, round has ${match.round.lineups.length} lineups`);
+      console.log(`[Lineup Load] Processing match ${match.id}, roundId: ${match.round.id}`);
 
       // Check if this match has bracket-aware games
       const bracketIds = [...new Set(match.games.map(g => g.bracketId).filter(Boolean))];
       const hasBrackets = bracketIds.length > 0;
 
       console.log(`[Lineup Load] Match has ${bracketIds.length} bracketIds:`, bracketIds);
-      console.log(`[Lineup Load] Round lineups:`, match.round.lineups.map(l => ({
-        id: l.id,
-        roundId: l.roundId,
-        teamId: l.teamId,
-        bracketId: l.bracketId,
-        entriesCount: l.entries.length
-      })));
 
       if (hasBrackets) {
         console.log(`[Lineup Load] Processing bracket-aware match`);
         // For bracket-aware matches, group lineups by bracketId
-        // Find ALL lineups for this round with matching bracketIds (not just match.teamA/teamB)
+        // Use ALL lineups for the stop (not just this round's lineups) because in DE Clubs,
+        // different brackets may have different rounds
         for (const bracketId of bracketIds) {
           console.log(`[Lineup Load] Looking for lineups with bracketId: ${bracketId}`);
-          const bracketLineups = match.round.lineups.filter(l => l.bracketId === bracketId);
+          const bracketLineups = allLineups.filter(l => l.bracketId === bracketId);
           console.log(`[Lineup Load] Found ${bracketLineups.length} lineups for bracketId ${bracketId}`);
 
           if (bracketLineups.length > 0) {
@@ -168,11 +165,12 @@ export async function GET(
         // Skip if teams aren't populated yet
         if (!match.teamA || !match.teamB) continue;
 
-        const teamALineupData = match.round.lineups.find(l =>
-          l.teamId === match.teamA!.id && !l.bracketId
+        // Use allLineups instead of match.round.lineups for consistency
+        const teamALineupData = allLineups.find(l =>
+          l.teamId === match.teamA!.id && !l.bracketId && l.roundId === match.roundId
         );
-        const teamBLineupData = match.round.lineups.find(l =>
-          l.teamId === match.teamB!.id && !l.bracketId
+        const teamBLineupData = allLineups.find(l =>
+          l.teamId === match.teamB!.id && !l.bracketId && l.roundId === match.roundId
         );
 
         if (teamALineupData || teamBLineupData) {
