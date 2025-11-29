@@ -292,6 +292,13 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                 const mensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'MENS_DOUBLES');
                 const womensDoubles = teamALineupData.entries.find((e: any) => e.slot === 'WOMENS_DOUBLES');
 
+                console.log('[Scoreboard API] Team A lineup entries:', {
+                  lineupId: teamALineupData.id,
+                  totalEntries: teamALineupData.entries.length,
+                  mensDoubles: mensDoubles ? { player1: mensDoubles.player1?.name, player2: mensDoubles.player2?.name } : null,
+                  womensDoubles: womensDoubles ? { player1: womensDoubles.player1?.name, player2: womensDoubles.player2?.name } : null
+                });
+
                 const lineup = new Array(4).fill(null);
                 if (mensDoubles) {
                   if (mensDoubles.player1) lineup[0] = mensDoubles.player1;
@@ -301,6 +308,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                   if (womensDoubles.player1) lineup[2] = womensDoubles.player1;
                   if (womensDoubles.player2) lineup[3] = womensDoubles.player2;
                 }
+
+                console.log('[Scoreboard API] Built lineup array:', lineup.map(p => p?.name || 'null'));
 
                 // Extract players for this game slot
                 if (game.slot === 'MENS_DOUBLES') {
@@ -312,6 +321,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
                 } else if (game.slot === 'MIXED_2') {
                   teamALineup = [lineup[1], lineup[3]].filter(Boolean);
                 }
+
+                console.log('[Scoreboard API] Team A lineup for slot', game.slot, ':', teamALineup.map(p => p?.name || 'null'));
               }
 
               // Get Team B lineup from Lineup/LineupEntry tables
