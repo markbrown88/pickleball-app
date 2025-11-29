@@ -58,26 +58,44 @@ export const GameScoreBox = memo(function GameScoreBox({
       return match.teamA?.name || 'Team A';
     }
 
+    // Debug logging
+    console.log('[GameScoreBox] getTeamALineup - gameId:', game.id, 'slot:', game.slot, 'bracketId:', game.bracketId);
+    console.log('[GameScoreBox] game.teamALineup:', game.teamALineup);
+    console.log('[GameScoreBox] lineups keys:', Object.keys(lineups));
+    if (game.bracketId) {
+      console.log('[GameScoreBox] lineups[bracketId]:', lineups[game.bracketId]);
+    }
+    console.log('[GameScoreBox] match.teamA:', match?.teamA);
+    console.log('[GameScoreBox] bracketTeams:', bracketTeams);
+
     // First, try to get lineup from the game object (DB-stored lineup)
     if (game.teamALineup && Array.isArray(game.teamALineup) && game.teamALineup.length === 4) {
+      console.log('[GameScoreBox] Found teamALineup in game object, length:', game.teamALineup.length);
       // Lineup structure: [Man1, Man2, Woman1, Woman2]
       const man1 = game.teamALineup[0];
       const man2 = game.teamALineup[1];
       const woman1 = game.teamALineup[2];
       const woman2 = game.teamALineup[3];
 
+      let result = 'Team A';
       switch (game.slot) {
         case 'MENS_DOUBLES':
-          return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+          result = man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+          break;
         case 'WOMENS_DOUBLES':
-          return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+          result = woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+          break;
         case 'MIXED_1':
-          return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+          result = man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+          break;
         case 'MIXED_2':
-          return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+          result = man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+          break;
         default:
-          return 'Team A';
+          result = 'Team A';
       }
+      console.log('[GameScoreBox] getTeamALineup - returning from game object:', result);
+      return result;
     }
 
     // Second, try to get lineup from the lineups prop (state-stored lineup)
@@ -92,12 +110,16 @@ export const GameScoreBox = memo(function GameScoreBox({
         // For bracket-aware matches, use bracketTeams to find the correct team ID
         const bracketTeam = bracketTeams?.[game.bracketId];
         const teamAId = bracketTeam?.teamA?.id || match.teamA.id;
+        console.log('[GameScoreBox] Using bracketId lookup - bracketTeam:', bracketTeam, 'teamAId:', teamAId);
         teamALineup = lineups[game.bracketId][teamAId] || [];
+        console.log('[GameScoreBox] Found teamALineup from bracketId:', teamALineup);
       }
 
       // Fall back to Team structure (match.id)
       if (teamALineup.length === 0 && lineups[match.id]) {
+        console.log('[GameScoreBox] Trying fallback with match.id:', match.id, 'teamA.id:', match.teamA.id);
         teamALineup = lineups[match.id][match.teamA.id] || [];
+        console.log('[GameScoreBox] Found teamALineup from match.id:', teamALineup);
       }
 
       if (teamALineup.length === 4) {
@@ -107,20 +129,29 @@ export const GameScoreBox = memo(function GameScoreBox({
         const woman1 = teamALineup[2];
         const woman2 = teamALineup[3];
 
+        let result = 'Team A';
         switch (game.slot) {
           case 'MENS_DOUBLES':
-            return man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+            result = man1 && man2 ? `${man1.name} &\n${man2.name}` : 'Team A';
+            break;
           case 'WOMENS_DOUBLES':
-            return woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+            result = woman1 && woman2 ? `${woman1.name} &\n${woman2.name}` : 'Team A';
+            break;
           case 'MIXED_1':
-            return man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+            result = man1 && woman1 ? `${man1.name} &\n${woman1.name}` : 'Team A';
+            break;
           case 'MIXED_2':
-            return man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+            result = man2 && woman2 ? `${man2.name} &\n${woman2.name}` : 'Team A';
+            break;
           default:
-            return 'Team A';
+            result = 'Team A';
         }
+        console.log('[GameScoreBox] getTeamALineup - returning from lineups prop:', result);
+        return result;
       }
     }
+
+    console.log('[GameScoreBox] getTeamALineup - returning fallback: Team A');
     return 'Team A';
   };
 

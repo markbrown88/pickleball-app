@@ -996,7 +996,10 @@ export function BracketMatchModal({
             }
 
             // Render each bracket's games in encounter order
-            return Array.from(gamesByBracket.entries()).map(([bracketName, games]) => {
+            // Sort brackets in reverse alphabetical order (Intermediate before Advanced)
+            return Array.from(gamesByBracket.entries())
+              .sort((a, b) => b[0].localeCompare(a[0]))
+              .map(([bracketName, games]) => {
               // Calculate bracket winner
               let teamAWins = 0;
               let teamBWins = 0;
