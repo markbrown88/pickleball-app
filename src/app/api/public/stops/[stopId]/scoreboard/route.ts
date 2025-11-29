@@ -70,6 +70,23 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
           }
         });
 
+        // Load ALL teams for this tournament (needed for DE Clubs to map clubId+bracketId to teamId)
+        const allTeams = await prisma.team.findMany({
+          where: {
+            tournament: {
+              stops: {
+                some: { id: stopId }
+              }
+            }
+          },
+          select: {
+            id: true,
+            clubId: true,
+            bracketId: true,
+            name: true
+          }
+        });
+
         // Rounds → Matches → Games (correct hierarchy, no transformation needed)
         const rounds = await prisma.round.findMany({
       where: { stopId },
@@ -216,12 +233,31 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
               let teamALineup = [];
               let teamBLineup = [];
 
-              // For DE Clubs tournaments with bracket-aware games, filter by bracketId
+              // For DE Clubs tournaments with bracket-aware games, we need to find the correct team ID
+              // for each bracket. The match.teamA/teamB may point to one bracket's team, but games
+              // can be from different brackets with different team IDs.
               const gameBracketId = game.bracketId || null;
+
+              // Find the correct team IDs for this bracket
+              let teamAIdForBracket = match.teamA?.id;
+              let teamBIdForBracket = match.teamB?.id;
+
+              if (gameBracketId && match.teamA?.clubId && match.teamB?.clubId) {
+                // Find teams by clubId + bracketId
+                const teamAForBracket = allTeams.find((t: any) =>
+                  t.clubId === match.teamA.clubId && t.bracketId === gameBracketId
+                );
+                const teamBForBracket = allTeams.find((t: any) =>
+                  t.clubId === match.teamB.clubId && t.bracketId === gameBracketId
+                );
+
+                if (teamAForBracket) teamAIdForBracket = teamAForBracket.id;
+                if (teamBForBracket) teamBIdForBracket = teamBForBracket.id;
+              }
 
               // Get Team A lineup from Lineup/LineupEntry tables
               const teamALineupData = allLineups.find((l: any) =>
-                l.teamId === match.teamA?.id &&
+                l.teamId === teamAIdForBracket &&
                 (gameBracketId ? l.bracketId === gameBracketId : !l.bracketId)
               );
               if (teamALineupData) {
@@ -252,7 +288,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
 
               // Get Team B lineup from Lineup/LineupEntry tables
               const teamBLineupData = allLineups.find((l: any) =>
-                l.teamId === match.teamB?.id &&
+                l.teamId === teamBIdForBracket &&
                 (gameBracketId ? l.bracketId === gameBracketId : !l.bracketId)
               );
               if (teamBLineupData) {
