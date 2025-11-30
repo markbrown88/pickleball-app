@@ -1,6 +1,7 @@
 // src/app/api/public/stops/[stopId]/scoreboard/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -463,6 +464,20 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
       },
       CACHE_TTL.SCORES // 30 seconds for real-time updates
     );
+
+    // Final verification: Log the ACTUAL payload structure before sending
+    console.log('[Scoreboard] === FINAL PAYLOAD VERIFICATION ===');
+    if (payload.rounds && payload.rounds.length > 0) {
+      const firstMatch = payload.rounds[0]?.matches?.[0];
+      if (firstMatch?.games) {
+        firstMatch.games.forEach((g: any) => {
+          console.log(`[Scoreboard] FINAL PAYLOAD game ${g.id}: teamALineup=${Array.isArray(g.teamALineup) ? `[${g.teamALineup.length} players]` : 'NOT_AN_ARRAY'}, teamBLineup=${Array.isArray(g.teamBLineup) ? `[${g.teamBLineup.length} players]` : 'NOT_AN_ARRAY'}`);
+          if (g.teamALineup && g.teamALineup.length > 0) {
+            console.log(`[Scoreboard] FINAL teamALineup[0]:`, JSON.stringify(g.teamALineup[0]));
+          }
+        });
+      }
+    }
 
     return NextResponse.json(payload);
   } catch (e) {
