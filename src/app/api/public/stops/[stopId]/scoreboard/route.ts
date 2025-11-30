@@ -343,22 +343,24 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
               let teamAIdForBracket = match.teamA?.id;
               let teamBIdForBracket = match.teamB?.id;
 
-              if (gameBracketId && match.teamA?.clubId && match.teamB?.clubId) {
-                console.log(`[Scoreboard] Looking for teams with clubId ${match.teamA.clubId} and ${match.teamB.clubId} in bracket ${gameBracketId}`);
+              if (gameBracketId) {
+                // Look up bracket-specific team for Team A
+                if (match.teamA?.clubId) {
+                  const teamAForBracket = allTeams.find((t: any) =>
+                    t.clubId === match.teamA.clubId && t.bracketId === gameBracketId
+                  );
+                  console.log(`[Scoreboard] Found teamAForBracket:`, teamAForBracket);
+                  if (teamAForBracket) teamAIdForBracket = teamAForBracket.id;
+                }
 
-                // Find teams by clubId + bracketId
-                const teamAForBracket = allTeams.find((t: any) =>
-                  t.clubId === match.teamA.clubId && t.bracketId === gameBracketId
-                );
-                const teamBForBracket = allTeams.find((t: any) =>
-                  t.clubId === match.teamB.clubId && t.bracketId === gameBracketId
-                );
-
-                console.log(`[Scoreboard] Found teamAForBracket:`, teamAForBracket);
-                console.log(`[Scoreboard] Found teamBForBracket:`, teamBForBracket);
-
-                if (teamAForBracket) teamAIdForBracket = teamAForBracket.id;
-                if (teamBForBracket) teamBIdForBracket = teamBForBracket.id;
+                // Look up bracket-specific team for Team B (if it exists)
+                if (match.teamB?.clubId) {
+                  const teamBForBracket = allTeams.find((t: any) =>
+                    t.clubId === match.teamB.clubId && t.bracketId === gameBracketId
+                  );
+                  console.log(`[Scoreboard] Found teamBForBracket:`, teamBForBracket);
+                  if (teamBForBracket) teamBIdForBracket = teamBForBracket.id;
+                }
               }
 
               console.log(`[Scoreboard] Using teamAIdForBracket=${teamAIdForBracket}, teamBIdForBracket=${teamBIdForBracket}`);
