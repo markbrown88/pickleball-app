@@ -209,11 +209,22 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
             tiebreakerWinnerTeamId: true,
               totalPointsTeamA: true,
               totalPointsTeamB: true,
-            teamA: { 
-              select: { 
-                id: true, 
-                name: true, 
+            teamA: {
+              select: {
+                id: true,
+                name: true,
                 clubId: true,
+                bracketId: true,
+                club: {
+                  select: {
+                    name: true
+                  }
+                },
+                bracket: {
+                  select: {
+                    name: true
+                  }
+                },
                 stopRosterLinks: {
                   where: { stopId: stopId },
                   include: {
@@ -228,13 +239,24 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
                     }
                   }
                 }
-              } 
+              }
             },
-            teamB: { 
-              select: { 
-                id: true, 
-                name: true, 
+            teamB: {
+              select: {
+                id: true,
+                name: true,
                 clubId: true,
+                bracketId: true,
+                club: {
+                  select: {
+                    name: true
+                  }
+                },
+                bracket: {
+                  select: {
+                    name: true
+                  }
+                },
                 stopRosterLinks: {
                   where: { stopId: stopId },
                   include: {
@@ -249,7 +271,7 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
                     }
                   }
                 }
-              } 
+              }
             },
             games: {
               orderBy: { slot: 'asc' },
@@ -307,10 +329,12 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
             tiebreakerWinnerTeamId: match.tiebreakerWinnerTeamId,
             totalPointsTeamA: match.totalPointsTeamA,
             totalPointsTeamB: match.totalPointsTeamB,
-            teamA: match.teamA ? { 
-              id: match.teamA.id, 
-              name: match.teamA.name, 
+            teamA: match.teamA ? {
+              id: match.teamA.id,
+              name: match.teamA.name,
               clubId: match.teamA.clubId,
+              club: match.teamA.club,
+              bracket: match.teamA.bracket,
               players: match.teamA.stopRosterLinks?.map((link: any) => ({
                 id: link.player.id,
                 firstName: link.player.firstName,
@@ -319,10 +343,12 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
                 gender: link.player.gender
               })) || []
             } : null,
-            teamB: match.teamB ? { 
-              id: match.teamB.id, 
-              name: match.teamB.name, 
+            teamB: match.teamB ? {
+              id: match.teamB.id,
+              name: match.teamB.name,
               clubId: match.teamB.clubId,
+              club: match.teamB.club,
+              bracket: match.teamB.bracket,
               players: match.teamB.stopRosterLinks?.map((link: any) => ({
                 id: link.player.id,
                 firstName: link.player.firstName,

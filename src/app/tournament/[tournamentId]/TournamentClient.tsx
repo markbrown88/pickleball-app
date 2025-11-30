@@ -401,57 +401,83 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
           </span>
         </div>
 
-        {!match.forfeitTeam && (
-          <div className="space-y-2">
-            {outcome.games.map(({ game, started, completed }) => (
-              <div key={game.id} className="border border-subtle rounded p-2">
-                <div className="flex items-center justify-between text-xs text-muted mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="uppercase tracking-wide">{game.slot.replace('_', ' ')}</span>
-                    {game.courtNumber && (
-                      <span className="bg-info/20 text-info px-1.5 py-0.5 rounded text-xs">
-                        Court {game.courtNumber}
-                      </span>
-                    )}
-                  </div>
-                  {variant === 'in-progress' && (
-                    <span>
-                      {completed
-                        ? 'Completed'
-                        : started
-                        ? 'In progress'
-                        : outcome.pendingTiebreaker
-                        ? 'Awaiting tiebreaker'
-                        : 'Not started'}
-                    </span>
-                  )}
-                </div>
+        {!match.forfeitTeam && (() => {
+          // Group games by bracket
+          const gamesByBracket = new Map<string, typeof outcome.games>();
+          outcome.games.forEach((gameData) => {
+            const bracketKey = gameData.game.bracket?.name || 'Main';
+            if (!gamesByBracket.has(bracketKey)) {
+              gamesByBracket.set(bracketKey, []);
+            }
+            gamesByBracket.get(bracketKey)!.push(gameData);
+          });
 
-                <div className="flex items-center justify-between text-sm">
-                  <div className={`text-xs whitespace-pre-line text-left flex items-center ${completed && game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore ? 'font-bold text-success' : 'text-secondary'}`}>
-                    {completed && game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore && (
-                      <span className="mr-1">🏆</span>
-                    )}
-                    {getPlayerNames(game, match, 'A')}
-                  </div>
-                  <span className="font-medium text-primary">
-                    {game.teamAScore !== null ? game.teamAScore : '-'}
-                  </span>
-                  <span className="text-muted">vs</span>
-                  <span className="font-medium text-primary">
-                    {game.teamBScore !== null ? game.teamBScore : '-'}
-                  </span>
-                  <div className={`text-xs whitespace-pre-line text-right flex items-center ${completed && game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore ? 'font-bold text-success' : 'text-secondary'}`}>
-                    {getPlayerNames(game, match, 'B')}
-                    {completed && game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore && (
-                      <span className="ml-1">🏆</span>
-                    )}
-                  </div>
+          return (
+            <div className="space-y-4">
+              {Array.from(gamesByBracket.entries())
+                .sort((a, b) => b[0].localeCompare(a[0])) // Reverse alphabetical: Intermediate before Advanced
+                .map(([bracketName, games]) => (
+                <div key={bracketName} className="space-y-2">
+                  {/* Bracket header - only show if not Main */}
+                  {bracketName !== 'Main' && (
+                    <div className="text-xs font-semibold text-info uppercase tracking-wide">
+                      {bracketName}
+                    </div>
+                  )}
+
+                  {/* Games in this bracket */}
+                  {games.map(({ game, started, completed }) => (
+                    <div key={game.id} className="border border-subtle rounded p-2">
+                      <div className="flex items-center justify-between text-xs text-muted mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="uppercase tracking-wide">{game.slot.replace('_', ' ')}</span>
+                          {game.courtNumber && (
+                            <span className="bg-info/20 text-info px-1.5 py-0.5 rounded text-xs">
+                              Court {game.courtNumber}
+                            </span>
+                          )}
+                        </div>
+                        {variant === 'in-progress' && (
+                          <span>
+                            {completed
+                              ? 'Completed'
+                              : started
+                              ? 'In progress'
+                              : outcome.pendingTiebreaker
+                              ? 'Awaiting tiebreaker'
+                              : 'Not started'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between text-sm">
+                        <div className={`text-xs whitespace-pre-line text-left flex items-center ${completed && game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                          {completed && game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore && (
+                            <span className="mr-1">🏆</span>
+                          )}
+                          {getPlayerNames(game, match, 'A')}
+                        </div>
+                        <span className="font-medium text-primary">
+                          {game.teamAScore !== null ? game.teamAScore : '-'}
+                        </span>
+                        <span className="text-muted">vs</span>
+                        <span className="font-medium text-primary">
+                          {game.teamBScore !== null ? game.teamBScore : '-'}
+                        </span>
+                        <div className={`text-xs whitespace-pre-line text-right flex items-center ${completed && game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                          {getPlayerNames(game, match, 'B')}
+                          {completed && game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore && (
+                            <span className="ml-1">🏆</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
 
         {match.forfeitTeam && variant === 'completed' ? (
           <div className="text-center py-3">
