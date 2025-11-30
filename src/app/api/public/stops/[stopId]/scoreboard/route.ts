@@ -16,13 +16,19 @@ function ymd(d?: Date | null): string | null {
   return `${y}-${m}-${day}`;
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
+export async function GET(req: Request, ctx: { params: Promise<Params> }) {
   try {
     const { stopId } = await ctx.params;
 
+    // Check for cache-busting parameter
+    const url = new URL(req.url);
+    const bustCache = url.searchParams.has('nocache');
+
     // Cache scoreboard data (30 second TTL for real-time updates during tournaments)
+    // Skip cache if nocache parameter is present
+    const cacheKey = bustCache ? `${cacheKeys.stopScoreboard(stopId)}_${Date.now()}` : cacheKeys.stopScoreboard(stopId);
     const payload = await getCached(
-      cacheKeys.stopScoreboard(stopId),
+      cacheKey,
       async () => {
         // Stop header + context
         const stop = await prisma.stop.findUnique({
