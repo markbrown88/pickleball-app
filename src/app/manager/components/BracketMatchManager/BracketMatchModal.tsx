@@ -962,9 +962,13 @@ export function BracketMatchModal({
               );
             });
 
+            // For DE Clubs, wait for bracket teams to load before showing message
+            // This prevents showing the message while async data is loading
+            const isWaitingForBracketData = isDoubleEliminationClubs && brackets.length > 0 && loadingBracketTeams;
+
             // Only show message if lineups aren't set AND games haven't started yet
-            // This prevents the message from flashing when modal opens with existing lineup data
-            if (!hasAllLineupsInState && !hasLineupsInGames && !hasStarted) {
+            // Don't show while bracket data is still loading (prevents false positives)
+            if (!hasAllLineupsInState && !hasLineupsInGames && !hasStarted && !isWaitingForBracketData) {
               return (
                 <div className="text-center py-12">
                   <div className="bg-surface-2 border border-border-subtle rounded-lg p-6 max-w-md mx-auto">
