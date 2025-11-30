@@ -502,7 +502,8 @@ export function BracketMatch({ match, roundId, stopId, tournamentType, lineups, 
             {/* Edit Lineups button - only show if games haven't started */}
             {!hasAnyGameStarted && (
               <button
-                className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-gray-900 transition-colors flex-1 sm:flex-none"
+                className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 transition-colors flex-1 sm:flex-none"
+                style={{ color: '#111827' }}
                 onClick={async () => {
                   if (isDoubleEliminationClubs) {
                     await loadBracketTeams();
