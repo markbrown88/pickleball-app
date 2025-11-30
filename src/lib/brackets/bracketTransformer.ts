@@ -321,12 +321,17 @@ function convertMatch(
     // Handle partial team assignments (when winners advance)
     const { teamAGameWins, teamBGameWins } = calculateGameWins(match.games);
 
+    // Check if match has started (any game has scores)
+    const hasStarted = match.games.some(g => g.teamAScore !== null || g.teamBScore !== null);
+
     // Team A (or source match label if not set)
     if (match.teamA) {
       const teamAIsWinner = match.winnerId === match.teamA.id;
+      // Show score if: match is complete OR match has started
+      const showScore = match.winnerId || hasStarted;
       participants.push({
         id: match.teamA.id,
-        resultText: teamAIsWinner ? `${teamAGameWins}` : (match.teamB && match.winnerId === match.teamB.id ? `${teamAGameWins}` : null),
+        resultText: showScore ? `${teamAGameWins}` : null,
         isWinner: teamAIsWinner,
         status: match.winnerId ? 'PLAYED' : null,
         name: getTeamDisplayName(match.teamA, tournamentType),
@@ -345,9 +350,11 @@ function convertMatch(
     // Team B (or source match label if not set)
     if (match.teamB) {
       const teamBIsWinner = match.winnerId === match.teamB.id;
+      // Show score if: match is complete OR match has started
+      const showScore = match.winnerId || hasStarted;
       participants.push({
         id: match.teamB.id,
-        resultText: teamBIsWinner ? `${teamBGameWins}` : (match.teamA && match.winnerId === match.teamA.id ? `${teamBGameWins}` : null),
+        resultText: showScore ? `${teamBGameWins}` : null,
         isWinner: teamBIsWinner,
         status: match.winnerId ? 'PLAYED' : null,
         name: getTeamDisplayName(match.teamB, tournamentType),

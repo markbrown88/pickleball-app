@@ -428,8 +428,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <div className={`text-xs whitespace-pre-line text-left flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore ? 'font-bold text-success' : 'text-secondary'}`}>
-                    {game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore && (
+                  <div className={`text-xs whitespace-pre-line text-left flex items-center ${completed && game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                    {completed && game.teamAScore !== null && game.teamBScore !== null && game.teamAScore > game.teamBScore && (
                       <span className="mr-1">🏆</span>
                     )}
                     {getPlayerNames(game, match, 'A')}
@@ -441,9 +441,9 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                   <span className="font-medium text-primary">
                     {game.teamBScore !== null ? game.teamBScore : '-'}
                   </span>
-                  <div className={`text-xs whitespace-pre-line text-right flex items-center ${game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore ? 'font-bold text-success' : 'text-secondary'}`}>
+                  <div className={`text-xs whitespace-pre-line text-right flex items-center ${completed && game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore ? 'font-bold text-success' : 'text-secondary'}`}>
                     {getPlayerNames(game, match, 'B')}
-                    {game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore && (
+                    {completed && game.teamAScore !== null && game.teamBScore !== null && game.teamBScore > game.teamAScore && (
                       <span className="ml-1">🏆</span>
                     )}
                   </div>
