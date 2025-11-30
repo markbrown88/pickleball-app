@@ -138,7 +138,7 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
                 for (const lineupData of bracketLineups) {
                   const formattedLineup = formatLineup(lineupData);
                   groupedLineups[bracketId!][lineupData.teamId] = formattedLineup;
-                  console.log(`[Scoreboard] Added lineup for teamId ${lineupData.teamId} to bracket ${bracketId}:`, formattedLineup.map(p => p?.name || 'null'));
+                  console.log(`[Scoreboard] *** STORING lineup: bracketId=${bracketId}, teamId=${lineupData.teamId}, players:`, formattedLineup.map(p => p?.name || 'null'));
                 }
               }
             }
@@ -182,6 +182,11 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
             bracketId: true,
             name: true
           }
+        });
+
+        console.log(`[Scoreboard] *** Loaded ${allTeams.length} teams:`);
+        allTeams.forEach(t => {
+          console.log(`[Scoreboard]   Team: id=${t.id}, name="${t.name}", clubId=${t.clubId}, bracketId=${t.bracketId}`);
         });
 
         // Rounds → Matches → Games (correct hierarchy, no transformation needed)
@@ -357,6 +362,7 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
               }
 
               console.log(`[Scoreboard] Using teamAIdForBracket=${teamAIdForBracket}, teamBIdForBracket=${teamBIdForBracket}`);
+              console.log(`[Scoreboard] Original match.teamA.id=${match.teamA?.id}, match.teamB.id=${match.teamB?.id}`);
 
               // Get lineups from the admin API response
               // For bracket-aware: lineupsData[bracketId][teamId]
@@ -364,7 +370,9 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
               const lineupKey = gameBracketId || match.id;
               const bracketLineups = lineupsData[lineupKey] || {};
 
-              console.log(`[Scoreboard] lineupKey=${lineupKey}, bracketLineups keys:`, Object.keys(bracketLineups));
+              console.log(`[Scoreboard] *** RETRIEVING lineups: lineupKey=${lineupKey}`);
+              console.log(`[Scoreboard] *** Available teamIds in bracketLineups:`, Object.keys(bracketLineups));
+              console.log(`[Scoreboard] *** Looking for teamAId=${teamAIdForBracket}, teamBId=${teamBIdForBracket}`);
 
               // Get Team A lineup
               const teamALineupArray = bracketLineups[teamAIdForBracket] || [];
@@ -420,7 +428,7 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
               console.log(`[Scoreboard] Mapped teamALineup length: ${mappedTeamALineup.length}`, JSON.stringify(mappedTeamALineup));
               console.log(`[Scoreboard] Mapped teamBLineup length: ${mappedTeamBLineup.length}`, JSON.stringify(mappedTeamBLineup));
 
-              return {
+              const gameResult = {
                 id: game.id,
                 slot: game.slot, // GameSlot
                 bracketId: game.bracketId ?? null,
@@ -439,6 +447,10 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
                 teamALineup: mappedTeamALineup,
                 teamBLineup: mappedTeamBLineup,
               };
+
+              console.log(`[Scoreboard] *** RETURNING game ${game.id}: teamALineup.length=${gameResult.teamALineup.length}, teamBLineup.length=${gameResult.teamBLineup.length}`);
+
+              return gameResult;
             }),
             summary: wins,
           };
