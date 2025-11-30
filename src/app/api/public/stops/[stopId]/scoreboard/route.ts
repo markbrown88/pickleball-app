@@ -402,6 +402,24 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
 
               console.log(`[Scoreboard] Final teamALineup length: ${teamALineup.length}, teamBLineup length: ${teamBLineup.length}`);
 
+              const mappedTeamALineup = teamALineup.map((player: any) => ({
+                id: player.id,
+                firstName: player.firstName,
+                lastName: player.lastName,
+                name: player.name,
+                gender: player.gender
+              }));
+              const mappedTeamBLineup = teamBLineup.map((player: any) => ({
+                id: player.id,
+                firstName: player.firstName,
+                lastName: player.lastName,
+                name: player.name,
+                gender: player.gender
+              }));
+
+              console.log(`[Scoreboard] Mapped teamALineup length: ${mappedTeamALineup.length}`, JSON.stringify(mappedTeamALineup));
+              console.log(`[Scoreboard] Mapped teamBLineup length: ${mappedTeamBLineup.length}`, JSON.stringify(mappedTeamBLineup));
+
               return {
                 id: game.id,
                 slot: game.slot, // GameSlot
@@ -418,20 +436,8 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
                 endedAt: game.endedAt ? game.endedAt.toISOString() : null,
                 updatedAt: game.updatedAt ? game.updatedAt.toISOString() : null,
                 createdAt: game.createdAt ? game.createdAt.toISOString() : null,
-                teamALineup: teamALineup.map((player: any) => ({
-                  id: player.id,
-                  firstName: player.firstName,
-                  lastName: player.lastName,
-                  name: player.name,
-                  gender: player.gender
-                })),
-                teamBLineup: teamBLineup.map((player: any) => ({
-                  id: player.id,
-                  firstName: player.firstName,
-                  lastName: player.lastName,
-                  name: player.name,
-                  gender: player.gender
-                })),
+                teamALineup: mappedTeamALineup,
+                teamBLineup: mappedTeamBLineup,
               };
             }),
             summary: wins,
