@@ -289,6 +289,16 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
       },
     });
 
+        // Filter out Finals 2 (depth 0) if it has no teams assigned
+        // This happens when winner bracket champion wins Finals 1 (no bracket reset needed)
+        const filteredRounds = rounds.filter((r: any) => {
+          if (r.bracketType === 'FINALS' && r.depth === 0 && r.matches) {
+            const hasAnyTeams = r.matches.some((m: any) => m.teamA || m.teamB);
+            return hasAnyTeams;
+          }
+          return true;
+        });
+
         // Shape & compute small summary (wins per match)
         return {
           stop: {
@@ -300,7 +310,7 @@ export async function GET(req: Request, ctx: { params: Promise<Params> }) {
             startAt: ymd(stop.startAt),
             endAt: ymd(stop.endAt),
           },
-          rounds: rounds.map((r: any) => {
+          rounds: filteredRounds.map((r: any) => {
         // Debug: Log the order of matches for this round
         
         return {
