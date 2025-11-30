@@ -925,6 +925,9 @@ export function BracketMatchModal({
             // This prevents starting games without lineups confirmed
             const hasLineupsInGames = gamesToRender.some(g => g.teamALineup && g.teamBLineup);
 
+            // Check if any game has been started (if started, lineups must have been set)
+            const hasStarted = gamesToRender.some(g => g.startedAt !== null);
+
             // Check if we have lineups in state for all brackets
             const brackets = Array.from(
               new Map(
@@ -959,8 +962,9 @@ export function BracketMatchModal({
               );
             });
 
-            // If lineups aren't confirmed, show a message instead of games
-            if (!hasAllLineupsInState && !hasLineupsInGames) {
+            // Only show message if lineups aren't set AND games haven't started yet
+            // This prevents the message from flashing when modal opens with existing lineup data
+            if (!hasAllLineupsInState && !hasLineupsInGames && !hasStarted) {
               return (
                 <div className="text-center py-12">
                   <div className="bg-surface-2 border border-border-subtle rounded-lg p-6 max-w-md mx-auto">
