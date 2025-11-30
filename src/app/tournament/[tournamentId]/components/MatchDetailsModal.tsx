@@ -306,18 +306,18 @@ export function MatchDetailsModal({ match, onClose }: MatchDetailsModalProps) {
 
                                 {/* Scores */}
                                 <div className="flex items-center gap-3">
-                                  {game.isComplete ? (
+                                  {game.teamAScore !== null || game.teamBScore !== null ? (
                                     <>
                                       <div className={`text-2xl font-bold tabular ${
-                                        gameWinner === 'A' ? 'text-green-400' : 'text-gray-400'
+                                        game.isComplete && gameWinner === 'A' ? 'text-green-400' : 'text-gray-400'
                                       }`}>
-                                        {game.teamAScore || 0}
+                                        {game.teamAScore ?? 0}
                                       </div>
                                       <div className="text-gray-400 font-medium">-</div>
                                       <div className={`text-2xl font-bold tabular ${
-                                        gameWinner === 'B' ? 'text-green-400' : 'text-gray-400'
+                                        game.isComplete && gameWinner === 'B' ? 'text-green-400' : 'text-gray-400'
                                       }`}>
-                                        {game.teamBScore || 0}
+                                        {game.teamBScore ?? 0}
                                       </div>
                                     </>
                                   ) : (
