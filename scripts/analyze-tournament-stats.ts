@@ -189,6 +189,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     game: typeof allGames[0];
     won: boolean;
     team: 'A' | 'B';
+    teamName: string;
   }>>();
 
   // For each game, find the lineup entries that participated
@@ -230,8 +231,8 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
           lineupEntryToGames.set(lineupEntry.player2Id, []);
         }
 
-        lineupEntryToGames.get(lineupEntry.player1Id)!.push({ game, won, team });
-        lineupEntryToGames.get(lineupEntry.player2Id)!.push({ game, won, team });
+        lineupEntryToGames.get(lineupEntry.player1Id)!.push({ game, won, team, teamName: lineupTeam.name });
+        lineupEntryToGames.get(lineupEntry.player2Id)!.push({ game, won, team, teamName: lineupTeam.name });
       }
     }
   }
@@ -274,6 +275,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
       gamesWon: 0,
       gamesLost: 0,
       winPercentage: 0,
+      teams: new Map(),
       bySlot: {
         MENS_DOUBLES: { played: 0, won: 0, lost: 0 },
         WOMENS_DOUBLES: { played: 0, won: 0, lost: 0 },
@@ -290,7 +292,11 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     const stats = playerStats.get(playerId);
     if (!stats) continue;
 
-    for (const { game, won } of games) {
+    for (const { game, won, teamName } of games) {
+      // Track team
+      if (teamName) {
+        stats.teams.set(teamName, (stats.teams.get(teamName) || 0) + 1);
+      }
       stats.gamesPlayed++;
       if (won) stats.gamesWon++;
       else stats.gamesLost++;
@@ -338,6 +344,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     gamesWon: number;
     gamesLost: number;
     winPercentage: number;
+    teams: Map<string, number>; // team name -> count of games
     bySlot: Map<string, { played: number; won: number; lost: number }>;
   }>();
 
@@ -358,7 +365,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     const player1Name = entry.player1.name || `${entry.player1.firstName} ${entry.player1.lastName}` || 'Unknown';
     const player2Name = entry.player2.name || `${entry.player2.firstName} ${entry.player2.lastName}` || 'Unknown';
 
-    const pairGames: Array<{ game: typeof allGames[0]; won: boolean }> = [];
+    const pairGames: Array<{ game: typeof allGames[0]; won: boolean; teamName: string }> = [];
 
     // Find games where this pair played together
     for (const game of allGames) {
@@ -383,7 +390,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
         if (isTeamA || isTeamB) {
           const teamAWon = game.teamAScore > game.teamBScore;
           const won = isTeamA ? teamAWon : !teamAWon;
-          pairGames.push({ game, won });
+          pairGames.push({ game, won, teamName: lineupTeam.name });
         }
       }
     }
@@ -393,8 +400,13 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     const gamesLost = gamesPlayed - gamesWon;
     const winPercentage = gamesPlayed > 0 ? (gamesWon / gamesPlayed) * 100 : 0;
 
+    const teams = new Map<string, number>();
     const bySlot = new Map<string, { played: number; won: number; lost: number }>();
-    for (const { game, won } of pairGames) {
+    for (const { game, won, teamName } of pairGames) {
+      // Track team
+      if (teamName) {
+        teams.set(teamName, (teams.get(teamName) || 0) + 1);
+      }
       const slot = game.slot || 'UNKNOWN';
       if (!bySlot.has(slot)) {
         bySlot.set(slot, { played: 0, won: 0, lost: 0 });
@@ -414,6 +426,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
       gamesWon,
       gamesLost,
       winPercentage,
+      teams,
       bySlot,
     });
   }
@@ -438,7 +451,14 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     .filter(p => p.gamesPlayed >= 5)
     .slice(0, 10)
     .forEach((player, idx) => {
-      console.log(`\n${idx + 1}. ${player.playerName}`);
+      // Get most common team(s)
+      const teamEntries = Array.from(player.teams.entries()).sort((a, b) => b[1] - a[1]);
+      const primaryTeam = teamEntries[0]?.[0] || 'Unknown';
+      const teamDisplay = teamEntries.length > 1 && teamEntries[1][1] === teamEntries[0][1]
+        ? `${primaryTeam} (tied)`
+        : primaryTeam;
+      
+      console.log(`\n${idx + 1}. ${player.playerName} - ${teamDisplay}`);
       console.log(`   Overall: ${player.gamesWon}W - ${player.gamesLost}L (${player.winPercentage.toFixed(1)}%) - ${player.gamesPlayed} games`);
       console.log(`   By Slot:`);
       Object.entries(player.bySlot).forEach(([slot, stats]) => {
@@ -454,7 +474,14 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
     .slice(0, 10)
     .forEach((player, idx) => {
-      console.log(`${idx + 1}. ${player.playerName}: ${player.gamesPlayed} games (${player.winPercentage.toFixed(1)}% win rate)`);
+      // Get most common team(s)
+      const teamEntries = Array.from(player.teams.entries()).sort((a, b) => b[1] - a[1]);
+      const primaryTeam = teamEntries[0]?.[0] || 'Unknown';
+      const teamDisplay = teamEntries.length > 1 && teamEntries[1][1] === teamEntries[0][1]
+        ? `${primaryTeam} (tied)`
+        : primaryTeam;
+      
+      console.log(`${idx + 1}. ${player.playerName} - ${teamDisplay}: ${player.gamesPlayed} games (${player.winPercentage.toFixed(1)}% win rate)`);
     });
 
   console.log(`\n\n${'='.repeat(80)}`);
@@ -475,7 +502,14 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     .filter(p => p.gamesPlayed >= 3)
     .slice(0, 10)
     .forEach((pair, idx) => {
-      console.log(`\n${idx + 1}. ${pair.player1Name} & ${pair.player2Name}`);
+      // Get most common team(s)
+      const teamEntries = Array.from(pair.teams.entries()).sort((a, b) => b[1] - a[1]);
+      const primaryTeam = teamEntries[0]?.[0] || 'Unknown';
+      const teamDisplay = teamEntries.length > 1 && teamEntries[1][1] === teamEntries[0][1]
+        ? `${primaryTeam} (tied)`
+        : primaryTeam;
+      
+      console.log(`\n${idx + 1}. ${pair.player1Name} & ${pair.player2Name} - ${teamDisplay}`);
       console.log(`   Overall: ${pair.gamesWon}W - ${pair.gamesLost}L (${pair.winPercentage.toFixed(1)}%) - ${pair.gamesPlayed} games`);
       console.log(`   By Slot:`);
       Array.from(pair.bySlot.entries()).forEach(([slot, stats]) => {
@@ -489,7 +523,14 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
     .slice(0, 10)
     .forEach((pair, idx) => {
-      console.log(`${idx + 1}. ${pair.player1Name} & ${pair.player2Name}: ${pair.gamesPlayed} games (${pair.winPercentage.toFixed(1)}% win rate)`);
+      // Get most common team(s)
+      const teamEntries = Array.from(pair.teams.entries()).sort((a, b) => b[1] - a[1]);
+      const primaryTeam = teamEntries[0]?.[0] || 'Unknown';
+      const teamDisplay = teamEntries.length > 1 && teamEntries[1][1] === teamEntries[0][1]
+        ? `${primaryTeam} (tied)`
+        : primaryTeam;
+      
+      console.log(`${idx + 1}. ${pair.player1Name} & ${pair.player2Name} - ${teamDisplay}: ${pair.gamesPlayed} games (${pair.winPercentage.toFixed(1)}% win rate)`);
     });
 
   // Summary statistics
