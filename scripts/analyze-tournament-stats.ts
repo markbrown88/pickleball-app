@@ -6,18 +6,20 @@ config({ path: resolve(process.cwd(), '.env.local') });
 
 const prisma = new PrismaClient();
 
-async function analyzeTournamentStats(tournamentName: string) {
+async function analyzeTournamentStats(tournamentNames: string[]) {
   console.log(`\n${'='.repeat(80)}`);
-  console.log(`ANALYZING TOURNAMENT: ${tournamentName}`);
+  console.log(`ANALYZING TOURNAMENTS: ${tournamentNames.join(', ')}`);
   console.log('='.repeat(80));
 
-  // Find the tournament
-  const tournament = await prisma.tournament.findFirst({
+  // Find all tournaments
+  const tournaments = await prisma.tournament.findMany({
     where: {
-      name: {
-        contains: tournamentName,
-        mode: 'insensitive',
-      },
+      OR: tournamentNames.map(name => ({
+        name: {
+          contains: name,
+          mode: 'insensitive',
+        },
+      })),
     },
     include: {
       stops: {
@@ -44,24 +46,25 @@ async function analyzeTournamentStats(tournamentName: string) {
     },
   });
 
-  if (!tournament) {
-    console.log(`\n❌ Tournament "${tournamentName}" not found`);
+  if (tournaments.length === 0) {
+    console.log(`\n❌ No tournaments found matching: ${tournamentNames.join(', ')}`);
     return;
   }
 
-  console.log(`\n🏆 Tournament:`);
-  console.log(`   ID: ${tournament.id}`);
-  console.log(`   Name: ${tournament.name}`);
-  console.log(`   Type: ${tournament.type}`);
-  console.log(`   Total Stops: ${tournament.stops.length}`);
+  const tournamentIds = tournaments.map(t => t.id);
 
-  // Get all lineup entries for this tournament
+  console.log(`\n🏆 Tournaments Found:`);
+  tournaments.forEach(tournament => {
+    console.log(`   ${tournament.name} (${tournament.type}) - ${tournament.stops.length} stops`);
+  });
+
+  // Get all lineup entries for these tournaments
   const allLineupEntries = await prisma.lineupEntry.findMany({
     where: {
       lineup: {
         round: {
           stop: {
-            tournamentId: tournament.id,
+            tournamentId: { in: tournamentIds },
           },
         },
       },
@@ -128,13 +131,13 @@ async function analyzeTournamentStats(tournamentName: string) {
 
   console.log(`\n📊 Total Lineup Entries: ${allLineupEntries.length}`);
 
-  // Get all games for this tournament
+  // Get all games for these tournaments
   const allGames = await prisma.game.findMany({
     where: {
       match: {
         round: {
           stop: {
-            tournamentId: tournament.id,
+            tournamentId: { in: tournamentIds },
           },
         },
       },
@@ -433,7 +436,7 @@ async function analyzeTournamentStats(tournamentName: string) {
   console.log(`\n📈 Top Players by Win Percentage (min 5 games):`);
   sortedPlayers
     .filter(p => p.gamesPlayed >= 5)
-    .slice(0, 20)
+    .slice(0, 10)
     .forEach((player, idx) => {
       console.log(`\n${idx + 1}. ${player.playerName}`);
       console.log(`   Overall: ${player.gamesWon}W - ${player.gamesLost}L (${player.winPercentage.toFixed(1)}%) - ${player.gamesPlayed} games`);
@@ -449,7 +452,7 @@ async function analyzeTournamentStats(tournamentName: string) {
   console.log(`\n\n📊 Most Active Players (by games played):`);
   sortedPlayers
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
-    .slice(0, 20)
+    .slice(0, 10)
     .forEach((player, idx) => {
       console.log(`${idx + 1}. ${player.playerName}: ${player.gamesPlayed} games (${player.winPercentage.toFixed(1)}% win rate)`);
     });
@@ -470,7 +473,7 @@ async function analyzeTournamentStats(tournamentName: string) {
   console.log(`\n👥 Top Pairs by Win Percentage (min 3 games together):`);
   sortedPairs
     .filter(p => p.gamesPlayed >= 3)
-    .slice(0, 20)
+    .slice(0, 10)
     .forEach((pair, idx) => {
       console.log(`\n${idx + 1}. ${pair.player1Name} & ${pair.player2Name}`);
       console.log(`   Overall: ${pair.gamesWon}W - ${pair.gamesLost}L (${pair.winPercentage.toFixed(1)}%) - ${pair.gamesPlayed} games`);
@@ -484,7 +487,7 @@ async function analyzeTournamentStats(tournamentName: string) {
   console.log(`\n\n👥 Most Active Pairs (by games played together):`);
   sortedPairs
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
-    .slice(0, 20)
+    .slice(0, 10)
     .forEach((pair, idx) => {
       console.log(`${idx + 1}. ${pair.player1Name} & ${pair.player2Name}: ${pair.gamesPlayed} games (${pair.winPercentage.toFixed(1)}% win rate)`);
     });
@@ -512,12 +515,12 @@ async function analyzeTournamentStats(tournamentName: string) {
 
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  console.error('Usage: npx tsx scripts/analyze-tournament-stats.ts <tournamentName>');
-  console.error('Example: npx tsx scripts/analyze-tournament-stats.ts "Klyng Cup - Grand"');
+  console.error('Usage: npx tsx scripts/analyze-tournament-stats.ts <tournamentName1> [tournamentName2] ...');
+  console.error('Example: npx tsx scripts/analyze-tournament-stats.ts "KLYNG CUP-GRAND" "KLYNG CUP-GRAND FINALE"');
   process.exit(1);
 }
 
-analyzeTournamentStats(args[0])
+analyzeTournamentStats(args)
   .catch((error) => {
     console.error('\n❌ Error:', error);
     process.exit(1);

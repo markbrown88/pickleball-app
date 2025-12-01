@@ -73,6 +73,8 @@ interface Game {
   endedAt?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;
+  bracketId?: string | null;
+  bracket?: { id: string; name: string } | null;
 }
 
 interface Player {
@@ -384,8 +386,7 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     return (
       <div className="border border-subtle rounded p-3 bg-surface-2">
         <div className="text-sm font-medium text-muted mb-1 flex items-center">
-          {roundLabel}
-          {bracketName && ` - ${bracketName}`}:
+          {roundLabel}:
           <span className={`ml-2 ${winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' ? 'font-bold text-success' : ''}`}>
             {winnerTeamId && match.teamA?.id === winnerTeamId && variant === 'completed' && (
               <span className="mr-1">🏆</span>
