@@ -201,7 +201,9 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                 courtNumber: game.courtNumber ?? null,
                 lineupConfirmed: game.lineupConfirmed ?? false,
                 teamALineup: game.teamALineup || [],
-                teamBLineup: game.teamBLineup || []
+                teamBLineup: game.teamBLineup || [],
+                bracketId: game.bracketId ?? null,
+                bracket: game.bracket ?? null
               } as Game;
             }),
             status: 'scheduled' // Default status
@@ -725,14 +727,14 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
   return (
     <div className="min-h-screen bg-app">
       <div className="w-full px-1 py-1 md:px-2 md:py-2">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-2 gap-2">
+          <div className="flex-1 min-w-0 w-full md:w-auto">
             <h1 className="text-xl md:text-3xl font-bold text-primary">{tournament.name}</h1>
             {tournament.description && (
               <p className="text-secondary mt-1 text-sm md:text-base line-clamp-2">{tournament.description}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 ml-2">
+          <div className="flex items-center gap-2 w-full md:w-auto md:ml-2">
             {/* View Toggle for Double Elimination Tournaments */}
             {isDoubleElimination && (
               <>

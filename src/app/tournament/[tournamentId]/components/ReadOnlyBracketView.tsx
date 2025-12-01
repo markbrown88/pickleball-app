@@ -285,7 +285,7 @@ export function ReadOnlyBracketView({ stopId }: ReadOnlyBracketViewProps) {
           `,
         }}
       />
-      <div className="w-full bg-gray-800 rounded-lg border border-gray-700 p-1 md:p-2 overflow-x-auto bracket-container" style={{ minHeight: '85vh' }}>
+      <div className="w-full bg-gray-800 rounded-lg border border-gray-700 p-1 md:p-2 overflow-x-auto bracket-container">
         <DoubleEliminationBracket
           matches={safeBracketData}
           matchComponent={CustomBracketMatch}
