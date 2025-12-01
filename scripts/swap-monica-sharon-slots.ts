@@ -43,6 +43,15 @@ async function swapMonicaSharonSlots() {
     },
   ];
 
+  // Store player IDs for verification
+  const playerIds: Array<{
+    monicaPlayer1Id: string;
+    monicaPlayer2Id: string;
+    sharonPlayer1Id: string;
+    sharonPlayer2Id: string;
+    lineupId: string;
+  }> = [];
+
   // Verify current state
   console.log(`\nVerifying current state...\n`);
   for (const swap of swaps) {
@@ -88,20 +97,55 @@ async function swapMonicaSharonSlots() {
 
   try {
     await prisma.$transaction(async (tx) => {
-      for (const swap of swaps) {
-        // Update Monica's entry
-        await tx.lineupEntry.update({
+      for (let i = 0; i < swaps.length; i++) {
+        const swap = swaps[i];
+        
+        // Get the current entries to preserve all data
+        const monicaEntry = await tx.lineupEntry.findUnique({
           where: { id: swap.monicaEntryId },
-          data: { slot: swap.monicaNewSlot as any },
         });
-        console.log(`✅ Updated Monica entry ${swap.monicaEntryId}: ${swap.monicaCurrentSlot} → ${swap.monicaNewSlot}`);
 
-        // Update Sharon's entry
-        await tx.lineupEntry.update({
+        const sharonEntry = await tx.lineupEntry.findUnique({
           where: { id: swap.sharonEntryId },
-          data: { slot: swap.sharonNewSlot as any },
         });
-        console.log(`✅ Updated Sharon entry ${swap.sharonEntryId}: ${swap.sharonCurrentSlot} → ${swap.sharonNewSlot}`);
+
+        if (!monicaEntry || !sharonEntry) {
+          throw new Error(`Could not find entries for ${swap.matchup}`);
+        }
+
+        // Store player IDs for verification
+        playerIds.push({
+          monicaPlayer1Id: monicaEntry.player1Id,
+          monicaPlayer2Id: monicaEntry.player2Id,
+          sharonPlayer1Id: sharonEntry.player1Id,
+          sharonPlayer2Id: sharonEntry.player2Id,
+          lineupId: monicaEntry.lineupId,
+        });
+
+        // Delete both entries
+        await tx.lineupEntry.delete({ where: { id: swap.monicaEntryId } });
+        await tx.lineupEntry.delete({ where: { id: swap.sharonEntryId } });
+
+        // Recreate with swapped slots
+        await tx.lineupEntry.create({
+          data: {
+            lineupId: monicaEntry.lineupId,
+            player1Id: monicaEntry.player1Id,
+            player2Id: monicaEntry.player2Id,
+            slot: swap.monicaNewSlot as any,
+          },
+        });
+        console.log(`✅ Swapped Monica entry: ${swap.monicaCurrentSlot} → ${swap.monicaNewSlot}`);
+
+        await tx.lineupEntry.create({
+          data: {
+            lineupId: sharonEntry.lineupId,
+            player1Id: sharonEntry.player1Id,
+            player2Id: sharonEntry.player2Id,
+            slot: swap.sharonNewSlot as any,
+          },
+        });
+        console.log(`✅ Swapped Sharon entry: ${swap.sharonCurrentSlot} → ${swap.sharonNewSlot}`);
       }
     });
 
@@ -111,23 +155,46 @@ async function swapMonicaSharonSlots() {
 
     // Verify final state
     console.log(`\nVerifying final state...\n`);
-    for (const swap of swaps) {
-      const monicaEntry = await prisma.lineupEntry.findUnique({
-        where: { id: swap.monicaEntryId },
+    for (let i = 0; i < swaps.length; i++) {
+      const swap = swaps[i];
+      const playerInfo = playerIds[i];
+
+      // Find Monica's entry by lineup, slot, and player IDs
+      const newMonicaEntry = await prisma.lineupEntry.findFirst({
+        where: {
+          lineupId: playerInfo.lineupId,
+          slot: swap.monicaNewSlot as any,
+          OR: [
+            { player1Id: playerInfo.monicaPlayer1Id, player2Id: playerInfo.monicaPlayer2Id },
+            { player1Id: playerInfo.monicaPlayer2Id, player2Id: playerInfo.monicaPlayer1Id },
+          ],
+        },
       });
 
-      const sharonEntry = await prisma.lineupEntry.findUnique({
-        where: { id: swap.sharonEntryId },
+      // Find Sharon's entry by lineup, slot, and player IDs
+      const newSharonEntry = await prisma.lineupEntry.findFirst({
+        where: {
+          lineupId: playerInfo.lineupId,
+          slot: swap.sharonNewSlot as any,
+          OR: [
+            { player1Id: playerInfo.sharonPlayer1Id, player2Id: playerInfo.sharonPlayer2Id },
+            { player1Id: playerInfo.sharonPlayer2Id, player2Id: playerInfo.sharonPlayer1Id },
+          ],
+        },
       });
 
-      if (monicaEntry && sharonEntry) {
-        const monicaCorrect = monicaEntry.slot === swap.monicaNewSlot;
-        const sharonCorrect = sharonEntry.slot === swap.sharonNewSlot;
+      if (newMonicaEntry && newSharonEntry) {
+        const monicaCorrect = newMonicaEntry.slot === swap.monicaNewSlot;
+        const sharonCorrect = newSharonEntry.slot === swap.sharonNewSlot;
         const status = monicaCorrect && sharonCorrect ? '✅' : '❌';
 
         console.log(`${status} ${swap.matchup}:`);
-        console.log(`  Monica: ${monicaEntry.slot} (expected: ${swap.monicaNewSlot})`);
-        console.log(`  Sharon: ${sharonEntry.slot} (expected: ${swap.sharonNewSlot})`);
+        console.log(`  Monica: ${newMonicaEntry.slot} (expected: ${swap.monicaNewSlot})`);
+        console.log(`  Sharon: ${newSharonEntry.slot} (expected: ${swap.sharonNewSlot})`);
+      } else {
+        console.log(`❌ ${swap.matchup}: Could not verify entries`);
+        if (!newMonicaEntry) console.log(`   Monica entry not found`);
+        if (!newSharonEntry) console.log(`   Sharon entry not found`);
       }
     }
 
