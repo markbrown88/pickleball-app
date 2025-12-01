@@ -406,14 +406,23 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
 
         {!match.forfeitTeam && (() => {
           // Group games by bracket
+          console.log('[MatchCard DEBUG] Match:', match.id);
+          console.log('[MatchCard DEBUG] outcome.games:', outcome.games);
+          console.log('[MatchCard DEBUG] First game:', outcome.games[0]);
+          console.log('[MatchCard DEBUG] First game.game:', outcome.games[0]?.game);
+          console.log('[MatchCard DEBUG] First game.game.bracket:', outcome.games[0]?.game.bracket);
+
           const gamesByBracket = new Map<string, typeof outcome.games>();
           outcome.games.forEach((gameData) => {
             const bracketKey = gameData.game.bracket?.name || 'Main';
+            console.log('[MatchCard DEBUG] Processing game:', gameData.game.slot, 'bracket:', gameData.game.bracket, 'key:', bracketKey);
             if (!gamesByBracket.has(bracketKey)) {
               gamesByBracket.set(bracketKey, []);
             }
             gamesByBracket.get(bracketKey)!.push(gameData);
           });
+
+          console.log('[MatchCard DEBUG] Final groups:', Array.from(gamesByBracket.entries()).map(([k, v]) => [k, v.length]));
 
           return (
             <div className="space-y-4">
