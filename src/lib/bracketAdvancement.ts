@@ -220,6 +220,7 @@ export async function advanceTeamsInBracket(
       });
 
       if (finals2Match) {
+        finals2MatchId = finals2Match.id; // Store ID so we skip advancing to it
         await tx.match.update({
           where: { id: finals2Match.id },
           data: {
@@ -261,10 +262,10 @@ export async function advanceTeamsInBracket(
   const loserBracketChildMatchesB = childMatchesB.filter(m => m.round?.bracketType === 'LOSER');
 
   // Advance winner to winner bracket / finals matches
-  // SKIP Finals 2 if bracket reset was triggered (already set up with both teams)
+  // SKIP Finals 2 if it was handled (either filled with both teams for reset, or cleared because tournament is over)
   for (const childMatch of winnerBracketChildMatchesA) {
-    if (bracketResetTriggered && childMatch.id === finals2MatchId) {
-      continue; // Skip - already handled by bracket reset logic
+    if (finals2MatchId && childMatch.id === finals2MatchId) {
+      continue; // Skip - already handled by Finals 1 completion logic above
     }
     await tx.match.update({
       where: { id: childMatch.id },
@@ -273,8 +274,8 @@ export async function advanceTeamsInBracket(
   }
 
   for (const childMatch of winnerBracketChildMatchesB) {
-    if (bracketResetTriggered && childMatch.id === finals2MatchId) {
-      continue; // Skip - already handled by bracket reset logic
+    if (finals2MatchId && childMatch.id === finals2MatchId) {
+      continue; // Skip - already handled by Finals 1 completion logic above
     }
     await tx.match.update({
       where: { id: childMatch.id },
