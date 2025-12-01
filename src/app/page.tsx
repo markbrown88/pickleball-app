@@ -226,7 +226,8 @@ export default function Home() {
                   {(() => {
                     const klyngCupPickleplex = tournaments.find((t: Tournament) =>
                       t.name.toLowerCase().includes('klyng cup') &&
-                      (t.name.toLowerCase().includes('pickleplex') || t.name.toLowerCase().includes('pickle plex'))
+                      (t.name.toLowerCase().includes('pickleplex') || t.name.toLowerCase().includes('pickle plex')) &&
+                      !t.name.toLowerCase().includes('finale')
                     );
 
                     // Only show if tournament hasn't ended yet
@@ -341,11 +342,12 @@ export default function Home() {
                     return null;
                   })()}
 
-                  {/* Klyng Cup Grand Finale Tournament Card */}
+                  {/* Klyng Cup Pickleplex Finale Tournament Card */}
                   {(() => {
                     const klyngCupGrandFinale = tournaments.find((t: Tournament) =>
                       t.name.toLowerCase().includes('klyng cup') &&
-                      (t.name.toLowerCase().includes('grand finale') || t.name.toLowerCase().includes('finale'))
+                      t.name.toLowerCase().includes('finale') &&
+                      (t.name.toLowerCase().includes('pickleplex') || t.name.toLowerCase().includes('pickle plex'))
                     );
 
                     // Only show if tournament hasn't ended yet
@@ -446,126 +448,6 @@ export default function Home() {
                                 <SignedIn>
                                   <Link
                                     href={`/register/${klyngCupGrandFinale.id}`}
-                                    className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]"
-                                  >
-                                    Register!
-                                  </Link>
-                                </SignedIn>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  {/* Klyng Cup -Grand Tournament Card */}
-                  {(() => {
-                    const klyngCupGrand = tournaments.find((t: Tournament) =>
-                      t.name.toLowerCase().includes('klyng cup') &&
-                      t.name.toLowerCase().includes('grand') &&
-                      !t.name.toLowerCase().includes('finale')
-                    );
-
-                    // Only show if tournament hasn't ended yet
-                    if (klyngCupGrand) {
-                      const now = new Date();
-                      const endDate = klyngCupGrand.endDate ? new Date(klyngCupGrand.endDate) : null;
-                      if (endDate && endDate < now) {
-                        return null;
-                      }
-                      const nextStop = getNextStop(klyngCupGrand);
-                      const isMultiStop = klyngCupGrand.stops && klyngCupGrand.stops.length > 1;
-                      const isInviteOnly = klyngCupGrand.registrationStatus === 'INVITE_ONLY';
-
-                      return (
-                        <div className="card hover:shadow-lg transition-shadow duration-300">
-                          <div className="flex items-start justify-between mb-4">
-                            <h3 className="text-lg font-semibold line-clamp-2" style={{ color: 'var(--brand-secondary)' }}>
-                              {klyngCupGrand.name}
-                            </h3>
-                            {klyngCupGrand.status && (
-                              <span className={`chip ${getStatusChip(klyngCupGrand.status)} text-xs`}>
-                                {klyngCupGrand.status}
-                              </span>
-                            )}
-                          </div>
-
-                          {klyngCupGrand.description && (
-                            <p className="text-muted text-sm mb-4 line-clamp-2">
-                              {klyngCupGrand.description}
-                            </p>
-                          )}
-
-                          <div className="space-y-2 mb-6">
-                            {isMultiStop && nextStop ? (
-                              <>
-                                <div className="flex items-center text-secondary">
-                                  <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  </svg>
-                                  <span className="text-xs">Next Stop: {nextStop.name}</span>
-                                </div>
-                                {nextStop.startAt && (
-                                  <div className="flex items-center text-secondary">
-                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <span className="text-xs tabular">
-                                      {formatDateRangeUTC(nextStop.startAt, nextStop.endAt)}
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                {klyngCupGrand.location && (
-                                  <div className="flex items-center text-secondary">
-                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                    <span className="text-xs">{klyngCupGrand.location}</span>
-                                  </div>
-                                )}
-                                {klyngCupGrand.startDate && (
-                                  <div className="flex items-center text-secondary">
-                                    <svg className="w-4 h-4 mr-2 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <span className="text-xs tabular">
-                                      {formatDateRangeUTC(klyngCupGrand.startDate, klyngCupGrand.endDate)}
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-
-                          <div className="flex gap-2">
-                            <Link
-                              href={`/tournament/${klyngCupGrand.id}`}
-                              className="btn btn-primary flex-1 text-sm py-2 min-h-[44px]"
-                            >
-                              View Results
-                            </Link>
-                            {!isInviteOnly && (
-                              <>
-                                <SignedOut>
-                                  <SignUpButton
-                                    mode="modal"
-                                    forceRedirectUrl={`/register/${klyngCupGrand.id}`}
-                                  >
-                                    <button className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]">
-                                      Register!
-                                    </button>
-                                  </SignUpButton>
-                                </SignedOut>
-                                <SignedIn>
-                                  <Link
-                                    href={`/register/${klyngCupGrand.id}`}
                                     className="btn btn-secondary flex-1 text-sm py-2 min-h-[44px]"
                                   >
                                     Register!
@@ -909,7 +791,7 @@ export default function Home() {
                     </div>
                     
                     <div className="flex gap-2">
-                      <Link 
+                      <Link
                         href={`/tournament/${tournament.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -918,16 +800,26 @@ export default function Home() {
                         View Results
                       </Link>
                       {!isInviteOnly && (
-                        <SignedOut>
-                          <SignUpButton 
-                            mode="modal" 
-                            forceRedirectUrl={`/register/${tournament.id}`}
-                          >
-                            <button className="btn btn-secondary flex-1">
+                        <>
+                          <SignedOut>
+                            <SignUpButton
+                              mode="modal"
+                              forceRedirectUrl={`/register/${tournament.id}`}
+                            >
+                              <button className="btn btn-secondary flex-1">
+                                Register Now!
+                              </button>
+                            </SignUpButton>
+                          </SignedOut>
+                          <SignedIn>
+                            <Link
+                              href={`/register/${tournament.id}`}
+                              className="btn btn-secondary flex-1"
+                            >
                               Register Now!
-                            </button>
-                          </SignUpButton>
-                        </SignedOut>
+                            </Link>
+                          </SignedIn>
+                        </>
                       )}
                     </div>
                   </div>
