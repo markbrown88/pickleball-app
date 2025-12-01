@@ -406,6 +406,8 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
           // Group games by bracket
           const gamesByBracket = new Map<string, typeof outcome.games>();
           outcome.games.forEach((gameData) => {
+            // Debug: Log game bracket data
+            console.log('[MatchCard] Game:', gameData.game.id, 'Bracket:', gameData.game.bracket, 'BracketId:', gameData.game.bracketId);
             const bracketKey = gameData.game.bracket?.name || 'Main';
             if (!gamesByBracket.has(bracketKey)) {
               gamesByBracket.set(bracketKey, []);
