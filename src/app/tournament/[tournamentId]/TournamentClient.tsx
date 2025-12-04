@@ -723,6 +723,40 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     }))
     .sort((a, b) => a.bracketName.localeCompare(b.bracketName)); // Sort brackets alphabetically
 
+  // Calculate total game points by club (sum of actual game scores)
+  const clubGamePoints = useMemo(() => {
+    if (!selectedStop) return [];
+
+    const pointsByClub = new Map<string, { clubName: string; totalPoints: number }>();
+
+    selectedStop.rounds?.forEach(round => {
+      round.matches?.forEach(match => {
+        const clubA = match.teamA?.club?.name || match.teamA?.name || 'Unknown';
+        const clubB = match.teamB?.club?.name || match.teamB?.name || 'Unknown';
+
+        match.games?.forEach(game => {
+          // Only count completed games with valid scores
+          if (game.isComplete && game.teamAScore !== null && game.teamBScore !== null) {
+            // Add Team A's score to their club
+            if (!pointsByClub.has(clubA)) {
+              pointsByClub.set(clubA, { clubName: clubA, totalPoints: 0 });
+            }
+            pointsByClub.get(clubA)!.totalPoints += game.teamAScore;
+
+            // Add Team B's score to their club
+            if (!pointsByClub.has(clubB)) {
+              pointsByClub.set(clubB, { clubName: clubB, totalPoints: 0 });
+            }
+            pointsByClub.get(clubB)!.totalPoints += game.teamBScore;
+          }
+        });
+      });
+    });
+
+    // Convert to array and sort by total points descending
+    return Array.from(pointsByClub.values())
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+  }, [selectedStop]);
 
   const formatStopDates = (stop: Stop) => {
     const cached = stopDataCache[stop.id];
@@ -883,6 +917,28 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                     )}
                   </div>
                 ))}
+
+                {/* Club Game Points - Total points scored by each club */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-primary mb-2">Club Points</h3>
+                  <div className="bg-surface-2 rounded p-3">
+                    {clubGamePoints.length > 0 ? (
+                      <div className="space-y-1">
+                        {clubGamePoints.map((club, index) => (
+                          <div key={club.clubName} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{club.clubName}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{club.totalPoints}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted text-sm">No game scores yet</div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1062,6 +1118,28 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
                     )}
                   </div>
                 ))}
+
+                {/* Club Game Points - Total points scored by each club */}
+                <div className="mb-2 md:mb-6">
+                  <h3 className="text-sm font-semibold text-primary mb-1 md:mb-3 text-center md:text-left">Club Points</h3>
+                  <div className="bg-surface-2 rounded p-3">
+                    {clubGamePoints.length > 0 ? (
+                      <div className="space-y-1">
+                        {clubGamePoints.map((club, index) => (
+                          <div key={club.clubName} className="flex items-center justify-between py-1">
+                            <div className="flex items-center">
+                              <span className="text-xs font-medium text-muted w-4">{index + 1}</span>
+                              <span className="text-sm font-medium text-primary ml-2">{club.clubName}</span>
+                            </div>
+                            <div className="text-sm font-semibold text-primary">{club.totalPoints}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted text-sm">No game scores yet</div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
