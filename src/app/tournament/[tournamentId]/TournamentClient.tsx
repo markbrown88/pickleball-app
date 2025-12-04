@@ -149,11 +149,11 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     }
   }, [selectedStopId, stopDataCache]);
 
-  // Ensure second stop data is loaded for Club Points calculation
+  // Ensure third stop data is loaded for Club Points calculation
   useEffect(() => {
-    const secondStopId = stops[1]?.id;
-    if (secondStopId && !stopDataCache[secondStopId]) {
-      loadStopData(secondStopId);
+    const thirdStopId = stops[2]?.id;
+    if (thirdStopId && !stopDataCache[thirdStopId]) {
+      loadStopData(thirdStopId);
     }
   }, [stops, stopDataCache]);
 
@@ -731,17 +731,17 @@ export default function TournamentClient({ tournament, stops, initialStopData }:
     }))
     .sort((a, b) => a.bracketName.localeCompare(b.bracketName)); // Sort brackets alphabetically
 
-  // Calculate total game points by club (sum of actual game scores) - only from the second stop
+  // Calculate total game points by club (sum of actual game scores) - only from the third stop
   const clubGamePoints = useMemo(() => {
-    // Get the second stop's data (index 1)
-    const secondStopId = stops[1]?.id;
-    const secondStop = secondStopId ? stopDataCache[secondStopId] : null;
+    // Get the third stop's data (index 2)
+    const thirdStopId = stops[2]?.id;
+    const thirdStop = thirdStopId ? stopDataCache[thirdStopId] : null;
 
-    if (!secondStop) return [];
+    if (!thirdStop) return [];
 
     const pointsByClub = new Map<string, { clubName: string; totalPoints: number }>();
 
-    secondStop.rounds?.forEach(round => {
+    thirdStop.rounds?.forEach(round => {
       round.matches?.forEach(match => {
         const clubA = match.teamA?.club?.name || match.teamA?.name || 'Unknown';
         const clubB = match.teamB?.club?.name || match.teamB?.name || 'Unknown';
