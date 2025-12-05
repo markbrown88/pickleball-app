@@ -215,6 +215,7 @@ export async function GET(req: NextRequest) {
 
     // Sync image from Clerk if missing in local DB
     if (!finalPlayer.image && clerkUser?.imageUrl) {
+      console.log('Syncing image from Clerk:', clerkUser.imageUrl);
       try {
         finalPlayer = await prisma.player.update({
           where: { id: finalPlayer.id },
@@ -230,10 +231,17 @@ export async function GET(req: NextRequest) {
             }
           }
         });
+        console.log('Image synced successfully');
       } catch (err) {
         console.error('Error syncing user image:', err);
         // Continue without failing request
       }
+    } else {
+      console.log('Image sync skipped:', {
+        hasExistingImage: !!finalPlayer.image,
+        hasClerkImage: !!clerkUser?.imageUrl,
+        clerkImageUrl: clerkUser?.imageUrl
+      });
     }
 
     // Check if player needs profile setup (minimum required: firstName, lastName, gender, clubId)
