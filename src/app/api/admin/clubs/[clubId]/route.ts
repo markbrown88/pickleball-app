@@ -165,8 +165,7 @@ export async function PUT(
   const fullName = String(body.fullName ?? '').trim();
   if (!fullName) return NextResponse.json({ error: 'Full name is required' }, { status: 400 });
 
-  const name = String(body.name ?? '').trim();
-  if (!name) return NextResponse.json({ error: 'Nickname is required' }, { status: 400 });
+  const name = String(body.name ?? '').trim() || fullName; // Fall back to fullName if nickname not provided
 
   const phoneRaw: string | null = body.phone ? String(body.phone).trim() : null;
   const phoneCheck = normalizePhone(phoneRaw);
