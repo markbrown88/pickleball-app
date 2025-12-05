@@ -24,12 +24,21 @@ async function retryDatabaseOperation<T>(
   throw new Error('Max retries exceeded');
 }
 
+import { requireAuth, requireStopAccess } from '@/lib/auth';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ stopId: string }> }
 ) {
   try {
     const { stopId } = await params;
+
+    // 1. Authenticate and Authorize
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    const stopAccessResult = await requireStopAccess(authResult, stopId);
+    if (stopAccessResult instanceof NextResponse) return stopAccessResult;
 
     console.log('[Lineup Load] GET /api/admin/stops/${stopId}/lineups called for stopId:', stopId);
 
@@ -206,13 +215,51 @@ export async function GET(
   }
 }
 
+import { LineupsSchema } from '@/lib/validation';
+
+// ... existing imports
+
+// ... existing code
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ stopId: string }> }
 ) {
   try {
     const { stopId } = await params;
-    const { lineups, bracketId } = await request.json();
+
+    // 1. Authenticate and Authorize
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    const stopAccessResult = await requireStopAccess(authResult, stopId);
+    if (stopAccessResult instanceof NextResponse) return stopAccessResult;
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const { lineups, bracketId } = body;
+
+    // Validate with Zod
+    const validation = LineupsSchema.safeParse(lineups);
+    if (!validation.success) {
+      console.error('[Lineup Save] Validation failed:', validation.error.format());
+      return NextResponse.json({
+        error: 'Invalid lineup data',
+        details: validation.error.format()
+      }, { status: 400 });
+    }
+
+    // Now safe to use
+    // const props = validation.data; // logic below uses variable 'lineups', which is now validated effectively, 
+    // although types might still need casting if we don't strictly replace 'lineups' with 'validation.data'.
+    // Given the complexity of the existing loop downstream which iterates over keys, 
+    // and the specific structure Zod enforces, we can proceed.
+    // The key is that we BLOCKED invalid data.
 
     console.log('[Lineup Save POST] Received request for stopId:', stopId);
     console.log('[Lineup Save POST] Lineup keys:', Object.keys(lineups));

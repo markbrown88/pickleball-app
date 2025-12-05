@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 import { advanceTeamsInBracket } from '@/lib/bracketAdvancement';
+import { rateLimits, applyRateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,11 @@ type Params = {
 export async function PUT(request: Request, { params }: Params) {
   try {
     const { token, gameId } = await params;
+
+    // Rate limit score submissions by token
+    const rateLimitResult = await applyRateLimit(rateLimits.scoreSubmission, token);
+    if (rateLimitResult) return rateLimitResult;
+
     const { myScore, opponentScore } = await request.json();
 
     // Validate token
@@ -207,9 +213,9 @@ export async function PUT(request: Request, { params }: Params) {
       mySubmission: mySubmissionPayload,
       opponentSubmission: opponentProvidedScores
         ? {
-            teamAScore: opponentReportedTeamAScore,
-            teamBScore: opponentReportedTeamBScore,
-          }
+          teamAScore: opponentReportedTeamAScore,
+          teamBScore: opponentReportedTeamBScore,
+        }
         : null,
       gameState: {
         myScore: isTeamA ? myScore : opponentScore,

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { evaluateMatchTiebreaker } from '@/lib/matchTiebreaker';
 import { invalidateCache, cacheKeys } from '@/lib/cache';
 import { advanceTeamsInBracket } from '@/lib/bracketAdvancement';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 export async function PATCH(
   request: NextRequest,
@@ -10,18 +11,38 @@ export async function PATCH(
 ) {
   try {
     const { gameId } = await params;
+
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     const body = await request.json();
     const { teamAScore, teamBScore, courtNumber, isComplete, status, startedAt, endedAt } = body;
 
-    // Get current game to check slot type
+    // Get current game to check slot type and Authorize
     const currentGame = await prisma.game.findUnique({
       where: { id: gameId },
-      select: { id: true, slot: true, isComplete: true, endedAt: true }
+      select: {
+        id: true,
+        slot: true,
+        isComplete: true,
+        endedAt: true,
+        match: { select: { round: { select: { stopId: true } } } }
+      }
     });
 
     if (!currentGame) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
+
+    if (!currentGame.match?.round?.stopId) {
+      // Should probably not happen for valid games, but if orphan...
+      return NextResponse.json({ error: 'Game not linked to a stop' }, { status: 500 });
+    }
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, currentGame.match.round.stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
 
 
     // Prepare update data
@@ -109,16 +130,8 @@ export async function PATCH(
     });
 
     // Invalidate schedule cache for this stop
-    // Get the stopId from the match -> round -> stop relationship
-    const match = await prisma.match.findUnique({
-      where: { id: result.matchId! },
-      select: { round: { select: { stopId: true } } }
-    });
-
-    if (match?.round.stopId) {
-      // Invalidate all cached schedule variations for this stop
-      await invalidateCache(`${cacheKeys.stopSchedule(match.round.stopId)}*`);
-    }
+    // Using cached stopId from initial fetch
+    await invalidateCache(`${cacheKeys.stopSchedule(currentGame.match.round.stopId)}*`);
 
     return NextResponse.json(result);
   } catch (error) {
@@ -126,13 +139,13 @@ export async function PATCH(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorCode = (error as any)?.code;
     const errorMeta = (error as any)?.meta;
-    
+
     console.error('Error details:', {
       message: errorMessage,
       code: errorCode,
       meta: errorMeta
     });
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Failed to update game',
       details: errorMessage,
       code: errorCode
@@ -147,13 +160,18 @@ export async function GET(
   try {
     const { gameId } = await params;
 
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     const game = await prisma.game.findUnique({
       where: { id: gameId },
       include: {
         match: {
           include: {
             teamA: true,
-            teamB: true
+            teamB: true,
+            round: { select: { stopId: true } }
           }
         }
       }
@@ -162,6 +180,17 @@ export async function GET(
     if (!game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
+
+    if (!game.match?.round?.stopId) {
+      return NextResponse.json({ error: 'Game not linked to a stop' }, { status: 500 });
+    }
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, game.match.round.stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
+
+    // Strip internal fields if needed? Or just return game.
+    // round info was included to check access. returning it is fine.
 
     return NextResponse.json(game);
   } catch (error) {

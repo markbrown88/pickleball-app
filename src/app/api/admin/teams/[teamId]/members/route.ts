@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth, requireTournamentAccess } from '@/lib/auth';
 
 type Id = string;
 
@@ -31,6 +32,10 @@ export async function GET(
   const { teamId } = await ctx.params;
 
   try {
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     const team = await prisma.team.findUnique({
       where: { id: teamId },
       include: {
@@ -48,6 +53,15 @@ export async function GET(
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
+
+    if (!team.tournamentId) {
+      // Should not happen, but safe to handle
+      return NextResponse.json({ error: 'Team has no tournament linked' }, { status: 500 });
+    }
+
+    // 2. Authorize
+    const accessCheck = await requireTournamentAccess(authResult, team.tournamentId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
 
     const members = team.playerLinks.map((l) => toPlayerLite(l.player));
 

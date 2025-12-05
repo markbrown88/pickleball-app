@@ -3,9 +3,14 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth, requireTournamentAccess } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     // Use singleton prisma instance
     const body = await req.json() as { teamId?: string; playerId?: string };
     const { teamId, playerId } = body;
@@ -13,6 +18,11 @@ export async function POST(req: Request) {
 
     const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) return NextResponse.json({ error: 'team not found' }, { status: 404 });
+    if (!team.tournamentId) return NextResponse.json({ error: 'team has no tournament' }, { status: 400 });
+
+    // 2. Authorize
+    const accessCheck = await requireTournamentAccess(authResult, team.tournamentId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
 
     // player must be on the team
     const onTeam = await prisma.teamPlayer.findUnique({ where: { teamId_playerId: { teamId, playerId } } });

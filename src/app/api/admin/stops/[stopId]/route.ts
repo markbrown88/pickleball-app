@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 /** PUT /api/admin/stops/:stopId */
 export async function PUT(
@@ -14,6 +15,14 @@ export async function PUT(
   const { stopId } = await ctx.params;
 
   if (!stopId) return NextResponse.json({ error: 'stopId required' }, { status: 400 });
+
+  // 1. Authenticate
+  const authResult = await requireAuth('tournament_admin');
+  if (authResult instanceof NextResponse) return authResult;
+
+  // 2. Authorize
+  const accessCheck = await requireStopAccess(authResult, stopId);
+  if (accessCheck instanceof NextResponse) return accessCheck;
 
   try {
     const body = await req.json();
@@ -58,6 +67,14 @@ export async function DELETE(
   const { stopId } = await ctx.params;
 
   if (!stopId) return new NextResponse(null, { status: 400 });
+
+  // 1. Authenticate
+  const authResult = await requireAuth('tournament_admin');
+  if (authResult instanceof NextResponse) return authResult;
+
+  // 2. Authorize
+  const accessCheck = await requireStopAccess(authResult, stopId);
+  if (accessCheck instanceof NextResponse) return accessCheck;
 
   // If it's already gone, respond 204
   const exists = await prisma.stop.findUnique({

@@ -12,15 +12,25 @@ type PatchBody = {
   idx?: number;
 };
 
+import { requireAuth, requireStopAccess } from '@/lib/auth';
+
+// ... existing imports ...
+
+// ... existing code ...
+
 // ---------- GET /api/admin/rounds/:roundId ----------
 export async function GET(_req: Request, ctx: Ctx) {
-  // Use singleton prisma instance
   const { roundId } = await ctx.params;
 
   try {
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     const round = await prisma.round.findUnique({
       where: { id: roundId },
       include: {
+        // ... include definitions ...
         stop: {
           select: {
             id: true,
@@ -61,6 +71,10 @@ export async function GET(_req: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
+    // 2. Authorize
+    const stopAccessResult = await requireStopAccess(authResult, round.stop.id);
+    if (stopAccessResult instanceof NextResponse) return stopAccessResult;
+
     return NextResponse.json({
       id: round.id,
       idx: round.idx,
@@ -100,10 +114,23 @@ export async function GET(_req: Request, ctx: Ctx) {
 
 // ---------- PATCH /api/admin/rounds/:roundId ----------
 export async function PATCH(req: Request, ctx: Ctx) {
-  // Use singleton prisma instance
   const { roundId } = await ctx.params;
 
+  // 1. Authenticate
+  const authResult = await requireAuth('tournament_admin');
+  if (authResult instanceof NextResponse) return authResult;
+
   try {
+    const round = await prisma.round.findUnique({
+      where: { id: roundId },
+      select: { id: true, idx: true, stopId: true },
+    });
+    if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+
+    // 2. Authorize
+    const stopAccessResult = await requireStopAccess(authResult, round.stopId);
+    if (stopAccessResult instanceof NextResponse) return stopAccessResult;
+
     const body = (await req.json().catch(() => ({}))) as PatchBody;
 
     if (!Number.isInteger(body.idx) || (body.idx as number) < 0) {
@@ -113,12 +140,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
       );
     }
     const targetIdx = body.idx as number;
-
-    const round = await prisma.round.findUnique({
-      where: { id: roundId },
-      select: { id: true, idx: true, stopId: true },
-    });
-    if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
 
     // Count how many rounds in this stop to clamp the target index
     const total = await prisma.round.count({ where: { stopId: round.stopId } });
@@ -154,8 +175,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
 // ---------- DELETE /api/admin/rounds/:roundId ----------
 export async function DELETE(_req: Request, ctx: Ctx) {
-  // Use singleton prisma instance
   const { roundId } = await ctx.params;
+
+  // 1. Authenticate
+  const authResult = await requireAuth('tournament_admin');
+  if (authResult instanceof NextResponse) return authResult;
 
   try {
     const round = await prisma.round.findUnique({
@@ -163,6 +187,10 @@ export async function DELETE(_req: Request, ctx: Ctx) {
       select: { id: true, idx: true, stopId: true },
     });
     if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+
+    // 2. Authorize
+    const stopAccessResult = await requireStopAccess(authResult, round.stopId);
+    if (stopAccessResult instanceof NextResponse) return stopAccessResult;
 
     await prisma.$transaction(async (tx) => {
       // Deleting the round will cascade to its games and matches per Prisma schema.

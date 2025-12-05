@@ -60,13 +60,38 @@ function summarize(matches: Array<{ slot: GameSlot; teamAScore: number | null; t
   const total = matches.length;
   const status =
     completed === 0 ? 'PENDING' :
-    completed < total ? 'IN_PROGRESS' : 'COMPLETED';
+      completed < total ? 'IN_PROGRESS' : 'COMPLETED';
   return { status, slotsTotal: total, slotsCompleted: completed, winsA, winsB };
 }
+
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 export async function PUT(req: Request, ctx: Ctx) {
   // Use singleton prisma instance
   const { gameId } = await ctx.params;
+
+  // 1. Authenticate and Authorize
+  const authResult = await requireAuth('tournament_admin');
+  if (authResult instanceof NextResponse) return authResult;
+
+  // We need to fetch the game first to know the stop ID for authorization
+  const gameForAuth = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: {
+      match: {
+        select: {
+          round: { select: { stopId: true } }
+        }
+      }
+    }
+  });
+
+  if (!gameForAuth) {
+    return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+  }
+
+  const stopAccessResult = await requireStopAccess(authResult, gameForAuth.match.round.stopId);
+  if (stopAccessResult instanceof NextResponse) return stopAccessResult;
 
   try {
     // Rate limiting to prevent rapid score manipulation (SEC-002)

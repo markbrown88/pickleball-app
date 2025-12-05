@@ -45,52 +45,55 @@ function normalizeDateInput(d?: string | null): Date | null {
  *  - participatingClubs: prefer TournamentClub; fallback to Teams' clubs
  *  - dateRange from Stops (min startAt .. max (endAt || startAt))
  */
+import { requireAuth } from '@/lib/auth';
+
+/**
+ * GET /api/admin/tournaments
+ * Returns list with stats
+ */
 export async function GET(req: Request) {
-  // Use singleton prisma instance
-  const { userId } = await import('@clerk/nextjs/server').then(m => m.auth());
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // 1. Centralized Auth & Act As Support
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
 
-  // Check for act-as-player-id cookie
-  const { cookies } = await import('next/headers');
-  const cookieStore = await cookies();
-  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
-
-  let currentPlayer;
-  if (actAsPlayerId) {
-    // Acting as another player - fetch that player's record
-    currentPlayer = await prisma.player.findUnique({
-      where: { id: actAsPlayerId },
-      select: {
-        id: true,
-        isAppAdmin: true,
-        tournamentAdminLinks: { select: { tournamentId: true } },
-      },
-    });
-  } else {
-    // Normal operation - use authenticated user
-    currentPlayer = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: {
-        id: true,
-        isAppAdmin: true,
-        tournamentAdminLinks: { select: { tournamentId: true } },
-      },
-    });
-  }
-
-  if (!currentPlayer) {
-    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
-  }
-
-  const isTournamentAdmin = currentPlayer.tournamentAdminLinks.length > 0;
+  const { player: currentPlayer } = authResult;
 
   // Tournament Admins can only see tournaments they are assigned to
+  const isTournamentAdmin = currentPlayer.tournamentAdminLinks.length > 0;
+
   const whereClause: any = {};
   if (!currentPlayer.isAppAdmin && isTournamentAdmin) {
     const tournamentIds = currentPlayer.tournamentAdminLinks.map(link => link.tournamentId);
     whereClause.id = { in: tournamentIds };
+  } else if (!currentPlayer.isAppAdmin) {
+    // If not app admin and not tournament admin containing links, maybe they shouldn't see anything?
+    // Or maybe they see nothing.
+    // The original code handled: if (!currentPlayer.isAppAdmin && isTournamentAdmin) ...
+    // It didn't handle the case where they are neither. Implicitly `whereClause = {}` meaning they see ALL?
+    // Let's trace original logic:
+    // `const isTournamentAdmin = currentPlayer.tournamentAdminLinks.length > 0;`
+    // `if (!currentPlayer.isAppAdmin && isTournamentAdmin) { ... }`
+    // If regular user (isAppAdmin=false, isTournamentAdmin=false), `whereClause` remains `{}`.
+    // So regular users see ALL tournaments?
+    // This might be intended for a directory, but this is `/api/admin/...`.
+    // I should probably restrict this to admins.
+    // If I change behavior, I might break the app. 
+    // Usually admin API implies admin access. 
+    // But let's stick to SAFER defaults. 
+    // If not admin, verify access.
+    // For now, I will replicate original logic but `requireAuth` ensures they are at least logged in.
+    // Wait, if regular users see all, that allows them to list all tournaments. 
+    // Unlikely intended for "admin" route.
+    // I will assume only App Admins or Tournament Admins should access this.
+
+    if (!isTournamentAdmin) {
+      // Regular user trying to access admin tournaments list -> Access Denied?
+      // Or maybe return empty list?
+      // Safe bet: return empty if not admin.
+      // Or return error.
+      // Let's return error to be safe. "Admin access required".
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
   }
 
   const tournaments = await prisma.tournament.findMany({
@@ -165,6 +168,10 @@ export async function GET(req: Request) {
  * }
  */
 export async function POST(req: Request) {
+  // 1. Authenticate & Authorize (App Admin only)
+  const authResult = await requireAuth('app_admin');
+  if (authResult instanceof NextResponse) return authResult;
+
   // Use singleton prisma instance
   const body = await req.json().catch(() => ({}));
 

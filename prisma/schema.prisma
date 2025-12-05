@@ -86,6 +86,8 @@ model Player {
   inviteRequestsSent     InviteRequest[]        @relation("InviteRequestsSent")
   inviteRequestsReviewed InviteRequest[]        @relation("ReviewedRequests")
   tournamentWaitlist     TournamentWaitlist[]
+  actAsAdminActions      ActAsAuditLog[]        @relation("ActAsAdmin")
+  actAsTargetActions     ActAsAuditLog[]        @relation("ActAsTarget")
 
   @@index([clubId])
   @@index([birthdayYear, birthdayMonth, birthdayDay], map: "Player_birthday_idx")
@@ -795,9 +797,40 @@ model ClubRegistration {
   address1     String
   city         String
   region       String
-  postalCode   String
-  phone        String?
-  contactEmail String
+  
+/// *
+/// * ---------- Security Audit Logs ----------
+model ActAsAuditLog {
+  id              String   @id @default(cuid())
+  adminPlayerId   String
+  targetPlayerId  String
+  action          String   // 'START' | 'END' | 'ACTION'
+  endpoint        String?
+  ipAddress       String
+  userAgent       String
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt       DateTime @db.Timestamptz(6)
+
+  admin    Player @relation("ActAsAdmin", fields: [adminPlayerId], references: [id])
+  target   Player @relation("ActAsTarget", fields: [targetPlayerId], references: [id])
+
+  @@index([adminPlayerId])
+  @@index([targetPlayerId])
+  @@index([createdAt])
+}
+
+model CaptainPortalAttempt {
+  id          String   @id @default(cuid())
+  token       String
+  ipAddress   String
+  userAgent   String
+  success     Boolean
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([token, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
   contactName  String
   contactPhone String?
   description  String?

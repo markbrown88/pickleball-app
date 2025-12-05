@@ -1,31 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    // Get the player record for the authenticated user
-    const currentPlayer = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: { id: true, isAppAdmin: true }
-    });
-
-    if (!currentPlayer) {
-      return NextResponse.json({ error: 'Player not found' }, { status: 404 });
-    }
-
-    // Check if user is App Admin
-    if (!currentPlayer.isAppAdmin) {
-      return NextResponse.json({ error: 'Access denied. App Admin required.' }, { status: 403 });
-    }
+    const authResult = await requireAuth('app_admin');
+    if (authResult instanceof NextResponse) return authResult;
 
     // Get all players for the "Act As" dropdown
     const players = await prisma.player.findMany({
@@ -56,26 +38,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const authResult = await requireAuth('app_admin');
+    if (authResult instanceof NextResponse) return authResult;
 
-    // Get the player record for the authenticated user
-    const currentPlayer = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: { id: true, isAppAdmin: true }
-    });
-
-    if (!currentPlayer) {
-      return NextResponse.json({ error: 'Player not found' }, { status: 404 });
-    }
-
-    // Check if user is App Admin
-    if (!currentPlayer.isAppAdmin) {
-      return NextResponse.json({ error: 'Access denied. App Admin required.' }, { status: 403 });
-    }
+    const { player: adminPlayer } = authResult; // authResult is AuthContext here
 
     const body = await req.json();
     const { targetPlayerId } = body;
@@ -106,6 +72,22 @@ export async function POST(req: NextRequest) {
     if (!targetPlayer) {
       return NextResponse.json({ error: 'Target player not found' }, { status: 404 });
     }
+
+    // Audit Log: START session
+    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const userAgent = req.headers.get('user-agent') || 'unknown';
+
+    await prisma.actAsAuditLog.create({
+      data: {
+        adminPlayerId: adminPlayer.id,
+        targetPlayerId: targetPlayer.id,
+        action: 'START',
+        endpoint: '/api/admin/act-as',
+        ipAddress: Array.isArray(ipAddress) ? ipAddress[0] : ipAddress,
+        userAgent,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours expiry for logic
+      }
+    });
 
     // Return the target player's information for impersonation
     return NextResponse.json({

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { formatPhoneForDisplay, formatPhoneForStorage } from '@/lib/phone';
 
@@ -37,45 +36,29 @@ function parseBirthdayStr(s?: string | null): { y: number | null; m: number | nu
   return { y, m: mo, d: da };
 }
 
+import { requireAuth } from '@/lib/auth';
+
+// ... existing code ...
+
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    // 1. Centralized Auth & Act As Support
+    const authResult = await requireAuth();
+    if (authResult instanceof NextResponse) return authResult;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const { player: effectivePlayer } = authResult;
 
-    // Check for act-as-player-id cookie
-    const { cookies } = await import('next/headers');
-    const cookieStore = await cookies();
-    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
-
-    let currentPlayer;
-    if (actAsPlayerId) {
-      // Acting as another player - fetch that player's record
-      currentPlayer = await prisma.player.findUnique({
-        where: { id: actAsPlayerId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          clubId: true,
-          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
-          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
-        }
-      });
-    } else {
-      // Normal operation - use authenticated user
-      currentPlayer = await prisma.player.findUnique({
-        where: { clerkUserId: userId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          clubId: true,
-          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
-          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
-        }
-      });
-    }
+    // Fetch full details needed for this route
+    const currentPlayer = await prisma.player.findUnique({
+      where: { id: effectivePlayer.id },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
 
     if (!currentPlayer) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
@@ -107,7 +90,7 @@ export async function GET(req: NextRequest) {
     // Parse sort parameter and handle computed fields
     const [sortField, sortOrder] = sort.split(':');
     let orderBy: any = {};
-    
+
     // Map computed fields to actual database fields
     if (sortField === 'clubName') {
       orderBy = { club: { name: sortOrder } };
@@ -220,43 +203,23 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    // 1. Centralized Auth & Act As Support
+    const authResult = await requireAuth();
+    if (authResult instanceof NextResponse) return authResult;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const { player: effectivePlayer } = authResult;
 
-    // Check for act-as-player-id cookie
-    const { cookies } = await import('next/headers');
-    const cookieStore = await cookies();
-    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
-
-    let currentPlayer;
-    if (actAsPlayerId) {
-      // Acting as another player - fetch that player's record
-      currentPlayer = await prisma.player.findUnique({
-        where: { id: actAsPlayerId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          clubId: true,
-          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
-          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
-        }
-      });
-    } else {
-      // Normal operation - use authenticated user
-      currentPlayer = await prisma.player.findUnique({
-        where: { clerkUserId: userId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          clubId: true,
-          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
-          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
-        }
-      });
-    }
+    // Fetch full details needed for this route
+    const currentPlayer = await prisma.player.findUnique({
+      where: { id: effectivePlayer.id },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
 
     if (!currentPlayer) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });

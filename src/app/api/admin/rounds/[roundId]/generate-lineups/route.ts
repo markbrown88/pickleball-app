@@ -27,9 +27,23 @@ interface LineupEntry {
 /**
  * Generate optimal lineups for all teams in a round based on their rosters
  */
+import { requireAuth, requireStopAccess } from '@/lib/auth';
+
+// ... existing imports
+
+// ... existing code
+
+/**
+ * Generate optimal lineups for all teams in a round based on their rosters
+ */
 export async function POST(req: NextRequest, ctx: Ctx) {
   try {
     const { roundId } = await ctx.params;
+
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     // Use singleton prisma instance
 
     // Get round and stop information
@@ -45,6 +59,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     if (!round) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
+
+    // 2. Authorize
+    const stopAccessResult = await requireStopAccess(authResult, round.stop.id);
+    if (stopAccessResult instanceof NextResponse) return stopAccessResult;
 
     // Get all matches in this round
     const matches = await prisma.match.findMany({
@@ -68,8 +86,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     // Get rosters for all teams at this stop
     const rosters = await prisma.stopTeamPlayer.findMany({
-      where: { 
-        stopId: round.stopId, 
+      where: {
+        stopId: round.stopId,
         teamId: { in: Array.from(teamIds) }
       },
       include: {
@@ -260,7 +278,7 @@ function generateOptimalLineup(roster: RosterPlayer[]): LineupEntry[] {
   // Tiebreaker - use the best remaining players
   const usedPlayers = new Set([man1.id, man2.id, woman1.id, woman2.id]);
   const availablePlayers = roster.filter(p => !usedPlayers.has(p.id));
-  
+
   // Skip tiebreaker - it doesn't have specific players assigned
 
   return entries;

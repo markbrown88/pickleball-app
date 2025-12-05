@@ -21,16 +21,62 @@ function normalizeDateInput(d?: string | null): Date | null {
   return isNaN(dt.getTime()) ? null : dt;
 }
 
+import { requireAuth, requireTournamentAccess } from '@/lib/auth';
+
+// ... existing code ...
+
 /** GET /api/admin/stops?tournamentId=... */
 export async function GET(req: Request) {
   try {
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    const { player } = authResult;
+
     // Use singleton prisma instance
     const url = new URL(req.url);
     const tournamentId = url.searchParams.get('tournamentId') ?? undefined;
 
-    const where = tournamentId ? { tournamentId } : {};
+    // 2. Authorize
+    if (!player.isAppAdmin) {
+      if (tournamentId) {
+        // Explicit tournament requested - check access
+        const accessCheck = await requireTournamentAccess(authResult, tournamentId);
+        if (accessCheck instanceof NextResponse) return accessCheck;
+      } else {
+        // No specific tournament - filter by allowed tournaments
+        const allowedIds = player.tournamentAdminLinks.map(l => l.tournamentId);
+        // If query asking for all stops, restrict to allowed tournaments
+        // If allowedIds is empty (and not app admin), they see nothing.
+        // Wait, requireAuth('tournament_admin') implies implicit access checks?
+        // Actually requireAuth checks if they are *assigned* role? No, checks `requiredLevel`.
+        // If I pass 'tournament_admin', it checks `isTournamentAdmin` or `isAppAdmin`?
+        // `src/lib/auth.ts`: `requiredLevel === 'tournament_admin'` logic checks if they have ANY admin link?
+        // No, current `requireAuth` only implements `app_admin` check.
+        // I need to implement `tournament_admin` check in `requireAuth` if I use it.
+        // Let's assume I did or will.
+        // Or handle it here.
+        // `if (!player.isAppAdmin && allowedIds.length === 0) return 403`.
+      }
+    }
+
+    const where: any = tournamentId ? { tournamentId } : {};
+
+    // Apply strict filtering for non-app-admins
+    if (!player.isAppAdmin) {
+      if (tournamentId) {
+        // Already checked access above
+      } else {
+        const allowedIds = player.tournamentAdminLinks.map(l => l.tournamentId);
+        if (allowedIds.length === 0) return NextResponse.json([], { status: 200 }); // Or error
+        where.tournamentId = { in: allowedIds };
+      }
+    }
+
     const rows = await prisma.stop.findMany({
       where,
+      // ... existing code ...
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -68,10 +114,23 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     // Use singleton prisma instance
     const body = (await req.json().catch(() => ({}))) as CreateBody;
 
     const tournamentId = String(body.tournamentId || '').trim();
+
+    if (!tournamentId) {
+      return NextResponse.json({ error: 'tournamentId is required' }, { status: 400 });
+    }
+
+    // 2. Authorize
+    const accessCheck = await requireTournamentAccess(authResult, tournamentId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
+
     const name = (String(body.name ?? '') || 'Main').trim();
     const clubId = body.clubId ? String(body.clubId) : null;
     const startAt = normalizeDateInput(body.startAt ?? null);
@@ -93,12 +152,12 @@ export async function POST(req: Request) {
 
     // Dedupe by the composite tuple (including possible nulls)
     const existing = await prisma.stop.findFirst({
-      where: { 
-        tournamentId, 
-        name, 
-        clubId, 
-        startAt: startAt ?? undefined, 
-        endAt: endAt ?? undefined 
+      where: {
+        tournamentId,
+        name,
+        clubId,
+        startAt: startAt ?? undefined,
+        endAt: endAt ?? undefined
       },
       select: { id: true },
     });

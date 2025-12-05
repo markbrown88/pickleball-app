@@ -2,7 +2,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
 function normalizePhone(input?: string | null): { ok: boolean; formatted?: string; error?: string } {
@@ -11,48 +10,28 @@ function normalizePhone(input?: string | null): { ok: boolean; formatted?: strin
   let n = digits;
   if (n.length === 11 && n.startsWith('1')) n = n.slice(1);
   if (n.length !== 10) return { ok: false, error: 'Phone must have 10 digits (US/CA)' };
-  return { ok: true, formatted: `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}` };
+  return { ok: true, formatted: `(${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}` };
 }
 
 /** GET /api/admin/clubs?sort=name:asc */
 export async function GET(req: Request) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    const authResult = await requireAuth();
+    if (authResult instanceof NextResponse) return authResult;
 
-    // Check for act-as-player-id cookie
-    const { cookies } = await import('next/headers');
-    const cookieStore = await cookies();
-    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+    const { player: effectivePlayer } = authResult;
 
-    let currentPlayer;
-    if (actAsPlayerId) {
-      // Acting as another player - fetch that player's record
-      currentPlayer = await prisma.player.findUnique({
-        where: { id: actAsPlayerId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          clubId: true,
-          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
-          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
-        }
-      });
-    } else {
-      // Normal operation - use authenticated user
-      currentPlayer = await prisma.player.findUnique({
-        where: { clerkUserId: userId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          clubId: true,
-          tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
-          TournamentEventManager: { select: { tournamentId: true }, take: 1 }
-        }
-      });
-    }
+    // Fetch full details needed for this route (clubId, TournamentEventManager)
+    const currentPlayer = await prisma.player.findUnique({
+      where: { id: effectivePlayer.id },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
 
     if (!currentPlayer) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
@@ -82,12 +61,12 @@ export async function GET(req: Request) {
 
     let where: any = search.length >= 3
       ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' as const } },
-            { city: { contains: search, mode: 'insensitive' as const } },
-            { region: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { city: { contains: search, mode: 'insensitive' as const } },
+          { region: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }
       : {};
 
     // Tournament Admins can only see their own club (if they're not app admins)
@@ -117,47 +96,17 @@ export async function GET(req: Request) {
   }
 }
 
+import { requireAuth } from '@/lib/auth';
+
+// ... existing code ...
+
 /** POST /api/admin/clubs */
 export async function POST(req: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
+  // Use RequireAuth for centralized security + Act As support
+  const authResult = await requireAuth('app_admin');
+  if (authResult instanceof NextResponse) return authResult;
 
-  // Check for act-as-player-id cookie
-  const { cookies } = await import('next/headers');
-  const cookieStore = await cookies();
-  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
-
-  let currentPlayer;
-  if (actAsPlayerId) {
-    // Acting as another player - fetch that player's record
-    currentPlayer = await prisma.player.findUnique({
-      where: { id: actAsPlayerId },
-      select: {
-        id: true,
-        isAppAdmin: true
-      }
-    });
-  } else {
-    // Normal operation - use authenticated user
-    currentPlayer = await prisma.player.findUnique({
-      where: { clerkUserId: userId },
-      select: {
-        id: true,
-        isAppAdmin: true
-      }
-    });
-  }
-
-  if (!currentPlayer) {
-    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
-  }
-
-  // Only App Admins can create new clubs
-  if (!currentPlayer.isAppAdmin) {
-    return NextResponse.json({ error: 'Access denied. Only App Admins can create clubs.' }, { status: 403 });
-  }
+  // requireAuth has already verified the user is an app admin (effective user)
 
   const body = await req.json().catch(() => ({}));
 
@@ -181,10 +130,10 @@ export async function POST(req: Request) {
     const createData: any = {
       name,
       address: body.address ? String(body.address).trim() : null,
-      city:    body.city ? String(body.city).trim() : null,
-      region:  body.region ? String(body.region).trim() : null,
+      city: body.city ? String(body.city).trim() : null,
+      region: body.region ? String(body.region).trim() : null,
       country: body.country ? String(body.country).trim() : 'Canada',
-      phone:   phoneCheck.formatted ?? null,
+      phone: phoneCheck.formatted ?? null,
       email: body.email ? String(body.email).trim() : null,
       description: body.description ? String(body.description).trim() : null,
       directorId: body.directorId ? String(body.directorId).trim() : null,

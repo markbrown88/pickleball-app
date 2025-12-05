@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 type Params = { stopId: string };
 
@@ -21,9 +21,13 @@ export async function GET(
   try {
     const { stopId } = await ctx.params;
 
-    // Support Act As functionality
-    const actAsPlayerId = getActAsHeaderFromRequest(req);
-    await getEffectivePlayer(actAsPlayerId);
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
 
     // Get teamIds from query string
     const url = new URL(req.url);

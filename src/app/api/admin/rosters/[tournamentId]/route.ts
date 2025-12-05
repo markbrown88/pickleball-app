@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-
 import { prisma } from '@/lib/prisma';
-import { getEffectivePlayer, getActAsHeaderFromRequest } from '@/lib/actAs';
+import { requireAuth } from '@/lib/auth';
+
+// ... types ...
 
 type PlayerLite = {
   id: string;
@@ -94,6 +94,8 @@ function toDateStr(d?: Date | null): string | null {
   return `${y}-${m}-${day}`;
 }
 
+// ... helper functions ...
+
 export async function GET(
   request: Request,
   ctx: { params: Promise<{ tournamentId: string }> }
@@ -101,12 +103,15 @@ export async function GET(
   try {
     const { tournamentId } = await ctx.params;
 
-    // Support Act As functionality
-    const actAsPlayerId = getActAsHeaderFromRequest(request);
-    const effectivePlayer = await getEffectivePlayer(actAsPlayerId);
+    // 1. Centralized Auth & Act As Support
+    const authResult = await requireAuth();
+    if (authResult instanceof NextResponse) return authResult;
 
+    const { player: effectivePlayer } = authResult;
+
+    // Fetch full details needed for this route (TournamentCaptain)
     const player = await prisma.player.findUnique({
-      where: { id: effectivePlayer.targetPlayerId },
+      where: { id: effectivePlayer.id },
       select: {
         id: true,
         isAppAdmin: true,
@@ -245,10 +250,10 @@ export async function GET(
       const clubsMap = new Map<string, { clubId: string; clubName: string; teams: typeof allTeams }>();
       for (const team of allTeams) {
         if (!team.clubId) continue; // Skip teams without clubId
-        
+
         const clubId = team.clubId;
         const clubName = team.club?.name ?? 'Unknown Club';
-        
+
         if (!clubsMap.has(clubId)) {
           clubsMap.set(clubId, { clubId, clubName, teams: [] });
         }
@@ -396,7 +401,7 @@ export async function GET(
   } catch (e: any) {
     console.error('[Rosters API] Error loading roster data:', e);
     const message = e?.message ?? 'Failed to load roster data';
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: message,
       details: process.env.NODE_ENV === 'development' ? String(e) : undefined
     }, { status: 500 });

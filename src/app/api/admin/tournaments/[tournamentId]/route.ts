@@ -6,6 +6,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { TournamentType } from '@prisma/client';
+import { requireAuth } from '@/lib/auth';
 
 const TYPE_MAP: Record<string, TournamentType> = {
   TEAM_FORMAT: 'TEAM_FORMAT',
@@ -28,6 +29,10 @@ export async function DELETE(
   ctx: { params: Promise<{ tournamentId: string }> }
 ) {
   try {
+    // 1. Authenticate & Authorize (App Admin only)
+    const authResult = await requireAuth('app_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
     // Use singleton prisma instance
     const { tournamentId } = await ctx.params;
 
@@ -75,6 +80,10 @@ export async function PUT(
   req: NextRequest,
   ctx: { params: Promise<{ tournamentId: string }> }
 ) {
+  // 1. Authenticate & Authorize (App Admin only)
+  const authResult = await requireAuth('app_admin');
+  if (authResult instanceof NextResponse) return authResult;
+
   // Use singleton prisma instance
   const { tournamentId } = await ctx.params;
 

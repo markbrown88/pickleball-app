@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 /** GET /api/admin/stops/:stopId/teams */
 export async function GET(
@@ -12,6 +13,15 @@ export async function GET(
 ) {
   try {
     const { stopId } = await ctx.params;
+
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
+
     // Use singleton prisma instance
 
     const stopTeams = await prisma.stopTeam.findMany({
@@ -70,6 +80,15 @@ export async function POST(
 ) {
   try {
     const { stopId } = await ctx.params;
+
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
+
     const { teamId } = (await req.json()) as { teamId?: string };
 
     if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
@@ -107,6 +126,15 @@ export async function DELETE(
 ) {
   try {
     const { stopId } = await ctx.params;
+
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
+
     const { searchParams } = new URL(req.url);
     const teamId = searchParams.get('teamId') ?? undefined;
 

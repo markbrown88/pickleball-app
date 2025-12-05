@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 type RosterTournament = {
   id: string;
@@ -11,40 +10,23 @@ type RosterTournament = {
 
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
+    // 1. Centralized Auth & Act As Support
+    // No specific level required here as Captains can also access this list
+    const authResult = await requireAuth();
+    if (authResult instanceof NextResponse) return authResult;
 
-    // Check for act-as-player-id cookie
-    const { cookies } = await import('next/headers');
-    const cookieStore = await cookies();
-    const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+    const { player: effectivePlayer } = authResult;
 
-    let player;
-    if (actAsPlayerId) {
-      // Acting as another player - fetch that player's record
-      player = await prisma.player.findUnique({
-        where: { id: actAsPlayerId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          tournamentAdminLinks: { select: { tournamentId: true } },
-          TournamentCaptain: { select: { tournamentId: true } },
-        },
-      });
-    } else {
-      // Normal operation - use authenticated user
-      player = await prisma.player.findUnique({
-        where: { clerkUserId: userId },
-        select: {
-          id: true,
-          isAppAdmin: true,
-          tournamentAdminLinks: { select: { tournamentId: true } },
-          TournamentCaptain: { select: { tournamentId: true } },
-        },
-      });
-    }
+    // Fetch full details needed for this route (TournamentCaptain)
+    const player = await prisma.player.findUnique({
+      where: { id: effectivePlayer.id },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        tournamentAdminLinks: { select: { tournamentId: true } },
+        TournamentCaptain: { select: { tournamentId: true } },
+      },
+    });
 
     if (!player) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
