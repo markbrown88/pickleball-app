@@ -41,32 +41,31 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
+      <div
+        className="absolute inset-0 bg-black bg-opacity-60 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
-      
+
       {/* Modal */}
-      <div 
-        className={`modal relative w-full ${sizeClasses[size]} bg-white rounded-lg shadow-xl transform transition-all`}
+      <div
+        className={`relative w-full ${sizeClasses[size]} bg-surface-1 rounded-lg shadow-xl transform transition-all border border-border-subtle`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        style={{ color: '#0B0F14' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 id="modal-title" className="text-lg font-semibold" style={{ color: '#0B0F14' }}>
+        <div className="flex items-center justify-between p-4 border-b border-border-subtle">
+          <h2 id="modal-title" className="text-lg font-semibold text-primary">
             {title}
           </h2>
           <div className="flex items-center gap-4">
-            <div className="text-sm text-gray-900 font-semibold">
+            <div className="text-sm text-secondary font-medium">
               <span className="text-red-500">*</span> Required fields
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-muted hover:text-primary transition-colors"
               aria-label="Close modal"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,7 +76,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-[80vh] overflow-y-auto" style={{ color: '#0B0F14' }}>
+        <div className="p-4 max-h-[80vh] overflow-y-auto">
           {children}
         </div>
       </div>

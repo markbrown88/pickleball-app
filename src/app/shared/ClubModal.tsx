@@ -234,7 +234,7 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
         <div className="bg-surface-2 rounded-lg p-4 grid gap-4 lg:grid-cols-[200px,1fr]">
           {/* Club Logo - Landscape */}
           <div className="space-y-3">
-            <label className="block text-sm font-medium">
+            <label className="block text-sm font-medium text-primary">
               Club Logo
             </label>
             <div className="w-full max-w-xs h-24 bg-surface-1 rounded-lg flex items-center justify-center border-2 border-dashed border-border-medium overflow-hidden">
@@ -270,8 +270,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
           {/* Basic Info Fields */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Full Name *
+              <label className="block text-sm font-medium text-primary mb-1">
+                Full Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -285,8 +285,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Nickname *
+              <label className="block text-sm font-medium text-primary mb-1">
+                Nickname <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -300,8 +300,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Director *
+              <label className="block text-sm font-medium text-primary mb-1">
+                Director <span className="text-red-500">*</span>
               </label>
               <div className="relative" ref={dropdownRef}>
                 <input
@@ -336,8 +336,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
         {/* Address */}
         <div className="bg-surface-2 rounded-lg p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Address *
+            <label className="block text-sm font-medium text-primary mb-1">
+              Address <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -353,8 +353,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
           {/* Location */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">
-                City *
+              <label className="block text-sm font-medium text-primary mb-1">
+                City <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -368,8 +368,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Prov/State *
+              <label className="block text-sm font-medium text-primary mb-1">
+                Prov/State <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -383,8 +383,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Country *
+              <label className="block text-sm font-medium text-primary mb-1">
+                Country <span className="text-red-500">*</span>
               </label>
               <select
                 value={form.country}
@@ -404,8 +404,8 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
         {/* Contact Info */}
         <div className="bg-surface-2 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Email *
+            <label className="block text-sm font-medium text-primary mb-1">
+              Email <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
@@ -419,7 +419,7 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium text-primary mb-1">
               Phone
             </label>
             <input
@@ -435,7 +435,7 @@ export default function ClubModal({ isOpen, onClose, onSave, club, players = [] 
 
         {/* Description */}
         <div className="bg-surface-2 rounded-lg p-4 space-y-2">
-          <label className="block text-sm font-medium">
+          <label className="block text-sm font-medium text-primary">
             Description
           </label>
           <textarea
