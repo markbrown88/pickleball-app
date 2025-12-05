@@ -94,3 +94,6 @@ export async function applyRateLimit(
 export const scoreSubmissionLimiter = rateLimits.scoreSubmission;
 export const checkRateLimit = applyRateLimit;
 export const paymentRetryLimiter = rateLimits.public;
+export const lineupSubmissionLimiter = rateLimits.scoreSubmission;
+export const paymentCheckoutLimiter = rateLimits.public;
+export const refundLimiter = rateLimits.admin;
