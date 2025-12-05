@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { useAdminUser } from '../admin/AdminContext';
-import { useModal } from '../shared/ModalContext';
-import GlobalModalManager from '../shared/GlobalModalManager';
 import { formatPhoneForDisplay } from '@/lib/phone';
 
 const CA_PROVINCES = ['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'] as const;
@@ -34,13 +33,6 @@ type Club = {
     firstName?: string | null;
     lastName?: string | null;
   } | null;
-};
-
-type Player = {
-  id: Id;
-  firstName?: string | null;
-  lastName?: string | null;
-  name?: string | null;
 };
 
 type ClubsResponse = Club[];
@@ -102,9 +94,8 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function AdminClubsPage() {
   const admin = useAdminUser();
-  const { openModal } = useModal();
+  const router = useRouter();
   const [clubs, setClubs] = useState<Club[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
   const [sort, setSort] = useState<{ col: 'name' | 'city' | 'region' | 'country' | 'phone'; dir: 'asc' | 'desc' }>({ col: 'name', dir: 'asc' });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -113,7 +104,6 @@ export default function AdminClubsPage() {
   useEffect(() => {
     if (!admin.isAppAdmin && !admin.isTournamentAdmin) return;
     void loadClubs(sort);
-    void loadPlayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin.isAppAdmin, admin.isTournamentAdmin]);
 
@@ -135,51 +125,13 @@ export default function AdminClubsPage() {
     }
   }
 
-  async function loadPlayers() {
-    try {
-      const data = await api<{ items: Player[] }>('/api/admin/players?take=100');
-      const players = Array.isArray(data?.items) ? data.items : [];
-      setPlayers(players);
-    } catch (e) {
-      console.error('Error loading players:', e);
-      // Don't show error to user for players loading failure - it's not critical
-      // The modal will still work, just without player suggestions
-      setPlayers([]);
-    }
-  }
-
-  const handleModalSave = useCallback(async (club: Partial<Club>) => {
-    try {
-      setErr(null);
-      if (club.id) {
-        await api(`/api/admin/clubs/${club.id}`, { 
-          method: 'PUT', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify(club) 
-        });
-      } else {
-        await api('/api/admin/clubs', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify(club) 
-        });
-      }
-      await loadClubs(sort);
-      setInfo(club.id ? 'Club updated' : 'Club created');
-    } catch (e: any) {
-      console.error('Error saving club:', e);
-      setErr(e?.message || 'Failed to save club');
-      throw new Error(e?.message || 'Failed to save club');
-    }
-  }, [sort]);
-
   const handleAddClub = useCallback(() => {
-    openModal('club');
-  }, [openModal]);
+    router.push('/clubs/new');
+  }, [router]);
 
   const handleEditClub = useCallback((club: Club) => {
-    openModal('club', club);
-  }, [openModal]);
+    router.push(`/clubs/${club.id}/edit`);
+  }, [router]);
 
   const clickSortClubs = useCallback((col: 'name' | 'city' | 'region' | 'country' | 'phone') => {
     const nextDir = sort.col === col && sort.dir === 'asc' ? 'desc' : 'asc';
@@ -361,16 +313,8 @@ export default function AdminClubsPage() {
           </table>
         </div>
       </div>
-
-      <GlobalModalManager
-        clubs={[]}
-        players={players}
-        onSavePlayer={async () => {}} // Not used on clubs page
-        onSaveClub={handleModalSave}
-      />
     </section>
   );
-
 }
 
 function SortableTh({ label, onClick, active, dir }: { label: string; onClick: () => void; active: boolean; dir: 'asc' | 'desc' }) {
