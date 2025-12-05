@@ -15,6 +15,90 @@ function normalizePhone(input?: string | null): { ok: boolean; formatted?: strin
   return { ok: true, formatted: `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}` };
 }
 
+/** GET /api/admin/clubs/:clubId */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ clubId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  // Check for act-as-player-id cookie
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const actAsPlayerId = cookieStore.get('act-as-player-id')?.value;
+
+  let currentPlayer;
+  if (actAsPlayerId) {
+    currentPlayer = await prisma.player.findUnique({
+      where: { id: actAsPlayerId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
+  } else {
+    currentPlayer = await prisma.player.findUnique({
+      where: { clerkUserId: userId },
+      select: {
+        id: true,
+        isAppAdmin: true,
+        clubId: true,
+        tournamentAdminLinks: { select: { tournamentId: true }, take: 1 },
+        TournamentEventManager: { select: { tournamentId: true }, take: 1 }
+      }
+    });
+  }
+
+  if (!currentPlayer) {
+    return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+  }
+
+  const isTournamentAdmin =
+    currentPlayer.tournamentAdminLinks.length > 0 ||
+    currentPlayer.TournamentEventManager.length > 0;
+
+  if (!currentPlayer.isAppAdmin && !isTournamentAdmin) {
+    return NextResponse.json({ error: 'Access denied. Admin access required.' }, { status: 403 });
+  }
+
+  const { clubId } = await ctx.params;
+
+  // Tournament Admins can only view their own club
+  if (!currentPlayer.isAppAdmin && isTournamentAdmin && clubId !== currentPlayer.clubId) {
+    return NextResponse.json({ error: 'Access denied. You can only view your own club.' }, { status: 403 });
+  }
+
+  try {
+    const club = await prisma.club.findUnique({
+      where: { id: clubId },
+      include: {
+        director: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          }
+        }
+      }
+    });
+
+    if (!club) {
+      return NextResponse.json({ error: 'Club not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(club);
+  } catch (error) {
+    console.error('Error fetching club:', error);
+    return NextResponse.json({ error: 'Failed to fetch club' }, { status: 500 });
+  }
+}
+
 /** PUT /api/admin/clubs/:clubId */
 export async function PUT(
   req: Request,

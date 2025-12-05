@@ -144,11 +144,12 @@ export function ClubEditForm({ club, players, loading, onSave }: ClubEditFormPro
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6 max-w-7xl">
-      {/* Left Column - Main Form Fields */}
-      <div className="flex-1 space-y-6">
-        {/* Basic Information */}
-        <div className="card space-y-4">
-          <h2 className="text-xl font-semibold text-primary">Basic Information</h2>
+      {/* Left Column - Club Information */}
+      <div className="flex-1">
+        <div className="card space-y-6">
+          <h2 className="text-xl font-semibold text-primary">Club Information</h2>
+
+          {/* Basic Info */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-secondary mb-1">
@@ -182,85 +183,77 @@ export function ClubEditForm({ club, players, loading, onSave }: ClubEditFormPro
               />
             </div>
           </div>
-        </div>
 
-        {/* Address Information */}
-        <div className="card space-y-4">
-          <h2 className="text-xl font-semibold text-primary">Address</h2>
-          <div className="space-y-4">
+          {/* Address */}
+          <div>
+            <label htmlFor="address" className="block text-sm font-medium text-secondary mb-1">
+              Street Address *
+            </label>
+            <input
+              type="text"
+              id="address"
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+              className="input w-full"
+              placeholder="Enter street address"
+              required
+            />
+          </div>
+
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
             <div>
-              <label htmlFor="address" className="block text-sm font-medium text-secondary mb-1">
-                Street Address *
+              <label htmlFor="city" className="block text-sm font-medium text-secondary mb-1">
+                City *
               </label>
               <input
                 type="text"
-                id="address"
-                name="address"
-                value={formData.address}
+                id="city"
+                name="city"
+                value={formData.city}
                 onChange={handleChange}
                 className="input w-full"
-                placeholder="Enter street address"
+                placeholder="Enter city"
                 required
               />
             </div>
 
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-              <div>
-                <label htmlFor="city" className="block text-sm font-medium text-secondary mb-1">
-                  City *
-                </label>
-                <input
-                  type="text"
-                  id="city"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  className="input w-full"
-                  placeholder="Enter city"
-                  required
-                />
-              </div>
+            <div>
+              <label htmlFor="region" className="block text-sm font-medium text-secondary mb-1">
+                Province/State *
+              </label>
+              <input
+                type="text"
+                id="region"
+                name="region"
+                value={formData.region}
+                onChange={handleChange}
+                className="input w-full"
+                placeholder="Enter province/state"
+                required
+              />
+            </div>
 
-              <div>
-                <label htmlFor="region" className="block text-sm font-medium text-secondary mb-1">
-                  Province/State *
-                </label>
-                <input
-                  type="text"
-                  id="region"
-                  name="region"
-                  value={formData.region}
-                  onChange={handleChange}
-                  className="input w-full"
-                  placeholder="Enter province/state"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="country" className="block text-sm font-medium text-secondary mb-1">
-                  Country *
-                </label>
-                <select
-                  id="country"
-                  name="country"
-                  value={formData.country}
-                  onChange={handleChange}
-                  className="input w-full"
-                  required
-                >
-                  <option value="Canada">Canada</option>
-                  <option value="USA">United States</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
+            <div>
+              <label htmlFor="country" className="block text-sm font-medium text-secondary mb-1">
+                Country *
+              </label>
+              <select
+                id="country"
+                name="country"
+                value={formData.country}
+                onChange={handleChange}
+                className="input w-full"
+                required
+              >
+                <option value="Canada">Canada</option>
+                <option value="USA">United States</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
           </div>
-        </div>
 
-        {/* Contact Information */}
-        <div className="card space-y-4">
-          <h2 className="text-xl font-semibold text-primary">Contact Information</h2>
+          {/* Contact Info */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-secondary mb-1">
@@ -293,12 +286,12 @@ export function ClubEditForm({ club, players, loading, onSave }: ClubEditFormPro
               />
             </div>
           </div>
-        </div>
 
-        {/* Description */}
-        <div className="card space-y-4">
-          <h2 className="text-xl font-semibold text-primary">Description</h2>
+          {/* Description */}
           <div>
+            <label htmlFor="description" className="block text-sm font-medium text-secondary mb-1">
+              Description
+            </label>
             <textarea
               id="description"
               name="description"
@@ -313,94 +306,91 @@ export function ClubEditForm({ club, players, loading, onSave }: ClubEditFormPro
               <span>{formData.description.length}/300 characters</span>
             </div>
           </div>
-        </div>
 
-        <div className="flex justify-end gap-3">
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Saving...' : 'Save Changes'}
-          </button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Right Column - Logo & Director */}
       <div className="w-full lg:w-80 flex-shrink-0">
-        <div className="card space-y-4 lg:sticky lg:top-6">
-          <h2 className="text-xl font-semibold text-primary">Logo & Director</h2>
-          <div className="space-y-4">
-            {/* Club Logo */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-secondary">
-                Club Logo
-              </label>
-              <div className="w-full h-24 bg-surface-2 rounded-lg flex items-center justify-center border-2 border-dashed border-border-medium overflow-hidden">
-                {formData.logo ? (
-                  <img
-                    src={formData.logo}
-                    alt="Club logo preview"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleLogoUpload}
-                className="hidden"
-              />
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost w-full"
-                onClick={triggerFileUpload}
-              >
-                {formData.logo ? 'Change Logo' : 'Upload Logo'}
-              </button>
-              <p className="text-xs text-muted text-center">JPG, PNG up to 2MB</p>
+        <div className="card space-y-6 lg:sticky lg:top-6">
+          {/* Club Logo */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-secondary">
+              Club Logo
+            </label>
+            <div className="w-full h-24 bg-surface-2 rounded-lg flex items-center justify-center border-2 border-dashed border-border-medium overflow-hidden">
+              {formData.logo ? (
+                <img
+                  src={formData.logo}
+                  alt="Club logo preview"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              )}
             </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost w-full"
+              onClick={triggerFileUpload}
+            >
+              {formData.logo ? 'Change Logo' : 'Upload Logo'}
+            </button>
+            <p className="text-xs text-muted text-center">JPG, PNG up to 2MB</p>
+          </div>
 
-            {/* Director Search */}
-            <div className="relative" ref={directorDropdownRef}>
-              <label htmlFor="directorSearch" className="block text-sm font-medium text-secondary mb-1">
-                Director *
-              </label>
-              <input
-                type="text"
-                id="directorSearch"
-                value={directorSearch}
-                onChange={(e) => handleDirectorSearchChange(e.target.value)}
-                onFocus={() => directorSearch.length >= 3 && setShowDirectorDropdown(true)}
-                className="input w-full"
-                placeholder="Type 3+ characters to search..."
-                required
-              />
-              {showDirectorDropdown && filteredPlayers.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full bg-surface-1 border border-border-subtle rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {filteredPlayers.map((player) => {
-                    const fullName = `${player.firstName || ''} ${player.lastName || ''}`.trim();
-                    return (
-                      <button
-                        key={player.id}
-                        type="button"
-                        onClick={() => selectDirector(player)}
-                        className="w-full text-left px-3 py-2 hover:bg-surface-2 text-sm"
-                      >
-                        {fullName || 'Unknown Player'}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {directorSearch.length > 0 && directorSearch.length < 3 && (
-                <p className="text-xs text-muted mt-1">Type at least 3 characters</p>
-              )}
-              {!formData.directorId && directorSearch.length >= 3 && filteredPlayers.length === 0 && players.length > 0 && (
-                <p className="text-xs text-error mt-1">No players found matching "{directorSearch}"</p>
-              )}
-            </div>
+          {/* Director Search */}
+          <div className="relative" ref={directorDropdownRef}>
+            <label htmlFor="directorSearch" className="block text-sm font-medium text-secondary mb-1">
+              Director *
+            </label>
+            <input
+              type="text"
+              id="directorSearch"
+              value={directorSearch}
+              onChange={(e) => handleDirectorSearchChange(e.target.value)}
+              onFocus={() => directorSearch.length >= 3 && setShowDirectorDropdown(true)}
+              className="input w-full"
+              placeholder="Type 3+ characters to search..."
+              required
+            />
+            {showDirectorDropdown && filteredPlayers.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full bg-surface-1 border border-border-subtle rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredPlayers.map((player) => {
+                  const fullName = `${player.firstName || ''} ${player.lastName || ''}`.trim();
+                  return (
+                    <button
+                      key={player.id}
+                      type="button"
+                      onClick={() => selectDirector(player)}
+                      className="w-full text-left px-3 py-2 hover:bg-surface-2 text-sm"
+                    >
+                      {fullName || 'Unknown Player'}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {directorSearch.length > 0 && directorSearch.length < 3 && (
+              <p className="text-xs text-muted mt-1">Type at least 3 characters</p>
+            )}
+            {!formData.directorId && directorSearch.length >= 3 && filteredPlayers.length === 0 && players.length > 0 && (
+              <p className="text-xs text-error mt-1">No players found matching "{directorSearch}"</p>
+            )}
           </div>
         </div>
       </div>
