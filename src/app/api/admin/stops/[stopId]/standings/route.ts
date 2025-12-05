@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
@@ -53,6 +54,15 @@ type TeamRow = {
 export async function GET(req: NextRequest, ctx: Ctx) {
   try {
     const { stopId } = await ctx.params;
+
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
+
     // Use singleton prisma instance
     const { searchParams } = new URL(req.url);
     const bracketFilter = normalizeBracketId(searchParams.get('bracketId'));
@@ -174,14 +184,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
         // Check if this match has a forfeit
         const forfeitTeam = match.forfeitTeam;
-        
+
         if (forfeitTeam) {
-          
+
           // Handle forfeit - team that didn't forfeit gets the win
           rowA.played++;
           rowB.played++;
           decidedGamesCount++;
-          
+
           if (forfeitTeam === 'B') {
             // Team B forfeited, Team A wins
             rowA.wins++;
@@ -230,7 +240,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
               }
             }
           }
-          
+
           const allScored = totalSlots > 0 && scoredSlots === totalSlots;
           const aClinched = needed > 0 && aSlotWins >= needed;
           const bClinched = needed > 0 && bSlotWins >= needed;

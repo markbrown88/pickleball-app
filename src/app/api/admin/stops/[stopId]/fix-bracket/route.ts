@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache } from '@/lib/cache';
 import { cacheKeys } from '@/lib/cache';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 export async function POST(
   request: NextRequest,
@@ -18,6 +19,13 @@ export async function POST(
   try {
     const { stopId } = await params;
 
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
 
     // Get all rounds for this stop
     const rounds = await prisma.round.findMany({
@@ -45,7 +53,7 @@ export async function POST(
         if (loserMatch.sourceMatchAId || loserMatch.sourceMatchBId) {
           // Find the source matches
           const allMatches = rounds.flatMap(r => r.matches);
-          const sourceMatchA = loserMatch.sourceMatchAId 
+          const sourceMatchA = loserMatch.sourceMatchAId
             ? allMatches.find(m => m.id === loserMatch.sourceMatchAId)
             : null;
           const sourceMatchB = loserMatch.sourceMatchBId
@@ -56,11 +64,11 @@ export async function POST(
           if (sourceMatchA && sourceMatchA.round?.bracketType === 'WINNER' && sourceMatchA.winnerId) {
             // If the winner is incorrectly in this loser bracket match as teamA
             if (loserMatch.teamAId === sourceMatchA.winnerId) {
-              const winnerName = sourceMatchA.teamAId === sourceMatchA.winnerId 
-                ? sourceMatchA.teamA?.name 
+              const winnerName = sourceMatchA.teamAId === sourceMatchA.winnerId
+                ? sourceMatchA.teamA?.name
                 : sourceMatchA.teamB?.name;
-              
-              
+
+
               await prisma.match.update({
                 where: { id: loserMatch.id },
                 data: { teamAId: null },
@@ -79,11 +87,11 @@ export async function POST(
           if (sourceMatchB && sourceMatchB.round?.bracketType === 'WINNER' && sourceMatchB.winnerId) {
             // If the winner is incorrectly in this loser bracket match as teamB
             if (loserMatch.teamBId === sourceMatchB.winnerId) {
-              const winnerName = sourceMatchB.teamAId === sourceMatchB.winnerId 
-                ? sourceMatchB.teamA?.name 
+              const winnerName = sourceMatchB.teamAId === sourceMatchB.winnerId
+                ? sourceMatchB.teamA?.name
                 : sourceMatchB.teamB?.name;
-              
-              
+
+
               await prisma.match.update({
                 where: { id: loserMatch.id },
                 data: { teamBId: null },

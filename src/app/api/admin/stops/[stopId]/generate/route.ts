@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { GameSlot } from '@prisma/client';
 import { GameSlot as GameSlotEnum } from '@prisma/client';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 type Ctx = { params: Promise<{ stopId: string }> };
 
@@ -81,6 +82,14 @@ export async function POST(req: Request, ctx: Ctx) {
   // Use singleton prisma instance
   const { stopId } = await ctx.params;
 
+  // 1. Authenticate
+  const authResult = await requireAuth('tournament_admin');
+  if (authResult instanceof NextResponse) return authResult;
+
+  // 2. Authorize
+  const accessCheck = await requireStopAccess(authResult, stopId);
+  if (accessCheck instanceof NextResponse) return accessCheck;
+
   try {
     const raw = await req.json().catch(() => ({}));
     const body = (raw ?? {}) as GenerateBody;
@@ -152,7 +161,7 @@ export async function POST(req: Request, ctx: Ctx) {
       // Find the bracket for this team - use bracketId if available, otherwise map from division
       let teamBracket = tournament.brackets.find(b => b.id === st.team.bracketId);
       let bracketKey = teamBracket?.name ?? 'UNBRACKETED';
-      
+
       // If no bracketId is set, try to map from division to bracket name
       if (!teamBracket && st.team.division) {
         const divisionToBracket: Record<string, string> = {
@@ -166,12 +175,12 @@ export async function POST(req: Request, ctx: Ctx) {
           bracketKey = mappedBracketName;
         }
       }
-      
+
       // Skip teams that don't have a valid bracket
       if (!teamBracket) {
         continue;
       }
-      
+
       const clubKey = st.team.clubId ?? 'unassigned';
 
 
@@ -181,12 +190,12 @@ export async function POST(req: Request, ctx: Ctx) {
       if (!bracketGroups.has(bracketKey)) {
         bracketGroups.set(bracketKey, new Map());
       }
-      
+
       const clubGroups = bracketGroups.get(bracketKey)!;
       if (!clubGroups.has(clubKey)) {
         clubGroups.set(clubKey, []);
       }
-      
+
       clubGroups.get(clubKey)!.push({ id: st.team.id, name: st.team.name });
     }
 
@@ -212,7 +221,7 @@ export async function POST(req: Request, ctx: Ctx) {
         bracketGroups.delete(bracketKey);
         continue;
       }
-      
+
       // Shuffle teams within each club for randomized matchups
       for (const [clubKey, teams] of clubGroups) {
         clubGroups.set(clubKey, shuffleArray(teams));
@@ -252,7 +261,7 @@ export async function POST(req: Request, ctx: Ctx) {
       for (const [bracketKey, clubGroups] of bracketGroups) {
         // Get all teams for this bracket (one per club)
         const teamsForBracket: Array<{ id: string; name: string; clubId: string }> = [];
-        
+
         for (const [clubId, teams] of clubGroups) {
           if (teams.length > 0) {
             // Take the first team from each club
@@ -265,7 +274,7 @@ export async function POST(req: Request, ctx: Ctx) {
           } else {
           }
         }
-        
+
         // Generate round-robin using team IDs
         const teamIds = teamsForBracket.map(t => t.id);
 
@@ -284,7 +293,7 @@ export async function POST(req: Request, ctx: Ctx) {
         const shuffledTeamIds = shuffleArray(teamIds);
 
         const rr = generateRoundRobin(shuffledTeamIds);
-        
+
         // Validate that all team IDs exist in the database
         const existingTeams = await tx.team.findMany({
           where: { id: { in: teamIds } },
@@ -292,11 +301,11 @@ export async function POST(req: Request, ctx: Ctx) {
         });
         const existingTeamIds = new Set(existingTeams.map(t => t.id));
         const missingTeamIds = teamIds.filter(id => !existingTeamIds.has(id));
-        
+
         if (missingTeamIds.length > 0) {
           continue;
         }
-        
+
         // Convert to the expected format
         const teamRounds = rr.map(round => ({
           games: round.games.map(game => ({
@@ -305,7 +314,7 @@ export async function POST(req: Request, ctx: Ctx) {
             isBye: game.isBye
           }))
         }));
-        
+
         pairingsByBracket.push({ bracketId: bracketKey, rounds: teamRounds });
         if (teamRounds.length > maxRoundsNeeded) maxRoundsNeeded = teamRounds.length;
       }

@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { invalidateCache, cacheKeys } from '@/lib/cache';
+import { requireAuth, requireStopAccess } from '@/lib/auth';
 
 export async function DELETE(
   request: NextRequest,
@@ -16,6 +17,14 @@ export async function DELETE(
 ) {
   try {
     const { stopId } = await params;
+
+    // 1. Authenticate
+    const authResult = await requireAuth('tournament_admin');
+    if (authResult instanceof NextResponse) return authResult;
+
+    // 2. Authorize
+    const accessCheck = await requireStopAccess(authResult, stopId);
+    if (accessCheck instanceof NextResponse) return accessCheck;
 
     // Use a transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
