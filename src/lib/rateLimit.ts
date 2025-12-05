@@ -97,3 +97,4 @@ export const paymentRetryLimiter = rateLimits.public;
 export const lineupSubmissionLimiter = rateLimits.scoreSubmission;
 export const paymentCheckoutLimiter = rateLimits.public;
 export const refundLimiter = rateLimits.admin;
+export const captainPortalLimiter = rateLimits.authenticated;
