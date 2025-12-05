@@ -155,3 +155,22 @@ export const clubRegistrationValidationRules: ValidationRules = {
   zipCode: { required: true, pattern: /^\d{5}(-\d{4})?$/, message: 'Valid ZIP code is required' },
   country: { required: true, minLength: 2, message: 'Country is required' },
 };
+
+export const clubValidationRules: ValidationRules = {
+  fullName: { required: true, minLength: 2, message: 'Full name is required' },
+  name: { required: true, minLength: 2, message: 'Nickname is required' },
+  email: { required: true, email: true, message: 'Valid email is required' },
+  address: { required: true, minLength: 5, message: 'Address is required' },
+  city: { required: true, minLength: 2, message: 'City is required' },
+  region: { required: true, minLength: 2, message: 'Province/State is required' },
+  country: { required: true, message: 'Country is required' },
+  directorId: { required: true, message: 'Director is required' }
+};
+
+export const playerValidationRules: ValidationRules = {
+  firstName: { required: true, minLength: 2, message: 'First name is required' },
+  lastName: { required: true, minLength: 2, message: 'Last name is required' },
+  email: { required: true, email: true, message: 'Valid email is required' },
+  clubId: { required: true, message: 'Primary club is required' },
+  gender: { required: true, message: 'Gender is required' }
+};
