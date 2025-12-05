@@ -29,24 +29,9 @@ export async function POST(request: NextRequest) {
     // Rate limiting to prevent accidental mass refunds
     const clientIp = getClientIp(request);
     const rateLimitResult = await checkRateLimit(refundLimiter, userId); // Limit by user ID for admin actions
-    
-    if (rateLimitResult && !rateLimitResult.success) {
-      return NextResponse.json(
-        { 
-          error: 'Too many refund requests',
-          details: 'Please wait before processing another refund.',
-          retryAfter: rateLimitResult.reset,
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
-            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString(),
-          },
-        }
-      );
+
+    if (rateLimitResult) {
+      return rateLimitResult;
     }
 
     const body = await request.json();
@@ -54,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     if (!registrationId) {
       return NextResponse.json(
-        { 
+        {
           error: 'Registration ID is required',
           details: 'Please provide a valid registration ID to process refund.',
         },
@@ -95,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     if (!registration) {
       return NextResponse.json(
-        { 
+        {
           error: 'Registration not found',
           details: 'The registration you are trying to refund could not be found.',
         },
@@ -127,17 +112,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if tournament has started (no refunds after start)
-    const tournamentStartDate = registration.tournament.startDate || 
+    const tournamentStartDate = registration.tournament.startDate ||
       registration.tournament.stops[0]?.startAt;
-    
+
     if (tournamentStartDate) {
       const now = new Date();
       const startDate = new Date(tournamentStartDate);
       const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-      
+
       if (hoursUntilStart < 24) {
         return NextResponse.json(
-          { 
+          {
             error: 'Refund deadline passed',
             details: 'Refunds are only available more than 24 hours before tournament start.',
             tournamentStartDate: tournamentStartDate.toISOString(),
@@ -152,7 +137,7 @@ export async function POST(request: NextRequest) {
     const paymentIntentId = registration.paymentId;
     if (!paymentIntentId) {
       return NextResponse.json(
-        { 
+        {
           error: 'No payment found',
           details: 'This registration does not have an associated payment that can be refunded.',
         },
@@ -161,13 +146,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate refund amount (full refund by default, or specified amount)
-    const refundAmount = amount 
+    const refundAmount = amount
       ? Math.round(amount * 100) // Convert dollars to cents
       : registration.amountPaid || 0;
 
     if (refundAmount <= 0) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid refund amount',
           details: 'Refund amount must be greater than zero.',
         },
@@ -177,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     if (refundAmount > (registration.amountPaid || 0)) {
       return NextResponse.json(
-        { 
+        {
           error: 'Refund amount exceeds payment',
           details: `Cannot refund more than the original payment amount of $${formatAmountFromStripe(registration.amountPaid || 0).toFixed(2)}.`,
         },
@@ -202,7 +187,7 @@ export async function POST(request: NextRequest) {
     } catch (stripeError: any) {
       console.error('Stripe refund error:', stripeError);
       return NextResponse.json(
-        { 
+        {
           error: 'Refund processing failed',
           details: stripeError.message || 'Failed to process refund through payment processor.',
           stripeError: process.env.NODE_ENV === 'development' ? stripeError.message : undefined,
@@ -269,16 +254,16 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Refund processing error:', error);
-    
+
     let errorMessage = 'Failed to process refund';
     let errorDetails = '';
-    
+
     if (error instanceof Error) {
       errorDetails = error.message;
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: errorMessage,
         details: errorDetails,
       },
