@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getClientIp } from '@/lib/rateLimit';
+import { getCached, cacheKeys, CACHE_TTL } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 
