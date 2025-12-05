@@ -18,19 +18,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
   // Use singleton prisma instance
   try {
     const { roundId, teamId } = await ctx.params;
-    
-    
+
+
     // Verify round exists
     const round = await prisma.round.findUnique({
       where: { id: roundId },
       select: { id: true, stopId: true }
     });
-    
+
     if (!round) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
-    
-    
+
+
     // Get or create lineup (can't use upsert with null in unique constraint)
     let lineup = await prisma.lineup.findFirst({
       where: { roundId, teamId, bracketId: null },
@@ -120,7 +120,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
     // Build lineup data (4 players in order: Man1, Man2, Woman1, Woman2)
     const lineupPlayers = [];
     const entries = full?.entries || [];
-    
+
     // Extract players from entries - we need to reconstruct the 4-player lineup
     // from the stored pairs: [man1, man2], [woman1, woman2], [man1, woman1], [man2, woman2]
     if (entries.length >= 4) {
@@ -128,10 +128,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
       // Women's doubles: entries[1] = [woman1, woman2]  
       // Mixed 1: entries[2] = [man1, woman1]
       // Mixed 2: entries[3] = [man2, woman2]
-      
+
       const menDoubles = entries[0];
       const womenDoubles = entries[1];
-      
+
       if (menDoubles && womenDoubles) {
         lineupPlayers.push(
           menDoubles.player1,    // Man 1
@@ -141,7 +141,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<Params> }) {
         );
       }
     }
-    
+
     return NextResponse.json({
       lineup: {
         id: full?.id || lineup.id,
@@ -168,22 +168,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
     const clientIp = getClientIp(req);
     const rateLimitResult = await checkRateLimit(lineupSubmissionLimiter, clientIp);
 
-    if (rateLimitResult && !rateLimitResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Too many lineup submissions. Please try again later.',
-          retryAfter: rateLimitResult.reset
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
-            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString()
-          }
-        }
-      );
+    if (rateLimitResult) {
+      return rateLimitResult;
     }
 
     // Parse and validate request body with Zod (SEC-004)
@@ -204,32 +190,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
     }
 
     const { players } = validation.data; // Array of 4 player IDs: [man1, man2, woman1, woman2]
-    
+
     // Verify round exists
     const round = await prisma.round.findUnique({
       where: { id: roundId },
       select: { id: true, stopId: true }
     });
-    
+
     if (!round) {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
-    
+
     // Verify all players exist and are on the team
     const teamPlayers = await prisma.teamPlayer.findMany({
       where: { teamId },
       select: { playerId: true }
     });
-    
+
     const teamPlayerIds = new Set(teamPlayers.map(tp => tp.playerId));
     const invalidPlayers = players.filter(id => !teamPlayerIds.has(id));
-    
+
     if (invalidPlayers.length > 0) {
-      return NextResponse.json({ 
-        error: `Players not on team: ${invalidPlayers.join(', ')}` 
+      return NextResponse.json({
+        error: `Players not on team: ${invalidPlayers.join(', ')}`
       }, { status: 400 });
     }
-    
+
     // Save lineup using transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create or update lineup (can't use upsert with null in unique constraint)
@@ -244,12 +230,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
           select: { id: true }
         });
       }
-      
+
       // Clear existing entries
       await tx.lineupEntry.deleteMany({
         where: { lineupId: lineup.id }
       });
-      
+
       // Create new entries for the 4 players
       // We'll store them as pairs: [man1, man2], [woman1, woman2], [man1, woman1], [man2, woman2]
       const entries = [
@@ -258,7 +244,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
         { player1Id: players[0], player2Id: players[2], slot: 'MIXED_1' as const },
         { player1Id: players[1], player2Id: players[3], slot: 'MIXED_2' as const }
       ];
-      
+
       await tx.lineupEntry.createMany({
         data: entries.map(entry => ({
           lineupId: lineup.id,
@@ -267,16 +253,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
           slot: entry.slot
         }))
       });
-      
+
       return lineup;
     });
-    
-    return NextResponse.json({ 
-      success: true, 
+
+    return NextResponse.json({
+      success: true,
       lineupId: result.id,
-      message: 'Lineup saved successfully' 
+      message: 'Lineup saved successfully'
     });
-    
+
   } catch (error) {
     console.error('Error saving lineup:', error);
     return NextResponse.json({ error: 'Failed to save lineup' }, { status: 500 });
