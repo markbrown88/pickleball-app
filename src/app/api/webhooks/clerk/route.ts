@@ -16,6 +16,7 @@ type ClerkWebhookEvent = {
     primary_email_address_id: string;
     first_name: string | null;
     last_name: string | null;
+    image_url: string;
   };
 };
 
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
     const eventType = evt.type;
 
     if (eventType === 'user.created') {
-      const { id: clerkUserId, email_addresses, primary_email_address_id, first_name, last_name } = evt.data;
+      const { id: clerkUserId, email_addresses, primary_email_address_id, first_name, last_name, image_url } = evt.data;
 
       // Get the primary email
       const primaryEmail = email_addresses.find(
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
             lastName: existingPlayer.lastName || last_name || undefined,
             // Update the name field if it's empty
             name: existingPlayer.name || (first_name && last_name ? `${first_name} ${last_name}` : undefined),
+            image: image_url,
           },
         });
 
@@ -171,6 +173,7 @@ export async function POST(req: NextRequest) {
             gender: 'MALE', // Default, can be updated later
             country: 'Canada', // Default for this application
             clubId: defaultClub.id, // Required field - assign to first available club
+            image: image_url,
           },
         });
 
@@ -194,7 +197,7 @@ export async function POST(req: NextRequest) {
       code: error?.code,
     });
     return NextResponse.json(
-      { 
+      {
         error: 'Internal server error',
         details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
       },

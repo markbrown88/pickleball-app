@@ -40,6 +40,7 @@ model Club {
 model Player {
   id                     String                   @id @default(cuid())
   name                   String?
+  image                  String?
   gender                 Gender
   clubId                 String
   clerkUserId            String?                  @unique

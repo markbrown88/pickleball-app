@@ -6,6 +6,7 @@ export interface UserProfile {
   lastName: string | null;
   name: string | null;
   email: string | null;
+  image: string | null;
   phone: string | null;
   gender: 'MALE' | 'FEMALE';
   dupr: number | null;
@@ -120,6 +121,7 @@ export interface Player {
   firstName?: string | null;
   lastName?: string | null;
   email?: string | null;
+  image?: string | null;
   phone?: string | null;
   gender?: 'MALE' | 'FEMALE' | null;
   birthday?: Date | null;

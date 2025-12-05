@@ -50,6 +50,7 @@ export async function GET(req: Request) {
         firstName: player.firstName,
         lastName: player.lastName,
         name: player.name,
+        image: player.image,
         email: player.email,
         phone: formatPhoneForDisplay(player.phone),
         gender: player.gender,
@@ -107,7 +108,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Use singleton prisma instance
-    const body = (await req.json()) as { playerId?: string; name?: string; gender?: 'MALE'|'FEMALE' };
+    const body = (await req.json()) as { playerId?: string; name?: string; gender?: 'MALE' | 'FEMALE' };
     if (!body?.playerId || !body?.name || !body?.gender) {
       return NextResponse.json({ error: 'playerId, name, gender required' }, { status: 400 });
     }
@@ -154,12 +155,12 @@ export async function PUT(req: Request) {
 
     if (firstName !== undefined) updateData.firstName = firstName?.trim() || null;
     if (lastName !== undefined) updateData.lastName = lastName?.trim() || null;
-    
+
     // Update name field if firstName or lastName changed
     if (firstName !== undefined || lastName !== undefined) {
       const fn = firstName !== undefined ? (firstName?.trim() || null) : undefined;
       const ln = lastName !== undefined ? (lastName?.trim() || null) : undefined;
-      
+
       // Get current values if not provided
       if (fn === undefined || ln === undefined) {
         const currentPlayer = await prisma.player.findUnique({
@@ -175,7 +176,7 @@ export async function PUT(req: Request) {
         updateData.name = nameParts.length > 0 ? nameParts.join(' ') : null;
       }
     }
-    
+
     if (email !== undefined) updateData.email = email?.trim() || null;
     if (phone !== undefined) {
       updateData.phone = phone ? formatPhoneForStorage(phone) : null;
@@ -185,18 +186,18 @@ export async function PUT(req: Request) {
     if (city !== undefined) updateData.city = city?.trim() || null;
     if (region !== undefined) updateData.region = region?.trim() || null;
     if (country !== undefined) updateData.country = country || 'Canada';
-    
+
     // Handle birthday update - extract year/month/day and calculate age
     if (birthday !== undefined) {
       const birthdayDate = birthday ? new Date(birthday) : null;
       updateData.birthday = birthdayDate;
-      
+
       if (birthdayDate && !isNaN(birthdayDate.getTime())) {
         // Extract year/month/day from Date
         updateData.birthdayYear = birthdayDate.getUTCFullYear();
         updateData.birthdayMonth = birthdayDate.getUTCMonth() + 1; // getUTCMonth() returns 0-11
         updateData.birthdayDay = birthdayDate.getUTCDate();
-        
+
         // Calculate and store age
         const today = new Date();
         let age = today.getFullYear() - updateData.birthdayYear;
@@ -262,6 +263,7 @@ export async function PUT(req: Request) {
         firstName: player.firstName,
         lastName: player.lastName,
         name: player.name,
+        image: player.image,
         email: player.email,
         phone: formatPhoneForDisplay(player.phone),
         gender: player.gender,

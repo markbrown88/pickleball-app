@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     // If no player found by Clerk ID, check if one exists with the same email
     if (!player && userEmail) {
-      
+
       const existingPlayerByEmail = await prisma.player.findUnique({
         where: { email: userEmail },
         include: {
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       });
 
       if (existingPlayerByEmail) {
-        
+
         // Update the existing player record with the new Clerk user ID
         player = await prisma.player.update({
           where: { id: existingPlayerByEmail.id },
@@ -77,14 +77,14 @@ export async function GET(req: NextRequest) {
             }
           }
         });
-        
+
       } else {
       }
     }
 
     // If no player found, create one automatically (fallback if webhook didn't work)
     if (!player && userEmail) {
-      
+
       try {
         // Find a default club to assign to the new player
         const defaultClub = await prisma.club.findFirst({
@@ -94,10 +94,10 @@ export async function GET(req: NextRequest) {
 
         if (!defaultClub) {
           console.error('Auth API: No clubs found in database. Cannot create Player without a club.');
-          return NextResponse.json({ 
-            error: 'Player profile not found', 
+          return NextResponse.json({
+            error: 'Player profile not found',
             needsProfileSetup: true,
-            message: 'Please complete your profile setup to continue.' 
+            message: 'Please complete your profile setup to continue.'
           }, { status: 404 });
         }
 
@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
           }
         });
 
-        
+
         // Mark that this player needs profile setup since it was auto-created with defaults
         return NextResponse.json({
           id: player.id,
@@ -138,6 +138,7 @@ export async function GET(req: NextRequest) {
           firstName: player.firstName,
           lastName: player.lastName,
           name: player.name,
+          image: player.image,
           email: player.email,
           phone: formatPhoneForDisplay(player.phone),
           gender: player.gender,
@@ -160,26 +161,26 @@ export async function GET(req: NextRequest) {
       } catch (createError: any) {
         console.error('Auth API: Error creating Player record automatically:', createError);
         // If creation fails, return error (don't crash)
-        return NextResponse.json({ 
-          error: 'Failed to create player profile', 
+        return NextResponse.json({
+          error: 'Failed to create player profile',
           needsProfileSetup: true,
-          message: 'Please complete your profile setup to continue.' 
+          message: 'Please complete your profile setup to continue.'
         }, { status: 500 });
       }
     }
 
     if (!player) {
-      return NextResponse.json({ 
-        error: 'Player profile not found', 
+      return NextResponse.json({
+        error: 'Player profile not found',
         needsProfileSetup: true,
-        message: 'Please complete your profile setup to continue.' 
+        message: 'Please complete your profile setup to continue.'
       }, { status: 404 });
     }
 
     // Support Act As functionality (only if player exists)
     const actAsPlayerId = getActAsHeaderFromRequest(req);
     let effectivePlayer;
-    
+
     try {
       effectivePlayer = await getEffectivePlayer(actAsPlayerId);
     } catch (actAsError) {
@@ -194,7 +195,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Find player record for the effective player (real user or target if acting as)
-    const finalPlayer = await prisma.player.findUnique({
+    let finalPlayer = await prisma.player.findUnique({
       where: { id: effectivePlayer.targetPlayerId },
       include: {
         club: {
@@ -212,11 +213,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Player profile not found' }, { status: 404 });
     }
 
+    // Sync image from Clerk if missing in local DB
+    if (!finalPlayer.image && clerkUser?.imageUrl) {
+      try {
+        finalPlayer = await prisma.player.update({
+          where: { id: finalPlayer.id },
+          data: { image: clerkUser.imageUrl },
+          include: {
+            club: {
+              select: {
+                id: true,
+                name: true,
+                city: true,
+                region: true
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Error syncing user image:', err);
+        // Continue without failing request
+      }
+    }
+
     // Check if player needs profile setup (minimum required: firstName, lastName, gender, clubId)
     // This is the minimum required to access the app - other fields can be added later
-    const needsProfileSetup = 
-      !finalPlayer.firstName || 
-      !finalPlayer.lastName || 
+    const needsProfileSetup =
+      !finalPlayer.firstName ||
+      !finalPlayer.lastName ||
       !finalPlayer.gender ||
       !finalPlayer.clubId;
 
@@ -233,6 +257,7 @@ export async function GET(req: NextRequest) {
       firstName: finalPlayer.firstName,
       lastName: finalPlayer.lastName,
       name: finalPlayer.name,
+      image: finalPlayer.image,
       email: finalPlayer.email,
       phone: formatPhoneForDisplay(finalPlayer.phone),
       gender: finalPlayer.gender,
@@ -268,7 +293,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
@@ -396,7 +421,7 @@ export async function POST(req: NextRequest) {
         birthdayMonth = date.getUTCMonth() + 1;
         birthdayDay = date.getUTCDate();
         birthdayDate = date;
-        
+
         // Calculate age
         const today = new Date();
         let age = today.getFullYear() - birthdayYear;
@@ -452,6 +477,7 @@ export async function POST(req: NextRequest) {
       firstName: player.firstName,
       lastName: player.lastName,
       name: player.name,
+      image: player.image,
       email: player.email,
       phone: formatPhoneForDisplay(player.phone),
       gender: player.gender,
@@ -486,13 +512,13 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const body = await req.json();
-    
+
     const {
       firstName,
       lastName,
@@ -561,7 +587,7 @@ export async function PUT(req: NextRequest) {
           birthdayMonth = date.getUTCMonth() + 1;
           birthdayDay = date.getUTCDate();
           birthdayDate = date;
-          
+
           // Calculate age
           const today = new Date();
           let age = today.getFullYear() - birthdayYear;
@@ -599,7 +625,7 @@ export async function PUT(req: NextRequest) {
 
     // Validate and prepare update data
     const updateData: any = {};
-    
+
     if (firstName !== undefined) {
       if (typeof firstName === 'string' && firstName.trim()) {
         updateData.firstName = firstName.trim();
@@ -607,7 +633,7 @@ export async function PUT(req: NextRequest) {
         updateData.firstName = firstName || null;
       }
     }
-    
+
     if (lastName !== undefined) {
       if (typeof lastName === 'string' && lastName.trim()) {
         updateData.lastName = lastName.trim();
@@ -615,7 +641,7 @@ export async function PUT(req: NextRequest) {
         updateData.lastName = lastName || null;
       }
     }
-    
+
     // Update name if both firstName and lastName are provided
     if (firstName !== undefined && lastName !== undefined) {
       const first = typeof firstName === 'string' ? firstName.trim() : firstName || '';
@@ -626,7 +652,7 @@ export async function PUT(req: NextRequest) {
         updateData.name = first || last;
       }
     }
-    
+
     // Add other fields
     const finalUpdateData = {
       ...updateData,
@@ -653,7 +679,7 @@ export async function PUT(req: NextRequest) {
         age: calculatedAge // Store calculated age when birthday is updated
       })
     };
-    
+
     const updatedPlayer = await prisma.player.update({
       where: { clerkUserId: userId },
       data: finalUpdateData,
@@ -676,6 +702,7 @@ export async function PUT(req: NextRequest) {
       firstName: updatedPlayer.firstName,
       lastName: updatedPlayer.lastName,
       name: updatedPlayer.name,
+      image: updatedPlayer.image,
       email: updatedPlayer.email,
       phone: formatPhoneForDisplay(updatedPlayer.phone),
       gender: updatedPlayer.gender,
@@ -702,14 +729,14 @@ export async function PUT(req: NextRequest) {
       meta: error?.meta,
       stack: error?.stack
     });
-    
+
     // Return more detailed error information in development
-    const errorMessage = process.env.NODE_ENV === 'development' 
+    const errorMessage = process.env.NODE_ENV === 'development'
       ? error?.message || 'Failed to update user profile'
       : 'Failed to update user profile';
-    
+
     return NextResponse.json(
-      { 
+      {
         error: errorMessage,
         details: process.env.NODE_ENV === 'development' ? error?.message : undefined
       },
