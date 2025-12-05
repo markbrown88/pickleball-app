@@ -143,7 +143,8 @@ export async function PUT(req: Request) {
       clubRatingSingles,
       clubRatingDoubles,
       displayAge,
-      displayLocation
+      displayLocation,
+      imageUrl
     } = body;
 
     if (!playerId) {
@@ -232,6 +233,9 @@ export async function PUT(req: Request) {
     // Privacy settings
     if (displayAge !== undefined) updateData.displayAge = displayAge;
     if (displayLocation !== undefined) updateData.displayLocation = displayLocation;
+
+    // Profile image
+    if (imageUrl !== undefined) updateData.image = imageUrl || null;
 
     try {
       const player = await prisma.player.update({

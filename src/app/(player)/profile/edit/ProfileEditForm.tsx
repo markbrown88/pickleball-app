@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import Image from 'next/image';
 import type { UserProfile } from '@/types';
 import { formatPhoneForDisplay, formatPhoneInput } from '@/lib/phone';
 import { GenderSelector } from '@/components/GenderSelector';
@@ -13,6 +14,9 @@ interface ProfileEditFormProps {
 }
 
 export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEditFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(profile.image || null);
+
   const [formData, setFormData] = useState({
     firstName: profile.firstName || '',
     lastName: profile.lastName || '',
@@ -30,7 +34,33 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
     clubRatingDoubles: profile.clubRatingDoubles?.toString() || '',
     displayAge: profile.displayAge ?? true,
     displayLocation: profile.displayLocation ?? true,
+    imageUrl: profile.image || '',
   });
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+        setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +79,69 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
     }));
   };
 
+  const name = `${formData.firstName} ${formData.lastName}`.trim() || 'Player';
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Profile Image */}
+      <div className="card space-y-4">
+        <h2 className="text-xl font-semibold text-primary">Profile Image</h2>
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="relative">
+            {imagePreview ? (
+              <div className="relative h-32 w-32 overflow-hidden rounded-full border-4 border-brand-secondary">
+                <Image
+                  src={imagePreview}
+                  alt={name}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <div className="flex h-32 w-32 items-center justify-center rounded-full bg-surface-2 border-4 border-subtle text-4xl font-bold text-muted">
+                {name.charAt(0)}
+              </div>
+            )}
+          </div>
+          <div className="flex-1 space-y-3">
+            <p className="text-sm text-muted">
+              Upload a custom profile image or keep your Google avatar
+            </p>
+            <div className="flex gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="btn btn-secondary"
+              >
+                Upload Image
+              </button>
+              {imagePreview && imagePreview !== profile.image && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImagePreview(profile.image || null);
+                    setFormData(prev => ({ ...prev, imageUrl: profile.image || '' }));
+                  }}
+                  className="btn btn-ghost"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted">
+              Recommended: Square image, at least 200x200px. Max size: 5MB
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Basic Information */}
       <div className="card space-y-4">
         <h2 className="text-xl font-semibold text-primary">Basic Information</h2>
@@ -292,14 +383,12 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
             <button
               type="button"
               onClick={() => setFormData(prev => ({ ...prev, displayAge: !prev.displayAge }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                formData.displayAge ? 'bg-secondary' : 'bg-gray-200'
-              }`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.displayAge ? 'bg-secondary' : 'bg-gray-200'
+                }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  formData.displayAge ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.displayAge ? 'translate-x-6' : 'translate-x-1'
+                  }`}
               />
             </button>
             <span className="text-sm font-medium text-primary">Display Age</span>
@@ -308,14 +397,12 @@ export function ProfileEditForm({ profile, clubs, loading, onSave }: ProfileEdit
             <button
               type="button"
               onClick={() => setFormData(prev => ({ ...prev, displayLocation: !prev.displayLocation }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                formData.displayLocation ? 'bg-secondary' : 'bg-gray-200'
-              }`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.displayLocation ? 'bg-secondary' : 'bg-gray-200'
+                }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  formData.displayLocation ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.displayLocation ? 'translate-x-6' : 'translate-x-1'
+                  }`}
               />
             </button>
             <span className="text-sm font-medium text-primary">Display Location</span>
