@@ -797,7 +797,21 @@ model ClubRegistration {
   address1     String
   city         String
   region       String
-  
+  postalCode   String
+  phone        String?
+  contactEmail String
+  contactName  String
+  contactPhone String?
+  description  String?
+  status       String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  submittedAt  DateTime @default(now())
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @db.Timestamptz(6)
+}
+
 /// *
 /// * ---------- Security Audit Logs ----------
 model ActAsAuditLog {
@@ -829,16 +843,4 @@ model CaptainPortalAttempt {
 
   @@index([token, createdAt])
   @@index([ipAddress, createdAt])
-}
-
-  contactName  String
-  contactPhone String?
-  description  String?
-  status       String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  submittedAt  DateTime @default(now())
-  reviewedAt   DateTime?
-  reviewedBy   String?
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @db.Timestamptz(6)
 }
