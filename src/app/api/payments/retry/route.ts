@@ -14,24 +14,9 @@ export async function POST(request: NextRequest) {
     // Rate limiting to prevent retry abuse
     const clientIp = getClientIp(request);
     const rateLimitResult = await checkRateLimit(paymentRetryLimiter, clientIp);
-    
-    if (rateLimitResult && !rateLimitResult.success) {
-      return NextResponse.json(
-        { 
-          error: 'Too many retry attempts',
-          details: 'Please wait before retrying payment.',
-          retryAfter: rateLimitResult.reset,
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
-            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString(),
-          },
-        }
-      );
+
+    if (rateLimitResult) {
+      return rateLimitResult;
     }
 
     const body = await request.json();
@@ -39,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     if (!registrationId) {
       return NextResponse.json(
-        { 
+        {
           error: 'Registration ID is required',
           details: 'Please provide a valid registration ID to retry payment.',
         },
@@ -80,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     if (!registration) {
       return NextResponse.json(
-        { 
+        {
           error: 'Registration not found',
           details: 'The registration you are trying to pay for could not be found.',
           supportUrl: '/support',
@@ -92,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Check if registration is eligible for retry
     if (registration.paymentStatus === 'PAID' || registration.paymentStatus === 'COMPLETED') {
       return NextResponse.json(
-        { 
+        {
           error: 'Registration already paid',
           details: 'This registration has already been paid. No retry needed.',
           registrationId: registrationId,
@@ -104,7 +89,7 @@ export async function POST(request: NextRequest) {
     // Check if tournament is still accepting registrations
     if (registration.tournament.registrationType === 'FREE') {
       return NextResponse.json(
-        { 
+        {
           error: 'Free tournament',
           details: 'This tournament is free and does not require payment.',
         },
@@ -143,17 +128,17 @@ export async function POST(request: NextRequest) {
       ...registration.tournament,
       pricingModel,
     };
-    
+
     // Convert registrationCost from cents to dollars for calculation
-    const registrationCostInDollars = registration.tournament.registrationCost 
-      ? formatAmountFromStripe(registration.tournament.registrationCost) 
+    const registrationCostInDollars = registration.tournament.registrationCost
+      ? formatAmountFromStripe(registration.tournament.registrationCost)
       : 0;
-    
+
     const tournamentWithPricingForCalc = {
       ...tournamentWithPricing,
       registrationCost: registrationCostInDollars,
     };
-    
+
     // Calculate subtotal based on pricing model
     const billableStopIds =
       registrationDetails.newlySelectedStopIds && registrationDetails.newlySelectedStopIds.length > 0
@@ -167,14 +152,14 @@ export async function POST(request: NextRequest) {
       stopIds: billableStopIds,
       brackets: billableBrackets,
     });
-    
+
     // Calculate tax and total (13% HST for Ontario)
     const { tax, total: calculatedAmount } = calculateTotalWithTax(subtotal);
 
     // Validate amount matches what was stored during registration
     const storedAmountInDollars = registration.amountPaid ? formatAmountFromStripe(registration.amountPaid) : 0;
     const expectedAmount = registrationDetails.expectedAmount ?? storedAmountInDollars;
-    
+
     if (Math.abs(calculatedAmount - expectedAmount) > 0.01 && expectedAmount > 0) {
       console.error('Amount mismatch on retry:', {
         subtotal,
@@ -185,7 +170,7 @@ export async function POST(request: NextRequest) {
         registrationId: registrationId,
       });
       return NextResponse.json(
-        { 
+        {
           error: 'Payment amount validation failed',
           details: 'The calculated payment amount does not match the registration amount. This may indicate a pricing change. Please contact support for assistance.',
           supportUrl: '/support',
@@ -199,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     if (amount <= 0) {
       return NextResponse.json(
-        { 
+        {
           error: 'Invalid registration amount',
           details: 'The registration amount is invalid. Please contact support.',
           supportUrl: '/support',
@@ -223,7 +208,7 @@ export async function POST(request: NextRequest) {
 
     // Construct base URL from request
     const baseUrl = getBaseUrl(request);
-    
+
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: STRIPE_CONFIG.checkout.paymentMethodTypes,
@@ -269,10 +254,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Payment retry error:', error);
-    
+
     let errorMessage = 'Failed to retry payment';
     let errorDetails = '';
-    
+
     if (error instanceof Error) {
       if (error.message.includes('No such registration')) {
         errorMessage = 'Registration not found';
@@ -287,9 +272,9 @@ export async function POST(request: NextRequest) {
         errorDetails = error.message;
       }
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: errorMessage,
         details: errorDetails,
         supportUrl: '/support',
@@ -345,7 +330,7 @@ function createLineItems(
         quantity: 1,
       },
     ];
-    
+
     // Add tax as separate line item
     if (tax > 0) {
       items.push({
@@ -360,7 +345,7 @@ function createLineItems(
         quantity: 1,
       });
     }
-    
+
     return items;
   }
 
@@ -368,7 +353,7 @@ function createLineItems(
 
   if (pricingModel === 'PER_BRACKET' && registrationDetails.brackets) {
     const uniqueBrackets = new Map<string, string>();
-    
+
     registrationDetails.brackets.forEach((b) => {
       if (!uniqueBrackets.has(b.bracketId)) {
         const bracketName = bracketMap.get(b.bracketId) || `Bracket ${b.bracketId.slice(0, 8)}`;
@@ -428,7 +413,7 @@ function createLineItems(
     }
     return lineItems;
   }
-  
+
   // Fallback: single line item with subtotal + tax
   const items: any[] = [
     {
@@ -443,7 +428,7 @@ function createLineItems(
       quantity: 1,
     },
   ];
-  
+
   if (tax > 0) {
     items.push({
       price_data: {
@@ -457,7 +442,7 @@ function createLineItems(
       quantity: 1,
     });
   }
-  
+
   return items;
 }
 
