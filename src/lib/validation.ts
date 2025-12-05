@@ -54,3 +54,93 @@ export const CreatePlayerSchema = z.object({
   dupr: z.number().min(0).max(10).optional(),
   birthday: z.string().datetime().optional()
 });
+
+/**
+ * Form Validation Interfaces and Helpers
+ */
+
+export type ValidationRule = {
+  required?: boolean;
+  pattern?: RegExp;
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  email?: boolean;
+  custom?: (value: any) => string | undefined | null | boolean;
+  message?: string;
+};
+
+export type ValidationRules = Record<string, ValidationRule>;
+
+export const validateField = (value: any, rule: ValidationRule): string | null => {
+  if (!rule) return null;
+
+  // Check required
+  if (rule.required) {
+    if (value === null || value === undefined || value === '') {
+      return rule.message || 'This field is required';
+    }
+  }
+
+  // Skip other checks if value is empty and not required
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const strVal = String(value);
+
+  // Pattern check
+  if (rule.pattern && !rule.pattern.test(strVal)) {
+    return rule.message || 'Invalid format';
+  }
+
+  // Length checks
+  if (rule.minLength && strVal.length < rule.minLength) {
+    return rule.message || `Must be at least ${rule.minLength} characters`;
+  }
+  if (rule.maxLength && strVal.length > rule.maxLength) {
+    return rule.message || `Must be at most ${rule.maxLength} characters`;
+  }
+
+  // Numeric checks
+  if (typeof value === 'number' || !isNaN(Number(value))) {
+    const numVal = Number(value);
+    if (rule.min !== undefined && numVal < rule.min) {
+      return rule.message || `Must be at least ${rule.min}`;
+    }
+    if (rule.max !== undefined && numVal > rule.max) {
+      return rule.message || `Must be at most ${rule.max}`;
+    }
+  }
+
+  // Email check
+  if (rule.email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(strVal)) {
+      return rule.message || 'Invalid email address';
+    }
+  }
+
+  // Custom validation
+  if (rule.custom) {
+    const result = rule.custom(value);
+    if (typeof result === 'string') return result;
+    if (result === false) return rule.message || 'Invalid value';
+  }
+
+  return null;
+};
+
+export const validateForm = (data: Record<string, any>, rules: ValidationRules): Record<string, string> => {
+  const errors: Record<string, string> = {};
+
+  Object.keys(rules).forEach((field) => {
+    const error = validateField(data[field], rules[field]);
+    if (error) {
+      errors[field] = error;
+    }
+  });
+
+  return errors;
+};

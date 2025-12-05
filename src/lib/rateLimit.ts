@@ -89,3 +89,7 @@ export async function applyRateLimit(
 
   return null; // Success - continue
 }
+
+// Aliases for compatibility
+export const scoreSubmissionLimiter = rateLimits.scoreSubmission;
+export const checkRateLimit = applyRateLimit;
