@@ -30,22 +30,8 @@ export async function PUT(request: Request, { params }: Params) {
     const clientIp = getClientIp(request);
     const rateLimitResult = await checkRateLimit(lineupSubmissionLimiter, clientIp);
 
-    if (rateLimitResult && !rateLimitResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Too many lineup submissions. Please try again later.',
-          retryAfter: rateLimitResult.reset
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
-            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString()
-          }
-        }
-      );
+    if (rateLimitResult) {
+      return rateLimitResult;
     }
 
     // Parse and validate request body with Zod (SEC-004)
