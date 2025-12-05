@@ -169,7 +169,7 @@ export function ClubEditForm({ club, players, loading, onSave }: ClubEditFormPro
 
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-secondary mb-1">
-                Nickname *
+                Nickname
               </label>
               <input
                 type="text"
@@ -179,7 +179,6 @@ export function ClubEditForm({ club, players, loading, onSave }: ClubEditFormPro
                 onChange={handleChange}
                 className="input w-full"
                 placeholder="Enter club nickname"
-                required
               />
             </div>
           </div>

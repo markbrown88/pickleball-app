@@ -239,6 +239,11 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       }
     }
 
+    // Birthday is required
+    if (!y || !m || !d) {
+      return NextResponse.json({ error: 'Birthday is required' }, { status: 400 });
+    }
+
     // Email + phone validation/format
     const email: string | null = body.email ? squeeze(String(body.email)) : null;
     if (!validEmail(email ?? undefined)) return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });

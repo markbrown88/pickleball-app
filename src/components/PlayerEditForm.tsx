@@ -143,7 +143,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
 
           <div className="sm:col-span-1">
             <label htmlFor="birthday" className="block text-sm font-medium text-secondary mb-1">
-              Birthday
+              Birthday *
             </label>
             <input
               type="date"
@@ -152,6 +152,7 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
               value={formData.birthday}
               onChange={handleChange}
               className="input w-full sm:max-w-[240px]"
+              required
             />
           </div>
         </div>
