@@ -92,31 +92,15 @@ export async function PUT(req: Request, ctx: Ctx) {
 
   const stopAccessResult = await requireStopAccess(authResult, gameForAuth.match.round.stopId);
   if (stopAccessResult instanceof NextResponse) return stopAccessResult;
-
   try {
     // Rate limiting to prevent rapid score manipulation (SEC-002)
     const clientIp = getClientIp(req);
     const rateLimitResult = await checkRateLimit(scoreSubmissionLimiter, clientIp);
 
-    if (rateLimitResult && !rateLimitResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Too many score submissions. Please try again later.',
-          retryAfter: rateLimitResult.reset
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-            'X-RateLimit-Reset': rateLimitResult.reset.toString(),
-            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString()
-          }
-        }
-      );
+    if (rateLimitResult) {
+      return rateLimitResult;
     }
 
-    // Parse and validate request body with Zod (SEC-004)
     const rawBody = await req.json().catch(() => ({}));
     const validation = ScoreSchema.safeParse(rawBody);
 

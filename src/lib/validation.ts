@@ -144,3 +144,14 @@ export const validateForm = (data: Record<string, any>, rules: ValidationRules):
 
   return errors;
 };
+
+export const clubRegistrationValidationRules: ValidationRules = {
+  fullName: { required: true, minLength: 2, message: 'Full name is required' },
+  name: { required: true, minLength: 2, message: 'Club name is required' },
+  email: { required: true, email: true, message: 'Valid email is required' },
+  phoneNumber: { required: true, pattern: /^[\d\s()+-]{10,}$/, message: 'Valid phone number is required' },
+  city: { required: true, minLength: 2, message: 'City is required' },
+  state: { required: true, minLength: 2, message: 'State is required' },
+  zipCode: { required: true, pattern: /^\d{5}(-\d{4})?$/, message: 'Valid ZIP code is required' },
+  country: { required: true, minLength: 2, message: 'Country is required' },
+};
