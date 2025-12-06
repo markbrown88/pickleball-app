@@ -11,6 +11,20 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  // Allow Clerk image domains for user avatars
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'img.clerk.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.clerk.dev',
+      },
+    ],
+  },
+
   // Security headers (SEC-010)
   async headers() {
     return [

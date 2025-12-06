@@ -260,7 +260,7 @@ export function useProfileFormState(initialProfile: (UserProfile & ProfileBase) 
       email: profile.email || '',
       displayAge: (profile as any).displayAge ?? true,
       displayLocation: (profile as any).displayLocation ?? true,
-      photo: profile.photo || '',
+      photo: (profile as any).image || '',
     });
   }, []);
 
