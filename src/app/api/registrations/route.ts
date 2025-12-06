@@ -466,14 +466,16 @@ export async function POST(request: NextRequest) {
         }
         
         // Update existing registration
-        // Preserve existing payment status if already PAID or COMPLETED to prevent sending duplicate emails
-        // Only update payment status if it's still PENDING or FAILED
+        // Determine payment status for add-on stops:
+        // - If adding new stops that require payment, set to PENDING so user can complete checkout
+        // - If no new payment needed (free tournament or no new stops), preserve existing status
         const existingPaymentStatus = existingReg?.paymentStatus;
-        const shouldPreservePaymentStatus = existingPaymentStatus === 'PAID' || existingPaymentStatus === 'COMPLETED';
+        const hasNewStopsToPay = tournament.registrationType !== 'FREE' && newStopTotal > 0;
+        const shouldPreservePaymentStatus = (existingPaymentStatus === 'PAID' || existingPaymentStatus === 'COMPLETED') && !hasNewStopsToPay;
         const newPaymentStatus = shouldPreservePaymentStatus
           ? existingPaymentStatus
-          : tournament.registrationType === 'FREE' 
-            ? 'COMPLETED' 
+          : tournament.registrationType === 'FREE'
+            ? 'COMPLETED'
             : 'PENDING';
         
         registration = await tx.tournamentRegistration.update({

@@ -74,20 +74,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if already paid
-    if (registration.paymentStatus === 'PAID') {
-      return NextResponse.json(
-        {
-          error: 'Registration has already been paid',
-          details: 'This registration has already been paid. If you believe this is an error, please contact support.',
-          supportUrl: '/support',
-          registrationId: registrationId,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Parse registration details from notes field
+    // Parse registration details from notes field FIRST to check for add-on stops
     let registrationDetails: {
       stopIds?: string[];
       brackets?: Array<{ stopId: string; bracketId: string }>;
@@ -113,6 +100,22 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         console.error('Failed to parse registration notes:', e);
       }
+    }
+
+    // Check if already paid - but allow checkout if there are add-on stops to pay for
+    const hasAddOnStopsToPay = (registrationDetails.newStopsTotal !== undefined && registrationDetails.newStopsTotal > 0) ||
+                               (registrationDetails.newlySelectedStopIds && registrationDetails.newlySelectedStopIds.length > 0);
+
+    if (registration.paymentStatus === 'PAID' && !hasAddOnStopsToPay) {
+      return NextResponse.json(
+        {
+          error: 'Registration has already been paid',
+          details: 'This registration has already been paid. If you believe this is an error, please contact support.',
+          supportUrl: '/support',
+          registrationId: registrationId,
+        },
+        { status: 400 }
+      );
     }
 
     // Calculate total amount based on pricing model
