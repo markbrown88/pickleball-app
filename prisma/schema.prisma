@@ -26,14 +26,24 @@ model Club {
   createdAt          DateTime            @default(now())
   address            String?
   updatedAt          DateTime            @default(now()) @db.Timestamptz(6)
+  
+  // New Status & Subscription Fields
+  status              ClubStatus      @default(ACTIVE)
+  subscriptionId      String?         // Stripe subscription ID
+  subscriptionStatus  SubscriptionStatus?
+  
   Player              Player[]
   Stop                Stop[]
   Team                Team[]
   tournamentCaptains  TournamentCaptain[]
   tournamentClubs     TournamentClub[]
   stopBracketCapacity StopBracketCapacity[]
+  
+  // Relations
   director            Player?             @relation("ClubDirector", fields: [directorId], references: [id], onDelete: SetNull)
+  directors           ClubDirector[]      // New multi-director support
 }
+
 
 /// *
 /// * ---------- Players ----------
@@ -73,7 +83,9 @@ model Player {
   lineupEntriesAsP2      LineupEntry[]            @relation("LineupPlayer2")
   club                   Club                     @relation(fields: [clubId], references: [id], onUpdate: NoAction)
   clubsAsDirector        Club[]                   @relation("ClubDirector")
+  clubDirectorRoles      ClubDirector[]           // New multi-director support
   stopsManaged           Stop[]                   @relation("StopEventManager")
+
   stopRosterLinks        StopTeamPlayer[]         @relation("PlayerRoster")
   teamsAsCaptain         Team[]                   @relation("TeamCaptain")
   teamLinks              TeamPlayer[]
@@ -791,8 +803,8 @@ enum PricingModel {
 }
 
 /// *
-/// * ---------- Club Registration ----------
-model ClubRegistration {
+/// * ---------- Club Registration (Legacy) ----------
+model LegacyClubRegistration {
   id           String   @id @default(cuid())
   name         String
   address1     String
@@ -811,7 +823,58 @@ model ClubRegistration {
   notes        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("ClubRegistration")
 }
+
+/// *
+/// * ---------- New Club Director & System Models ----------
+
+model ClubDirector {
+  clubId    String
+  playerId  String
+  role      ClubRole @default(ADMIN)
+  joinedAt  DateTime @default(now())
+
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@id([clubId, playerId])
+  @@index([playerId])
+  @@index([clubId])
+}
+
+model SystemSettings {
+  id                       String   @id @default("settings")
+  monthlySubscriptionPrice Int      @default(6999) // cents
+  annualSubscriptionPrice  Int      @default(79999) // cents
+  isSubscriptionEnabled    Boolean  @default(true)
+  updatedAt                DateTime @default(now()) @updatedAt
+}
+
+enum ClubStatus {
+  ACTIVE      // Free / Participating
+  SUBSCRIBED  // Paid / Tournament Creator
+  PAST_DUE    // Payment failed, grace period
+  INACTIVE    // Cancelled / Expired
+}
+
+enum ClubRole {
+  ADMIN
+  MEMBER
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  PAUSED
+}
+
 
 /// *
 /// * ---------- Security Audit Logs ----------
