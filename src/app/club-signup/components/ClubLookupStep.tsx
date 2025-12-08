@@ -6,6 +6,8 @@ import { ClubData } from './ClubWizard';
 
 interface ClubLookupStepProps {
     onNext: (data: ClubData) => void;
+    existingSelection?: ClubData | null;
+    onClearSelection?: () => void;
 }
 
 type SearchResult = {
@@ -16,7 +18,7 @@ type SearchResult = {
     isClaimable: boolean;
 };
 
-export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
+export default function ClubLookupStep({ onNext, existingSelection, onClearSelection }: ClubLookupStepProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -33,11 +35,11 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
             setHasSearched(false);
         }
     }, [debouncedSearchTerm]);
+
     const handleSearch = async (term: string) => {
         if (term.length < 3) return;
         setIsSearching(true);
         try {
-            // Mocking API call for now - will implement API next
             const res = await fetch(`/api/clubs/search?q=${encodeURIComponent(term)}`);
             if (res.ok) {
                 const data = await res.json();
@@ -50,6 +52,49 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
             setHasSearched(true);
         }
     };
+
+    // If user already has a saved club selection, show continue UI
+    if (existingSelection && existingSelection.id && !existingSelection.isNew) {
+        return (
+            <div className="space-y-6">
+                <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-bold text-primary">Continue with Your Club</h2>
+                    <p className="text-muted max-w-xl mx-auto">
+                        You've already started registration for this club.
+                    </p>
+                </div>
+
+                <div className="max-w-md mx-auto bg-surface-2 rounded-xl p-6 border border-subtle">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-brand-secondary/20 rounded-lg flex items-center justify-center text-2xl flex-shrink-0">
+                            🏠
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-primary truncate">{existingSelection.name}</h3>
+                            {existingSelection.city && existingSelection.region && (
+                                <p className="text-sm text-muted">{existingSelection.city}, {existingSelection.region}</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
+                    <button
+                        className="btn btn-secondary flex-1 py-3"
+                        onClick={() => onNext(existingSelection)}
+                    >
+                        Continue Setup
+                    </button>
+                    <button
+                        className="btn btn-ghost flex-1 py-3"
+                        onClick={onClearSelection}
+                    >
+                        Choose Different Club
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -70,7 +115,7 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
                             <div>
                                 <span className="font-semibold text-primary block text-sm">Already Listed?</span>
                                 <span className="text-xs text-muted block mt-0.5 leading-relaxed">
-                                    If registered without a Director, you can <strong>claim it</strong>.
+                                    If your club is registered but without a Director, you can <strong>claim it</strong>.
                                 </span>
                             </div>
                         </div>
@@ -86,7 +131,7 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
                             <div>
                                 <span className="font-semibold text-primary block text-sm">Not Found?</span>
                                 <span className="text-xs text-muted block mt-0.5 leading-relaxed">
-                                    If not in Klyng Cup yet, you can <strong>create it</strong>.
+                                    If your club is not yet registered, you can <strong>create it</strong> now.
                                 </span>
                             </div>
                         </div>

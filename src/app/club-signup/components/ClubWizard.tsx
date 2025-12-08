@@ -67,7 +67,11 @@ export default function ClubWizard({ userId, userEmail }: ClubWizardProps) {
             {/* Step Content */}
             <div className="min-h-[400px]">
                 {step === 'lookup' && (
-                    <ClubLookupStep onNext={handleClubSelected} />
+                    <ClubLookupStep
+                        onNext={handleClubSelected}
+                        existingSelection={clubData}
+                        onClearSelection={() => setClubData(null)}
+                    />
                 )}
 
                 {step === 'details' && clubData && (
