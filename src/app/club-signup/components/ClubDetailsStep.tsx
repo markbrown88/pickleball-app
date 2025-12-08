@@ -17,8 +17,8 @@ export default function ClubDetailsStep({ initialData, userId, onNext, onBack }:
         name: initialData.name || '',
         city: initialData.city || '',
         region: initialData.region || '',
-        address: '', // New field we need
-        description: '',
+        address: initialData.address || '',
+        description: initialData.description || '',
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,10 +45,15 @@ export default function ClubDetailsStep({ initialData, userId, onNext, onBack }:
             const savedClub = await res.json();
 
             // Pass the real ID forward
+            // Pass the real ID and all updated data forward so it persists in Wizard state
             onNext({
                 ...initialData,
                 id: savedClub.id,
                 name: savedClub.name,
+                city: formData.city,
+                region: formData.region,
+                address: formData.address,
+                description: formData.description
             });
 
         } catch (error: any) {

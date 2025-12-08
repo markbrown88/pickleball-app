@@ -18,6 +18,8 @@ export type ClubData = {
     name: string;
     city: string;
     region: string;
+    address?: string;
+    description?: string;
     isNew: boolean;
 };
 
