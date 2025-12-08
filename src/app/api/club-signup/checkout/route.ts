@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
             email,
         });
 
-        return NextResponse.json({ sessionId: session.id });
+        return NextResponse.json({ sessionId: session.id, url: session.url });
 
     } catch (error: any) {
         console.error('Checkout creation error:', error);

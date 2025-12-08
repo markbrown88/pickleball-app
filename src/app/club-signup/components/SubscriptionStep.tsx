@@ -38,12 +38,13 @@ export default function SubscriptionStep({ clubData, userId, userEmail, onBack }
 
             if (!res.ok) throw new Error('Failed to start checkout');
 
-            const { sessionId } = await res.json();
-            const stripe = await stripePromise;
-            if (!stripe) throw new Error('Stripe not loaded');
+            const { url } = await res.json();
 
-            const { error } = await stripe.redirectToCheckout({ sessionId });
-            if (error) throw error;
+            if (url) {
+                window.location.href = url;
+            } else {
+                throw new Error('Failed to retrieve checkout URL');
+            }
 
         } catch (error) {
             console.error(error);
