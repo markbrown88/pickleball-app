@@ -48,6 +48,7 @@ export default function ClubDetailsStep({ initialData, userId, onNext, onBack }:
             // Pass the real ID and all updated data forward so it persists in Wizard state
             onNext({
                 ...initialData,
+                isNew: false, // It's no longer new once saved
                 id: savedClub.id,
                 name: savedClub.name,
                 city: formData.city,

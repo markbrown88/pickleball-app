@@ -55,11 +55,43 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
         <div className="space-y-6">
             <div className="text-center space-y-2">
                 <h2 className="text-2xl font-bold text-primary">Find Your Club</h2>
-                <p className="text-muted max-w-xl mx-auto">
-                    Search for your pickleball club below.<br />
-                    If it's already registered and has no current Director, you can become its Club Director.<br />
-                    If it's not already registered with Klyng Cup, then you can create it.
+                <p className="text-muted max-w-xl mx-auto mb-6">
+                    Search for your pickleball club below to get started.
                 </p>
+
+                <div className="max-w-xl mx-auto grid sm:grid-cols-2 gap-4 mb-4">
+                    <div className="bg-surface-2/50 border border-subtle p-4 rounded-lg text-left hover:border-brand-secondary/50 transition-colors">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-0.5 bg-brand-secondary/10 p-1.5 rounded-full text-brand-secondary flex-shrink-0">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <span className="font-semibold text-primary block text-sm">Already Listed?</span>
+                                <span className="text-xs text-muted block mt-0.5 leading-relaxed">
+                                    If registered without a Director, you can <strong>claim it</strong>.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-surface-2/50 border border-subtle p-4 rounded-lg text-left hover:border-brand-secondary/50 transition-colors">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-0.5 bg-brand-primary/10 p-1.5 rounded-full text-brand-primary flex-shrink-0">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                            </div>
+                            <div>
+                                <span className="font-semibold text-primary block text-sm">Not Found?</span>
+                                <span className="text-xs text-muted block mt-0.5 leading-relaxed">
+                                    If not in Klyng Cup yet, you can <strong>create it</strong>.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="max-w-md mx-auto">
