@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { ClubData } from './ClubWizard';
 
 interface ClubLookupStepProps {
@@ -21,7 +22,17 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
 
-    // Simple manual search for now to avoid hook dependency issues if missing
+    // Auto-search (debounced)
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+    useEffect(() => {
+        if (debouncedSearchTerm.length >= 3) {
+            handleSearch(debouncedSearchTerm);
+        } else if (debouncedSearchTerm.length === 0) {
+            setResults([]);
+            setHasSearched(false);
+        }
+    }, [debouncedSearchTerm]);
     const handleSearch = async (term: string) => {
         if (term.length < 3) return;
         setIsSearching(true);
@@ -44,7 +55,11 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
         <div className="space-y-6">
             <div className="text-center space-y-2">
                 <h2 className="text-2xl font-bold text-primary">Find Your Club</h2>
-                <p className="text-muted">Search for your pickleball club to claim it. If it doesn't exist, you can create it.</p>
+                <p className="text-muted max-w-xl mx-auto">
+                    Search for your pickleball club below.<br />
+                    If it's already registered and has no current Director, you can become its Club Director.<br />
+                    If it's not already registered with Klyng Cup, then you can create it.
+                </p>
             </div>
 
             <div className="max-w-md mx-auto">
@@ -89,13 +104,13 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
                         <div>
                             {club.isClaimable ? (
                                 <button
-                                    className="btn btn-outline-primary"
+                                    className="btn btn-secondary"
                                     onClick={() => onNext({ id: club.id, name: club.name, city: club.city, region: club.region, isNew: false })}
                                 >
                                     Claim Club
                                 </button>
                             ) : (
-                                <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded text-sm font-medium">
+                                <span className="chip chip-info">
                                     Already Registered
                                 </span>
                             )}
@@ -108,10 +123,10 @@ export default function ClubLookupStep({ onNext }: ClubLookupStepProps) {
                     <div className="text-center pt-4 border-t border-subtle">
                         <p className="text-sm text-muted mb-2">Don't see your club?</p>
                         <button
-                            className="btn btn-ghost text-brand-primary"
+                            className="btn btn-secondary"
                             onClick={() => onNext({ name: searchTerm, city: '', region: '', isNew: true })}
                         >
-                            Create "{searchTerm}" as a new club
+                            Register it now
                         </button>
                     </div>
                 )}
