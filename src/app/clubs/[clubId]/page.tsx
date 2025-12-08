@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { Metadata } from 'next';
 
-export async function generateMetadata({ params }: { params: { clubId: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ clubId: string }> }): Promise<Metadata> {
+    const { clubId } = await params;
     const club = await prisma.club.findUnique({
-        where: { id: params.clubId },
+        where: { id: clubId },
         select: { name: true, fullName: true }
     });
 
@@ -14,8 +15,8 @@ export async function generateMetadata({ params }: { params: { clubId: string } 
     };
 }
 
-export default async function ClubProfilePage({ params }: { params: { clubId: string } }) {
-    const { clubId } = params;
+export default async function ClubProfilePage({ params }: { params: Promise<{ clubId: string }> }) {
+    const { clubId } = await params;
 
     const club = await prisma.club.findUnique({
         where: { id: clubId },
