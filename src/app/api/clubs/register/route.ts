@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create club registration record
-    const clubRegistration = await prisma.clubRegistration.create({
+    const clubRegistration = await prisma.legacyClubRegistration.create({
       data: {
         name: name.trim(),
         address1: address1.trim(),

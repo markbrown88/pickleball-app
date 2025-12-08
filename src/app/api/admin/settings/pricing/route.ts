@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
     const auth = await requireAuth('app_admin');
-    if ('error' in auth) return auth; // Return error response
+    if (auth instanceof NextResponse) return auth;
 
     try {
         const settings = await prisma.systemSettings.findUnique({
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
     const auth = await requireAuth('app_admin');
-    if ('error' in auth) return auth;
+    if (auth instanceof NextResponse) return auth;
 
     try {
         const body = await request.json();

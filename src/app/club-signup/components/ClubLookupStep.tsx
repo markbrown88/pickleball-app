@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useDebounce } from '@/hooks/useDebounce'; // Assuming hook exists, if not I'll implement simple debounce
 import { ClubData } from './ClubWizard';
 
 interface ClubLookupStepProps {

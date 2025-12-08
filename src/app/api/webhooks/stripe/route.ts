@@ -15,6 +15,11 @@ import {
   stringifyRegistrationNotes,
 } from '@/lib/payments/registrationNotes';
 import type { RegistrationNotes } from '@/lib/payments/registrationNotes';
+import {
+  sendPaymentSuccessEmail,
+  sendPaymentFailedEmail,
+  sendSubscriptionCancelledEmail
+} from '@/server/email_subscription';
 
 const registrationInclude = {
   player: {
@@ -151,6 +156,14 @@ export async function POST(request: NextRequest) {
 
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
+
+      case 'invoice.payment_failed':
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
         break;
 
       default:
@@ -869,12 +882,74 @@ async function updateClubSubscription(clubId: string, subscription: Stripe.Subsc
  * Helper to downgrade club when subscription ends
  */
 async function downgradeClubToFree(clubId: string) {
-  await prisma.club.update({
-    where: { id: clubId },
-    data: {
-      status: 'ACTIVE', // "ACTIVE" = Free Participating Club
-      subscriptionStatus: 'CANCELED',
-    },
+  try {
+    const club = await prisma.club.update({
+      where: { id: clubId },
+      data: {
+        status: 'ACTIVE', // "ACTIVE" = Free Participating Club
+        subscriptionStatus: 'CANCELED',
+      },
+      select: { email: true, name: true }
+    });
+
+    if (club.email) {
+      await sendSubscriptionCancelledEmail(club.email, club.name);
+    }
+  } catch (e) {
+    console.error('Failed to downgrade club', e);
+  }
+}
+
+/**
+ * Handle successful invoice payment (send receipt)
+ */
+async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  const subField = (invoice as any).subscription;
+  // Only process subscription invoices
+  if (!subField || invoice.amount_paid === 0) return;
+
+  const subId = typeof subField === 'string' ? subField : subField.id;
+
+  // Find club
+  const club = await prisma.club.findFirst({
+    where: { subscriptionId: subId },
+    select: { id: true, email: true, name: true }
   });
+
+  if (club?.email) {
+    try {
+      await sendPaymentSuccessEmail(
+        club.email,
+        club.name,
+        invoice.amount_paid,
+        new Date(invoice.created * 1000)
+      );
+    } catch (e) {
+      console.error('Failed to send payment success email', e);
+    }
+  }
+}
+
+/**
+ * Handle failed invoice payment (send warning)
+ */
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const subField = (invoice as any).subscription;
+  if (!subField) return;
+
+  const subId = typeof subField === 'string' ? subField : subField.id;
+
+  const club = await prisma.club.findFirst({
+    where: { subscriptionId: subId },
+    select: { id: true, email: true, name: true }
+  });
+
+  if (club?.email) {
+    try {
+      await sendPaymentFailedEmail(club.email, club.name);
+    } catch (e) {
+      console.error('Failed to send payment failed email', e);
+    }
+  }
 }
 

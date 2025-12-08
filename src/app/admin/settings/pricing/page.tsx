@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatCurrency } from '@/lib/utils'; // Assuming utils exists
 
 export default function PricingSettingsPage() {
     const router = useRouter();

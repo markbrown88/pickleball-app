@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
             club = await prisma.club.update({
                 where: { id },
                 data: {
+                    fullName: name,
                     name,
                     city,
                     region,
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
             // CREATE NEW CLUB
             club = await prisma.club.create({
                 data: {
+                    fullName: name,
                     name,
                     city,
                     region,

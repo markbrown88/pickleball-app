@@ -70,4 +70,65 @@ CREATE INDEX IF NOT EXISTS "ClubDirector_clubId_idx" ON "ClubDirector"("clubId")
 
 ## Next Steps
 1. Run the SQL above in Supabase.
-2. The strictly "Legacy" table rename (`ClubRegistration` to `LegacyClubRegistration`) is handled in the application code via mapping, so no database table rename is required for that part.
+2. The strictly "Legacy" table rename (`ClubRegistration` to `LegacyClubRegistration`) is handled in the application code via mapping.
+
+## Phase 2: Tournament Ownership
+
+Please run this after the first script to enable linking tournaments to clubs.
+
+```sql
+ALTER TABLE "Tournament" ADD COLUMN IF NOT EXISTS "ownerClubId" TEXT;
+
+DO $$ BEGIN
+    ALTER TABLE "Tournament" ADD CONSTRAINT "Tournament_ownerClubId_fkey" FOREIGN KEY ("ownerClubId") REFERENCES "Club"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+```
+
+## Phase 3: Captain Portal Tables
+
+The **500 Internal Server Error** you are seeing on the live Captain Portal is because these tables are missing from your database. Run this script immediately to fix it.
+
+```sql
+-- 1. Create CaptainPortalAttempt
+CREATE TABLE IF NOT EXISTS "CaptainPortalAttempt" (
+    "id" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "ipAddress" TEXT NOT NULL,
+    "userAgent" TEXT NOT NULL,
+    "success" BOOLEAN NOT NULL,
+    "createdAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CaptainPortalAttempt_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "CaptainPortalAttempt_token_createdAt_idx" ON "CaptainPortalAttempt"("token", "createdAt");
+CREATE INDEX IF NOT EXISTS "CaptainPortalAttempt_ipAddress_createdAt_idx" ON "CaptainPortalAttempt"("ipAddress", "createdAt");
+
+-- 2. Create TournamentClub
+CREATE TABLE IF NOT EXISTS "TournamentClub" (
+    "tournamentId" TEXT NOT NULL,
+    "clubId" TEXT NOT NULL,
+    "createdAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "captainAccessToken" TEXT,
+
+    CONSTRAINT "TournamentClub_pkey" PRIMARY KEY ("tournamentId", "clubId")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "TournamentClub_captainAccessToken_key" ON "TournamentClub"("captainAccessToken");
+CREATE INDEX IF NOT EXISTS "TournamentClub_clubId_idx" ON "TournamentClub"("clubId");
+
+-- 3. Add Foreign Keys for TournamentClub
+DO $$ BEGIN
+    ALTER TABLE "TournamentClub" ADD CONSTRAINT "TournamentClub_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "TournamentClub" ADD CONSTRAINT "TournamentClub_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "Club"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+```

@@ -42,6 +42,7 @@ model Club {
   // Relations
   director            Player?             @relation("ClubDirector", fields: [directorId], references: [id], onDelete: SetNull)
   directors           ClubDirector[]      // New multi-director support
+  tournamentsOwned    Tournament[]        @relation("ClubTournaments")
 }
 
 
@@ -161,6 +162,9 @@ model Tournament {
   location               String?
   maxTeamSize            Int?
   gamesPerMatch          Int?
+
+  ownerClubId            String?
+  ownerClub              Club?                    @relation("ClubTournaments", fields: [ownerClubId], references: [id])
 
   // Registration Settings
   registrationStatus     RegistrationStatus       @default(CLOSED)

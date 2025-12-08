@@ -259,6 +259,18 @@ export async function GET(req: NextRequest) {
       birthday = new Date(Date.UTC(finalPlayer.birthdayYear, finalPlayer.birthdayMonth - 1, finalPlayer.birthdayDay));
     }
 
+    // Check custom "Club Director" role (for managedClub)
+    const directorRole = await prisma.clubDirector.findFirst({
+      where: { playerId: finalPlayer.id, role: 'ADMIN' },
+      include: { club: { select: { id: true, name: true, status: true } } }
+    });
+
+    const legacyDirectedClub = !directorRole
+      ? await prisma.club.findFirst({ where: { directorId: finalPlayer.id }, select: { id: true, name: true, status: true } })
+      : null;
+
+    const managedClub = directorRole?.club || legacyDirectedClub;
+
     return NextResponse.json({
       id: finalPlayer.id,
       clerkUserId: finalPlayer.clerkUserId,
@@ -284,6 +296,11 @@ export async function GET(req: NextRequest) {
       club: finalPlayer.club,
       isAppAdmin: finalPlayer.isAppAdmin,
       needsProfileSetup: needsProfileSetup || undefined, // Only include if true
+      managedClub: managedClub ? {
+        id: managedClub.id,
+        name: managedClub.name,
+        status: managedClub.status as any // 'ACTIVE' | 'SUBSCRIBED' ...
+      } : undefined,
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);

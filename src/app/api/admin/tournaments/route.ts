@@ -168,9 +168,44 @@ export async function GET(req: Request) {
  * }
  */
 export async function POST(req: Request) {
-  // 1. Authenticate & Authorize (App Admin only)
-  const authResult = await requireAuth('app_admin');
+  // 1. Authenticate
+  const authResult = await requireAuth();
   if (authResult instanceof NextResponse) return authResult;
+  const { player } = authResult;
+
+  let ownerClubId: string | undefined = undefined;
+
+  // If not App Admin, verify Club Director status & Subscription
+  if (!player.isAppAdmin) {
+    // Check for Director Role (New System)
+    const directorMembership = await prisma.clubDirector.findFirst({
+      where: { playerId: player.id, role: 'ADMIN' },
+      include: { club: true }
+    });
+
+    // Check for Legacy Director Role (Old System fallback)
+    const legacyClub = !directorMembership
+      ? await prisma.club.findFirst({ where: { directorId: player.id } })
+      : null;
+
+    const club = directorMembership?.club || legacyClub;
+
+    if (!club) {
+      return NextResponse.json(
+        { error: 'You must be a Club Director to create a tournament.' },
+        { status: 403 }
+      );
+    }
+
+    if (club.status !== 'SUBSCRIBED') {
+      return NextResponse.json(
+        { error: 'Your club requires an active subscription to create tournaments. Please upgrade your plan.' },
+        { status: 403 }
+      );
+    }
+
+    ownerClubId = club.id;
+  }
 
   // Use singleton prisma instance
   const body = await req.json().catch(() => ({}));
@@ -204,9 +239,23 @@ export async function POST(req: Request) {
   try {
     const created = await prisma.$transaction(async (tx) => {
       const t = await tx.tournament.create({
-        data: { name, type },
+        data: {
+          name,
+          type,
+          ownerClubId // Link ownership
+        },
         select: { id: true, name: true },
       });
+
+      // If created by a Club Director, automatically make them a Tournament Admin
+      if (!player.isAppAdmin) {
+        await tx.tournamentAdmin.create({
+          data: {
+            tournamentId: t.id,
+            playerId: player.id
+          }
+        });
+      }
 
       // Gather all clubs we must link as participants (from legacy participants + optional stops/details)
       const clubIdsFromParticipants = participants
@@ -285,3 +334,4 @@ export async function POST(req: Request) {
     );
   }
 }
+
