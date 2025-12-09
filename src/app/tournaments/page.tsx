@@ -253,10 +253,10 @@ export default function AdminPage() {
   // Load user profile
   const loadUserProfile = useCallback(async () => {
     if (!user) return;
-    
+
     try {
       const profile = await api<UserProfile>('/api/auth/user');
-        setUserProfile(profile);
+      setUserProfile(profile);
     } catch (error) {
       console.error('Error fetching user profile:', error);
     }
@@ -315,14 +315,14 @@ export default function AdminPage() {
         clubs: Array<
           | string
           | {
-              clubId: string;
-              club?: {
-                id: string;
-                name: string;
-                city?: string | null;
-                region?: string | null;
-              } | null;
-            }
+            clubId: string;
+            club?: {
+              id: string;
+              name: string;
+              city?: string | null;
+              region?: string | null;
+            } | null;
+          }
         >;
         levels: Array<{ id: string; name: string; idx: number }>; // brackets
         captainsSimple: Array<{ clubId: string; playerId: string; playerName?: string }>;
@@ -397,14 +397,14 @@ export default function AdminPage() {
             stops: (cfg.stops || []).map(s => {
               const club = s.clubId ? clubsAll.find(c => c.id === s.clubId) : null;
               return {
-              id: s.id,
-              name: s.name,
-              clubId: (s.clubId || undefined) as Id | undefined,
-              startAt: toDateInput(s.startAt || null),
-              endAt: toDateInput(s.endAt || null),
-              eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
-              eventManagerQuery: '',
-              eventManagerOptions: [],
+                id: s.id,
+                name: s.name,
+                clubId: (s.clubId || undefined) as Id | undefined,
+                startAt: toDateInput(s.startAt || null),
+                endAt: toDateInput(s.endAt || null),
+                eventManager: s.eventManager?.id ? { id: s.eventManager.id, label: s.eventManager.name || '' } : null,
+                eventManagerQuery: '',
+                eventManagerOptions: [],
                 club: club ? { id: club.id, label: `${club.name}${club.city ? ` (${club.city})` : ''}` } : null,
                 clubQuery: '',
                 clubOptions: [],
@@ -559,13 +559,13 @@ export default function AdminPage() {
     // Registration Settings
     payload.registrationStatus = editor.registrationStatus;
     payload.registrationType = editor.registrationType;
-    
+
     // Pricing Model - save if it exists on editor (for EditorRowWithRegistration)
     const editorWithReg = editor as any;
     if (editorWithReg.pricingModel) {
       payload.pricingModel = editorWithReg.pricingModel;
     }
-    
+
     // Convert registrationCost from string (e.g., "45.00") to cents (e.g., 4500)
     if (editor.registrationType === 'PAID' && editor.registrationCost) {
       const costFloat = parseFloat(editor.registrationCost);
@@ -639,78 +639,91 @@ export default function AdminPage() {
   return (
     <section className="min-h-screen bg-app py-6">
       <div className="page-container space-y-6">
-      {/* Header Card */}
-      <header className="card">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-primary">Tournament Setup</h1>
-            <p className="text-sm text-muted mt-1">
-              Create and configure tournaments, manage stops, clubs, and captains
-            </p>
+        {/* Header Card */}
+        <header className="card">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-primary">Tournament Setup</h1>
+              <p className="text-sm text-muted mt-1">
+                Create and configure tournaments, manage stops, clubs, and captains
+              </p>
+            </div>
+            {userProfile && (
+              <>
+                {(userProfile.isAppAdmin || userProfile.managedClub?.status === 'SUBSCRIBED') ? (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowCreateModal(true)}
+                  >
+                    + Create New Tournament
+                  </button>
+                ) : userProfile.managedClub ? (
+                  <a
+                    href={`/admin/clubs/${userProfile.managedClub.id}/subscription`}
+                    className="btn btn-secondary bg-yellow-500 hover:bg-yellow-600 text-white border-none"
+                  >
+                    ⚡ Upgrade to Create Tournament
+                  </a>
+                ) : null}
+              </>
+            )}
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowCreateModal(true)}
-          >
-            + Create New Tournament
-          </button>
-        </div>
-      </header>
+        </header>
 
-      {/* Error/Success Messages */}
-      {err && (
-        <div className="card bg-error/10 border-error/30 p-4" role="status" aria-live="assertive">
-          <div className="flex items-center gap-2">
-            <span className="text-error font-semibold">Error:</span>
-            <span className="text-error">{err}</span>
+        {/* Error/Success Messages */}
+        {err && (
+          <div className="card bg-error/10 border-error/30 p-4" role="status" aria-live="assertive">
+            <div className="flex items-center gap-2">
+              <span className="text-error font-semibold">Error:</span>
+              <span className="text-error">{err}</span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {info && (
-        <div className="card bg-success/10 border-success/30 p-4" role="status" aria-live="polite">
-          <div className="flex items-center gap-2">
-            <span className="text-success font-semibold">✓</span>
-            <span className="text-success">{info}</span>
+        {info && (
+          <div className="card bg-success/10 border-success/30 p-4" role="status" aria-live="polite">
+            <div className="flex items-center gap-2">
+              <span className="text-success font-semibold">✓</span>
+              <span className="text-success">{info}</span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Tournaments List */}
-      {!editingTournamentId && (
-        <TournamentsList
-          tournaments={tournaments}
-          loading={loading}
-          onEdit={handleEditTournament}
-          onDelete={deleteTournament}
+        {/* Tournaments List */}
+        {!editingTournamentId && (
+          <TournamentsList
+            tournaments={tournaments}
+            loading={loading}
+            onEdit={handleEditTournament}
+            onDelete={deleteTournament}
+          />
+        )}
+
+        {/* Tournament Editor */}
+        {editingTournamentId && editingTournament && (
+          <TournamentEditor
+            tournamentId={editingTournamentId}
+            editor={editingTournament}
+            setEditor={(updatedEditor) => {
+              setEditorById(prev => ({
+                ...prev,
+                [editingTournamentId]: updatedEditor,
+              }));
+            }}
+            clubsAll={clubsAll}
+            searchPlayers={searchPlayers}
+            onSave={handleSaveTournament}
+            onClose={() => setEditingTournamentId(null)}
+            userProfile={userProfile}
+          />
+        )}
+
+        {/* Create Tournament Modal */}
+        <CreateTournamentModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreateTournament}
         />
-      )}
-
-      {/* Tournament Editor */}
-      {editingTournamentId && editingTournament && (
-        <TournamentEditor
-          tournamentId={editingTournamentId}
-          editor={editingTournament}
-          setEditor={(updatedEditor) => {
-            setEditorById(prev => ({
-              ...prev,
-              [editingTournamentId]: updatedEditor,
-            }));
-          }}
-          clubsAll={clubsAll}
-          searchPlayers={searchPlayers}
-          onSave={handleSaveTournament}
-          onClose={() => setEditingTournamentId(null)}
-          userProfile={userProfile}
-        />
-      )}
-
-      {/* Create Tournament Modal */}
-      <CreateTournamentModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateTournament}
-      />
       </div>
     </section>
   );
@@ -720,14 +733,14 @@ export default function AdminPage() {
 function TrashIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
-function TabButton({ active, onClick, children }: { active: boolean; onClick: ()=>void; children: ReactNode }) {
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       onClick={onClick}
@@ -848,7 +861,7 @@ function AdminTeamsTab({ tournaments, onEligibilityChange }: { tournaments: Tour
         <AdminTeamsTournamentPanel
           hydrate={dataByTid[activeTid]}
           onSaved={() => setInfo('Saved!')}
-          onError={(m)=>setErr(m)}
+          onError={(m) => setErr(m)}
         />
       )}
     </section>

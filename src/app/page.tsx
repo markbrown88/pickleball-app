@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { UserButton, SignedIn, SignedOut, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 import { formatDateRangeUTC } from '@/lib/utils';
+import ClubSignupSection from '@/components/home/ClubSignupSection';
 
 type TournamentStop = {
   id: string;
@@ -14,9 +15,9 @@ type TournamentStop = {
   locationName: string | null;
 };
 
-type Tournament = { 
-  id: string; 
-  name: string; 
+type Tournament = {
+  id: string;
+  name: string;
   description?: string;
   startDate?: string;
   endDate?: string;
@@ -44,13 +45,13 @@ export default function Home() {
     try {
       setLoading(true);
       const response = await fetch('/api/tournaments', { cache: 'no-store' });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch tournaments: ${response.status}`);
       }
 
       const data = await response.json();
-      
+
       if (data.tournaments && Array.isArray(data.tournaments)) {
         const now = new Date();
         const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
@@ -69,7 +70,7 @@ export default function Home() {
           // If no endDate, include it
           return true;
         });
-        
+
         // Sort by start date, nearest first
         const sorted = futureTournaments.sort((a: Tournament, b: Tournament) => {
           const dateA = a.startDate ? new Date(a.startDate).getTime() : new Date(a.createdAt).getTime();
@@ -92,7 +93,7 @@ export default function Home() {
   useEffect(() => {
     async function fetchUserProfile() {
       if (!user) return;
-      
+
       try {
         const response = await fetch('/api/auth/user');
         if (response.ok) {
@@ -103,7 +104,7 @@ export default function Home() {
         console.error('Error fetching user profile:', err);
       }
     }
-    
+
     fetchUserProfile();
   }, [user]);
 
@@ -114,7 +115,7 @@ export default function Home() {
   // Helper function to find next upcoming stop for multi-stop tournaments
   const getNextStop = (tournament: Tournament): TournamentStop | null => {
     if (!tournament.stops || tournament.stops.length === 0) return null;
-    
+
     const now = new Date();
     const upcomingStops = tournament.stops
       .filter(stop => {
@@ -127,7 +128,7 @@ export default function Home() {
         const dateB = b.startAt ? new Date(b.startAt).getTime() : 0;
         return dateA - dateB;
       });
-    
+
     return upcomingStops.length > 0 ? upcomingStops[0] : null;
   };
 
@@ -152,10 +153,10 @@ export default function Home() {
           <div className="flex items-center justify-between h-24 md:h-24 py-[10px]">
             <div className="flex items-center">
               <Link href="/" className="flex items-center">
-                <Image 
-                  src="/images/klyng-cup.png" 
-                  alt="Klyng Cup" 
-                  width={120} 
+                <Image
+                  src="/images/klyng-cup.png"
+                  alt="Klyng Cup"
+                  width={120}
                   height={65}
                   className="h-8 md:h-[65px] w-auto"
                   priority
@@ -178,8 +179,8 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               <SignedIn>
                 <div className="flex items-center space-x-4">
-                  <Link 
-                    href="/dashboard" 
+                  <Link
+                    href="/dashboard"
                     className="btn btn-primary"
                   >
                     Dashboard
@@ -212,7 +213,7 @@ export default function Home() {
             <div className="text-center lg:text-left">
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-7xl font-bold text-primary mb-6">
                 Battle of the Clubs
-          </h1>
+              </h1>
               <p className="text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-12 leading-relaxed">
                 A high-stakes, high-fun, co-ed interclub league where pride, teamwork, and performance take center court.
                 Pickleball clubs compete in a customizable multi-stop championship series unlike anything else in the sport.
@@ -488,7 +489,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Photo 1 - Competitive Match */}
             <div className="relative h-56 md:h-72 lg:h-80 rounded-lg overflow-hidden shadow-lg group">
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng1.jpg)' }}
               ></div>
@@ -496,7 +497,7 @@ export default function Home() {
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="text-center text-white bg-black/60 backdrop-blur-sm rounded-lg p-4">
                   <svg className="w-12 h-12 mx-auto mb-2 opacity-90" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                   </svg>
                   <p className="text-sm font-semibold">Competitive Matches</p>
                 </div>
@@ -505,7 +506,7 @@ export default function Home() {
 
             {/* Photo 2 - Team Spirit */}
             <div className="relative h-56 md:h-72 lg:h-80 rounded-lg overflow-hidden shadow-lg group">
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng4.jpg)' }}
               ></div>
@@ -513,7 +514,7 @@ export default function Home() {
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="text-center text-white bg-black/60 backdrop-blur-sm rounded-lg p-4">
                   <svg className="w-12 h-12 mx-auto mb-2 opacity-90" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   <p className="text-sm font-semibold">Team Spirit</p>
                 </div>
@@ -522,7 +523,7 @@ export default function Home() {
 
             {/* Photo 3 - Championship */}
             <div className="relative h-56 md:h-72 lg:h-80 rounded-lg overflow-hidden shadow-lg group">
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng3.jpg)' }}
               ></div>
@@ -530,7 +531,7 @@ export default function Home() {
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="text-center text-white bg-black/60 backdrop-blur-sm rounded-lg p-4">
                   <svg className="w-12 h-12 mx-auto mb-2 opacity-90" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                   <p className="text-sm font-semibold">Championship Glory</p>
                 </div>
@@ -539,6 +540,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <ClubSignupSection />
 
       {/* What Makes Klyng Cup Unique */}
       <section className="py-20 bg-gradient-to-b from-surface-1 to-surface-2">
@@ -636,7 +639,7 @@ export default function Home() {
             {/* Left side - Photo */}
             <div className="relative">
               <div className="relative h-80 rounded-2xl overflow-hidden shadow-2xl">
-                <div 
+                <div
                   className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                   style={{ backgroundImage: 'url(/images/klyng2.jpg)' }}
                 ></div>
@@ -644,7 +647,7 @@ export default function Home() {
                 <div className="absolute bottom-6 left-6 right-6">
                   <div className="flex items-center text-white bg-black/70 backdrop-blur-sm rounded-xl p-6">
                     <svg className="w-16 h-16 mr-4 opacity-90 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                     </svg>
                     <div>
                       <h3 className="text-xl font-bold mb-2">Intense Competition</h3>
@@ -666,7 +669,7 @@ export default function Home() {
                 Experience the Energy
               </h2>
               <p className="text-xl text-muted leading-relaxed">
-                Feel the intensity of competitive pickleball as clubs battle for supremacy. 
+                Feel the intensity of competitive pickleball as clubs battle for supremacy.
                 Every serve, every volley, every point counts toward championship glory.
               </p>
               <div className="grid grid-cols-2 gap-6 pt-6">
@@ -684,18 +687,18 @@ export default function Home() {
         </div>
       </section>
 
-        {/* Upcoming Tournaments Section */}
+      {/* Upcoming Tournaments Section */}
       <section id="tournaments" className="py-20 bg-app">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-primary mb-6">
               Current Klyng Cup Tournaments
-          </h2>
+            </h2>
             <p className="text-xl text-muted max-w-3xl mx-auto">
               Join the excitement! Register for upcoming tournaments and start your journey to the championship.
             </p>
           </div>
-          
+
           {loading ? (
             <div className="flex justify-center items-center py-12">
               <div className="loading-spinner"></div>
@@ -703,7 +706,7 @@ export default function Home() {
           ) : err ? (
             <div className="text-center py-12">
               <p className="text-error mb-4">{err}</p>
-              <button 
+              <button
                 onClick={fetchTournaments}
                 className="btn btn-ghost"
               >
@@ -721,10 +724,10 @@ export default function Home() {
                 const nextStop = getNextStop(tournament);
                 const isMultiStop = tournament.stops && tournament.stops.length > 1;
                 const isInviteOnly = tournament.registrationStatus === 'INVITE_ONLY';
-                
+
                 return (
-                  <div 
-                    key={tournament.id} 
+                  <div
+                    key={tournament.id}
                     className="card hover:shadow-lg transition-shadow duration-300"
                   >
                     <div className="flex items-start justify-between mb-4">
@@ -737,13 +740,13 @@ export default function Home() {
                         </span>
                       )}
                     </div>
-                    
+
                     {tournament.description && (
                       <p className="text-muted text-sm mb-4 line-clamp-2">
                         {tournament.description}
                       </p>
                     )}
-                    
+
                     <div className="space-y-2 mb-6">
                       {isMultiStop && nextStop ? (
                         <>
@@ -789,7 +792,7 @@ export default function Home() {
                         </>
                       )}
                     </div>
-                    
+
                     <div className="flex gap-2">
                       <Link
                         href={`/tournament/${tournament.id}`}
@@ -846,11 +849,11 @@ export default function Home() {
               How Klyng Cup Works
             </h2>
             <p className="text-xl text-muted max-w-3xl mx-auto">
-              A flexible tournament format that can be customized for any community, anywhere in the world. 
+              A flexible tournament format that can be customized for any community, anywhere in the world.
               From single-day events to multi-stop championship series.
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 gap-12">
             {/* For Players */}
             <div>
@@ -926,7 +929,7 @@ export default function Home() {
                     <p className="text-muted">Monitor team standings, view detailed statistics, and celebrate your club's achievements across all events.</p>
                   </div>
                 </div>
-          </div>
+              </div>
             </div>
           </div>
         </div>
@@ -943,11 +946,11 @@ export default function Home() {
               Witness the intensity, skill, and passion that defines Klyng Cup competition
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Photo 1 */}
             <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng5.jpg)' }}
               ></div>
@@ -955,7 +958,7 @@ export default function Home() {
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="flex items-center text-white bg-black/70 backdrop-blur-sm rounded-lg p-4">
                   <svg className="w-12 h-12 mr-3 opacity-90 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                   <p className="font-semibold text-sm">Victory</p>
                 </div>
@@ -964,7 +967,7 @@ export default function Home() {
 
             {/* Photo 2 */}
             <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng6.jpg)' }}
               ></div>
@@ -972,7 +975,7 @@ export default function Home() {
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="flex items-center text-white bg-black/70 backdrop-blur-sm rounded-lg p-4">
                   <svg className="w-12 h-12 mr-3 opacity-90 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   <p className="font-semibold text-sm">Teamwork</p>
                 </div>
@@ -981,7 +984,7 @@ export default function Home() {
 
             {/* Photo 3 */}
             <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng7.jpg)' }}
               ></div>
@@ -989,7 +992,7 @@ export default function Home() {
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="flex items-center text-white bg-black/70 backdrop-blur-sm rounded-lg p-4">
                   <svg className="w-12 h-12 mr-3 opacity-90 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                   </svg>
                   <p className="font-semibold text-sm">Skill</p>
                 </div>
@@ -998,7 +1001,7 @@ export default function Home() {
 
             {/* Photo 4 */}
             <div className="relative h-40 md:h-56 lg:h-64 rounded-xl overflow-hidden shadow-lg group hover:shadow-xl transition-shadow duration-300">
-              <div 
+              <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                 style={{ backgroundImage: 'url(/images/klyng8.jpg)' }}
               ></div>
@@ -1006,7 +1009,7 @@ export default function Home() {
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="flex items-center text-white bg-black/70 backdrop-blur-sm rounded-lg p-4">
                   <svg className="w-12 h-12 mr-3 opacity-90 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <p className="font-semibold text-sm">Excellence</p>
                 </div>
@@ -1031,7 +1034,7 @@ export default function Home() {
             Ready to Experience Klyng Cup?
           </h2>
           <p className="text-xl text-white/90 mb-8">
-            Join the most exciting pickleball tournament format. Whether you're a player or a club, 
+            Join the most exciting pickleball tournament format. Whether you're a player or a club,
             Klyng Cup can be customized for your community anywhere in the world.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -1043,13 +1046,13 @@ export default function Home() {
               </SignUpButton>
             </SignedOut>
             <SignedIn>
-              <Link 
+              <Link
                 href="/dashboard"
                 className="btn btn-secondary text-lg py-4 px-8 shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
               >
                 Go to Dashboard
               </Link>
-              <a 
+              <a
                 href="#tournaments"
                 className="btn btn-ghost text-lg py-4 px-8 border-white text-white hover:bg-white hover:text-brand-primary shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
               >

@@ -15,6 +15,11 @@ import {
   stringifyRegistrationNotes,
 } from '@/lib/payments/registrationNotes';
 import type { RegistrationNotes } from '@/lib/payments/registrationNotes';
+import {
+  sendPaymentSuccessEmail,
+  sendPaymentFailedEmail,
+  sendSubscriptionCancelledEmail
+} from '@/server/email_subscription';
 
 const registrationInclude = {
   player: {
@@ -103,11 +108,11 @@ export async function POST(request: NextRequest) {
       bodyLength: body.length,
       bodyPreview: body.substring(0, 100),
     });
-    
+
     // Provide helpful error message
     const errorMessage = err.message || 'Unknown signature verification error';
     return NextResponse.json(
-      { 
+      {
         error: 'Invalid signature',
         details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
         hint: 'Check that STRIPE_WEBHOOK_SECRET matches the webhook secret from Stripe Dashboard',
@@ -140,6 +145,27 @@ export async function POST(request: NextRequest) {
         await handleChargeRefunded(event.data.object as Stripe.Charge);
         break;
 
+      // Subscription Events
+      case 'customer.subscription.created':
+        await handleSubscriptionCreated(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
+
+      case 'invoice.payment_failed':
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
+
       default:
     }
 
@@ -168,7 +194,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   try {
-      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     await handlePaymentIntentSucceeded(paymentIntent);
   } catch (error) {
     console.error('Failed to process checkout.session.completed event:', error);
@@ -243,8 +269,8 @@ async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
       const firstStop = registration.tournament.stops?.[0];
       const location = firstStop?.club
         ? [firstStop.club.name, firstStop.club.city, firstStop.club.region]
-            .filter(Boolean)
-            .join(', ')
+          .filter(Boolean)
+          .join(', ')
         : null;
 
       const { sendPaymentFailedEmail } = await import('@/server/email');
@@ -351,32 +377,32 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
 
   const notes = parseRegistrationNotes(registration.notes ?? null);
   const amount = paymentIntent.amount || getPendingPaymentAmountInCents(notes, 0);
-      const playerName =
-        registration.player.name ||
-        (registration.player.firstName && registration.player.lastName
-          ? `${registration.player.firstName} ${registration.player.lastName}`
-          : registration.player.firstName || 'Player');
-      const firstStop = registration.tournament.stops?.[0];
-      const location = firstStop?.club
+  const playerName =
+    registration.player.name ||
+    (registration.player.firstName && registration.player.lastName
+      ? `${registration.player.firstName} ${registration.player.lastName}`
+      : registration.player.firstName || 'Player');
+  const firstStop = registration.tournament.stops?.[0];
+  const location = firstStop?.club
     ? [firstStop.club.name, firstStop.club.city, firstStop.club.region].filter(Boolean).join(', ')
-        : null;
+    : null;
   const failureReason =
     paymentIntent.last_payment_error?.message || 'Payment could not be processed';
 
   try {
     const { sendPaymentFailedEmail } = await import('@/server/email');
     await sendPaymentFailedEmail({
-        to: registration.player.email,
-        playerName,
-        tournamentName: registration.tournament.name,
-        tournamentId: registration.tournamentId,
+      to: registration.player.email,
+      playerName,
+      tournamentName: registration.tournament.name,
+      tournamentId: registration.tournamentId,
       amount,
       failureReason,
       startDate: firstStop?.startAt || null,
       endDate: firstStop?.endAt || null,
       location,
     });
-    } catch (emailError) {
+  } catch (emailError) {
     console.error('Failed to send payment failed email:', emailError);
   }
 }
@@ -470,17 +496,17 @@ async function findRegistrationForPaymentIntent(paymentIntent: Stripe.PaymentInt
     return registrationByPaymentId;
   }
 
-    try {
-      const sessions = await stripe.checkout.sessions.list({
-        payment_intent: paymentIntent.id,
-        limit: 1,
-      });
-      
-      if (sessions.data.length > 0) {
-        const session = sessions.data[0];
-        const sessionRegistrationId = session.metadata?.registrationId || session.client_reference_id;
-        
-        if (sessionRegistrationId) {
+  try {
+    const sessions = await stripe.checkout.sessions.list({
+      payment_intent: paymentIntent.id,
+      limit: 1,
+    });
+
+    if (sessions.data.length > 0) {
+      const session = sessions.data[0];
+      const sessionRegistrationId = session.metadata?.registrationId || session.client_reference_id;
+
+      if (sessionRegistrationId) {
         const registrationFromSession = await prisma.tournamentRegistration.findUnique({
           where: { id: sessionRegistrationId },
           include: registrationInclude,
@@ -489,25 +515,25 @@ async function findRegistrationForPaymentIntent(paymentIntent: Stripe.PaymentInt
         if (registrationFromSession) {
           return registrationFromSession;
         }
-        }
       }
-    } catch (sessionError) {
-      console.warn('Could not retrieve checkout session:', sessionError);
+    }
+  } catch (sessionError) {
+    console.warn('Could not retrieve checkout session:', sessionError);
   }
 
   return prisma.tournamentRegistration.findFirst({
-      where: {
-        paymentStatus: 'PENDING',
-        registeredAt: {
+    where: {
+      paymentStatus: 'PENDING',
+      registeredAt: {
         gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
       },
     },
     include: registrationInclude,
-      orderBy: {
-        registeredAt: 'desc',
-      },
-    });
-  }
+    orderBy: {
+      registeredAt: 'desc',
+    },
+  });
+}
 
 async function findRegistrationByPaymentIntentId(paymentIntentId: string) {
   return prisma.tournamentRegistration.findFirst({
@@ -541,88 +567,88 @@ async function createRosterEntriesForStops(
     return;
   }
 
-        const [tournamentBrackets, club] = await Promise.all([
-          prisma.tournamentBracket.findMany({
-            where: { tournamentId: registration.tournamentId },
-            select: { id: true, name: true },
-          }),
-          prisma.club.findUnique({
-            where: { id: clubId },
-            select: { name: true },
-          }),
-        ]);
+  const [tournamentBrackets, club] = await Promise.all([
+    prisma.tournamentBracket.findMany({
+      where: { tournamentId: registration.tournamentId },
+      select: { id: true, name: true },
+    }),
+    prisma.club.findUnique({
+      where: { id: clubId },
+      select: { name: true },
+    }),
+  ]);
 
-        const clubName = club?.name || 'Team';
-        const stops = await prisma.stop.findMany({
+  const clubName = club?.name || 'Team';
+  const stops = await prisma.stop.findMany({
     where: { id: { in: paidStopIds } },
     select: { id: true, name: true, startAt: true, endAt: true },
-        });
+  });
 
-        const now = new Date();
+  const now = new Date();
 
-        for (const stopId of paidStopIds) {
-          const stop = stops.find((s) => s.id === stopId);
-          if (stop) {
-            const isPast = stop.endAt 
-              ? new Date(stop.endAt) < now
-              : stop.startAt 
-                ? new Date(stop.startAt) < now
-                : false;
-            if (isPast) {
-              continue;
-            }
-          }
-          
+  for (const stopId of paidStopIds) {
+    const stop = stops.find((s) => s.id === stopId);
+    if (stop) {
+      const isPast = stop.endAt
+        ? new Date(stop.endAt) < now
+        : stop.startAt
+          ? new Date(stop.startAt) < now
+          : false;
+      if (isPast) {
+        continue;
+      }
+    }
+
     const bracketSelection = paidBrackets.find((bracket) => bracket.stopId === stopId);
     if (!bracketSelection?.bracketId) {
-            continue;
-          }
+      continue;
+    }
 
     const bracket = tournamentBrackets.find((b) => b.id === bracketSelection.bracketId);
-          if (!bracket) {
-            continue;
-          }
+    if (!bracket) {
+      continue;
+    }
 
-          let team = await prisma.team.findFirst({
-            where: {
-              tournamentId: registration.tournamentId,
+    let team = await prisma.team.findFirst({
+      where: {
+        tournamentId: registration.tournamentId,
         clubId,
         bracketId: bracketSelection.bracketId,
-            },
-          });
+      },
+    });
 
-          if (!team) {
-            const teamName = bracket.name === 'DEFAULT' ? clubName : `${clubName} ${bracket.name}`;
-            team = await prisma.team.create({
-              data: {
-                name: teamName,
-                tournamentId: registration.tournamentId,
+    if (!team) {
+      const teamName = bracket.name === 'DEFAULT' ? clubName : `${clubName} ${bracket.name}`;
+      team = await prisma.team.create({
+        data: {
+          name: teamName,
+          tournamentId: registration.tournamentId,
           clubId,
           bracketId: bracketSelection.bracketId,
-              },
-            });
-          }
+        },
+      });
+    }
 
-          try {
-            await prisma.stopTeamPlayer.upsert({
-              where: {
-                stopId_teamId_playerId: {
-                  stopId,
-                  teamId: team.id,
-                  playerId: registration.playerId,
-                },
-              },
-              create: {
-                stopId,
-                teamId: team.id,
-                playerId: registration.playerId,
+    try {
+      await prisma.stopTeamPlayer.upsert({
+        where: {
+          stopId_teamId_playerId: {
+            stopId,
+            teamId: team.id,
+            playerId: registration.playerId,
+          },
+        },
+        create: {
+          stopId,
+          teamId: team.id,
+          playerId: registration.playerId,
           paymentMethod: 'STRIPE',
-              },
-              update: {
+        },
+        update: {
           paymentMethod: 'STRIPE',
-              },
-            });
-          } catch (rosterError) {
+        },
+      });
+    } catch (rosterError) {
       console.error(
         `Failed to create roster entry for stop ${stopId}, team ${team.id}, player ${registration.playerId}:`,
         rosterError
@@ -642,125 +668,288 @@ async function sendPaymentReceiptIfPossible(
     return;
   }
 
-      const playerName =
-        registration.player.name ||
-        (registration.player.firstName && registration.player.lastName
-          ? `${registration.player.firstName} ${registration.player.lastName}`
-          : registration.player.firstName || 'Player');
+  const playerName =
+    registration.player.name ||
+    (registration.player.firstName && registration.player.lastName
+      ? `${registration.player.firstName} ${registration.player.lastName}`
+      : registration.player.firstName || 'Player');
 
   const stopIdsForEmail =
     paidStopIds.length > 0 ? paidStopIds : notes.stopIds ? Array.from(new Set(notes.stopIds)) : [];
 
-      let stops: Array<{
-        id: string;
-        name: string;
-        startAt: Date | null;
-        endAt: Date | null;
-        bracketName?: string | null;
-        club?: {
-          name: string;
-          address1?: string | null;
-          city?: string | null;
-          region?: string | null;
-          postalCode?: string | null;
-        } | null;
-      }> = [];
+  let stops: Array<{
+    id: string;
+    name: string;
+    startAt: Date | null;
+    endAt: Date | null;
+    bracketName?: string | null;
+    club?: {
+      name: string;
+      address1?: string | null;
+      city?: string | null;
+      region?: string | null;
+      postalCode?: string | null;
+    } | null;
+  }> = [];
 
   if (stopIdsForEmail.length > 0) {
-        const fetchedStops = await prisma.stop.findMany({
+    const fetchedStops = await prisma.stop.findMany({
       where: { id: { in: stopIdsForEmail } },
-          include: {
-            club: {
-              select: {
-                name: true,
-                address: true,
-                address1: true,
-                city: true,
-                region: true,
-                postalCode: true,
-              },
-            },
+      include: {
+        club: {
+          select: {
+            name: true,
+            address: true,
+            address1: true,
+            city: true,
+            region: true,
+            postalCode: true,
           },
-        });
+        },
+      },
+    });
 
-        const rosterEntries = await prisma.stopTeamPlayer.findMany({
-          where: {
+    const rosterEntries = await prisma.stopTeamPlayer.findMany({
+      where: {
         stopId: { in: stopIdsForEmail },
-            playerId: registration.playerId,
-          },
+        playerId: registration.playerId,
+      },
+      include: {
+        team: {
           include: {
-            team: {
-              include: {
-                bracket: {
+            bracket: {
               select: { name: true },
-                },
-              },
             },
           },
-        });
+        },
+      },
+    });
 
-        const bracketMap = new Map<string, string>();
-        for (const roster of rosterEntries) {
-          if (roster.team?.bracket?.name) {
-            bracketMap.set(roster.stopId, roster.team.bracket.name);
-          }
-        }
+    const bracketMap = new Map<string, string>();
+    for (const roster of rosterEntries) {
+      if (roster.team?.bracket?.name) {
+        bracketMap.set(roster.stopId, roster.team.bracket.name);
+      }
+    }
 
-        stops = fetchedStops.map((stop) => ({
-          id: stop.id,
-          name: stop.name,
-          startAt: stop.startAt,
-          endAt: stop.endAt,
-          bracketName: bracketMap.get(stop.id) || null,
+    stops = fetchedStops.map((stop) => ({
+      id: stop.id,
+      name: stop.name,
+      startAt: stop.startAt,
+      endAt: stop.endAt,
+      bracketName: bracketMap.get(stop.id) || null,
       club: stop.club
         ? {
-            name: stop.club.name,
-            address: stop.club.address,
-            address1: stop.club.address1,
-            city: stop.club.city,
-            region: stop.club.region,
-            postalCode: stop.club.postalCode,
-          }
+          name: stop.club.name,
+          address: stop.club.address,
+          address1: stop.club.address1,
+          city: stop.club.city,
+          region: stop.club.region,
+          postalCode: stop.club.postalCode,
+        }
         : null,
-        }));
-      }
+    }));
+  }
 
-      const firstStop = registration.tournament.stops?.[0];
-      const location = firstStop?.club
+  const firstStop = registration.tournament.stops?.[0];
+  const location = firstStop?.club
     ? [firstStop.club.name, firstStop.club.city, firstStop.club.region].filter(Boolean).join(', ')
-        : null;
+    : null;
 
-      let clubName: string | null = null;
-      if (notes.clubId) {
-        try {
-          const club = await prisma.club.findUnique({
-            where: { id: notes.clubId },
-            select: { name: true },
-          });
-          clubName = club?.name || null;
+  let clubName: string | null = null;
+  if (notes.clubId) {
+    try {
+      const club = await prisma.club.findUnique({
+        where: { id: notes.clubId },
+        select: { name: true },
+      });
+      clubName = club?.name || null;
     } catch (error) {
       console.error('Failed to fetch club name for payment receipt email:', error);
-        }
-      }
+    }
+  }
 
   try {
-      const { sendPaymentReceiptEmail } = await import('@/server/email');
-      await sendPaymentReceiptEmail({
-        to: registration.player.email,
-        playerName,
-        tournamentName: registration.tournament.name,
-        tournamentId: registration.tournamentId,
+    const { sendPaymentReceiptEmail } = await import('@/server/email');
+    await sendPaymentReceiptEmail({
+      to: registration.player.email,
+      playerName,
+      tournamentName: registration.tournament.name,
+      tournamentId: registration.tournamentId,
       amountPaid: amountInCents,
-        paymentDate: new Date(),
+      paymentDate: new Date(),
       transactionId,
       startDate: stops.length > 0 ? stops[0]?.startAt || null : firstStop?.startAt || null,
       endDate:
         stops.length > 0 ? stops[stops.length - 1]?.endAt || null : firstStop?.endAt || null,
-        location: stops.length > 0 ? null : location,
-        stops: stops.length > 0 ? stops : undefined,
-        clubName,
-      });
-    } catch (emailError) {
-      console.error('Failed to send payment receipt email:', emailError);
-    }
+      location: stops.length > 0 ? null : location,
+      stops: stops.length > 0 ? stops : undefined,
+      clubName,
+    });
+  } catch (emailError) {
+    console.error('Failed to send payment receipt email:', emailError);
+  }
 }
+
+/**
+ * Handle new subscription creation
+ */
+async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
+  const clubId = subscription.metadata?.clubId;
+
+  if (!clubId) {
+    console.error('Subscription created without clubId in metadata:', subscription.id);
+    return;
+  }
+
+  await prisma.club.update({
+    where: { id: clubId },
+    data: {
+      status: 'SUBSCRIBED',
+      subscriptionId: subscription.id,
+      subscriptionStatus: subscription.status.toUpperCase() as any,
+    },
+  });
+}
+
+/**
+ * Handle subscription updates (renewals, cancellations, failed payments)
+ */
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  const clubId = subscription.metadata?.clubId;
+
+  if (!clubId) {
+    // Try to find club by subscription ID if metadata is missing
+    const club = await prisma.club.findFirst({
+      where: { subscriptionId: subscription.id },
+      select: { id: true }
+    });
+
+    if (!club) return;
+    return updateClubSubscription(club.id, subscription);
+  }
+
+  await updateClubSubscription(clubId, subscription);
+}
+
+/**
+ * Handle subscription deletion (expiry/cancellation)
+ */
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  const clubId = subscription.metadata?.clubId;
+
+  if (!clubId) {
+    const club = await prisma.club.findFirst({
+      where: { subscriptionId: subscription.id },
+      select: { id: true }
+    });
+
+    if (!club) return;
+    return downgradeClubToFree(club.id);
+  }
+
+  await downgradeClubToFree(clubId);
+}
+
+/**
+ * Helper to update club based on subscription status
+ */
+async function updateClubSubscription(clubId: string, subscription: Stripe.Subscription) {
+  const status = subscription.status;
+  let clubStatus: 'SUBSCRIBED' | 'PAST_DUE' | 'ACTIVE' = 'SUBSCRIBED';
+
+  // Map Stripe status to ClubStatus
+  if (['active', 'trialing'].includes(status)) {
+    clubStatus = 'SUBSCRIBED';
+  } else if (['past_due', 'unpaid', 'incomplete'].includes(status)) {
+    clubStatus = 'PAST_DUE';
+  } else {
+    clubStatus = 'ACTIVE'; // Fallback for canceled/ended
+  }
+
+  // Ensure subscriptionStatus enum matches what's in DB or cast to any if types are not generated
+  await prisma.club.update({
+    where: { id: clubId },
+    data: {
+      status: clubStatus,
+      subscriptionId: subscription.id,
+      subscriptionStatus: status.toUpperCase() as any,
+    },
+  });
+}
+
+/**
+ * Helper to downgrade club when subscription ends
+ */
+async function downgradeClubToFree(clubId: string) {
+  try {
+    const club = await prisma.club.update({
+      where: { id: clubId },
+      data: {
+        status: 'ACTIVE', // "ACTIVE" = Free Participating Club
+        subscriptionStatus: 'CANCELED',
+      },
+      select: { email: true, name: true }
+    });
+
+    if (club.email) {
+      await sendSubscriptionCancelledEmail(club.email, club.name);
+    }
+  } catch (e) {
+    console.error('Failed to downgrade club', e);
+  }
+}
+
+/**
+ * Handle successful invoice payment (send receipt)
+ */
+async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  const subField = (invoice as any).subscription;
+  // Only process subscription invoices
+  if (!subField || invoice.amount_paid === 0) return;
+
+  const subId = typeof subField === 'string' ? subField : subField.id;
+
+  // Find club
+  const club = await prisma.club.findFirst({
+    where: { subscriptionId: subId },
+    select: { id: true, email: true, name: true }
+  });
+
+  if (club?.email) {
+    try {
+      await sendPaymentSuccessEmail(
+        club.email,
+        club.name,
+        invoice.amount_paid,
+        new Date(invoice.created * 1000)
+      );
+    } catch (e) {
+      console.error('Failed to send payment success email', e);
+    }
+  }
+}
+
+/**
+ * Handle failed invoice payment (send warning)
+ */
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const subField = (invoice as any).subscription;
+  if (!subField) return;
+
+  const subId = typeof subField === 'string' ? subField : subField.id;
+
+  const club = await prisma.club.findFirst({
+    where: { subscriptionId: subId },
+    select: { id: true, email: true, name: true }
+  });
+
+  if (club?.email) {
+    try {
+      await sendPaymentFailedEmail(club.email, club.name);
+    } catch (e) {
+      console.error('Failed to send payment failed email', e);
+    }
+  }
+}
+

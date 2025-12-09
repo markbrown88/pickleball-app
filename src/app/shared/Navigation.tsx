@@ -16,9 +16,8 @@ export type NavItem = {
 export type UserRole = 'app-admin' | 'tournament-admin' | 'event-manager' | 'captain' | 'player';
 
 function navLinkClasses(active: boolean, isSubItem: boolean = false) {
-  const baseClasses = `block text-sm font-medium rounded-md transition-colors ${
-    isSubItem ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2'
-  }`;
+  const baseClasses = `block text-sm font-medium rounded-md transition-colors ${isSubItem ? 'pl-10 pr-4 py-1.5' : 'px-4 py-2'
+    }`;
 
   if (active) {
     return `${baseClasses} !text-primary bg-primary/10 border-r-2 border-primary`;
@@ -27,11 +26,10 @@ function navLinkClasses(active: boolean, isSubItem: boolean = false) {
 }
 
 function navHeadingClasses(hasActiveChild: boolean) {
-  return `flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer ${
-    hasActiveChild
+  return `flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer ${hasActiveChild
       ? 'text-primary bg-primary/5'
       : 'text-muted hover:text-primary hover:bg-surface-2'
-  }`;
+    }`;
 }
 
 export function Navigation({ items, userRole, onMobileNavClose }: { items: NavItem[]; userRole: UserRole; onMobileNavClose?: () => void }) {
@@ -108,11 +106,10 @@ export function Navigation({ items, userRole, onMobileNavClose }: { items: NavIt
                       return (
                         <li key={child.href || child.label} className="relative group">
                           {/* Bullet indicator */}
-                          <span className={`absolute left-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 transition-colors ${
-                            active
+                          <span className={`absolute left-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 transition-colors ${active
                               ? 'border-brand-secondary bg-brand-secondary/30'
                               : 'border-brand-secondary/40 group-hover:border-brand-secondary/80'
-                          }`} />
+                            }`} />
                           <Link
                             href={child.href || '#'}
                             className={navLinkClasses(active, true)}
@@ -174,5 +171,13 @@ export function getNavigationItems(): NavItem[] {
     { href: '/clubs', label: 'Clubs', roles: ['app-admin', 'tournament-admin'] },
     { href: '/players', label: 'Players', roles: ['app-admin', 'tournament-admin'] },
     { href: '/results', label: 'Tournament Results', roles: ['app-admin', 'tournament-admin', 'event-manager', 'captain', 'player'], target: '_blank' },
+    {
+      label: 'System',
+      roles: ['app-admin'],
+      children: [
+        { href: '/admin/settings/pricing', label: 'Pricing Settings', roles: ['app-admin'] },
+        { href: '/admin/transactions', label: 'Transactions', roles: ['app-admin'] },
+      ]
+    },
   ];
 }

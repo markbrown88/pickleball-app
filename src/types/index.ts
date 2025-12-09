@@ -29,6 +29,11 @@ export interface UserProfile {
     city: string | null;
     region: string | null;
   };
+  managedClub?: {
+    id: string;
+    name: string;
+    status: 'ACTIVE' | 'SUBSCRIBED' | 'PAST_DUE' | 'INACTIVE';
+  };
 }
 
 // Role Types
