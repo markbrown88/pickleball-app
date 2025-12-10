@@ -213,6 +213,31 @@ async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
     return;
   }
 
+  // First check if payment was already processed (race condition protection)
+  const existingRegistration = await prisma.tournamentRegistration.findUnique({
+    where: { id: registrationId },
+    select: { paymentStatus: true, notes: true }
+  });
+
+  // Don't overwrite if already paid or if processedPayments exist in notes
+  if (existingRegistration?.paymentStatus === 'PAID') {
+    console.log(`[Webhook] Session expired but registration ${registrationId} already PAID - skipping`);
+    return;
+  }
+
+  // Also check notes for processed payments (extra safety)
+  if (existingRegistration?.notes) {
+    try {
+      const notes = JSON.parse(existingRegistration.notes);
+      if (notes.processedPayments && notes.processedPayments.length > 0) {
+        console.log(`[Webhook] Session expired but registration ${registrationId} has processed payments - skipping`);
+        return;
+      }
+    } catch (e) {
+      // Notes not valid JSON, continue with expiry
+    }
+  }
+
   // Mark registration as expired using TournamentRegistration model
   await prisma.tournamentRegistration.update({
     where: { id: registrationId },
