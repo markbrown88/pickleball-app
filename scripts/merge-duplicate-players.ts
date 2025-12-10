@@ -14,29 +14,19 @@ interface MergePair {
 
 const merges: MergePair[] = [
   {
-    oldId: 'cmfpbp7ez0013rdn0lurlnqbe', // Drew Carrick - no email
-    newId: 'cmi4x0udp0001ld04wx1r282b', // Drew Carrick - drew.carrick@gmail.com
-    name: 'Drew Carrick'
+    oldId: 'cmg067sat0009rddcid5r3u7a', // Kara Blair - no email, no Clerk
+    newId: 'cmiw6ortx0001jm04t8y1avyb', // Kara Blair - karablair22@gmail.com, has Clerk
+    name: 'Kara Blair'
   },
   {
-    oldId: 'cmh8225p7000dr0j4ogqdxox9', // Amelia Perri - no email
-    newId: 'cmi7qvn9q0001jj04pej03z1g', // Amelia Perri - ameliaperri@gmail.com
-    name: 'Amelia Perri'
+    oldId: 'cmh8226q00015r0j4sxq5n7fo', // Cheryl Teti - cherylteti@icloud.com, no Clerk
+    newId: 'cmizbjx5d0003l104r6o11kdw', // Cheryl Teti - cherteti@gmail.com, has Clerk
+    name: 'Cheryl Teti'
   },
   {
-    oldId: 'cmh8229f80035r0j4pk0zuo0g', // John Travis - no email
-    newId: 'cmi4shved0001l504bnkg6b4r', // John Travis - m3jb@hotmail.com
-    name: 'John Travis'
-  },
-  {
-    oldId: 'cmh828beo002jr0awdmo2c3am', // Gilbert de Avila - no email
-    newId: 'cmi56bbpn0001jx04tb893wkt', // Gilbert de Avila - qst2@rogers.com
-    name: 'Gilbert de Avila'
-  },
-  {
-    oldId: 'cmhawluhp0027jr04h5lfzaaa', // Nancy Corcoran - no email
-    newId: 'cmi6f8kny0001l804npqwxp0s', // Nancy Corcoran - ncorcoran@rogers.com
-    name: 'Nancy Corcoran'
+    oldId: 'cmh822dg5006dr0j4d8iada7s', // Roger Lam - no email, no Clerk
+    newId: 'cmit2espj0001l50476616jp3', // Roger Lam - jorolam@rogers.com, has Clerk
+    name: 'Roger Lam'
   }
 ];
 

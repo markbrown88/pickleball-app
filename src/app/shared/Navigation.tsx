@@ -175,6 +175,7 @@ export function getNavigationItems(): NavItem[] {
       label: 'System',
       roles: ['app-admin'],
       children: [
+        { href: '/admin/player-rankings', label: 'Player Rankings', roles: ['app-admin'] },
         { href: '/admin/settings/pricing', label: 'Pricing Settings', roles: ['app-admin'] },
         { href: '/admin/transactions', label: 'Transactions', roles: ['app-admin'] },
       ]
