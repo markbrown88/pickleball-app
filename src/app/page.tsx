@@ -725,6 +725,12 @@ export default function Home() {
                 const isMultiStop = tournament.stops && tournament.stops.length > 1;
                 const isInviteOnly = tournament.registrationStatus === 'INVITE_ONLY';
 
+                // Check if tournament has ended (no registration allowed)
+                const now = new Date();
+                const tournamentEnded = tournament.endDate
+                  ? new Date(tournament.endDate) < now
+                  : false;
+
                 return (
                   <div
                     key={tournament.id}
@@ -802,7 +808,7 @@ export default function Home() {
                       >
                         View Results
                       </Link>
-                      {!isInviteOnly && (
+                      {!isInviteOnly && !tournamentEnded && (
                         <>
                           <SignedOut>
                             <SignUpButton
