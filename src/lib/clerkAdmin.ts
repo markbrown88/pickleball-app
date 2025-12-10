@@ -1,9 +1,18 @@
-import { createClerkClient } from '@clerk/backend';
+import { createClerkClient, ClerkClient } from '@clerk/backend';
 
-// Initialize Clerk client with secret key
-const clerkClient = createClerkClient({ 
-  secretKey: process.env.CLERK_SECRET_KEY!
-});
+// Lazy initialization of Clerk client to work in serverless environments
+let _clerkClient: ClerkClient | null = null;
+
+function getClerkClient(): ClerkClient {
+  if (!_clerkClient) {
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+      throw new Error('CLERK_SECRET_KEY environment variable is not set');
+    }
+    _clerkClient = createClerkClient({ secretKey });
+  }
+  return _clerkClient;
+}
 
 export type ClerkMergeResult = {
   status: 'SUCCESS' | 'PARTIAL' | 'MANUAL_REQUIRED' | 'SKIPPED';
@@ -31,35 +40,35 @@ export async function mergeClerkAccounts(
   if (!keepClerkId && !deleteClerkId) {
     return { status: 'SKIPPED', notes: 'Neither player has a Clerk account' };
   }
-  
+
   // Case 2: Only primary has Clerk - nothing to do
   if (keepClerkId && !deleteClerkId) {
     return { status: 'SKIPPED', notes: 'Secondary player had no Clerk account' };
   }
-  
+
   // Case 3: Only secondary has Clerk - this is unusual, just delete it
   if (!keepClerkId && deleteClerkId) {
     try {
-      await clerkClient.users.deleteUser(deleteClerkId);
+      await getClerkClient().users.deleteUser(deleteClerkId);
       return { status: 'SUCCESS', notes: 'Deleted orphaned Clerk user (primary had no Clerk account)' };
     } catch (error) {
       console.error('Failed to delete Clerk user:', error);
-      return { 
-        status: 'MANUAL_REQUIRED', 
+      return {
+        status: 'MANUAL_REQUIRED',
         notes: `Failed to delete Clerk user ${deleteClerkId}: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
-  
+
   // Case 4: Both have Clerk accounts - transfer email and delete
   let emailAdded = false;
   let userDeleted = false;
   const notes: string[] = [];
-  
+
   // Add email to kept user (if we have an email to transfer)
   if (emailToTransfer) {
     try {
-      await clerkClient.emailAddresses.createEmailAddress({
+      await getClerkClient().emailAddresses.createEmailAddress({
         userId: keepClerkId!,
         emailAddress: emailToTransfer,
       });
@@ -74,10 +83,10 @@ export async function mergeClerkAccounts(
   } else {
     notes.push('No email to transfer');
   }
-  
+
   // Delete orphaned user
   try {
-    await clerkClient.users.deleteUser(deleteClerkId!);
+    await getClerkClient().users.deleteUser(deleteClerkId!);
     userDeleted = true;
     notes.push(`Deleted Clerk user ${deleteClerkId}`);
   } catch (error) {
@@ -85,7 +94,7 @@ export async function mergeClerkAccounts(
     notes.push(`Failed to delete user: ${errorMsg}`);
     console.error('Failed to delete Clerk user:', error);
   }
-  
+
   // Determine overall status
   if (userDeleted && (emailAdded || !emailToTransfer)) {
     return { status: 'SUCCESS', notes: notes.join('; ') };
@@ -101,7 +110,7 @@ export async function mergeClerkAccounts(
  */
 export async function getClerkUser(clerkUserId: string) {
   try {
-    return await clerkClient.users.getUser(clerkUserId);
+    return await getClerkClient().users.getUser(clerkUserId);
   } catch (error) {
     console.error('Failed to get Clerk user:', error);
     return null;
