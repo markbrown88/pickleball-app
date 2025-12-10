@@ -101,6 +101,7 @@ export async function GET(req: Request) {
         select: {
           id: true,
           slot: true,
+          bracketId: true,
           teamAScore: true,
           teamBScore: true,
         },
@@ -159,11 +160,11 @@ export async function GET(req: Request) {
   for (const match of matches) {
     if (!match.teamA || !match.teamB) continue;
 
-    // Get bracket from team (both teams in a match should be in the same bracket)
-    const bracketId = match.teamA.bracketId || match.teamB.bracketId || 'no-bracket';
-
     for (const game of match.games) {
       if (game.teamAScore === null || game.teamBScore === null || !game.slot) continue;
+
+      // Get bracket from game (games can have different bracketIds within the same match)
+      const bracketId = game.bracketId || match.teamA.bracketId || match.teamB.bracketId || 'no-bracket';
 
       // Initialize bracket maps if needed
       if (!bracketPlayerStats.has(bracketId)) {
