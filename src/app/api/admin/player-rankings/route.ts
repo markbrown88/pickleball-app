@@ -88,7 +88,7 @@ export async function GET(req: Request) {
   });
   const roundIds = rounds.map(r => r.id);
 
-  // Get all matches with their games
+  // Get all matches with their games (include team bracketId)
   const matches = await prisma.match.findMany({
     where: { roundId: { in: roundIds } },
     include: {
@@ -101,13 +101,12 @@ export async function GET(req: Request) {
         select: {
           id: true,
           slot: true,
-          bracketId: true,
           teamAScore: true,
           teamBScore: true,
         },
       },
-      teamA: { select: { id: true } },
-      teamB: { select: { id: true } },
+      teamA: { select: { id: true, bracketId: true } },
+      teamB: { select: { id: true, bracketId: true } },
       round: {
         select: {
           id: true,
@@ -160,10 +159,11 @@ export async function GET(req: Request) {
   for (const match of matches) {
     if (!match.teamA || !match.teamB) continue;
 
+    // Get bracket from team (both teams in a match should be in the same bracket)
+    const bracketId = match.teamA.bracketId || match.teamB.bracketId || 'no-bracket';
+
     for (const game of match.games) {
       if (game.teamAScore === null || game.teamBScore === null || !game.slot) continue;
-
-      const bracketId = game.bracketId || 'no-bracket';
 
       // Initialize bracket maps if needed
       if (!bracketPlayerStats.has(bracketId)) {
