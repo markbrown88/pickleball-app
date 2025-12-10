@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { saveSelectedTournament, getLastSelectedTournament } from '@/lib/tournamentStorage';
 
 type PlayerStats = {
   playerId: string;
@@ -58,9 +59,12 @@ export default function PlayerRankingsPage() {
       if (!res.ok) throw new Error('Failed to load tournaments');
       const data = await res.json();
       setTournaments(data);
-      // Auto-select first tournament if available
+
+      // Auto-select: prefer last selected, then first tournament
       if (data.length > 0) {
-        setSelectedTournamentId((prev) => prev || data[0].id);
+        const lastSelected = getLastSelectedTournament();
+        const validLastSelected = lastSelected && data.some((t: Tournament) => t.id === lastSelected);
+        setSelectedTournamentId((prev) => prev || (validLastSelected ? lastSelected : data[0].id));
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load tournaments');
@@ -212,7 +216,11 @@ export default function PlayerRankingsPage() {
           <select
             className="input w-64"
             value={selectedTournamentId}
-            onChange={(e) => setSelectedTournamentId(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelectedTournamentId(id);
+              if (id) saveSelectedTournament(id);
+            }}
           >
             <option value="">Select a tournament</option>
             {tournaments.map((t) => (
