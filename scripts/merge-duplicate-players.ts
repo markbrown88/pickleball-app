@@ -14,19 +14,9 @@ interface MergePair {
 
 const merges: MergePair[] = [
   {
-    oldId: 'cmg067sat0009rddcid5r3u7a', // Kara Blair - no email, no Clerk
-    newId: 'cmiw6ortx0001jm04t8y1avyb', // Kara Blair - karablair22@gmail.com, has Clerk
-    name: 'Kara Blair'
-  },
-  {
-    oldId: 'cmh8226q00015r0j4sxq5n7fo', // Cheryl Teti - cherylteti@icloud.com, no Clerk
-    newId: 'cmizbjx5d0003l104r6o11kdw', // Cheryl Teti - cherteti@gmail.com, has Clerk
-    name: 'Cheryl Teti'
-  },
-  {
-    oldId: 'cmh822dg5006dr0j4d8iada7s', // Roger Lam - no email, no Clerk
-    newId: 'cmit2espj0001l50476616jp3', // Roger Lam - jorolam@rogers.com, has Clerk
-    name: 'Roger Lam'
+    oldId: 'cmh8229ri003fr0j4ypa55dby', // Julia Markus - jmarkus02@hotmail.com, no Clerk
+    newId: 'cmj01uel50005l204ankowgg2', // Julia Markus - bananagirl234@gmail.com, has Clerk
+    name: 'Julia Markus'
   }
 ];
 

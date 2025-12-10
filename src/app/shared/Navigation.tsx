@@ -27,8 +27,8 @@ function navLinkClasses(active: boolean, isSubItem: boolean = false) {
 
 function navHeadingClasses(hasActiveChild: boolean) {
   return `flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer ${hasActiveChild
-      ? 'text-primary bg-primary/5'
-      : 'text-muted hover:text-primary hover:bg-surface-2'
+    ? 'text-primary bg-primary/5'
+    : 'text-muted hover:text-primary hover:bg-surface-2'
     }`;
 }
 
@@ -107,8 +107,8 @@ export function Navigation({ items, userRole, onMobileNavClose }: { items: NavIt
                         <li key={child.href || child.label} className="relative group">
                           {/* Bullet indicator */}
                           <span className={`absolute left-6 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 transition-colors ${active
-                              ? 'border-brand-secondary bg-brand-secondary/30'
-                              : 'border-brand-secondary/40 group-hover:border-brand-secondary/80'
+                            ? 'border-brand-secondary bg-brand-secondary/30'
+                            : 'border-brand-secondary/40 group-hover:border-brand-secondary/80'
                             }`} />
                           <Link
                             href={child.href || '#'}
@@ -178,6 +178,7 @@ export function getNavigationItems(): NavItem[] {
         { href: '/admin/player-rankings', label: 'Player Rankings', roles: ['app-admin'] },
         { href: '/admin/settings/pricing', label: 'Pricing Settings', roles: ['app-admin'] },
         { href: '/admin/transactions', label: 'Transactions', roles: ['app-admin'] },
+        { href: '/app-admin/merge-players', label: 'Player Merges', roles: ['app-admin'] },
       ]
     },
   ];

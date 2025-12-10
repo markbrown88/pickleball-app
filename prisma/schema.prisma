@@ -102,6 +102,8 @@ model Player {
   tournamentWaitlist     TournamentWaitlist[]
   actAsAdminActions      ActAsAuditLog[]        @relation("ActAsAdmin")
   actAsTargetActions     ActAsAuditLog[]        @relation("ActAsTarget")
+  mergesAsKept           PlayerMergeLog[]       @relation("MergedIntoPlayer")
+  mergesPerformed        PlayerMergeLog[]       @relation("MergePerformedBy")
 
   @@index([clubId])
   @@index([birthdayYear, birthdayMonth, birthdayDay], map: "Player_birthday_idx")
@@ -911,4 +913,27 @@ model CaptainPortalAttempt {
 
   @@index([token, createdAt])
   @@index([ipAddress, createdAt])
+}
+
+/// *
+/// * ---------- Player Merge Audit Log ----------
+model PlayerMergeLog {
+  id                    String   @id @default(cuid())
+  primaryPlayerId       String
+  secondaryPlayerId     String   // Stored for reference (player is deleted)
+  secondaryPlayerName   String
+  secondaryPlayerEmail  String?
+  secondaryClerkUserId  String?
+  mergedBy              String
+  transferredData       Json?    // Summary: { rosters: 5, lineups: 12, ... }
+  clerkMergeStatus      String?  // 'SUCCESS' | 'PARTIAL' | 'MANUAL_REQUIRED' | 'SKIPPED'
+  clerkMergeNotes       String?
+  createdAt             DateTime @default(now())
+
+  primaryPlayer         Player   @relation("MergedIntoPlayer", fields: [primaryPlayerId], references: [id])
+  admin                 Player   @relation("MergePerformedBy", fields: [mergedBy], references: [id])
+
+  @@index([primaryPlayerId])
+  @@index([mergedBy])
+  @@index([createdAt])
 }

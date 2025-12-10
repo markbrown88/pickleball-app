@@ -40,6 +40,15 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const { actingAs } = useActAs();
 
+  // Clear act-as state if user is not an admin (prevents stale state from previous sessions)
+  useEffect(() => {
+    if (!showActAs && actingAs) {
+      // Clear without reload - just remove from localStorage/cookie
+      localStorage.removeItem('act-as-user');
+      document.cookie = 'act-as-player-id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    }
+  }, [showActAs, actingAs]);
+
   const handleSetToolbarContent = useCallback((content: ReactNode | null) => {
     setToolbarContent(content);
   }, []);
@@ -120,7 +129,7 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
               <div className="mt-4 space-y-1 text-sm text-muted">
                 <div className="font-medium text-secondary">{displayUser}</div>
                 <div className="chip chip-info inline-flex text-xs">{roleBadge}</div>
-                {actingAs && (
+                {showActAs && actingAs && (
                   <div className="text-xs text-warning">
                     Acting as {actingAs.name}
                   </div>
