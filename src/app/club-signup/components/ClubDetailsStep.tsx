@@ -118,6 +118,16 @@ export default function ClubDetailsStep({ initialData, userId, onNext, onBack }:
                     />
                 </div>
 
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Description (Optional)</label>
+                    <textarea
+                        className="input w-full min-h-[100px] resize-y"
+                        value={formData.description}
+                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Tell us about your club, facilities, and community..."
+                    />
+                </div>
+
                 <div className="flex gap-4 pt-4">
                     <button type="button" onClick={onBack} className="btn btn-ghost flex-1">
                         Back
