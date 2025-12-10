@@ -1502,16 +1502,32 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                       Your payment for <strong>${tournamentName}</strong> has been successfully processed.
                     </p>
 
+                    <div style="background-color: #f9fafb; border-left: 4px solid #6b7280; padding: 20px; margin: 0 0 20px 0; border-radius: 4px;">
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>Amount Paid:</strong> $${(amountPaid / 100).toFixed(2)}
+                      </div>
+
+                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                        <strong>Paid:</strong> ${paymentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${paymentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </div>
+
+                      ${transactionId ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>Transaction ID:</strong> ${transactionId}
+                        </div>
+                      ` : ''}
+                    </div>
+
                     <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
-                      <h2 style="margin: 0 0 15px 0; font-size: 22px; color: #111827;">${tournamentName}</h2>
-
                       <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                        <strong>💰 Amount Paid:</strong> $${(amountPaid / 100).toFixed(2)}
+                        <strong>Tournament:</strong> ${tournamentName}
                       </div>
 
-                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                        <strong>✓ Paid:</strong> ${paymentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${paymentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                      </div>
+                      ${clubName ? `
+                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
+                          <strong>Team:</strong> ${clubName}
+                        </div>
+                      ` : ''}
 
                       ${stops && stops.length > 0 && stops[0].bracketName ? `
                         <div style="margin: 10px 0; font-size: 14px; color: #374151;">
@@ -1536,12 +1552,6 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                           <strong>📅 Dates:</strong> ${dateRange}
                         </div>
                       ` : '')}
-
-                      ${transactionId ? `
-                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>🔢 Transaction ID:</strong> ${transactionId}
-                        </div>
-                      ` : ''}
                     </div>
                     ${stopsListHtml}
 
