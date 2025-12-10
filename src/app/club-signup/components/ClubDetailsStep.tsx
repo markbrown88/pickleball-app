@@ -17,8 +17,8 @@ export default function ClubDetailsStep({ initialData, userId, onNext, onBack }:
         name: initialData.name || '',
         city: initialData.city || '',
         region: initialData.region || '',
-        address: '', // New field we need
-        description: '',
+        address: initialData.address || '',
+        description: initialData.description || '',
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,10 +45,16 @@ export default function ClubDetailsStep({ initialData, userId, onNext, onBack }:
             const savedClub = await res.json();
 
             // Pass the real ID forward
+            // Pass the real ID and all updated data forward so it persists in Wizard state
             onNext({
                 ...initialData,
+                isNew: false, // It's no longer new once saved
                 id: savedClub.id,
                 name: savedClub.name,
+                city: formData.city,
+                region: formData.region,
+                address: formData.address,
+                description: formData.description
             });
 
         } catch (error: any) {
@@ -109,6 +115,16 @@ export default function ClubDetailsStep({ initialData, userId, onNext, onBack }:
                         value={formData.address}
                         onChange={e => setFormData({ ...formData, address: e.target.value })}
                         placeholder="123 Pickleball Lane"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Description (Optional)</label>
+                    <textarea
+                        className="input w-full min-h-[100px] resize-y"
+                        value={formData.description}
+                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Tell us about your club, facilities, and community..."
                     />
                 </div>
 

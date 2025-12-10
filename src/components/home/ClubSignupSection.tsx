@@ -35,15 +35,9 @@ export default function ClubSignupSection() {
                         <div className="flex flex-col sm:flex-row gap-4 pt-4">
                             <Link
                                 href="/club-signup"
-                                className="btn btn-primary text-lg px-8 py-4 h-auto"
+                                className="btn btn-secondary text-lg px-8 py-4 h-auto"
                             >
-                                Register Your Club Free
-                            </Link>
-                            <Link
-                                href="/about"
-                                className="btn btn-outline text-lg px-8 py-4 h-auto"
-                            >
-                                Learn More
+                                Register Your Club for FREE Today!
                             </Link>
                         </div>
                     </div>
@@ -74,7 +68,7 @@ export default function ClubSignupSection() {
 
                             <div className="space-y-4">
                                 <p className="text-sm text-muted">
-                                    Create Round Robin or Double Elimination brackets, manage registrations, and run professional-grade events at your venue.
+                                    Sign up to be a Host Club today, or upgrade at any time. Create Round Robin or Double Elimination brackets, manage registrations, and run professional-grade events at your venue.
                                 </p>
                             </div>
                         </div>

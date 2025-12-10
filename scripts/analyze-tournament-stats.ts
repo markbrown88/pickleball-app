@@ -245,6 +245,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
     gamesWon: number;
     gamesLost: number;
     winPercentage: number;
+    teams: Map<string, number>;
     bySlot: {
       MENS_DOUBLES: { played: number; won: number; lost: number };
       WOMENS_DOUBLES: { played: number; won: number; lost: number };
@@ -446,9 +447,8 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
       return b.gamesPlayed - a.gamesPlayed;
     });
 
-  console.log(`\n📈 Top Players by Win Percentage (min 5 games):`);
+  console.log(`\n📈 Top 10 Players by Win Percentage:`);
   sortedPlayers
-    .filter(p => p.gamesPlayed >= 5)
     .slice(0, 10)
     .forEach((player, idx) => {
       // Get most common team(s)
@@ -469,7 +469,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
       });
     });
 
-  console.log(`\n\n📊 Most Active Players (by games played):`);
+  console.log(`\n\n📊 Top 10 Most Active Players (by games played):`);
   sortedPlayers
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
     .slice(0, 10)
@@ -497,9 +497,8 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
       return b.gamesPlayed - a.gamesPlayed;
     });
 
-  console.log(`\n👥 Top Pairs by Win Percentage (min 3 games together):`);
+  console.log(`\n👥 Top 10 Pairs by Win Percentage:`);
   sortedPairs
-    .filter(p => p.gamesPlayed >= 3)
     .slice(0, 10)
     .forEach((pair, idx) => {
       // Get most common team(s)
@@ -518,7 +517,7 @@ async function analyzeTournamentStats(tournamentNames: string[]) {
       });
     });
 
-  console.log(`\n\n👥 Most Active Pairs (by games played together):`);
+  console.log(`\n\n👥 Top 10 Most Active Pairs (by games played together):`);
   sortedPairs
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed)
     .slice(0, 10)

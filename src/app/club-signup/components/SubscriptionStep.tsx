@@ -73,12 +73,11 @@ export default function SubscriptionStep({ clubData, userId, userEmail, onBack }
                             <li className="flex gap-2">✅ <span>Join external tournaments</span></li>
                             <li className="flex gap-2">✅ <span>Manage team rosters</span></li>
                             <li className="flex gap-2 text-muted-foreground">❌ <span>Create your own tournaments</span></li>
-                            <li className="flex gap-2 text-muted-foreground">❌ <span>Collect registration fees</span></li>
                         </ul>
 
                         <button
                             onClick={handleFreeTier}
-                            className="mt-8 btn btn-outline w-full py-3"
+                            className="mt-8 btn btn-secondary w-full py-3"
                         >
                             Continue with Free
                         </button>
@@ -92,7 +91,7 @@ export default function SubscriptionStep({ clubData, userId, userEmail, onBack }
                     </div>
 
                     <div className="h-full flex flex-col">
-                        <h3 className="text-xl font-bold text-brand-primary">Tournament Director</h3>
+                        <h3 className="text-xl font-bold text-brand-primary">Tournament Management</h3>
 
                         <div className="mt-4 flex items-baseline gap-2">
                             <span className="text-3xl font-bold">
@@ -104,16 +103,16 @@ export default function SubscriptionStep({ clubData, userId, userEmail, onBack }
                         </div>
 
                         {/* Toggle */}
-                        <div className="flex bg-gray-100 p-1 rounded-lg mt-4 w-fit">
+                        <div className="flex bg-surface-2 p-1 rounded-lg mt-4 w-fit">
                             <button
                                 onClick={() => setBillingCycle('monthly')}
-                                className={`px-3 py-1 text-sm rounded-md transition-all ${billingCycle === 'monthly' ? 'bg-white shadow text-primary' : 'text-muted hover:text-primary'}`}
+                                className={`px-3 py-1 text-sm rounded-md transition-all ${billingCycle === 'monthly' ? 'bg-brand-secondary shadow text-brand-secondary-text font-bold' : 'text-muted hover:text-primary'}`}
                             >
                                 Monthly
                             </button>
                             <button
                                 onClick={() => setBillingCycle('annual')}
-                                className={`px-3 py-1 text-sm rounded-md transition-all ${billingCycle === 'annual' ? 'bg-white shadow text-brand-primary font-medium' : 'text-muted hover:text-primary'}`}
+                                className={`px-3 py-1 text-sm rounded-md transition-all ${billingCycle === 'annual' ? 'bg-brand-secondary shadow text-brand-secondary-text font-bold' : 'text-muted hover:text-primary'}`}
                             >
                                 Annual (Save ~5%)
                             </button>
@@ -123,7 +122,6 @@ export default function SubscriptionStep({ clubData, userId, userEmail, onBack }
 
                         <ul className="mt-6 space-y-3 flex-1">
                             <li className="flex gap-2">✅ <span><b>Create unlimited tournaments</b></span></li>
-                            <li className="flex gap-2">✅ <span>Collect payments via Stripe</span></li>
                             <li className="flex gap-2">✅ <span>Advanced bracket management</span></li>
                             <li className="flex gap-2">✅ <span>Real-time scoring & standings</span></li>
                             <li className="flex gap-2">✅ <span>Club Director Dashboard</span></li>
@@ -132,7 +130,7 @@ export default function SubscriptionStep({ clubData, userId, userEmail, onBack }
                         <button
                             onClick={handlePaidSubscribe}
                             disabled={loading}
-                            className="mt-8 btn btn-primary w-full py-3 text-lg shadow-lg hover:shadow-xl transform transition-transform active:scale-95"
+                            className="mt-8 btn btn-secondary w-full py-3 text-lg shadow-lg hover:shadow-xl transform transition-transform active:scale-95"
                         >
                             {loading ? 'Processing...' : `Start 30-Day Free Trial`}
                         </button>
