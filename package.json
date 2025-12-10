@@ -14,7 +14,7 @@
     "stripe:trigger": "stripe trigger"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.31.4",
+    "@clerk/nextjs": "^6.35.6",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -60,7 +60,7 @@
     "babel-preset-next": "^1.4.0",
     "dotenv": "^17.2.3",
     "eslint": "^9",
-    "eslint-config-next": "15.5.0",
+    "eslint-config-next": "15.5.7",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "mini-css-extract-plugin": "^2.9.4",
