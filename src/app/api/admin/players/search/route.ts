@@ -84,8 +84,8 @@ export async function GET(req: Request) {
 
       if (stopId) {
         // Count players for this specific stop
-        teamRosterCount = await prisma.stopTeamPlayer.count({ 
-          where: { teamId, stopId } 
+        teamRosterCount = await prisma.stopTeamPlayer.count({
+          where: { teamId, stopId }
         });
       } else {
         // Count players across all stops (legacy behavior)
@@ -160,9 +160,17 @@ export async function GET(req: Request) {
         lastName: true,
         name: true,
         gender: true,
+        email: true,
+        clerkUserId: true,
         duprDoubles: true,
         duprSingles: true,
         age: true,
+        club: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
