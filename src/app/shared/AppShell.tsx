@@ -57,8 +57,8 @@ function AppShellContent({ userRole, userInfo, children, showActAs = false, avai
   const displayName = fullName || 'User';
 
   // Always use server-detected userRole for navigation (it's already Act As-aware)
-  // Use actingAs for display name only
-  const displayUser = actingAs ? actingAs.name : displayName;
+  // Only use actingAs for display name if user is an admin
+  const displayUser = (showActAs && actingAs) ? actingAs.name : displayName;
 
   const roleBadge = userRole === 'app-admin'
     ? 'App Admin'
