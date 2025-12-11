@@ -5,21 +5,21 @@ import "./globals.css";
 import { ModalProvider } from "./shared/ModalContext";
 import { ClerkModalCustomizer } from "./shared/ClerkModalCustomizer";
 
-const plusJakartaSans = Plus_Jakarta_Sans({ 
-  variable: "--font-plus-jakarta-sans", 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"]
 });
 
-const outfit = Outfit({ 
-  variable: "--font-outfit", 
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["500", "600", "700"]
 });
 
 export const metadata: Metadata = {
-  title: "Klyng Cup - Multi-Stop Pickleball Championship",
-  description: "The ultimate multi-stop pickleball championship experience. Where clubs compete across multiple stops, accumulating points toward the ultimate championship.",
+  title: "Klyng Cup | Pickleball Tournament Platform for Clubs",
+  description: "Battle of the Clubs — the multi-stop pickleball championship where clubs compete for glory. Find tournaments or host your own with our platform.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,33 +31,33 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           modalBackdrop: 'bg-black/60 backdrop-blur-sm',
           modalContent: 'bg-surface-1 border-border-subtle',
           modalContentBlur: 'bg-surface-1',
-          
+
           // Card styling
           card: 'bg-surface-1 border-border-subtle shadow-xl',
           headerTitle: 'text-text-primary font-semibold',
           headerSubtitle: 'text-text-muted',
           header: 'flex flex-col items-center pb-4',
           headerLogo: 'mb-4 h-12 w-auto',
-          
+
           // Social buttons
           socialButtonsBlockButton: 'bg-surface-2 border-border-subtle hover:bg-surface-1 transition-colors',
           socialButtonsBlockButtonText: '!text-[#F5F7FA] font-medium',
           socialButtonsBlockButtonArrow: '!text-[#F5F7FA]',
-          
+
           // Dividers
           dividerLine: 'bg-border-subtle',
           dividerText: 'text-text-muted',
-          
+
           // Form inputs
           formFieldInput: 'bg-surface-2 border-border-subtle text-text-primary placeholder:text-text-muted focus:border-brand-secondary focus:ring-2 focus:ring-brand-secondary/20',
           formFieldLabel: 'text-text-secondary',
           formFieldSuccessText: 'text-status-success',
           formFieldErrorText: 'text-status-error',
-          
+
           // Buttons
           formButtonPrimary: 'bg-brand-primary hover:bg-brand-primary-hover active:bg-brand-primary-active text-brand-primary-text font-medium transition-colors',
           formButtonReset: 'text-brand-secondary hover:text-brand-secondary-hover',
-          
+
           // Links - using explicit bright colors for visibility
           footerActionLink: '!text-[#01DFCB] hover:!text-[#13E9D6] !font-medium',
           formFieldInputShowPasswordButton: '!text-[#01DFCB] hover:!text-[#13E9D6]',
@@ -67,18 +67,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           // Logo container
           logoBox: 'flex justify-center mb-4',
           logoImage: 'h-12 w-auto max-w-[200px] object-contain',
-          
+
           // Identity preview
           identityPreviewText: 'text-text-primary',
           identityPreviewEditButton: 'text-brand-secondary hover:text-brand-secondary-hover',
-          
+
           // OTP
           otpCodeFieldInput: 'bg-surface-2 border-border-subtle text-text-primary focus:border-brand-secondary focus:ring-2 focus:ring-brand-secondary/20',
-          
+
           // Alerts
           alertText: 'text-text-primary',
           alertTextDanger: 'text-status-error',
-          
+
           // Close button
           modalCloseButton: 'text-text-muted hover:text-text-primary',
         },

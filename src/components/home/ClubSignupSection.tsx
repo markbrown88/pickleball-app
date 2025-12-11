@@ -9,10 +9,10 @@ export default function ClubSignupSection() {
                         <div>
                             <span className="text-brand-primary font-bold tracking-wide uppercase text-sm">For Club Directors</span>
                             <h2 className="text-4xl font-bold text-primary mt-2 mb-6">
-                                Join the Klyng Cup Network
+                                Bring Klyng Cup to Your Club
                             </h2>
                             <p className="text-xl text-muted leading-relaxed">
-                                Get your club on the map! Register for <strong>free</strong> to create your official club profile, build your player roster, and complete for the cup.
+                                Host your own Klyng Cup tournaments! Register for <strong>free</strong> to create your official club profile, build your player roster, and join the growing network.
                             </p>
                         </div>
 

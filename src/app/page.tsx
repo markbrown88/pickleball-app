@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { UserButton, SignedIn, SignedOut, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 import { formatDateRangeUTC } from '@/lib/utils';
 import ClubSignupSection from '@/components/home/ClubSignupSection';
+import TestimonialsSection from '@/components/home/TestimonialsSection';
 
 type TournamentStop = {
   id: string;
@@ -166,7 +167,9 @@ export default function Home() {
             <nav className="hidden md:flex items-center space-x-8">
               <Link href="/about" className="nav-link">About</Link>
               <a href="#tournaments" className="nav-link">Current Tournaments</a>
-              <Link href="/rules" className="nav-link">Rules & Format</Link>
+              <Link href="/rules" className="nav-link">Rules &amp; Format</Link>
+              <Link href="/pricing" className="nav-link">Pricing</Link>
+              <Link href="/club-signup" className="nav-link">Host Your Own</Link>
             </nav>
             {/* Mobile Navigation */}
             <div className="md:hidden">
@@ -211,13 +214,38 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-8 md:gap-12 items-start">
             {/* Left side - Content */}
             <div className="text-center lg:text-left">
+              {/* Trust Badge */}
+              <div className="inline-flex items-center gap-2 bg-brand-secondary/10 border border-brand-secondary/30 rounded-full px-4 py-2 mb-6">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-secondary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-secondary"></span>
+                </span>
+                <span className="text-sm font-medium text-brand-secondary">Join the Movement — 50+ Clubs & Growing</span>
+              </div>
+
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-7xl font-bold text-primary mb-6">
                 Battle of the Clubs
               </h1>
-              <p className="text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-12 leading-relaxed">
-                A high-stakes, high-fun, co-ed interclub league where pride, teamwork, and performance take center court.
-                Pickleball clubs compete in a customizable multi-stop championship series unlike anything else in the sport.
+              <p className="text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-8 leading-relaxed">
+                The multi-stop championship where pickleball clubs compete for glory.
+                Find a tournament near you—or bring the Klyng Cup experience to your club.
               </p>
+
+              {/* Dual CTAs */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-12">
+                <a
+                  href="#tournaments"
+                  className="btn btn-primary text-lg px-8 py-4"
+                >
+                  Find Tournaments
+                </a>
+                <Link
+                  href="/club-signup"
+                  className="btn btn-secondary text-lg px-8 py-4"
+                >
+                  Host Your Own
+                </Link>
+              </div>
 
               {/* Three Tournament Cards Side by Side */}
               <div className="max-w-2xl mx-auto lg:mx-0">
@@ -478,6 +506,30 @@ export default function Home() {
                 <div className="absolute top-6 right-6 w-16 h-16 bg-brand-accent/20 rounded-full blur-lg"></div>
                 <div className="absolute bottom-6 left-6 w-12 h-12 bg-brand-secondary/20 rounded-full blur-md"></div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust Bar Section */}
+      <section className="py-8 bg-surface-2 border-y border-subtle">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <div className="space-y-1">
+              <div className="text-3xl md:text-4xl font-bold text-brand-secondary">50+</div>
+              <div className="text-sm text-muted">Clubs Competing</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-3xl md:text-4xl font-bold text-brand-secondary">100+</div>
+              <div className="text-sm text-muted">Matches Scored</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-3xl md:text-4xl font-bold text-brand-secondary">500+</div>
+              <div className="text-sm text-muted">Players Competing</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-3xl md:text-4xl font-bold text-status-success">Growing</div>
+              <div className="text-sm text-muted">Weekly</div>
             </div>
           </div>
         </div>
@@ -941,6 +993,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Testimonials Section - Hidden until real quotes are added */}
+      <TestimonialsSection visible={false} />
+
       {/* Championship Photo Stripe */}
       <section className="py-20 bg-gradient-to-r from-surface-1 to-surface-2">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1084,6 +1139,7 @@ export default function Home() {
               <ul className="space-y-2">
                 <li><a href="#tournaments" className="text-muted hover:text-primary">Current Tournaments</a></li>
                 <li><Link href="/rules" className="text-muted hover:text-primary">Rules & Format</Link></li>
+                <li><Link href="/club-signup" className="text-muted hover:text-primary">Host Your Own</Link></li>
               </ul>
             </div>
             <div>
@@ -1108,7 +1164,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-subtle mt-8 pt-8 text-center text-muted">
-            <p>&copy; 2024 Klyng Cup. All rights reserved.</p>
+            <p>&copy; 2025 Klyng Cup. All rights reserved.</p>
           </div>
         </div>
       </footer>
