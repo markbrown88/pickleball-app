@@ -11,6 +11,14 @@ import {
   stringifyRegistrationNotes,
 } from '@/lib/payments/registrationNotes';
 
+async function isCurrentUserAppAdmin(clerkUserId: string): Promise<boolean> {
+  const player = await prisma.player.findUnique({
+    where: { clerkUserId },
+    select: { isAppAdmin: true },
+  });
+  return player?.isAppAdmin ?? false;
+}
+
 /**
  * POST /api/payments/refund
  * Process a refund for a paid registration (admin only)
@@ -58,9 +66,9 @@ export async function POST(request: NextRequest) {
             registrationType: true,
             startDate: true,
             stops: {
-              take: 1,
               orderBy: { startAt: 'asc' },
               select: {
+                id: true,
                 startAt: true,
               },
             },
@@ -111,25 +119,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if tournament has started (no refunds after start)
-    const tournamentStartDate = registration.tournament.startDate ||
-      registration.tournament.stops[0]?.startAt;
+    // Check if refund deadline has passed (24 hours before start)
+    // App admins can bypass this restriction
+    const isAppAdmin = await isCurrentUserAppAdmin(userId);
 
-    if (tournamentStartDate) {
-      const now = new Date();
-      const startDate = new Date(tournamentStartDate);
-      const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (!isAppAdmin) {
+      // Parse registration notes to get stopIds if available
+      let registrationStopIds: string[] = [];
+      if (registration.notes) {
+        try {
+          const notesData = JSON.parse(registration.notes);
+          registrationStopIds = notesData.stopIds || [];
+        } catch {
+          // Notes not JSON or no stopIds - will fall back to tournament start date
+        }
+      }
 
-      if (hoursUntilStart < 24) {
-        return NextResponse.json(
-          {
-            error: 'Refund deadline passed',
-            details: 'Refunds are only available more than 24 hours before tournament start.',
-            tournamentStartDate: tournamentStartDate.toISOString(),
-            hoursUntilStart: Math.round(hoursUntilStart),
-          },
-          { status: 400 }
+      // Determine the relevant start date:
+      // - If tournament has stops AND registration has specific stopIds, use earliest of those stops
+      // - Otherwise fall back to tournament startDate or first stop
+      let relevantStartDate: Date | null = null;
+
+      if (registrationStopIds.length > 0 && registration.tournament.stops.length > 0) {
+        // Find the earliest start date among the stops the player paid for
+        const paidStops = registration.tournament.stops.filter(
+          (stop: { id: string; startAt: Date }) => registrationStopIds.includes(stop.id)
         );
+        if (paidStops.length > 0) {
+          relevantStartDate = paidStops.reduce(
+            (earliest: Date, stop: { startAt: Date }) =>
+              stop.startAt < earliest ? stop.startAt : earliest,
+            paidStops[0].startAt
+          );
+        }
+      }
+
+      // Fall back to tournament start date or first stop if no specific stops found
+      if (!relevantStartDate) {
+        relevantStartDate = registration.tournament.startDate ||
+          registration.tournament.stops[0]?.startAt || null;
+      }
+
+      if (relevantStartDate) {
+        const now = new Date();
+        const startDate = new Date(relevantStartDate);
+        const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        if (hoursUntilStart < 24) {
+          return NextResponse.json(
+            {
+              error: 'Refund deadline passed',
+              details: 'Refunds are only available more than 24 hours before the event start.',
+              eventStartDate: relevantStartDate.toISOString(),
+              hoursUntilStart: Math.round(hoursUntilStart),
+            },
+            { status: 400 }
+          );
+        }
       }
     }
 
