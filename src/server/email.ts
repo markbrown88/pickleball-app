@@ -424,7 +424,7 @@ export async function sendRegistrationConfirmationEmail(params: RegistrationConf
               </div>
               ${stop.bracketName ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>Bracket:</strong> ${stop.bracketName}
+                  <strong>🏆 Bracket:</strong> ${stop.bracketName}
                 </div>
               ` : ''}
             </div>
@@ -1410,11 +1410,6 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
               <div style="margin: 4px 0; font-size: 14px; color: #374151;">
                 <strong>Tournament:</strong> ${tournamentName}
               </div>
-              ${hasMultipleStops ? `
-                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>🏁 Stop:</strong> ${stop.name}
-                </div>
-              ` : ''}
               ${isTeamTournament && clubName ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
                   <strong>Team:</strong> ${clubName}
@@ -1422,7 +1417,12 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
               ` : ''}
               ${stop.bracketName ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>Bracket:</strong> ${stop.bracketName}
+                  <strong>🏆 Bracket:</strong> ${stop.bracketName}
+                </div>
+              ` : ''}
+              ${hasMultipleStops ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>🏁 Stop:</strong> ${stop.name}
                 </div>
               ` : ''}
               ${locationDisplay && mapsUrl ? `
@@ -2040,11 +2040,6 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
               <div style="margin: 4px 0; font-size: 14px; color: #374151;">
                 <strong>Tournament:</strong> ${tournamentName}
               </div>
-              ${hasMultipleStops ? `
-                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>🏁 Stop:</strong> ${stop.name}
-                </div>
-              ` : ''}
               ${isTeamTournament && clubName ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
                   <strong>Team:</strong> ${clubName}
@@ -2052,7 +2047,12 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
               ` : ''}
               ${stop.bracketName ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>Bracket:</strong> ${stop.bracketName}
+                  <strong>🏆 Bracket:</strong> ${stop.bracketName}
+                </div>
+              ` : ''}
+              ${hasMultipleStops ? `
+                <div style="margin: 4px 0; font-size: 14px; color: #374151;">
+                  <strong>🏁 Stop:</strong> ${stop.name}
                 </div>
               ` : ''}
               ${locationDisplay && mapsUrl ? `
