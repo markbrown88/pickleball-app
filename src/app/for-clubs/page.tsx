@@ -28,7 +28,7 @@ export default function ForClubsPage() {
                         </div>
                         <nav className="hidden md:flex items-center space-x-8">
                             <Link href="/about" className="nav-link">About</Link>
-                            <Link href="/tournaments" className="nav-link">Tournaments</Link>
+                            <Link href="/#tournaments" className="nav-link">Tournaments</Link>
                             <Link href="/pricing" className="nav-link">Pricing</Link>
                             <Link href="/for-clubs" className="nav-link active">For Clubs</Link>
                         </nav>

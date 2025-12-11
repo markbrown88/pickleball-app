@@ -28,7 +28,7 @@ export default function PricingPage() {
                         </div>
                         <nav className="hidden md:flex items-center space-x-8">
                             <Link href="/about" className="nav-link">About</Link>
-                            <Link href="/tournaments" className="nav-link">Tournaments</Link>
+                            <Link href="/#tournaments" className="nav-link">Tournaments</Link>
                             <Link href="/pricing" className="nav-link active">Pricing</Link>
                             <Link href="/for-clubs" className="nav-link">For Clubs</Link>
                         </nav>
@@ -158,11 +158,8 @@ export default function PricingPage() {
 
                         {/* Host Tier - Paid */}
                         <div className="card border-2 border-brand-secondary shadow-xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 bg-brand-secondary text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                                MOST POPULAR
-                            </div>
 
-                            <div className="text-center mb-6 pt-4">
+                            <div className="text-center mb-6">
                                 <h3 className="text-2xl font-bold text-primary mb-2">Host Club</h3>
                                 <p className="text-muted mb-6">Create your own tournaments</p>
                                 <div className="flex items-baseline justify-center gap-1">
@@ -292,13 +289,7 @@ export default function PricingPage() {
                             </p>
                         </div>
 
-                        <div className="card">
-                            <h3 className="text-xl font-bold text-primary mb-3">Do tournament entry fees go to Klyng Cup?</h3>
-                            <p className="text-muted">
-                                No. Tournament entry fees are set by the host club and go directly to them. Klyng Cup only charges the monthly
-                                subscription fee for Host Clubs. Players never pay Klyng Cup directly.
-                            </p>
-                        </div>
+
                     </div>
                 </div>
             </section>
