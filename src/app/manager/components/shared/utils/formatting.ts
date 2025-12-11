@@ -57,9 +57,10 @@ export function formatDeadline(dateStr: string | null): string | null {
  */
 export function getTournamentTypeDisplayName(type: string): string {
   const typeMap: Record<string, string> = {
-    'TEAM_FORMAT': 'Team Format',
+    'TEAM_FORMAT': 'Club Round-Robin',
     'SINGLE_ELIMINATION': 'Single Elimination',
     'DOUBLE_ELIMINATION': 'Double Elimination',
+    'DOUBLE_ELIMINATION_CLUBS': 'Club Double Elimination',
     'ROUND_ROBIN': 'Round Robin',
     'POOL_PLAY': 'Pool Play',
     'LADDER_TOURNAMENT': 'Ladder Tournament',

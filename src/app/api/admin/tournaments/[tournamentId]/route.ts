@@ -10,11 +10,15 @@ import { requireAuth } from '@/lib/auth';
 
 const TYPE_MAP: Record<string, TournamentType> = {
   TEAM_FORMAT: 'TEAM_FORMAT',
-  'Team Format': 'TEAM_FORMAT',
+  'Club Round-Robin': 'TEAM_FORMAT',
+  'Team Format': 'TEAM_FORMAT', // Legacy alias
   SINGLE_ELIMINATION: 'SINGLE_ELIMINATION',
   'Single Elimination': 'SINGLE_ELIMINATION',
   DOUBLE_ELIMINATION: 'DOUBLE_ELIMINATION',
   'Double Elimination': 'DOUBLE_ELIMINATION',
+  DOUBLE_ELIMINATION_CLUBS: 'DOUBLE_ELIMINATION_CLUBS',
+  'Club Double Elimination': 'DOUBLE_ELIMINATION_CLUBS',
+  'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS', // Legacy alias
   ROUND_ROBIN: 'ROUND_ROBIN',
   'Round Robin': 'ROUND_ROBIN',
   POOL_PLAY: 'POOL_PLAY',

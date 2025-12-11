@@ -28,9 +28,9 @@ export default function PricingPage() {
                         </div>
                         <nav className="hidden md:flex items-center space-x-8">
                             <Link href="/about" className="nav-link">About</Link>
-                            <Link href="/tournaments" className="nav-link">Current Tournaments</Link>
-                            <Link href="/rules" className="nav-link">Rules & Format</Link>
+                            <Link href="/tournaments" className="nav-link">Tournaments</Link>
                             <Link href="/pricing" className="nav-link active">Pricing</Link>
+                            <Link href="/for-clubs" className="nav-link">For Clubs</Link>
                         </nav>
                         <div className="flex items-center space-x-4">
                             <Link href="/" className="btn btn-ghost">

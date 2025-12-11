@@ -60,7 +60,7 @@ export async function GET(request: Request, { params }: Params) {
     // Only for DE Clubs tournaments
     if (tournamentClub.tournament.type !== 'DOUBLE_ELIMINATION_CLUBS') {
       return NextResponse.json(
-        { error: 'This endpoint is only for Double Elimination Clubs tournaments' },
+        { error: 'This endpoint is only for Club Double Elimination tournaments' },
         { status: 400 }
       );
     }

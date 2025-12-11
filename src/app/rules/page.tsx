@@ -16,10 +16,10 @@ export default function RulesPage() {
           <div className="flex items-center justify-between h-24 md:h-24 py-[10px]">
             <div className="flex items-center">
               <Link href="/" className="flex items-center">
-                <Image 
-                  src="/images/klyng-cup.png" 
-                  alt="Klyng Cup" 
-                  width={120} 
+                <Image
+                  src="/images/klyng-cup.png"
+                  alt="Klyng Cup"
+                  width={120}
                   height={65}
                   className="h-8 md:h-[65px] w-auto"
                   priority
@@ -28,8 +28,9 @@ export default function RulesPage() {
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <Link href="/about" className="nav-link">About</Link>
-              <Link href="/tournaments" className="nav-link">Current Tournaments</Link>
-              <Link href="/rules" className="nav-link active">Rules & Format</Link>
+              <Link href="/tournaments" className="nav-link">Tournaments</Link>
+              <Link href="/pricing" className="nav-link">Pricing</Link>
+              <Link href="/for-clubs" className="nav-link">For Clubs</Link>
             </nav>
             <div className="flex items-center space-x-4">
               <Link href="/" className="btn btn-ghost">
@@ -50,7 +51,7 @@ export default function RulesPage() {
             The Ultimate Customizable Tournament Format
           </p>
           <p className="text-lg text-white/90 max-w-3xl mx-auto">
-            Learn about the flexible co-ed interclub league format, customizable match structure, and rules that make Klyng Cup 
+            Learn about the flexible co-ed interclub league format, customizable match structure, and rules that make Klyng Cup
             the most exciting team-based pickleball competition format anywhere in the world.
           </p>
         </div>
@@ -73,7 +74,7 @@ export default function RulesPage() {
               <div className="card">
                 <h3 className="text-2xl font-bold text-primary mb-4">Flexible Tournament Structure</h3>
                 <p className="text-secondary mb-4">
-                  Klyng Cup tournaments can be single-day events or multi-stop championship series. 
+                  Klyng Cup tournaments can be single-day events or multi-stop championship series.
                   Create the perfect format for your community - from one-day tournaments to as many stops as you want.
                 </p>
                 <ul className="list-disc list-inside text-muted space-y-2">
@@ -396,7 +397,7 @@ export default function RulesPage() {
             <div className="card">
               <h3 className="text-xl font-bold text-primary mb-3">How many stops are in a typical Klyng Cup tournament?</h3>
               <p className="text-muted">
-                The number of stops varies by tournament. Some tournaments have 3-4 stops, while others may have 6-8 stops. 
+                The number of stops varies by tournament. Some tournaments have 3-4 stops, while others may have 6-8 stops.
                 Tournament administrators determine the number of stops based on their community's needs and schedule.
               </p>
             </div>
@@ -404,7 +405,7 @@ export default function RulesPage() {
             <div className="card">
               <h3 className="text-xl font-bold text-primary mb-3">Can a player switch clubs during a tournament?</h3>
               <p className="text-muted">
-                No, players must remain with their registered club for the entire duration of a tournament. 
+                No, players must remain with their registered club for the entire duration of a tournament.
                 However, players can switch clubs between different tournaments.
               </p>
             </div>
@@ -412,7 +413,7 @@ export default function RulesPage() {
             <div className="card">
               <h3 className="text-xl font-bold text-primary mb-3">What happens if a team can't attend a stop?</h3>
               <p className="text-muted">
-                Teams that miss a stop forfeit all potential points for that stop. This can significantly impact 
+                Teams that miss a stop forfeit all potential points for that stop. This can significantly impact
                 their standings, so it's important for teams to plan their participation carefully.
               </p>
             </div>
@@ -420,8 +421,8 @@ export default function RulesPage() {
             <div className="card">
               <h3 className="text-xl font-bold text-primary mb-3">How are brackets determined?</h3>
               <p className="text-muted">
-                Tournament administrators have complete flexibility to create brackets based on skill levels, 
-                categories, or any other criteria that work for their community. This allows for customized 
+                Tournament administrators have complete flexibility to create brackets based on skill levels,
+                categories, or any other criteria that work for their community. This allows for customized
                 competition that fits local needs.
               </p>
             </div>
@@ -429,7 +430,7 @@ export default function RulesPage() {
             <div className="card">
               <h3 className="text-xl font-bold text-primary mb-3">What happens in case of weather delays?</h3>
               <p className="text-muted">
-                Weather delays are handled by tournament officials and stop organizers. Matches may be rescheduled, 
+                Weather delays are handled by tournament officials and stop organizers. Matches may be rescheduled,
                 and the tournament schedule may be adjusted as needed to accommodate weather conditions.
               </p>
             </div>
@@ -447,7 +448,7 @@ export default function RulesPage() {
             Now that you understand the format, join the most exciting pickleball tournament experience.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link 
+            <Link
               href="/clubs"
               className="btn btn-secondary text-lg py-4 px-8"
             >

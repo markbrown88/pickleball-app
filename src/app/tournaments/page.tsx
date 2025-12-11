@@ -221,10 +221,10 @@ function normalizePlayersResponse(v: unknown): PlayersResponse {
 
 /* ================= Tournament type label <-> enum ================= */
 const LABEL_TO_TYPE: Record<TournamentTypeLabel, string> = {
-  'Team Format': 'TEAM_FORMAT',
+  'Club Round-Robin': 'TEAM_FORMAT',
+  'Club Double Elimination': 'DOUBLE_ELIMINATION_CLUBS',
   'Single Elimination': 'SINGLE_ELIMINATION',
   'Double Elimination': 'DOUBLE_ELIMINATION',
-  'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS',
   'Round Robin': 'ROUND_ROBIN',
   'Pool Play': 'POOL_PLAY',
   'Ladder Tournament': 'LADDER_TOURNAMENT',
@@ -388,7 +388,7 @@ export default function AdminPage() {
           ...prev,
           [tId]: {
             name: cfg.name,
-            type: (cfg.type as any) || 'Team Format',
+            type: (cfg.type as any) || 'Club Round-Robin',
             hasMultipleStops: (cfg.stops || []).length > 1, // heuristic
             hasBrackets: (cfg.levels || []).length > 0,
             hasCaptains: (cfg.captainsSimple || []).length > 0,
@@ -526,7 +526,7 @@ export default function AdminPage() {
     payload.tournamentAdminId = editor.tournamentAdmin?.id ?? null;
 
     // Bracket tournament settings (for Double Elimination, Single Elimination, etc.)
-    if (editor.type === 'Double Elimination' || editor.type === 'Double Elimination Clubs' || editor.type === 'Single Elimination') {
+    if (editor.type === 'Double Elimination' || editor.type === 'Club Double Elimination' || editor.type === 'Single Elimination') {
       payload.gamesPerMatch = editor.gamesPerMatch;
       payload.gameSlots = editor.gameSlots;
     }

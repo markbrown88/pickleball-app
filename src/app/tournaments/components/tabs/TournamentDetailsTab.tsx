@@ -43,10 +43,10 @@ export function TournamentDetailsTab({ editor, setEditor }: TournamentDetailsTab
               value={editor.type}
               onChange={(e) => updateField('type', e.target.value as TournamentTypeLabel)}
             >
-              <option value="Team Format">Team Format</option>
+              <option value="Club Round-Robin">Club Round-Robin</option>
+              <option value="Club Double Elimination">Club Double Elimination</option>
               <option value="Single Elimination">Single Elimination</option>
               <option value="Double Elimination">Double Elimination</option>
-              <option value="Double Elimination Clubs">Double Elimination Clubs</option>
               <option value="Round Robin">Round Robin</option>
               <option value="Pool Play">Pool Play</option>
               <option value="Ladder Tournament">Ladder Tournament</option>
@@ -132,7 +132,7 @@ export function TournamentDetailsTab({ editor, setEditor }: TournamentDetailsTab
       </div>
 
       {/* Bracket Tournament Settings - Only show for bracket tournament types */}
-      {(editor.type === 'Double Elimination' || editor.type === 'Double Elimination Clubs' || editor.type === 'Single Elimination') && (
+      {(editor.type === 'Double Elimination' || editor.type === 'Club Double Elimination' || editor.type === 'Single Elimination') && (
         <div className="border-t border-border-subtle pt-6">
           <h3 className="text-lg font-semibold text-primary mb-4">Match Settings</h3>
 
@@ -207,7 +207,7 @@ export function TournamentDetailsTab({ editor, setEditor }: TournamentDetailsTab
           <li>• Brackets: <span className="font-medium text-secondary">{editor.hasBrackets ? 'Enabled' : 'Disabled'}</span></li>
           <li>• Captains: <span className="font-medium text-secondary">{editor.hasCaptains ? 'Enabled' : 'Disabled'}</span></li>
           <li>• Team Size Limit: <span className="font-medium text-secondary">{editor.maxTeamSize || 'Unlimited'}</span></li>
-          {(editor.type === 'Double Elimination' || editor.type === 'Double Elimination Clubs' || editor.type === 'Single Elimination') && (
+          {(editor.type === 'Double Elimination' || editor.type === 'Club Double Elimination' || editor.type === 'Single Elimination') && (
             <>
               <li>• Games Per Match: <span className="font-medium text-secondary">{editor.gamesPerMatch}</span></li>
               <li>• Game Slots: <span className="font-medium text-secondary">{editor.gameSlots.length} selected</span></li>

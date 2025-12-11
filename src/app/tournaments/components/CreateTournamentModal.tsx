@@ -3,7 +3,8 @@
 import { useState } from 'react';
 
 type TournamentTypeLabel =
-  | 'Team Format'
+  | 'Club Round-Robin'
+  | 'Club Double Elimination'
   | 'Single Elimination'
   | 'Double Elimination'
   | 'Round Robin'
@@ -18,7 +19,7 @@ type CreateTournamentModalProps = {
 
 export function CreateTournamentModal({ isOpen, onClose, onCreate }: CreateTournamentModalProps) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<TournamentTypeLabel>('Team Format');
+  const [type, setType] = useState<TournamentTypeLabel>('Club Round-Robin');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +38,7 @@ export function CreateTournamentModal({ isOpen, onClose, onCreate }: CreateTourn
       setError(null);
       await onCreate({ name: name.trim(), type });
       setName('');
-      setType('Team Format');
+      setType('Club Round-Robin');
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create tournament');
@@ -49,7 +50,7 @@ export function CreateTournamentModal({ isOpen, onClose, onCreate }: CreateTourn
   const handleClose = () => {
     if (!loading) {
       setName('');
-      setType('Team Format');
+      setType('Club Round-Robin');
       setError(null);
       onClose();
     }
@@ -97,7 +98,8 @@ export function CreateTournamentModal({ isOpen, onClose, onCreate }: CreateTourn
               onChange={(e) => setType(e.target.value as TournamentTypeLabel)}
               disabled={loading}
             >
-              <option value="Team Format">Team Format</option>
+              <option value="Club Round-Robin">Club Round-Robin</option>
+              <option value="Club Double Elimination">Club Double Elimination</option>
               <option value="Single Elimination">Single Elimination</option>
               <option value="Double Elimination">Double Elimination</option>
               <option value="Round Robin">Round Robin</option>

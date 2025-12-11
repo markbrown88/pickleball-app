@@ -16,10 +16,10 @@ export default function AboutPage() {
           <div className="flex items-center justify-between h-24 md:h-24 py-[10px]">
             <div className="flex items-center">
               <Link href="/" className="flex items-center">
-                <Image 
-                  src="/images/klyng-cup.png" 
-                  alt="Klyng Cup" 
-                  width={120} 
+                <Image
+                  src="/images/klyng-cup.png"
+                  alt="Klyng Cup"
+                  width={120}
                   height={65}
                   className="h-8 md:h-[65px] w-auto"
                   priority
@@ -28,8 +28,9 @@ export default function AboutPage() {
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <Link href="/about" className="nav-link active">About</Link>
-              <Link href="/tournaments" className="nav-link">Current Tournaments</Link>
-              <Link href="/rules" className="nav-link">Rules & Format</Link>
+              <Link href="/tournaments" className="nav-link">Tournaments</Link>
+              <Link href="/pricing" className="nav-link">Pricing</Link>
+              <Link href="/for-clubs" className="nav-link">For Clubs</Link>
             </nav>
             <div className="flex items-center space-x-4">
               <Link href="/" className="btn btn-ghost">
@@ -60,23 +61,23 @@ export default function AboutPage() {
               What is Klyng Cup?
             </h2>
             <p className="text-xl text-muted">
-              Klyng Cup is a high-stakes, high-fun, co-ed interclub league where pride, teamwork, 
-              and performance take center court. This customizable tournament format can be adapted 
+              Klyng Cup is a high-stakes, high-fun, co-ed interclub league where pride, teamwork,
+              and performance take center court. This customizable tournament format can be adapted
               for any community, anywhere in the world, creating an interclub league like no other.
             </p>
           </div>
 
           <div className="prose prose-lg max-w-none">
             <p className="text-lg text-secondary mb-6">
-              Unlike traditional single-location tournaments, Klyng Cup creates an ongoing competitive 
-              experience where teams from multiple clubs compete across various stops throughout the season. 
+              Unlike traditional single-location tournaments, Klyng Cup creates an ongoing competitive
+              experience where teams from multiple clubs compete across various stops throughout the season.
               Each match matters as teams accumulate points toward the ultimate championship destination.
             </p>
 
             <p className="text-lg text-secondary mb-6">
-              This unique format fosters club pride, builds lasting relationships, and creates 
-              compelling storylines as teams battle for position in the standings. The cumulative 
-              point system ensures that every stop is important, keeping the competition exciting 
+              This unique format fosters club pride, builds lasting relationships, and creates
+              compelling storylines as teams battle for position in the standings. The cumulative
+              point system ensures that every stop is important, keeping the competition exciting
               from start to finish. Best of all, every aspect can be customized to fit your community's needs.
             </p>
           </div>
@@ -100,7 +101,7 @@ export default function AboutPage() {
               <div className="card">
                 <h3 className="text-2xl font-bold text-primary mb-4">Multi-Stop Format</h3>
                 <p className="text-secondary mb-4">
-                  Tournaments consist of multiple stops held at different locations throughout the season. 
+                  Tournaments consist of multiple stops held at different locations throughout the season.
                   Each stop is a complete tournament event where teams compete in various brackets.
                 </p>
                 <ul className="list-disc list-inside text-muted space-y-2">
@@ -114,7 +115,7 @@ export default function AboutPage() {
               <div className="card">
                 <h3 className="text-2xl font-bold text-primary mb-4">Point System</h3>
                 <p className="text-secondary mb-4">
-                  Teams earn points at every stop based on their match results, creating 
+                  Teams earn points at every stop based on their match results, creating
                   ongoing competition and strategic depth throughout the season.
                 </p>
                 <ul className="list-disc list-inside text-muted space-y-2">
@@ -130,7 +131,7 @@ export default function AboutPage() {
               <div className="card">
                 <h3 className="text-2xl font-bold text-primary mb-4">Flexible Brackets</h3>
                 <p className="text-secondary mb-4">
-                  Tournament administrators have complete flexibility to design brackets 
+                  Tournament administrators have complete flexibility to design brackets
                   that best suit their community and competition level.
                 </p>
                 <ul className="list-disc list-inside text-muted space-y-2">
@@ -144,7 +145,7 @@ export default function AboutPage() {
               <div className="card">
                 <h3 className="text-2xl font-bold text-primary mb-4">Club-Centric Competition</h3>
                 <p className="text-secondary mb-4">
-                  Klyng Cup emphasizes club pride and team camaraderie, bringing together 
+                  Klyng Cup emphasizes club pride and team camaraderie, bringing together
                   communities around their local pickleball clubs.
                 </p>
                 <ul className="list-disc list-inside text-muted space-y-2">
@@ -260,7 +261,7 @@ export default function AboutPage() {
             <Link href="/" className="btn btn-secondary text-lg py-4 px-8">
               Get Started
             </Link>
-            <Link 
+            <Link
               href="/rules"
               className="btn btn-ghost text-lg py-4 px-8 border-white text-white hover:bg-white hover:text-brand-primary"
             >

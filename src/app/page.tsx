@@ -166,10 +166,9 @@ export default function Home() {
             </div>
             <nav className="hidden md:flex items-center space-x-8">
               <Link href="/about" className="nav-link">About</Link>
-              <a href="#tournaments" className="nav-link">Current Tournaments</a>
-              <Link href="/rules" className="nav-link">Rules &amp; Format</Link>
+              <a href="#tournaments" className="nav-link">Tournaments</a>
               <Link href="/pricing" className="nav-link">Pricing</Link>
-              <Link href="/club-signup" className="nav-link">Host Your Own</Link>
+              <Link href="/for-clubs" className="nav-link">For Clubs</Link>
             </nav>
             {/* Mobile Navigation */}
             <div className="md:hidden">
@@ -240,10 +239,10 @@ export default function Home() {
                   Find Tournaments
                 </a>
                 <Link
-                  href="/club-signup"
+                  href="/for-clubs"
                   className="btn btn-secondary text-lg px-8 py-4"
                 >
-                  Host Your Own
+                  For Clubs
                 </Link>
               </div>
 

@@ -50,7 +50,7 @@ export interface TournamentTypeConfig {
  */
 export const TOURNAMENT_TYPE_CONFIG: Record<TournamentType, TournamentTypeConfig> = {
   TEAM_FORMAT: {
-    displayName: 'Team Format',
+    displayName: 'Club Round-Robin',
     requiresClubs: true,
     showsStops: true,
     showsBrackets: true,
@@ -92,7 +92,7 @@ export const TOURNAMENT_TYPE_CONFIG: Record<TournamentType, TournamentTypeConfig
   },
   
   DOUBLE_ELIMINATION_CLUBS: {
-    displayName: 'Double Elimination Clubs',
+    displayName: 'Club Double Elimination',
     requiresClubs: true,
     showsStops: true, // Show location/dates tab to configure venue and tournament dates
     showsBrackets: true, // Has multiple brackets
@@ -176,10 +176,12 @@ function normalizeTournamentType(input: string): TournamentType | null {
   
   // Map display names to enum values
   const displayNameToEnum: Record<string, TournamentType> = {
-    'Team Format': 'TEAM_FORMAT',
+    'Club Round-Robin': 'TEAM_FORMAT',
+    'Team Format': 'TEAM_FORMAT', // Legacy alias
     'Single Elimination': 'SINGLE_ELIMINATION',
     'Double Elimination': 'DOUBLE_ELIMINATION',
-    'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS',
+    'Club Double Elimination': 'DOUBLE_ELIMINATION_CLUBS',
+    'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS', // Legacy alias
     'Round Robin': 'ROUND_ROBIN',
     'Pool Play': 'POOL_PLAY',
     'Ladder Tournament': 'LADDER_TOURNAMENT',

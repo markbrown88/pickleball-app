@@ -39,20 +39,22 @@ type Payload = {
 };
 
 const TYPE_LABEL_TO_ENUM: Record<string, TournamentType> = {
-  'Team Format': 'TEAM_FORMAT',
+  'Club Round-Robin': 'TEAM_FORMAT',
+  'Team Format': 'TEAM_FORMAT', // Legacy alias
   'Single Elimination': 'SINGLE_ELIMINATION',
   'Double Elimination': 'DOUBLE_ELIMINATION',
-  'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS',
+  'Club Double Elimination': 'DOUBLE_ELIMINATION_CLUBS',
+  'Double Elimination Clubs': 'DOUBLE_ELIMINATION_CLUBS', // Legacy alias
   'Round Robin': 'ROUND_ROBIN',
   'Pool Play': 'POOL_PLAY',
   'Ladder Tournament': 'LADDER_TOURNAMENT',
 };
 
 const ENUM_TO_TYPE_LABEL: Record<TournamentType, string> = {
-  TEAM_FORMAT: 'Team Format',
+  TEAM_FORMAT: 'Club Round-Robin',
   SINGLE_ELIMINATION: 'Single Elimination',
   DOUBLE_ELIMINATION: 'Double Elimination',
-  DOUBLE_ELIMINATION_CLUBS: 'Double Elimination Clubs',
+  DOUBLE_ELIMINATION_CLUBS: 'Club Double Elimination',
   ROUND_ROBIN: 'Round Robin',
   POOL_PLAY: 'Pool Play',
   LADDER_TOURNAMENT: 'Ladder Tournament',
@@ -193,7 +195,7 @@ export async function GET(_req: Request, ctx: CtxPromise) {
   return NextResponse.json({
     id: t.id,
     name: t.name,
-    type: ENUM_TO_TYPE_LABEL[t.type as TournamentType] ?? 'Team Format',
+    type: ENUM_TO_TYPE_LABEL[t.type as TournamentType] ?? 'Club Round-Robin',
     maxTeamSize: t.maxTeamSize ?? null,
     gamesPerMatch: t.gamesPerMatch ?? null,
     hasCaptains: byClubCaptain.length > 0,

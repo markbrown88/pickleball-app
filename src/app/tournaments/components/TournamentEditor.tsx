@@ -13,10 +13,10 @@ import { requiresClubs, showsStops, showsBrackets, isTeamTournament } from '@/li
 type Id = string;
 
 export type TournamentTypeLabel =
-  | 'Team Format'
+  | 'Club Round-Robin'
+  | 'Club Double Elimination'
   | 'Single Elimination'
   | 'Double Elimination'
-  | 'Double Elimination Clubs'
   | 'Round Robin'
   | 'Pool Play'
   | 'Ladder Tournament';
