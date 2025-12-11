@@ -153,11 +153,6 @@ export default async function PaymentAnalyticsPage({}: PageProps) {
     }),
   ]);
 
-  // Combine recent payments with all pending payments, removing duplicates
-  const recentPaymentIds = new Set(recentPayments.map(p => p.id));
-  const additionalPendingPayments = allPendingPayments.filter(p => !recentPaymentIds.has(p.id));
-  const combinedPayments = [...recentPayments, ...additionalPendingPayments];
-
   // Get tournament names for revenue breakdown
   const tournamentIds = revenueByTournament.map((r) => r.tournamentId);
   const tournaments = await prisma.tournament.findMany({
@@ -193,25 +188,28 @@ export default async function PaymentAnalyticsPage({}: PageProps) {
       : '0',
   };
 
+  const mapPayment = (p: typeof recentPayments[number]) => ({
+    id: p.id,
+    tournamentId: p.tournamentId,
+    tournamentName: p.tournament.name,
+    playerName:
+      p.player.name ||
+      (p.player.firstName && p.player.lastName
+        ? `${p.player.firstName} ${p.player.lastName}`
+        : p.player.firstName || 'Unknown'),
+    playerEmail: p.player.email || '',
+    amount: p.amountPaid || 0,
+    paymentStatus: p.paymentStatus,
+    registeredAt: p.registeredAt.toISOString(),
+    paymentId: p.paymentId,
+  });
+
   return (
     <PaymentAnalyticsClient
       stats={stats}
       revenueBreakdown={revenueBreakdown}
-      recentPayments={combinedPayments.map((p) => ({
-        id: p.id,
-        tournamentId: p.tournamentId,
-        tournamentName: p.tournament.name,
-        playerName:
-          p.player.name ||
-          (p.player.firstName && p.player.lastName
-            ? `${p.player.firstName} ${p.player.lastName}`
-            : p.player.firstName || 'Unknown'),
-        playerEmail: p.player.email || '',
-        amount: p.amountPaid || 0,
-        paymentStatus: p.paymentStatus,
-        registeredAt: p.registeredAt.toISOString(),
-        paymentId: p.paymentId,
-      }))}
+      initialPayments={recentPayments.map(mapPayment)}
+      initialPendingPayments={allPendingPayments.map(mapPayment)}
     />
   );
 }
