@@ -1412,7 +1412,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
               </div>
               ${hasMultipleStops ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>Stop:</strong> ${stop.name}
+                  <strong>🏁 Stop:</strong> ${stop.name}
                 </div>
               ` : ''}
               ${isTeamTournament && clubName ? `
@@ -1502,7 +1502,7 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                       Your payment for <strong>${tournamentName}</strong> has been successfully processed.
                     </p>
 
-                    <div style="background-color: #f9fafb; border-left: 4px solid #6b7280; padding: 20px; margin: 0 0 20px 0; border-radius: 4px;">
+                    <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; margin: 0 0 20px 0; border-radius: 4px;">
                       <div style="margin: 10px 0; font-size: 14px; color: #374151;">
                         <strong>Amount Paid:</strong> $${(amountPaid / 100).toFixed(2)}
                       </div>
@@ -1518,41 +1518,6 @@ export async function sendPaymentReceiptEmail(params: PaymentReceiptEmailParams)
                       ` : ''}
                     </div>
 
-                    <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
-                      <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                        <strong>Tournament:</strong> ${tournamentName}
-                      </div>
-
-                      ${clubName ? `
-                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>Team:</strong> ${clubName}
-                        </div>
-                      ` : ''}
-
-                      ${stops && stops.length > 0 && stops[0].bracketName ? `
-                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>🏆 Bracket:</strong> ${stops[0].bracketName}
-                        </div>
-                      ` : ''}
-
-                      ${stops && stops.length > 0 ? `
-                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>🏁 Stop:</strong> ${stops.length === 1 ? stops[0].name : stops.map(s => s.name).join(', ')}
-                        </div>
-                      ` : ''}
-
-                      ${stopsListHtml ? '' : (location ? `
-                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>📍 Location:</strong> ${location}
-                        </div>
-                      ` : '')}
-
-                      ${stopsListHtml ? '' : (dateRange !== 'Dates TBD' ? `
-                        <div style="margin: 10px 0; font-size: 14px; color: #374151;">
-                          <strong>📅 Dates:</strong> ${dateRange}
-                        </div>
-                      ` : '')}
-                    </div>
                     ${stopsListHtml}
 
                     <div style="background-color: #f9fafb; border-radius: 4px; padding: 20px; margin: 0 0 30px 0;">
@@ -2077,7 +2042,7 @@ export async function sendPaymentReminderEmail(params: PaymentReminderEmailParam
               </div>
               ${hasMultipleStops ? `
                 <div style="margin: 4px 0; font-size: 14px; color: #374151;">
-                  <strong>Stop:</strong> ${stop.name}
+                  <strong>🏁 Stop:</strong> ${stop.name}
                 </div>
               ` : ''}
               ${isTeamTournament && clubName ? `
