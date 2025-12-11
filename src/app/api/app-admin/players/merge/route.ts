@@ -547,15 +547,7 @@ export async function POST(req: NextRequest) {
             });
             transferred.inviteRequestsReviewed = requestsReviewed.count;
 
-            // 19. Transfer ActAs audit logs (both admin and target)
-            await tx.actAsAuditLog.updateMany({
-                where: { adminPlayerId: secondaryId },
-                data: { adminPlayerId: primaryId },
-            });
-            await tx.actAsAuditLog.updateMany({
-                where: { targetPlayerId: secondaryId },
-                data: { targetPlayerId: primaryId },
-            });
+            // Note: ActAsAuditLog table doesn't exist, skipping
 
             // 20. Delete the secondary player
             await tx.player.delete({ where: { id: secondaryId } });
