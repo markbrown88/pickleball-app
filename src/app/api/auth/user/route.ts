@@ -43,11 +43,11 @@ export async function GET(req: NextRequest) {
     });
 
 
-    // If no player found by Clerk ID, check if one exists with the same email
+    // If no player found by Clerk ID, check if one exists with the same email (case-insensitive)
     if (!player && userEmail) {
 
-      const existingPlayerByEmail = await prisma.player.findUnique({
-        where: { email: userEmail },
+      const existingPlayerByEmail = await prisma.player.findFirst({
+        where: { email: { equals: userEmail, mode: 'insensitive' } },
         include: {
           club: {
             select: {
@@ -532,7 +532,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * PUT /api/auth/user
- * Update current user's player profile
+ * Update current user's player profile (supports Act As for admins)
  */
 export async function PUT(req: NextRequest) {
   try {
@@ -563,10 +563,34 @@ export async function PUT(req: NextRequest) {
       birthday
     } = body;
 
-    // Find existing player
-    const existingPlayer = await prisma.player.findUnique({
-      where: { clerkUserId: userId }
-    });
+    // Support Act As functionality - check if admin is acting as another player
+    const actAsPlayerId = getActAsHeaderFromRequest(req);
+    let existingPlayer;
+
+    if (actAsPlayerId) {
+      // Verify the requester is an app admin
+      const adminPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId },
+        select: { isAppAdmin: true }
+      });
+
+      if (!adminPlayer?.isAppAdmin) {
+        return NextResponse.json(
+          { error: 'Only app admins can act as other players' },
+          { status: 403 }
+        );
+      }
+
+      // Find the target player being acted as
+      existingPlayer = await prisma.player.findUnique({
+        where: { id: actAsPlayerId }
+      });
+    } else {
+      // Normal operation - find player by Clerk ID
+      existingPlayer = await prisma.player.findUnique({
+        where: { clerkUserId: userId }
+      });
+    }
 
     if (!existingPlayer) {
       return NextResponse.json(
@@ -592,29 +616,6 @@ export async function PUT(req: NextRequest) {
 
       if (!club) {
         return NextResponse.json({ error: 'Club not found' }, { status: 404 });
-      }
-    }
-
-    // Check if email is already taken by another player (case-insensitive)
-    if (email !== undefined && email?.trim()) {
-      const normalizedEmail = email.trim().toLowerCase();
-      const currentEmail = existingPlayer.email?.toLowerCase();
-
-      // Only check for duplicates if the email is actually changing
-      if (normalizedEmail !== currentEmail) {
-        const existingPlayerWithEmail = await prisma.player.findFirst({
-          where: {
-            email: { equals: normalizedEmail, mode: 'insensitive' }
-          },
-          select: { id: true }
-        });
-
-        if (existingPlayerWithEmail && existingPlayerWithEmail.id !== existingPlayer.id) {
-          return NextResponse.json(
-            { error: 'This email is already in use by another player' },
-            { status: 409 }
-          );
-        }
       }
     }
 
@@ -729,7 +730,7 @@ export async function PUT(req: NextRequest) {
     };
 
     const updatedPlayer = await prisma.player.update({
-      where: { clerkUserId: userId },
+      where: { id: existingPlayer.id },
       data: finalUpdateData,
       include: {
         club: {
@@ -777,6 +778,14 @@ export async function PUT(req: NextRequest) {
       meta: error?.meta,
       stack: error?.stack
     });
+
+    // Handle unique constraint violation on email
+    if (error?.code === 'P2002' && error?.meta?.target?.includes('email')) {
+      return NextResponse.json(
+        { error: 'This email is already in use by another player' },
+        { status: 409 }
+      );
+    }
 
     // Return more detailed error information in development
     const errorMessage = process.env.NODE_ENV === 'development'

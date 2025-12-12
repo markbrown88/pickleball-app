@@ -102,10 +102,10 @@ export async function POST(req: NextRequest) {
       const email = primaryEmail.email_address.toLowerCase();
 
 
-      // Check if a Player record exists with this email (but no clerkUserId)
+      // Check if a Player record exists with this email (case-insensitive, no clerkUserId)
       const existingPlayer = await prisma.player.findFirst({
         where: {
-          email: email,
+          email: { equals: email, mode: 'insensitive' },
           clerkUserId: null,
         },
         select: {
