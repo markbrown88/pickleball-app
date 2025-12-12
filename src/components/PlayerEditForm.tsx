@@ -30,6 +30,8 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
     clubRatingDoubles: profile.clubRatingDoubles?.toString() || '',
     displayAge: profile.displayAge ?? true,
     displayLocation: profile.displayLocation ?? true,
+    interestedInWildcard: profile.interestedInWildcard ?? null,
+    interestedInCaptain: profile.interestedInCaptain || '',
   });
 
   const [clubSearch, setClubSearch] = useState(profile.club?.name || '');
@@ -272,6 +274,86 @@ export function PlayerEditForm({ profile, clubs, loading, onSave }: PlayerEditFo
                 />
               </button>
               <span className="text-sm font-medium text-primary">Display Location</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Interest Preferences */}
+        <div className="card space-y-4">
+          <h2 className="text-xl font-semibold text-primary">Interest Preferences</h2>
+          <div className="space-y-6">
+            {/* Wildcard Team Interest */}
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-2">
+                Interested in Wildcard Team?
+              </label>
+              <p className="text-xs text-muted mb-3">
+                Wildcard teams are not associated with a particular club but may be called upon for Tournaments when needed.
+              </p>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="interestedInWildcard"
+                    checked={formData.interestedInWildcard === true}
+                    onChange={() => setFormData(prev => ({ ...prev, interestedInWildcard: true }))}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-primary">Yes</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="interestedInWildcard"
+                    checked={formData.interestedInWildcard === false}
+                    onChange={() => setFormData(prev => ({ ...prev, interestedInWildcard: false }))}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-primary">No</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Captain Interest */}
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-2">
+                Interested in being a Captain?
+              </label>
+              <p className="text-xs text-muted mb-3">
+                Captains invite players to teams, manage rosters, and set team lineups.
+              </p>
+              <div className="flex gap-4 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="interestedInCaptain"
+                    checked={formData.interestedInCaptain === 'YES'}
+                    onChange={() => setFormData(prev => ({ ...prev, interestedInCaptain: 'YES' }))}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-primary">Yes</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="interestedInCaptain"
+                    checked={formData.interestedInCaptain === 'NO'}
+                    onChange={() => setFormData(prev => ({ ...prev, interestedInCaptain: 'NO' }))}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-primary">No</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="interestedInCaptain"
+                    checked={formData.interestedInCaptain === 'MAYBE'}
+                    onChange={() => setFormData(prev => ({ ...prev, interestedInCaptain: 'MAYBE' }))}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-primary">Maybe</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>

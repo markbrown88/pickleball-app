@@ -129,6 +129,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       country: player.country,
       displayAge: player.displayAge,
       displayLocation: player.displayLocation,
+      interestedInWildcard: player.interestedInWildcard,
+      interestedInCaptain: player.interestedInCaptain,
       isAppAdmin: player.isAppAdmin,
       isTournamentAdmin,
       club: player.club
@@ -276,6 +278,10 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     const displayAge = body.displayAge !== undefined ? body.displayAge : true;
     const displayLocation = body.displayLocation !== undefined ? body.displayLocation : true;
 
+    // Interest preferences
+    const interestedInWildcard = body.interestedInWildcard !== undefined ? body.interestedInWildcard : undefined;
+    const interestedInCaptain = body.interestedInCaptain !== undefined ? (body.interestedInCaptain || null) : undefined;
+
     // Construct birthday Date from year/month/day if provided
     let birthdayDate: Date | null = null;
     if (y && m && d) {
@@ -287,31 +293,37 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     const calculatedAge = y && m && d ? computeAge(y, m, d) : null;
 
     try {
+      const updateData: any = {
+        firstName,
+        lastName,
+        gender,
+        clubId,
+        name: fullName,
+        city,
+        region,
+        country,
+        phone,
+        email,
+        duprSingles,
+        duprDoubles,
+        clubRatingSingles,
+        clubRatingDoubles,
+        displayAge,
+        displayLocation,
+        birthdayYear: y,
+        birthdayMonth: m,
+        birthdayDay: d,
+        birthday: birthdayDate, // Also set the Date field for consistency
+        age: calculatedAge, // Store calculated age
+      };
+
+      // Only include interest preferences if they were provided
+      if (interestedInWildcard !== undefined) updateData.interestedInWildcard = interestedInWildcard;
+      if (interestedInCaptain !== undefined) updateData.interestedInCaptain = interestedInCaptain;
+
       const updated = await prisma.player.update({
         where: { id: playerId },
-        data: {
-          firstName,
-          lastName,
-          gender,
-          clubId,
-          name: fullName,
-          city,
-          region,
-          country,
-          phone,
-          email,
-          duprSingles,
-          duprDoubles,
-          clubRatingSingles,
-          clubRatingDoubles,
-          displayAge,
-          displayLocation,
-          birthdayYear: y,
-          birthdayMonth: m,
-          birthdayDay: d,
-          birthday: birthdayDate, // Also set the Date field for consistency
-          age: calculatedAge, // Store calculated age
-        },
+        data: updateData,
         include: { club: true },
       });
 

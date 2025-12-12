@@ -84,8 +84,8 @@ export default async function ManagerLayout({ children }: { children: ReactNode 
   const userRole = await getUserRole(user.id);
   const availableUsers = await getAvailableUsers(userRole);
 
-  // Only app-admin, tournament-admin, and event-manager can access this page
-  if (userRole !== 'app-admin' && userRole !== 'tournament-admin' && userRole !== 'event-manager') {
+  // Only app-admin and event-manager can access Match Control
+  if (userRole !== 'app-admin' && userRole !== 'event-manager') {
     redirect('/dashboard');
   }
 

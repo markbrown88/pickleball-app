@@ -62,7 +62,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect('/dashboard');
   }
 
-  if (!adminUser.isAppAdmin && !adminUser.isTournamentAdmin && !adminUser.isCaptain) {
+  // Only app-admin can access /admin/** routes (System section)
+  if (!adminUser.isAppAdmin) {
     redirect('/dashboard');
   }
 
