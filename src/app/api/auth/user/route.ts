@@ -595,18 +595,26 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Check if email is already taken by another player
+    // Check if email is already taken by another player (case-insensitive)
     if (email !== undefined && email?.trim()) {
-      const existingPlayerWithEmail = await prisma.player.findUnique({
-        where: { email: email.trim() },
-        select: { id: true }
-      });
+      const normalizedEmail = email.trim().toLowerCase();
+      const currentEmail = existingPlayer.email?.toLowerCase();
 
-      if (existingPlayerWithEmail && existingPlayerWithEmail.id !== existingPlayer.id) {
-        return NextResponse.json(
-          { error: 'This email is already in use by another player' },
-          { status: 409 }
-        );
+      // Only check for duplicates if the email is actually changing
+      if (normalizedEmail !== currentEmail) {
+        const existingPlayerWithEmail = await prisma.player.findFirst({
+          where: {
+            email: { equals: normalizedEmail, mode: 'insensitive' }
+          },
+          select: { id: true }
+        });
+
+        if (existingPlayerWithEmail && existingPlayerWithEmail.id !== existingPlayer.id) {
+          return NextResponse.json(
+            { error: 'This email is already in use by another player' },
+            { status: 409 }
+          );
+        }
       }
     }
 
