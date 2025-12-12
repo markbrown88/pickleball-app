@@ -32,6 +32,8 @@ export default async function OnboardingPage() {
       duprDoubles: true,
       clubRatingSingles: true,
       clubRatingDoubles: true,
+      interestedInWildcard: true,
+      interestedInCaptain: true,
     },
   });
 
