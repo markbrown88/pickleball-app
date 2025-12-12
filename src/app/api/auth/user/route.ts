@@ -595,6 +595,21 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Check if email is already taken by another player
+    if (email !== undefined && email?.trim()) {
+      const existingPlayerWithEmail = await prisma.player.findUnique({
+        where: { email: email.trim() },
+        select: { id: true }
+      });
+
+      if (existingPlayerWithEmail && existingPlayerWithEmail.id !== existingPlayer.id) {
+        return NextResponse.json(
+          { error: 'This email is already in use by another player' },
+          { status: 409 }
+        );
+      }
+    }
+
     // Parse birthday if provided
     let birthdayYear = existingPlayer.birthdayYear;
     let birthdayMonth = existingPlayer.birthdayMonth;
