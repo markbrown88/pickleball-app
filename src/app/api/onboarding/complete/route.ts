@@ -22,21 +22,23 @@ export async function POST(req: NextRequest) {
       gender,
       clubId,
       email,
+      birthday,
       phone,
       city,
       region,
       country,
-      birthday,
       duprSingles,
       duprDoubles,
       clubRatingSingles,
       clubRatingDoubles,
+      interestedInWildcard,
+      interestedInCaptain,
     } = body;
 
-    // Validate required fields
-    if (!firstName || !lastName || !gender || !clubId) {
+    // Validate required fields (birthday is now required)
+    if (!firstName || !lastName || !gender || !clubId || !birthday) {
       return NextResponse.json(
-        { error: 'firstName, lastName, gender, and clubId are required' },
+        { error: 'firstName, lastName, gender, clubId, and birthday are required' },
         { status: 400 }
       );
     }
@@ -123,6 +125,8 @@ export async function POST(req: NextRequest) {
         birthdayDay,
         birthday: birthdayDate,
         age: calculatedAge,
+        interestedInWildcard: typeof interestedInWildcard === 'boolean' ? interestedInWildcard : null,
+        interestedInCaptain: interestedInCaptain || null,
       },
       include: {
         club: {

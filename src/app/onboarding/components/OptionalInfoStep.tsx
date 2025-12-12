@@ -9,11 +9,12 @@ type OptionalInfoData = {
   city: string;
   region: string;
   country: string;
-  birthday: string;
   duprSingles: string;
   duprDoubles: string;
   clubRatingSingles: string;
   clubRatingDoubles: string;
+  interestedInWildcard: string;
+  interestedInCaptain: string;
 };
 
 type OptionalInfoStepProps = {
@@ -218,18 +219,88 @@ export function OptionalInfoStep({
         </div>
       </div>
 
-      {/* Birthday */}
+      {/* Interest Preferences */}
       <div>
-        <h3 className="text-lg font-semibold text-secondary mb-4">Personal Information</h3>
-        <div>
-          <label className="block text-sm font-semibold text-secondary mb-2">Birthday</label>
-          <input
-            type="date"
-            className="input w-full sm:max-w-[240px]"
-            value={formData.birthday}
-            onChange={(e) => updateField('birthday', e.target.value)}
-            max={new Date().toISOString().slice(0, 10)}
-          />
+        <h3 className="text-lg font-semibold text-secondary mb-4">Interest Preferences</h3>
+        <div className="space-y-6">
+          {/* Wildcard Team Interest */}
+          <div>
+            <label className="block text-sm font-semibold text-secondary mb-2">
+              Are you interested in being invited to play on a Wildcard Team, if needed?
+            </label>
+            <p className="text-xs text-muted mb-3">
+              Wildcard teams are not associated with a particular club but may be called upon for Tournaments when needed.
+            </p>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="interestedInWildcard"
+                  value="yes"
+                  checked={formData.interestedInWildcard === 'yes'}
+                  onChange={(e) => updateField('interestedInWildcard', e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-primary">Yes</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="interestedInWildcard"
+                  value="no"
+                  checked={formData.interestedInWildcard === 'no'}
+                  onChange={(e) => updateField('interestedInWildcard', e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-primary">No</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Captain Interest */}
+          <div>
+            <label className="block text-sm font-semibold text-secondary mb-2">
+              Are you interested in being a Klyng Cup team Captain?
+            </label>
+            <p className="text-xs text-muted mb-3">
+              Captains invite players to teams, manage rosters, and set team lineups.
+            </p>
+            <div className="flex gap-4 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="interestedInCaptain"
+                  value="YES"
+                  checked={formData.interestedInCaptain === 'YES'}
+                  onChange={(e) => updateField('interestedInCaptain', e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-primary">Yes</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="interestedInCaptain"
+                  value="NO"
+                  checked={formData.interestedInCaptain === 'NO'}
+                  onChange={(e) => updateField('interestedInCaptain', e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-primary">No</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="interestedInCaptain"
+                  value="MAYBE"
+                  checked={formData.interestedInCaptain === 'MAYBE'}
+                  onChange={(e) => updateField('interestedInCaptain', e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-primary">Maybe - tell me more</span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 

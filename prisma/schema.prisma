@@ -79,6 +79,11 @@ model Player {
   disabled               Boolean                  @default(false)
   disabledAt             DateTime?
   disabledBy             String?                  // Player ID of admin who disabled
+
+  // Interest preferences (from onboarding)
+  interestedInWildcard   Boolean?                 // Interested in playing on a Wildcard Team
+  interestedInCaptain    String?                  // Interested in being a team Captain: YES, NO, MAYBE
+
   CaptainInvite          CaptainInvite[]
   lineupEntriesAsP1      LineupEntry[]            @relation("LineupPlayer1")
   lineupEntriesAsP2      LineupEntry[]            @relation("LineupPlayer2")

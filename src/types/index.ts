@@ -21,6 +21,8 @@ export interface UserProfile {
   country: string | null;
   displayAge: boolean;
   displayLocation: boolean;
+  interestedInWildcard: boolean | null;
+  interestedInCaptain: string | null;
   isAppAdmin: boolean;
   isTournamentAdmin: boolean;
   club: {

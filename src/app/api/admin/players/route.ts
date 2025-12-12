@@ -81,6 +81,8 @@ export async function GET(req: NextRequest) {
     const showDisabled = url.searchParams.get('showDisabled') === 'true';
     const registrationStatus = url.searchParams.get('registrationStatus') || ''; // 'registered' or 'profile'
     let clubId = url.searchParams.get('clubId') || '';
+    const interestedInWildcard = url.searchParams.get('interestedInWildcard') || ''; // 'yes', 'no', or ''
+    const interestedInCaptain = url.searchParams.get('interestedInCaptain') || ''; // 'YES', 'NO', 'MAYBE', or ''
 
     // Tournament Admins can only see players from their own club
     if (!currentPlayer.isAppAdmin && isTournamentAdmin) {
@@ -130,6 +132,19 @@ export async function GET(req: NextRequest) {
       where.disabled = false;
     }
 
+    // Filter by interest preferences (App Admin only)
+    if (currentPlayer.isAppAdmin) {
+      if (interestedInWildcard === 'yes') {
+        where.interestedInWildcard = true;
+      } else if (interestedInWildcard === 'no') {
+        where.interestedInWildcard = false;
+      }
+
+      if (interestedInCaptain && ['YES', 'NO', 'MAYBE'].includes(interestedInCaptain)) {
+        where.interestedInCaptain = interestedInCaptain;
+      }
+    }
+
     const [players, total] = await Promise.all([
       prisma.player.findMany({
         where,
@@ -154,6 +169,8 @@ export async function GET(req: NextRequest) {
           disabled: true,
           disabledAt: true,
           createdAt: true,
+          interestedInWildcard: true,
+          interestedInCaptain: true,
           club: {
             select: {
               id: true,
@@ -183,6 +200,8 @@ export async function GET(req: NextRequest) {
         clubName: player.club?.name || null,
         // Map duprDoubles to dupr for backward compatibility (will be removed later)
         dupr: player.duprDoubles ?? null,
+        interestedInWildcard: player.interestedInWildcard,
+        interestedInCaptain: player.interestedInCaptain,
       };
     });
 

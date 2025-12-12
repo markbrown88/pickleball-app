@@ -34,6 +34,8 @@ type PlayerData = {
   duprDoubles: number | null;
   clubRatingSingles: number | null;
   clubRatingDoubles: number | null;
+  interestedInWildcard: boolean | null;
+  interestedInCaptain: string | null;
 };
 
 type OnboardingData = {
@@ -42,15 +44,17 @@ type OnboardingData = {
   gender: 'MALE' | 'FEMALE';
   clubId: string;
   email: string;
+  birthday: string; // YYYY-MM-DD format - required
   phone: string;
   city: string;
   region: string;
   country: string;
-  birthday: string; // YYYY-MM-DD format
   duprSingles: string;
   duprDoubles: string;
   clubRatingSingles: string;
   clubRatingDoubles: string;
+  interestedInWildcard: string; // 'yes' | 'no' | ''
+  interestedInCaptain: string;  // 'YES' | 'NO' | 'MAYBE' | ''
 };
 
 type OnboardingFlowProps = {
@@ -85,15 +89,17 @@ export function OnboardingFlow({ player, userEmail, clubs }: OnboardingFlowProps
     gender: player.gender || 'MALE',
     clubId: player.clubId || '',
     email: userEmail,
+    birthday: formatDate(player.birthdayYear, player.birthdayMonth, player.birthdayDay),
     phone: player.phone || '',
     city: player.city || '',
     region: player.region || '',
     country: player.country || 'Canada',
-    birthday: formatDate(player.birthdayYear, player.birthdayMonth, player.birthdayDay),
     duprSingles: player.duprSingles?.toString() || '',
     duprDoubles: player.duprDoubles?.toString() || '',
     clubRatingSingles: player.clubRatingSingles?.toString() || '',
     clubRatingDoubles: player.clubRatingDoubles?.toString() || '',
+    interestedInWildcard: player.interestedInWildcard === true ? 'yes' : player.interestedInWildcard === false ? 'no' : '',
+    interestedInCaptain: player.interestedInCaptain || '',
   });
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
@@ -119,6 +125,7 @@ export function OnboardingFlow({ player, userEmail, clubs }: OnboardingFlowProps
         gender: formData.gender,
         clubId: formData.clubId,
         email: formData.email.trim(),
+        birthday: formData.birthday, // Birthday is now required
       };
 
       // Only include optional fields if not skipping
@@ -127,11 +134,12 @@ export function OnboardingFlow({ player, userEmail, clubs }: OnboardingFlowProps
         payload.city = formData.city.trim() || null;
         payload.region = formData.region.trim() || null;
         payload.country = formData.country.trim() || 'Canada';
-        payload.birthday = formData.birthday || null;
         payload.duprSingles = formData.duprSingles ? parseFloat(formData.duprSingles) : null;
         payload.duprDoubles = formData.duprDoubles ? parseFloat(formData.duprDoubles) : null;
         payload.clubRatingSingles = formData.clubRatingSingles ? parseFloat(formData.clubRatingSingles) : null;
         payload.clubRatingDoubles = formData.clubRatingDoubles ? parseFloat(formData.clubRatingDoubles) : null;
+        payload.interestedInWildcard = formData.interestedInWildcard === 'yes' ? true : formData.interestedInWildcard === 'no' ? false : null;
+        payload.interestedInCaptain = formData.interestedInCaptain || null;
       }
 
       const response = await fetch('/api/onboarding/complete', {

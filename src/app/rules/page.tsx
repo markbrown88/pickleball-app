@@ -1,11 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
-import { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: "Rules & Format - Klyng Cup Pickleball Championship",
-  description: "Learn about the unique Klyng Cup tournament format, rules, and structure that makes it the ultimate pickleball championship experience.",
-};
+import { UserButton, SignedIn, SignedOut, SignInButton, SignUpButton } from '@clerk/nextjs';
 
 export default function RulesPage() {
   return (
@@ -33,9 +30,22 @@ export default function RulesPage() {
               <Link href="/for-clubs" className="nav-link">For Clubs</Link>
             </nav>
             <div className="flex items-center space-x-4">
-              <Link href="/" className="btn btn-ghost">
-                Home
-              </Link>
+              <SignedIn>
+                <div className="flex items-center space-x-4">
+                  <Link href="/dashboard" className="btn btn-primary">
+                    Dashboard
+                  </Link>
+                  <UserButton afterSignOutUrl="/" />
+                </div>
+              </SignedIn>
+              <SignedOut>
+                <SignInButton mode="modal" fallbackRedirectUrl="/dashboard">
+                  <button className="btn btn-ghost">Login</button>
+                </SignInButton>
+                <SignUpButton mode="modal" fallbackRedirectUrl="/dashboard">
+                  <button className="btn btn-primary">Sign Up</button>
+                </SignUpButton>
+              </SignedOut>
             </div>
           </div>
         </div>

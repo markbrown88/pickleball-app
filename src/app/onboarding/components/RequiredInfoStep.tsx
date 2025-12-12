@@ -16,6 +16,7 @@ type RequiredInfoData = {
   gender: 'MALE' | 'FEMALE';
   clubId: string;
   email: string;
+  birthday: string;
 };
 
 type RequiredInfoStepProps = {
@@ -51,6 +52,18 @@ export function RequiredInfoStep({ formData, clubs, onUpdate, onNext }: Required
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!formData.birthday) {
+      newErrors.birthday = 'Birthday is required for age-based brackets';
+    } else {
+      // Validate the date is valid and in the past
+      const date = new Date(formData.birthday);
+      if (isNaN(date.getTime())) {
+        newErrors.birthday = 'Please enter a valid date';
+      } else if (date > new Date()) {
+        newErrors.birthday = 'Birthday must be in the past';
+      }
     }
 
     setErrors(newErrors);
@@ -166,6 +179,22 @@ export function RequiredInfoStep({ formData, clubs, onUpdate, onNext }: Required
           </select>
           {errors.clubId && <p className="text-xs text-error mt-1">{errors.clubId}</p>}
         </div>
+      </div>
+
+      {/* Birthday */}
+      <div>
+        <label className="block text-sm font-semibold text-secondary mb-2">
+          Birthday <span className="text-error">*</span>
+        </label>
+        <input
+          type="date"
+          className={`input w-full sm:max-w-[240px] ${errors.birthday ? 'border-error' : ''}`}
+          value={formData.birthday}
+          onChange={(e) => updateField('birthday', e.target.value)}
+          max={new Date().toISOString().slice(0, 10)}
+        />
+        <p className="text-xs text-muted mt-1">Required for age-based tournament brackets</p>
+        {errors.birthday && <p className="text-xs text-error mt-1">{errors.birthday}</p>}
       </div>
 
       {/* Actions */}

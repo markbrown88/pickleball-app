@@ -66,6 +66,8 @@ export async function GET(req: Request) {
         country: player.country,
         displayAge: player.displayAge,
         displayLocation: player.displayLocation,
+        interestedInWildcard: player.interestedInWildcard,
+        interestedInCaptain: player.interestedInCaptain,
         isAppAdmin: player.isAppAdmin,
         isTournamentAdmin: false, // TODO: check tournament admin status
         club: player.club
@@ -144,6 +146,8 @@ export async function PUT(req: Request) {
       clubRatingDoubles,
       displayAge,
       displayLocation,
+      interestedInWildcard,
+      interestedInCaptain,
       imageUrl
     } = body;
 
@@ -234,6 +238,10 @@ export async function PUT(req: Request) {
     if (displayAge !== undefined) updateData.displayAge = displayAge;
     if (displayLocation !== undefined) updateData.displayLocation = displayLocation;
 
+    // Interest preferences
+    if (interestedInWildcard !== undefined) updateData.interestedInWildcard = interestedInWildcard;
+    if (interestedInCaptain !== undefined) updateData.interestedInCaptain = interestedInCaptain || null;
+
     // Profile image
     if (imageUrl !== undefined) updateData.image = imageUrl || null;
 
@@ -283,6 +291,8 @@ export async function PUT(req: Request) {
         country: player.country,
         displayAge: player.displayAge,
         displayLocation: player.displayLocation,
+        interestedInWildcard: player.interestedInWildcard,
+        interestedInCaptain: player.interestedInCaptain,
         isAppAdmin: player.isAppAdmin,
         isTournamentAdmin: false, // TODO: check tournament admin status
         club: player.club

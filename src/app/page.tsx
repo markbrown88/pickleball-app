@@ -1126,7 +1126,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-surface-1 border-t border-subtle">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-4 md:gap-8">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <div>
               <h3 className="text-xl font-bold text-primary mb-4">Klyng Cup</h3>
               <p className="text-muted mb-4">
@@ -1134,31 +1134,13 @@ export default function Home() {
               </p>
             </div>
             <div>
-              <h4 className="font-semibold text-primary mb-4">Tournament</h4>
+              <h4 className="font-semibold text-primary mb-4">Quick Links</h4>
               <ul className="space-y-2">
-                <li><a href="#tournaments" className="text-muted hover:text-primary">Current Tournaments</a></li>
+                <li><Link href="/about" className="text-muted hover:text-primary">About</Link></li>
+                <li><a href="#tournaments" className="text-muted hover:text-primary">Tournaments</a></li>
                 <li><Link href="/rules" className="text-muted hover:text-primary">Rules & Format</Link></li>
-                <li><Link href="/club-signup" className="text-muted hover:text-primary">Host Your Own</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-primary mb-4">Community</h4>
-              <ul className="space-y-2">
-                <li><Link href="/about" className="text-muted hover:text-primary">About Us</Link></li>
-                <li><Link href="/contact" className="text-muted hover:text-primary">Contact</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-primary mb-4">Account</h4>
-              <ul className="space-y-2">
-                <SignedOut>
-                  <li><SignInButton mode="modal" fallbackRedirectUrl="/dashboard"><button className="text-muted hover:text-primary">Login</button></SignInButton></li>
-                  <li><SignUpButton mode="modal" fallbackRedirectUrl="/dashboard"><button className="text-muted hover:text-primary">Sign Up</button></SignUpButton></li>
-                </SignedOut>
-                <SignedIn>
-                  <li><Link href="/dashboard" className="text-muted hover:text-primary">Dashboard</Link></li>
-                  <li><Link href="/profile" className="text-muted hover:text-primary">Profile</Link></li>
-                </SignedIn>
+                <li><Link href="/pricing" className="text-muted hover:text-primary">Pricing</Link></li>
+                <li><Link href="/for-clubs" className="text-muted hover:text-primary">For Clubs</Link></li>
               </ul>
             </div>
           </div>

@@ -95,11 +95,13 @@ export default function PlayersPage() {
   const [playersClubFilter, setPlayersClubFilter] = useState<string>(searchParams.get('clubId') || '');
   const [registrationStatusFilter, setRegistrationStatusFilter] = useState<string>(searchParams.get('regStatus') || '');
   const [showDisabledPlayers, setShowDisabledPlayers] = useState(searchParams.get('showDisabled') === 'true');
+  const [wildcardFilter, setWildcardFilter] = useState<string>(searchParams.get('wildcard') || '');
+  const [captainFilter, setCaptainFilter] = useState<string>(searchParams.get('captain') || '');
   const [clubsAll, setClubsAll] = useState<Club[]>([]);
 
   const playerSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playersRequestRef = useRef(0);
-  const playersListConfigRef = useRef({ take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter, registrationStatus: registrationStatusFilter });
+  const playersListConfigRef = useRef({ take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter, registrationStatus: registrationStatusFilter, wildcard: wildcardFilter, captain: captainFilter });
 
   // Helper to update URL with current filters
   const updateURL = useCallback((params: Record<string, string>) => {
@@ -118,18 +120,20 @@ export default function PlayersPage() {
     if (playersClubFilter) params.set('clubId', playersClubFilter);
     if (registrationStatusFilter) params.set('regStatus', registrationStatusFilter);
     if (showDisabledPlayers) params.set('showDisabled', 'true');
+    if (wildcardFilter) params.set('wildcard', wildcardFilter);
+    if (captainFilter) params.set('captain', captainFilter);
     const sort = `${playerSort.col}:${playerSort.dir}`;
     if (sort !== 'lastName:asc') params.set('sort', sort);
     const queryString = params.toString();
     return queryString ? `?${queryString}` : '';
-  }, [playerSearch, playersClubFilter, registrationStatusFilter, showDisabledPlayers, playerSort]);
+  }, [playerSearch, playersClubFilter, registrationStatusFilter, showDisabledPlayers, wildcardFilter, captainFilter, playerSort]);
 
-  const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch, showDisabled: boolean = showDisabledPlayers, regStatus: string = registrationStatusFilter) => {
+  const loadPlayersPage = useCallback(async (take: number, skip: number, sort: string, clubId: string, searchTerm: string = playerSearch, showDisabled: boolean = showDisabledPlayers, regStatus: string = registrationStatusFilter, wildcard: string = wildcardFilter, captain: string = captainFilter) => {
     const requestId = playersRequestRef.current + 1;
     playersRequestRef.current = requestId;
     try {
       const term = searchTerm.trim();
-      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}${term ? `&search=${encodeURIComponent(term)}` : ''}${showDisabled ? '&showDisabled=true' : ''}${regStatus ? `&registrationStatus=${encodeURIComponent(regStatus)}` : ''}`;
+      const query = `/api/admin/players?take=${take}&skip=${skip}&sort=${encodeURIComponent(sort)}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ''}${term ? `&search=${encodeURIComponent(term)}` : ''}${showDisabled ? '&showDisabled=true' : ''}${regStatus ? `&registrationStatus=${encodeURIComponent(regStatus)}` : ''}${wildcard ? `&interestedInWildcard=${encodeURIComponent(wildcard)}` : ''}${captain ? `&interestedInCaptain=${encodeURIComponent(captain)}` : ''}`;
       const respRaw = await api<PlayersResponse>(query);
       const resp = normalizePlayersResponse(respRaw);
       if (requestId === playersRequestRef.current) {
@@ -141,7 +145,7 @@ export default function PlayersPage() {
         setErr((e as Error).message);
       }
     }
-  }, [playerSearch, showDisabledPlayers, registrationStatusFilter]);
+  }, [playerSearch, showDisabledPlayers, registrationStatusFilter, wildcardFilter, captainFilter]);
 
   const reloadClubs = useCallback(async () => {
     const data = await api<Club[]>('/api/admin/clubs?sort=name:asc');
@@ -149,8 +153,8 @@ export default function PlayersPage() {
   }, []);
 
   useEffect(() => {
-    playersListConfigRef.current = { take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter, registrationStatus: registrationStatusFilter };
-  }, [playersPage.take, playerSort.col, playerSort.dir, playersClubFilter, registrationStatusFilter]);
+    playersListConfigRef.current = { take: playersPage.take, sort: `${playerSort.col}:${playerSort.dir}`, clubId: playersClubFilter, registrationStatus: registrationStatusFilter, wildcard: wildcardFilter, captain: captainFilter };
+  }, [playersPage.take, playerSort.col, playerSort.dir, playersClubFilter, registrationStatusFilter, wildcardFilter, captainFilter]);
 
   useEffect(() => {
     (async () => {
@@ -401,12 +405,89 @@ export default function PlayersPage() {
                       sort: `${playerSort.col}:${playerSort.dir}`,
                       clubId: playersClubFilter,
                       regStatus: registrationStatusFilter,
-                      showDisabled: checked ? 'true' : ''
+                      showDisabled: checked ? 'true' : '',
+                      wildcard: wildcardFilter,
+                      captain: captainFilter
                     });
                   }}
                 />
                 <span className="text-muted">Show disabled players</span>
               </label>
+            </div>
+          )}
+          {admin.isAppAdmin && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted">Wildcard Interest</label>
+              <select
+                className="input"
+                value={wildcardFilter}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setWildcardFilter(value);
+                  void loadPlayersPage(
+                    playersPage.take,
+                    0,
+                    `${playerSort.col}:${playerSort.dir}`,
+                    playersClubFilter,
+                    playerSearch,
+                    showDisabledPlayers,
+                    registrationStatusFilter,
+                    value,
+                    captainFilter
+                  );
+                  updateURL({
+                    search: playerSearch,
+                    sort: `${playerSort.col}:${playerSort.dir}`,
+                    clubId: playersClubFilter,
+                    regStatus: registrationStatusFilter,
+                    showDisabled: showDisabledPlayers ? 'true' : '',
+                    wildcard: value,
+                    captain: captainFilter
+                  });
+                }}
+              >
+                <option value="">All</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+          )}
+          {admin.isAppAdmin && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted">Captain Interest</label>
+              <select
+                className="input"
+                value={captainFilter}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCaptainFilter(value);
+                  void loadPlayersPage(
+                    playersPage.take,
+                    0,
+                    `${playerSort.col}:${playerSort.dir}`,
+                    playersClubFilter,
+                    playerSearch,
+                    showDisabledPlayers,
+                    registrationStatusFilter,
+                    wildcardFilter,
+                    value
+                  );
+                  updateURL({
+                    search: playerSearch,
+                    sort: `${playerSort.col}:${playerSort.dir}`,
+                    clubId: playersClubFilter,
+                    regStatus: registrationStatusFilter,
+                    showDisabled: showDisabledPlayers ? 'true' : '',
+                    wildcard: wildcardFilter,
+                    captain: value
+                  });
+                }}
+              >
+                <option value="">All</option>
+                <option value="YES">Yes</option>
+                <option value="NO">No</option>
+                <option value="MAYBE">Maybe</option>
+              </select>
             </div>
           )}
         </div>
